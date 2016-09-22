@@ -1,0 +1,97 @@
+<project name="polymap" default="dist" basedir=".">
+    
+    <description>
+        polymap: Pedigree Haplotype analyse toolkit, version 1.0
+        The polymap project may be distributed under the terms of 
+        the GNU Lesser General Public License
+    </description>
+
+    <property name="debuglevel" value="source,lines,vars"/>
+    <property name="target" value="1.7"/>
+    <property name="source" value="1.7"/>
+
+    <!-- set global properties for this build -->
+    <property name="src" location="src"/>
+    <property name="dist" location="dist"/>
+    <property name="build" location="build"/>
+    <property name="lib" location="lib"/>
+    
+    <property name="polymap" location="${dist}\polymap.1.0.jar"/>
+    
+    <path id="build.class.path">
+        <fileset dir="${lib}">
+            <include name="*.jar"/>
+            <include name="*.zip"/>
+        </fileset>
+    </path>
+
+    <pathconvert property="manifest.classpath" pathsep=" ">
+        <path refid="build.class.path"/>
+        <mapper>
+            <chainedmapper>
+                <flattenmapper/>
+                <globmapper from="*.jar" to="lib/*.jar"/>
+            </chainedmapper>
+        </mapper>
+    </pathconvert>
+    
+    
+    <target name="init">
+        
+        <!-- Create the time stamp -->
+        <tstamp>
+            <format property="" pattern=""/>
+        </tstamp>
+        
+        <!-- Create the build directory structure used by compile -->
+        <mkdir dir="${build}"/>
+        <mkdir dir="${dist}"/>
+        
+    </target>
+    
+    <target name="compile" depends="init" description="compile the source">
+        <!-- Compile the java code from ${src} into ${build} -->
+        <javac includeantruntime="false" srcdir="${src}" destdir="${build}" debug="true">
+            <classpath>
+                <pathelement path="${lib}"/>
+                <fileset dir="${lib}">
+                    <include name="**/*.jar"/>
+                    <include name="**/*.zip"/>
+                </fileset>
+            </classpath>
+        </javac>
+    </target>
+    
+    <target name="dist" depends="clean, compile" description="distribution">
+        
+        <!-- Create the distribution directory -->
+        <mkdir dir="${dist}"/>
+        
+        <copy todir="${build}" description="copy images">
+            <fileset dir="${src}">
+                <include name="**/*.gif"/>
+                <include name="**/*.GIF"/>
+                <include name="**/*.html"/>
+                <include name="**/*.xml"/>
+            </fileset>
+        </copy>
+        
+        <jar jarfile="${polymap}" basedir="${build}">
+            <manifest>
+                <attribute name="Built-by" value="${user.name}" />
+                <!-- <attribute name="Main-Class" value="org.sweetpotatogenomics.app.Main"/> -->
+            	<!-- <attribute name="Main-Class" value="org.sweetpotatogenomics.test.SingleCnvHapTest"/> -->
+                <attribute name="Main-Class" value="cz1.appl.Main"/>
+                <attribute name="Class-Path" value="${manifest.classpath}"/>
+            </manifest>
+            <fileset dir="${build}" includes="**/*.class" />
+            <zipgroupfileset dir="${lib}" includes="**/*.jar" />
+        </jar>
+
+    </target>
+
+    <target name="clean" description="clean up">
+        <delete dir="${build}"/>
+    </target>
+    
+</project>
