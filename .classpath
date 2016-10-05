@@ -13,5 +13,6 @@
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/polymap/lib/log4j-1.2.13.jar"/>
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/polymap/lib/log4j-api-2.3.jar"/>
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/polymap/lib/log4j-core-2.3.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/eclipse_jdk/ext/commons-collections4-4.1.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
