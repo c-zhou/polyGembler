@@ -2,11 +2,15 @@ package cz1.test;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import org.apache.commons.math3.distribution.BetaDistribution;
 import org.apache.commons.math3.random.RandomGenerator;
@@ -20,6 +24,54 @@ public class Test {
 
 	public static void main(String[] args) throws IOException {
 
+		Random random = new Random();
+		Map<Long, Integer> map = new HashMap<Long, Integer>();
+		for(int i=0; i<2400; i++)
+			map.put(random.nextLong(), random.nextInt());
+		long elapse = 0;
+		List<Long> keys = new ArrayList<Long>(map.keySet());
+		int nn = keys.size();
+		for(int i=0; i<164157600; i++) {
+			long x = keys.get(random.nextInt(nn));
+			long tic = System.nanoTime();
+			map.get(x);
+			elapse += System.nanoTime()-tic;
+		}
+		System.out.println(elapse);
+		
+		System.exit(1);
+		long tic;
+		double time1 = 0, time2 = 0;
+		double x;
+		double x1 = random.nextDouble(),
+				x2 = random.nextDouble();
+		for(int i=0; i<10000000; i++) {
+
+			tic = System.nanoTime();
+			x = x1*x2;
+			time2 += System.nanoTime()-tic;
+			
+			tic = System.nanoTime();
+			x = x1+x2;
+			time1 += System.nanoTime()-tic;
+			
+		}
+		System.out.println(time1+ "\t" + time2);
+		
+		System.exit(1);
+		System.out.println("Itr_sc0000111.1".replaceAll("^Itr_sc0{0,6}", "").
+				replaceAll(".1$", ""));
+		System.exit(1);
+		
+		System.out.println(Math.pow(2, 31)-1);
+		System.out.println(Integer.MAX_VALUE);
+		
+		int n = 4;
+		for(int i=0; i<n; i++) 
+			for(int j=i; j<n; j++)
+				System.out.println(j+" "+i);
+		System.out.println((long) 10032030000000000.99931);
+		
 		System.out.println(Double.MAX_VALUE);
 		System.out.println(Double.MIN_VALUE);
 		System.out.println(Constants.logThreshMax);

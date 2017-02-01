@@ -36,9 +36,11 @@ public class LinkageMapConstruction {
 		options.addOption( "c", "contig-file", true, "contig file." );
 		options.addOption( "n", "minimum-snp", true, "minimum number of SNPs to analyse." );
 		options.addOption( "o", "output", true, "output file." );
+		options.addOption( "F", "fold", false, "construted from folded scaffolds");
 		options.addOption( "t", "rf-thresh", true, "recombination frequency threshold." );
 		
 		String rfFile=null, contigFile=null, outputFile=null;
+		boolean fold = false;
 		int minimumSNP=0;
 		double thresh=1;
 		try {
@@ -61,12 +63,14 @@ public class LinkageMapConstruction {
 			}
 			if( line.hasOption("t") )
 				thresh = Double.parseDouble(line.getOptionValue('t'));
+			if( line.hasOption("F") )
+				fold = true;
 		} catch( ParseException exp ) {
 			throw new RuntimeException( "Unexpected exception:" + exp.getMessage() );
 		}
 
 		LinkageMapConstruction lmc = new LinkageMapConstruction();
-		lmc.initialise(rfFile, contigFile, minimumSNP);
+		lmc.initialise(rfFile, contigFile, minimumSNP, fold);
 		lmc.construct(outputFile, thresh);
 	}
 
@@ -130,7 +134,7 @@ public class LinkageMapConstruction {
 			new HashMap<Integer, LinkageGroupPair>();
 	private final Map<Short, Set<Double>> ContigBSTMap = new HashMap<Short, Set<Double>>();
 
-	private void initialise(String rfFile, String contigFile, int minimumSNP) {
+	private void initialise(String rfFile, String contigFile, int minimumSNP, boolean fold) {
 		try {
 			String line;
 			String[] s;
@@ -155,9 +159,19 @@ public class LinkageMapConstruction {
 			int int_key;
 			while( (line=br_rf.readLine())!=null ) {
 				s = line.split("\\s+");
-				if(!PrimitiveContigIndexMap.containsValue(s[6]) || 
-						!PrimitiveContigIndexMap.containsValue(s[7]))
-					continue;
+				if(!PrimitiveContigIndexMap.containsValue(s[6]))
+					if(fold && !primitiveContig(s[6])) {
+						MaximumContigIndex++;
+						PrimitiveContigIndexMap.put(MaximumContigIndex, s[6]);
+					}
+					else continue;
+					
+				if(!PrimitiveContigIndexMap.containsValue(s[7]))
+					if(fold && !primitiveContig(s[7])) {
+						MaximumContigIndex++;
+						PrimitiveContigIndexMap.put(MaximumContigIndex, s[7]);
+					}
+					else continue;
 				key = Double.parseDouble(s[1]);
 				c1 = PrimitiveContigIndexMap.getKey(s[6]);
 				c2 = PrimitiveContigIndexMap.getKey(s[7]);
@@ -193,6 +207,11 @@ public class LinkageMapConstruction {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+	}
+
+	private boolean primitiveContig(String scaffold) {
+		// TODO Auto-generated method stub
+		return scaffold.indexOf(':')>0;
 	}
 
 	private class Cluster {

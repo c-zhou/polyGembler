@@ -14,5 +14,38 @@
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/polymap/lib/log4j-api-2.3.jar"/>
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/polymap/lib/log4j-core-2.3.jar"/>
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/eclipse_jdk/ext/commons-collections4-4.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/freehep-graphicsio.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/freehep-graphics2d.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/jfreechart-1.0.9.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/swtgraphics2d.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/pal-1.5.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/jxl.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/json-20140107.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/jcommon-1.0.12.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/jamaNew.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/freehep-graphicsio-swf.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/freehep-graphicsio-svg.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/freehep-graphicsio-ps.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/freehep-graphicsio-ppm.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/freehep-graphicsio-pdf.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/freehep-graphicsio-java.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/freehep-graphicsio-gif.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/freehep-graphicsio-emf.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/freehep-graphicsio-cgm.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/freehep-base.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/commons-pool-1.4.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/commons-math3-3.5.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/commons-math-2.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/commons-lang3-3.4.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/commons-compress-1.2.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/commons-collections4-4.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/commons-cli-1.0.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/combinatoricslib-2.0.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/colt-1.0.3.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/cnvAssoc.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/itextpdf-5.5.10.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/itext-pdfa-5.5.10.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/itext-xtra-5.5.10.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/gicentreUtils.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

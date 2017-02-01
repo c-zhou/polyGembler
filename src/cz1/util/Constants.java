@@ -1,7 +1,9 @@
 package cz1.util;
 
+import java.awt.Font;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
+import java.util.Arrays;
 import java.util.Random;
 
 import org.apache.commons.math3.distribution.BetaDistribution;
@@ -73,6 +75,14 @@ public class Constants {
 
 	private final static Logger logger = 
 			LogManager.getLogger(Constants.class.getName());
+	public static final float state_brightness = 0.3f;
+	public static final boolean CHECK = false;
+	
+	public static  Font font16 = new Font("SansSerif", Font.PLAIN, 5);
+	public static  Font font12 = new Font("SansSerif", Font.PLAIN, 12);
+	public static  Font font6 = new Font("SansSerif", Font.PLAIN, 6);
+	
+	public static int universer_counter = 0;
 	
 	@SuppressWarnings("unused")
 	private static void check() {
@@ -87,4 +97,82 @@ public class Constants {
 		rand = new Random(seed);
 		rg = new Well19937c(seed);
 	}
+
+	
+	private static int plot = 2;
+	public static int plot() {
+		// TODO Auto-generated method stub
+		return plot;
+	}
+
+	public static char[] modify(int i) {
+		// TODO Auto-generated method stub
+		char[] x = new char[_haplotype_z];
+		Arrays.fill(x, '1');
+		return x;
+	}
+
+	public static int maxCopies() {
+		// TODO Auto-generated method stub
+		return 1;
+	}
+
+	public static int nextInt(int tot) {
+		// TODO Auto-generated method stub
+		return rand.nextInt(tot);
+	}
+	
+	public static boolean useLocInHap = false;
+	public static boolean useLocInHap() {
+		// TODO Auto-generated method stub
+		return useLocInHap;
+	}
+	
+	public static int hmmFontSize = 11;
+
+	public static int hmmFontSize(int i){
+		if(i<2){
+			return hmmFontSize;
+		}
+		return 6;
+	}
+	public static int hmmFontSize() {
+		return hmmFontSize;
+	}
+	
+	public static boolean plotFlux = true;
+
+	public static boolean plotFlux() {
+		return plotFlux;
+	}
+	
+	public static boolean[] showAll = new boolean[] { false, false};
+
+	public static boolean showAll(int i) {
+		// TODO Auto-generated method stub
+		return i>=showAll.length ? showAll[0] : showAll[i];
+	}
+	
+	public static double hmmBubblePow = 0.25;
+	public static boolean showHMM = true;
+	public static double hmmBubblePow() {
+		// TODO Auto-generated method stub
+		return hmmBubblePow;
+	}
+	
+	public static boolean printPlots() {
+		return Constants.plot==1;
+	}
+	
+	public enum ColorPalette {
+		DEFAULT, GGPLOT2
+	}
+	
+	public static ColorPalette colorPalette = ColorPalette.GGPLOT2;
+	public ColorPalette colorPalette() {
+		return Constants.colorPalette;
+	}
 }
+
+
+

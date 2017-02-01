@@ -255,6 +255,13 @@ public class DataEntry {
 		return this.position;
 	}
 	
+	public int[] getIntegerPosition() {
+		int[] d = new int[this.position.length];
+		for(int i=0; i<d.length; i++)
+			d[i] = (int) this.position[i];
+		return d;
+	}
+	
 	public List<String[]> getAllele() {
 		return this.allele;
 	}
@@ -495,5 +502,15 @@ public class DataEntry {
 		System.arraycopy(this.marker_id, 0, markers, 0, n);
 		System.arraycopy(marker_id, 0, markers, n, n2);
 		this.marker_id = markers;
+	}
+
+	public List<Character> getAlleleA() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	public List<Character> getAlleleB() {
+		// TODO Auto-generated method stub
+		return null;
 	}
 }

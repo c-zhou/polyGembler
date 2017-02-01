@@ -1,6 +1,19 @@
 package cz1.appl;
 
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.awt.print.PageFormat;
+import java.awt.print.PrinterException;
+import java.awt.print.PrinterJob;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Arrays;
+
+import javax.imageio.ImageIO;
+import javax.swing.JFrame;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -8,15 +21,41 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 
+import com.itextpdf.awt.PdfGraphics2D;
+import com.itextpdf.text.Document;
+import com.itextpdf.text.DocumentException;
+import com.itextpdf.text.Rectangle;
+import com.itextpdf.text.pdf.PdfContentByte;
+import com.itextpdf.text.pdf.PdfTemplate;
+import com.itextpdf.text.pdf.PdfWriter;
+
 import cz1.data.DataCollection;
 import cz1.data.DataEntry;
-import cz1.model.HiddenMarkovModelDupSHEXA;
-import cz1.model.HiddenMarkovModelDupSLHEX;
+import cz1.model.HiddenMarkovModelBWT;
 import cz1.model.HiddenMarkovModel;
+import cz1.model.HiddenMarkovModelVBT;
+import cz1.swing.HMMFrame;
+import cz1.swing.HMMPanel;
+import cz1.swing.Printer;
 import cz1.util.Constants;
 
 public class PolyMap {
 
+	private static HMMFrame hmmf = null;
+	private static HMMPanel hmmp = null;
+	private static String experiment = null;
+	private static String workspace = null;
+	private static String output = null;
+	private static String[] contig = null;
+	private static double[] seperation = null;
+	private static boolean dupS = false;
+	private static boolean trainExp = false;
+	private static boolean unifR = false;
+	private static boolean vbt = false;
+	private static boolean[] reverse = null;
+	private static int max_iter = 30;
+	private static int ploidy = 2;
+	
 	public static void main(String[] args) {
 
 		// create the command line parser
@@ -37,14 +76,7 @@ public class PolyMap {
 		options.addOption( "R", "direction", true, "direction.");
 		options.addOption( "t", "train-exp", false, "train the exp parameter for RF.");
 		options.addOption( "u", "unif-rand", false, "sample initial RF from a uniform distribution.");
-		
-		String experiment = null, workspace = null, output = null;
-		String[] contig = null;
-		double[] seperation = null;
-		boolean dupS = false, trainExp = false, unifR = false;
-		boolean[] reverse = null;
-		int max_iter = 30;
-		int ploidy = 2;
+		options.addOption( "v", "segmental-kmeans", false, "using segmental k-means training.");
 		
 		try {
 			// parse the command line arguments
@@ -103,6 +135,9 @@ public class PolyMap {
 			if(line.hasOption("u")) {
 				unifR = true;
 			}
+			if(line.hasOption("v")) {
+				vbt = true;
+			}
 			if(line.hasOption("p")) {
 				ploidy = Integer.parseInt(line.getOptionValue("p"));
 				Constants._ploidy_H = ploidy;
@@ -148,34 +183,98 @@ public class PolyMap {
 		/**/
 		//de.remove(new int[]{6,7,8,9,10,12,13,14});
 		
-		HiddenMarkovModel hmm;
-		if(Constants._ploidy_H<6)
-			hmm = new HiddenMarkovModelDupSLHEX(de, seperation, reverse, trainExp);
-		else
-			hmm = new HiddenMarkovModelDupSHEXA(de, seperation, reverse, trainExp);
+		//if(!vbt)
+		//	if(Constants._ploidy_H<6)
+		//		hmm = new HiddenMarkovModelDupSLHEX(de, seperation, reverse, trainExp);
+		//	else
+		//		hmm = new HiddenMarkovModelDupSHEXA(de, seperation, reverse, trainExp);
+		//else
+		final HiddenMarkovModelBWT hmm = 
+				new HiddenMarkovModelBWT(de, seperation, reverse, trainExp);
+
 		hmm.print(true);
+		
+		if(Constants.plot()>=1){
+			//SwingUtilities.in
+			Runnable run = new Runnable(){
+				public void run(){
+					hmmf = new HMMFrame();
+					hmmf.clearTabs();
+					if(Constants.showHMM) 
+						hmmp = hmmf.addHMMTab(hmm, hmm.de(), new File(workspace));
+				}
+			};
+			Thread th = new Thread(run);
+			th.run();
+		}
+		
+		if(Constants.plot()>=1){
+			hmmf.pack();
+			hmmf.setVisible(true);
+		}
 		
 		double ll, ll0 = hmm.loglik();
 		
 		for(int i=0; i<max_iter; i++) {
 			//System.out.println(i);
 			hmm.train();
+			hmmp.update();
+			
 			ll = hmm.loglik();
 			
+			System.err.println("----------loglik "+ll);
 			//hmm.print(true);
 			
-			//if(ll<ll0) {
-			//	System.err.println("error!");
-				//System.exit(1);
-			//	break;
-			//}
+			if(ll<ll0) {
+				throw new RuntimeException("!!!");
+			}
 			
 			if( ll0!=Double.NEGATIVE_INFINITY && 
 					Math.abs((ll-ll0)/ll0)< 1e-4)
 				break;
 			ll0 = ll;
+			//hmm.print(true);
 		}
 		hmm.print(true);
+		
+		/**
+		PrinterJob pjob = PrinterJob.getPrinterJob();
+		PageFormat preformat = pjob.defaultPage();
+		preformat.setOrientation(PageFormat.LANDSCAPE);
+		PageFormat postformat = pjob.pageDialog(preformat);
+		//If user does not hit cancel then print.
+		if (preformat != postformat) {
+		    //Set print component
+		    pjob.setPrintable(new Printer(hmmf.jframe), postformat);
+		    if (pjob.printDialog()) {
+		        try {
+					pjob.print();
+				} catch (PrinterException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+		    }
+		}
+		**/
+		if(true){
+		try {
+			float width = hmmf.jframe.getSize().width,
+					height = hmmf.jframe.getSize().height;
+			 Document document = new Document(new Rectangle(width, height));
+			 PdfWriter writer = PdfWriter.getInstance(document, new FileOutputStream("C:\\Users\\chenxi.zhou\\Desktop\\hmmf.pdf"));
+			 document.open();
+		     PdfContentByte canvas = writer.getDirectContent();
+		     PdfTemplate template = canvas.createTemplate(width, height);
+		     Graphics2D g2d = new PdfGraphics2D(template, width, height);
+		     hmmf.jframe.paint(g2d);
+		     g2d.dispose();
+	    	 canvas.addTemplate(template, 0, 0);
+		     document.close();
+		} catch (FileNotFoundException | DocumentException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		}
 		
 		String contig_str = contig[0];
 		for(int i=1; i<contig.length; i++) {
