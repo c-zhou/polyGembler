@@ -47,5 +47,7 @@
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/itext-pdfa-5.5.10.jar"/>
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/itext-xtra-5.5.10.jar"/>
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/gicentreUtils.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/PedigreeSim.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/Documents/git/lib_external/picard-1.102.0.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
