@@ -1,275 +1,387 @@
 package cz1.tools;
 
 import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
+import java.util.Map;
 
-import org.apache.log4j.BasicConfigurator;
-import org.apache.log4j.Logger;
-
-import cz1.util.ArgsEngine;
-import cz1.util.Utils;
 
 public class VcfToolPlugin {
 	
-	private final static Logger myLogger = 
-			Logger.getLogger(VcfToolPlugin.class);
-	private static ArgsEngine myArgsEngine = null;
-	static {
-		BasicConfigurator.configure();
-	}
-	
-	/**
 	public static void main(String[] args) {
-		//recode(args[0], args[1]);
-		//recode(args[0], args[1], args[2], 
-		//		Double.parseDouble(args[3]), 
-		//		Integer.parseInt(args[4]));
-		//statistic("C:\\Users\\chenxi.zhou\\Desktop\\genetic mapping writing-up\\metafile\\tetrasim.fb.m50.f192.vcf.gz",
-		//		"C:\\Users\\chenxi.zhou\\Desktop\\genetic mapping writing-up\\metafile\\Tetra_Trifida_out_alleledose.dat.gz",
-		//		"C:\\Users\\chenxi.zhou\\Desktop\\genetic mapping writing-up\\metafile\\tetrasim.f192.log.txt",
-		//		4);
-		//statistic("C:\\Users\\chenxi.zhou\\Desktop\\genetic mapping writing-up\\metafile\\disim.fb.m50.vcf.gz",
-		//		"C:\\Users\\chenxi.zhou\\Desktop\\genetic mapping writing-up\\metafile\\Trifida_D_out_alleledose.dat.gz",
-		//		"C:\\Users\\chenxi.zhou\\Desktop\\genetic mapping writing-up\\metafile\\disim.log.txt",
-		//		2);
-		recode(args[0], args[1]);
-	}
-	*/
-	private static void printUsage() {
-		myLogger.info(
-				"\n\nUsage is as follows:\n"
-						+ " -i  Input vcf file\n"
-						+ " -o  Output recoded vcf file.\n\n");
-	}
+		/**
+		System.out.println(nchoosek(60,30));
+		double[] ll = fit(new int[]{20,40},6);
+		for(int i=0; i<ll.length; i++)
+			System.out.println(ll[i]);
+		**/
+		if(args.length==2)
+            recode(args[0], args[1]);
+        else if(args.length==7)
+            if(Integer.parseInt(args[5])==4)
+	    	    recode4(args[0], args[1], args[2], Double.parseDouble(args[3]), Integer.parseInt(args[4]), 
+	    	    		Integer.parseInt(args[5]), Double.parseDouble(args[6]));
+	        else if(Integer.parseInt(args[5])==2)
+                recode2(args[0], args[1], args[2], Double.parseDouble(args[3]), Integer.parseInt(args[4]), 
+                		Integer.parseInt(args[5]), Double.parseDouble(args[6]));
+            else if(Integer.parseInt(args[5])==6)
+                recode6(args[0], args[1], args[2], Double.parseDouble(args[3]), Integer.parseInt(args[4]),
+                        Integer.parseInt(args[5]), Double.parseDouble(args[6]));
+        else
+            throw new RuntimeException("!!!");
+    }
 
-	public static void main(String[] args) {
-		if (args.length == 0) {
-			printUsage();
-			throw new IllegalArgumentException("\n\nPlease use the above arguments/options.\n\n");
-		}
+    private static void recode6(String in, String out, String log, double thres, int nF1, int ploidy, double avg_dp) {
+        String snp;
+        String[] s, info;
+        double max_dp = avg_dp*nF1*1.5;
+        StringBuilder os = new StringBuilder();
+        
+        try {
+            BufferedReader br = new BufferedReader(new FileReader(in));
+            BufferedWriter bw = new BufferedWriter(new FileWriter(out));
+            BufferedWriter log_f = new BufferedWriter(new FileWriter(log));
+            int[] dp = new int[2];
+            Set<String> f1 = new HashSet<String>();
+            for(int i=1; i<=nF1-2; i++)
+                f1.add("Mx23Hm6F"+i);
+            f1.add("Mx23Hm6P1");
+            f1.add("Mx23Hm6P2");
+            int[] index = new int[nF1];
+            while( (snp=br.readLine())!=null ) {
+                if(snp.startsWith("##")) {
+                    bw.write(snp+"\n");
+                    continue;
+                }
+                if(snp.startsWith("#")) {
+                    os.setLength(0);
+                    s = snp.split("\\s+");
+                    for(int i=0; i<8; i++) {
+                        os.append(s[i]);
+                        os.append("\t");
+                    }
+                    os.append(s[8]);
+                    int k=0;
+                    for(int i=9; i<s.length; i++)
+                        if(f1.contains(s[i])) {
+                            index[k++] = i;
+                            os.append("\t");
+                            os.append(s[i]);
+                        }
+                    os.append("\n");
+                    bw.write(os.toString());
+                    for(int i : index)
+                        System.out.print(i+"\t");
+                    System.out.println();
+                    continue;
+                }
+                s = snp.split("\\s+");
+                if(Double.parseDouble(s[5])<100) {
+                    log_f.write("QUAL| "+snp+"\n");
+                    continue;
+                }
+                
+                double af = Double.parseDouble(s[7].
+                        split(";")[3].
+                        split("=|,")[1]);
+                if(af>.9 || af<.1) {
+                    log_f.write("MAF | "+snp+"\n");
+                    continue;
+                }
+                
+                double d = Double.parseDouble(s[7].
+                        split(";")[7].
+                        split("=")[1]);
+                if(d>max_dp) {
+                    log_f.write("DUP | "+snp+"\n");
+                    continue;
+                }
+                os.setLength(0);
+                os.append(s[0]);
+                os.append("\t");
+                os.append(s[1]);
+                os.append("\t");
+                os.append(s[2]);
+                os.append("\t");
+                os.append('A');
+                os.append("\t");
+                os.append('B');
+                info = s[4].split(",");
+                if(info.length>2) {
+                    log_f.write("MNP | "+snp+"\n");
+                    continue;
+                }
+                boolean MNP = info.length>1,
+                        MN = false;
+                for(int i=5; i<8; i++) {
+                    os.append("\t");
+                    os.append(s[i]);
+                }
+                os.append("\tGT:AD:DP:GQ:PL");
+                double m=0;
+                for(int i : index) {
+                    os.append("\t");
+                    info = s[i].split(":");
+                    if(s[i].startsWith(".")) {
+                        os.append("./.:0,0:0:0:0,0,0,0,0,0,0");
+                        m+=1.0;
+                        continue;
+                    }
+                    if(MNP && info[0].indexOf("0")>-1) {
+                        log_f.write("MNP | "+snp+"\n");
+                        MN = true;
+                        break;
+                    }
+                    if(MNP) {
+                        dp[0] = Integer.parseInt(info[6].split(",")[0]);
+                        dp[1] = Integer.parseInt(info[6].split(",")[1]);
+                        double[] ll = new double[ploidy+1];
+                        double gq = fit(ll, dp, ploidy);
+                        os.append(uniGT(ll));
+                        os.append(":");
+                        os.append(info[6]);
+                        os.append(":");
+                        os.append(dp[0]+dp[1]);
+                        os.append(":");
+                        os.append(gq);
+                        os.append(":");
+                        os.append(cat(ll,","));
+                    } else {
+                        dp[0] = Integer.parseInt(info[4]);
+                        dp[1] = Integer.parseInt(info[6]);
+                        double[] ll = new double[ploidy+1];
+                        double gq = fit(ll, dp, ploidy);
+                        os.append(uniGT(ll));
+                        os.append(":");
+                        os.append(info[4]);
+                        os.append(",");
+                        os.append(info[6]);
+                        os.append(":");
+                        os.append(dp[0]+dp[1]);
+                        os.append(":");
+                        os.append(gq);
+                        os.append(":");
+                        os.append(cat(ll,","));
+                    }
+                }
+                os.append("\n");
+                if(m/nF1>thres && !MN) {
+                    log_f.write("MIS | "+snp+"\n");
+                    continue;
+                }
+                if(!MN) bw.write(os.toString());
+            }
+            br.close();
+            bw.close();
+            log_f.close();
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+    }
 
-		if (myArgsEngine == null) {
-			myArgsEngine = new ArgsEngine();
-			myArgsEngine.add("-i", "--input-vcf", true);
-			myArgsEngine.add("-o", "--output-vcf", true);
-			myArgsEngine.parse(args);
-		}
+    private static void recode2(String in, String out, String log, double thres, int nF1, int ploidy, double avg_dp) {
+        String snp;
+        String[] s, s0, info;
+        StringBuilder os = new StringBuilder();
+        double max_dp = avg_dp*nF1*1.5;
+        try {
+            BufferedReader br = new BufferedReader(new FileReader(in));
+            BufferedWriter bw = new BufferedWriter(new FileWriter(out));
+            BufferedWriter log_f = new BufferedWriter(new FileWriter(log));
+            int[] dp = new int[2];
+            
+            while( (snp=br.readLine())!=null ) {
+                if(snp.startsWith("#")) {
+                    bw.write(snp+"\n");
+                    continue;
+                }                                                                                    
+                s = snp.split("\\s+");
+                
+                if(Double.parseDouble(s[5])<100)
+                    continue;
+                
+                double af = Double.parseDouble(s[7].
+                        split(";")[3].
+                        split("=|,")[1]);
+                if(af>.9 || af<.1) {
+                    log_f.write("MAF | "+snp+"\n");
+                    continue;
+                }
+                
+                double d = Double.parseDouble(s[7].
+                        split(";")[7].
+                        split("=")[1]);
+                if(d>max_dp) {
+                    log_f.write("DUP | "+snp+"\n");
+                    continue;
+                }
 
-		String in=null, out=null;
-		if (myArgsEngine.getBoolean("-i")) {
-			in = myArgsEngine.getString("-i");
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify input vcf file.");
-		}
+                os.setLength(0);
+                os.append(s[0].replaceAll("^Itr_sc0{0,9}","").replaceAll("\\.1$",""));
+                os.append("\t");
+                os.append(s[1]);
+                os.append("\t");
+                os.append(s[2]);
+                os.append("\t");
+                os.append('A');
+                os.append("\t");
+                os.append('B');
+                info = s[4].split(",");
+                if(info.length>2) {
+                    log_f.write("MNP | "+snp+"\n");
+                    continue;
+                }
+                if(info.length>2) continue;
+                boolean MNP = info.length>1,
+                        MN = false;
+                for(int i=5; i<8; i++) {
+                    os.append("\t");
+                    os.append(s[i]);
+                }
+                
+                os.append("\tGT:AD:DP:GQ:PL");
+                double m=0;
+                
+                for(int i=9; i<s.length; i++) {
+                    os.append("\t");
+                    info = s[i].split(":");
+                    if(s[i].startsWith(".")) {
+                        os.append("./.:0,0:0:0:0,0,0");
+                        m+=1.0;
+                        continue;
+                    }
+                    if(MNP && info[0].indexOf("0")>-1) {
+                        log_f.write("MNP | "+snp+"\n");
+                        MN = true;
+                        break;
+                    }
+                    
+                    if(MNP) {
+                    	dp[0] = Integer.parseInt(info[6].split(",")[0]);
+                        dp[1] = Integer.parseInt(info[6].split(",")[1]);
+                        double[] ll = new double[ploidy+1];
+                        double gq = fit(ll, dp, ploidy);
+                        os.append(uniGT(ll));
+                        os.append(":");
+                        os.append(info[6]);
+                        os.append(":");    
+                        os.append(dp[0]+dp[1]);
+                        os.append(":");
+                        os.append(gq);
+                        os.append(":");
+                        os.append(cat(ll,","));
+                        /**
+                        s0 = info[8].split(",");
+                        os.append(-10.0*Double.parseDouble(s0[2]));
+                        os.append(",");
+                        os.append(-10.0*Double.parseDouble(s0[4]));
+                        os.append(",");
+                        os.append(-10.0*Double.parseDouble(s0[5]));
+                    	**/
+                    } else {
+                    	dp[0] = Integer.parseInt(info[4]);
+                        dp[1] = Integer.parseInt(info[6]);
+                        double[] ll = new double[ploidy+1];
+                        double gq = fit(ll, dp, ploidy);
+                        os.append(uniGT(ll));
+                        os.append(":");
+                        os.append(info[4]);
+                        os.append(",");
+                        os.append(info[6]);
+                        os.append(":");
+                        os.append(dp[0]+dp[1]);
+                        os.append(":");
+                        os.append(gq);
+                        os.append(":");
+                        os.append(cat(ll,","));
 
-		if (myArgsEngine.getBoolean("-o")) {
-			out = myArgsEngine.getString("-o");
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify output vcf file.");
-		}
-		
-		recode(in, out);
-	}
-	
-	
-	private static void statistic(String vcf, String dose, 
-			String out, int ploidy) {
-		
-		BufferedReader br_vcf = Utils.getBufferedReader(vcf);
-		BufferedReader br_dose = Utils.getBufferedReader(dose);
-		BufferedWriter wr_log = Utils.getBufferedWriter(out);
-		String line_snp, line_dosa;
-		String[] s, snp, dosa;
-		int all=0, fp=0, tp=0, error=0, miss=0;
-		int[][] tr = new int[ploidy+1][ploidy+1];;
-		try {
-			line_dosa = br_dose.readLine();
-			s = line_dosa.split("\\s+");
-			List<String> header = new ArrayList<String>();
-			for(int i=0; i<s.length; i++) 
-				header.add(s[i]);
-			int[] indices = null;
-			boolean shift = true;
-			while( (line_snp=br_vcf.readLine())!=null ) {
-				//if(line_snp.startsWith("scaffold_chrom2_1535_244830"))
-				//	System.out.println(line_snp);
-				if( line_snp.startsWith("##"))
-					continue;
-				if( line_snp.startsWith("#")) {
-					s = line_snp.split("\\s+");
-					indices =  new int[s.length];
-					for(int i=9; i<s.length; i++)
-						indices[i] = header.indexOf(s[i]);
-					continue;
-				}
-				all++;
-				if(all%1000==0) 
-					System.out.println(all+" done."+
-							tp+" true positive."+
-							error+" errors."+
-							miss+" missings.");
-				snp = line_snp.split("\\s+");
-				s = snp[0].split("_");
-				int chrom = Integer.parseInt(
-						s[1].replace("chrom", ""));
-				int position = Integer.parseInt(s[2])+
-						Integer.parseInt(snp[1])-1;
-				boolean target = false;
-				if(shift) line_dosa = br_dose.readLine();
-				while( line_dosa!=null ) {
-					//if(line_dosa.startsWith("CHROM2"))
-					//	System.out.println("CHROM2");
-					int c = compare(line_dosa, 
-							chrom, 
-							position);
-					if(c==0) {
-						target = true;
-						shift = true;
-						break;
-					}
-					if(c>0) {
-						shift = false;
-						break;
-					}
-					line_dosa=br_dose.readLine();
-				}
-				if(!target) {
-					fp++;
-				} else {
-					tp++;
-					//System.out.println(line_dosa);
-					//System.out.println(line_snp);
-					
-					dosa = line_dosa.split("\\s+");
-					StringBuilder os = new StringBuilder(); 
-					os.append(snp[0]);
-					os.append("\t");
-					os.append(snp[1]);
-					os.append("\t");
-					os.append(dosa[0]);
-					int e0=0, e1=0;
-					int[][] tr0 = new int[ploidy+1][ploidy+1],
-							tr1 = new int[ploidy+1][ploidy+1];
-					for(int i=9; i<snp.length; i++) {
-						s = snp[i].split(":");
-						miss += miss(s[0]);
-						int[] e = error(s[0], 
-								dosa[indices[i]], '0');
-						if(e!=null) {
-							if(e[0]!=e[1]) e0++;
-							tr0[e[0]][e[1]]++;
-						}
-						e = error(s[0],
-								dosa[indices[i]], '1');
-						if(e!=null) {
-							if(e[0]!=e[1]) e1++;
-							tr1[e[0]][e[1]]++;
-						}
-						os.append("\t");
-						os.append(s[0]);
-						os.append("(");
-						os.append(dosa[indices[i]]);
-						os.append(")");
-					}
-					os.append("\n");
-					error += Math.min(e0, e1);
-					if(e0<e1) {
-						for(int i=0; i<tr0.length; i++)
-							for(int j=0; j<tr0[i].length; j++)
-								tr[i][j] += tr0[i][j];
-					} else {
-						for(int i=0; i<tr1.length; i++)
-							for(int j=0; j<tr1[i].length; j++)
-								tr[i][j] += tr1[i][j];
-					}
-					wr_log.write(os.toString());
-				}
-			}
-			wr_log.write("##SNPs  "+all+"\n");
-			wr_log.write("##FP 	  "+fp+"\n");
-			wr_log.write("##TP 	  "+tp+"\n");
-			wr_log.write("##MISS  "+miss+"\n");
-			wr_log.write("##ERROR "+error+"\n");
-			wr_log.write("##TRANS "+"\n");
-			wr_log.write("#\t");
-			for(int i=0; i<=ploidy; i++)
-				wr_log.write("\t\t"+i);
-			wr_log.write("\n");
-			for(int i=0; i<tr.length; i++) {
-				wr_log.write("#"+i+"\t");
-				for(int j=0; j<tr[i].length; j++)
-					wr_log.write("\t\t"+tr[i][j]);
-				wr_log.write("\n");
-			}
-			br_vcf.close();
-			br_dose.close();
-			wr_log.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-	
-	private static int miss(String snp) {
-		// TODO Auto-generated method stub
-		return snp.startsWith(".") ? 1 : 0;
-	}
+                        /**
+                        s0 = info[8].split(",");
+                        os.append(-10.0*Double.parseDouble(s0[0]));
+                        os.append(",");
+                        os.append(-10.0*Double.parseDouble(s0[1]));
+                        os.append(",");
+                        os.append(-10.0*Double.parseDouble(s0[2]));
+                    	**/
+                    }
+                }
+        
+                os.append("\n");
+                if(m/nF1>thres && !MN) {
+                    log_f.write("MIS | "+snp+"\n");
+                    continue;
+                }
+                if(!MN) bw.write(os.toString());
+            }
+                  
+            br.close();
+            bw.close();
+            log_f.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
 
-	private static int[] error(String snp, 
-			String dose, char ref) {
-		// TODO Auto-generated method stub
-		if(snp.startsWith("."))
-			return null;
-		int d = 0;
-		for(int i=0; i<snp.length(); i+=2)
-			if(snp.charAt(i)==ref)
-				d++;
-		return new int[]{Integer.parseInt(dose), d};
-	}
-	
-	private static int compare(String line, 
-			int chrom, 
-			int position) {
-		// TODO Auto-generated method stub
-		String s[] = line.split("\\s+")[0].split("\\.");
-		int chr = Integer.parseInt(s[0].replace("CHROM", ""));
-		int pos = Integer.parseInt(s[1]);
-		if(chr<chrom) return -1;
-		if(chr==chrom) return pos-position;
-		if(chrom>chr) return 1;
-		return 0;
-	}
-
-	private static void recode(String in, String out, String log, double thres, int nF1) {
-		BufferedReader br = Utils.getBufferedReader(in);
-		BufferedWriter bw = Utils.getBufferedWriter(out);
-		BufferedWriter log_f = Utils.getBufferedWriter(log);
+    }
+    
+    private final static double err = 0.01;
+    private static double fit(double[] ll, int[] depth, int ploidy) {
+    	int d = depth[0]+depth[1];
+    	double maxLL = Double.NEGATIVE_INFINITY;
+        for(int i=0; i<ll.length; i++) {
+    		double pa = ((ploidy-i)*(1-err)+i*err)/ploidy;
+    		double nk = Math.log10(nchoosek(d, depth[0]));
+    		ll[i] = nk+depth[0]*Math.log10(pa)+
+    				depth[1]*Math.log10(1-pa);
+    		if(ll[i]>maxLL) maxLL = ll[i];
+    	}
+    	for(int i=0; i<ll.length; i++) ll[i] = 10*(maxLL-ll[i]);
+        double gq = Double.POSITIVE_INFINITY;
+        double pseudo_zero = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < ll.length; i++) {
+            if (ll[i] < pseudo_zero) {
+                gq = pseudo_zero;
+                pseudo_zero = ll[i];
+            } else if (ll[i] < gq) {
+                gq = ll[i];
+            }
+        }
+        return gq;
+    }
+    
+    private static double nchoosek(int n, int k) {
+        if (k<0||k>n) return 0;
+        if (k>n/2) k=n-k;
+        double choose = 1.0;
+        for (int i=1; i<=k; i++) {
+            choose *= (n+1-i);
+            choose /= i;
+        }
+        return choose;
+    }
+    
+	private static void recode4(String in, String out, String log, double thres, int nF1, int ploidy, double avg_dp) {
 		String snp;
 		String[] s, info;
-		StringBuilder os = new StringBuilder();
-	
-		Map<String, String> pl = new HashMap<String, String>();
-		pl.put("0/0/0/0", "0,255,255,255,255");
-		pl.put("0/0/0/1", "255,0,255,255,255");
-		pl.put("0/0/1/1", "255,255,0,255,255");
-		pl.put("0/1/1/1", "255,255,255,0,255");
-		pl.put("1/1/1/1", "255,255,255,255,0");
-		
-		try {
-
-			Set<String> f1 = new HashSet<String>();
+		double max_dp = avg_dp*nF1*1.5;
+        StringBuilder os = new StringBuilder();
+        try {
+            BufferedReader br = new BufferedReader(new FileReader(in));
+            BufferedWriter bw = new BufferedWriter(new FileWriter(out));
+            BufferedWriter log_f = new BufferedWriter(new FileWriter(log));
+			
+            int[] dp = new int[2];
+            Set<String> f1 = new HashSet<String>();
 			for(int i=1; i<=nF1-2; i++)
-				f1.add("F"+i);
-			f1.add("P1");
-			f1.add("P2");
+				f1.add("Mx23Hm4F"+i);
+			f1.add("Mx23Hm4P1");
+			f1.add("Mx23Hm4P2");
 			int[] index = new int[nF1];
 			while( (snp=br.readLine())!=null ) {
 				if(snp.startsWith("##")) {
@@ -293,22 +405,35 @@ public class VcfToolPlugin {
 						}
 					os.append("\n");
 					bw.write(os.toString());
+                    for(int i : index)
+                        System.out.print(i+"\t");
+                    System.out.println();
 					continue;
 				}
 				s = snp.split("\\s+");
-				if(Double.parseDouble(s[5])<100) {
-					log_f.write("QUAL| "+snp+"\n");
-					continue;
-				}
-				double af = Double.parseDouble(s[7].
-						split(";")[3].
-						split("=|,")[1]);
-				if(af>.9 || af<.1) {
-					log_f.write("MAF | "+snp+"\n");
-					continue;
-				}
 				
-				os.setLength(0);
+                if(Double.parseDouble(s[5])<100) {
+                    log_f.write("QUAL| "+snp+"\n");
+                    continue;
+                }
+                
+                double af = Double.parseDouble(s[7].
+                        split(";")[3].
+                        split("=|,")[1]);
+                if(af>.9 || af<.1) {
+                    log_f.write("MAF | "+snp+"\n");
+                    continue;
+                }
+
+                double d = Double.parseDouble(s[7].
+                        split(";")[7].
+                        split("=")[1]);
+                if(d>max_dp) {
+                    log_f.write("DUP | "+snp+"\n");
+                    continue;
+                }
+                                                                
+                os.setLength(0);
 				os.append(s[0]);
 				os.append("\t");
 				os.append(s[1]);
@@ -319,12 +444,12 @@ public class VcfToolPlugin {
 				os.append("\t");
 				os.append('B');
 				info = s[4].split(",");
-				if(info.length>2) {
-					log_f.write(snp+"\n");
-					continue;
-				}
-				boolean MNP = info.length>1,
-						MN = false;
+                if(info.length>2) {
+                    log_f.write("MNP | "+snp+"\n");
+                    continue;
+                }
+                boolean MNP = info.length>1,
+                        MN = false;
 				for(int i=5; i<8; i++) {
 					os.append("\t");
 					os.append(s[i]);
@@ -334,66 +459,116 @@ public class VcfToolPlugin {
 				for(int i : index) {
 					os.append("\t");
 					info = s[i].split(":");
-					if(s[i].startsWith(".") || 
-							Double.parseDouble(info[1])<20) {
+					if(s[i].startsWith(".")) {
 						os.append("./.:0,0:0:0:0,0,0,0,0");
 						m+=1.0;
 						continue;
 					}
 					if(MNP && info[0].indexOf("0")>-1) {
-						log_f.write(snp+"\n");
+                        log_f.write("MNP | "+snp+"\n");
 						MN = true;
-						break;
+                        break;
 					}
-										
-					String gt = null;
-					gt = MNP ? info[0]
-							.replaceAll("1", "0")
-							.replaceAll("2", "1") : info[0];
-					os.append(gt);
-					os.append(":");
-					os.append(info[3]);
-					os.append(",");
-					os.append(info[5]);
-					os.append(":");
-					os.append(info[2]);
-					os.append(":");
-					os.append((int)Math.round(Double.parseDouble(info[1])));
-					os.append(pl.get(gt));
-				}
+					if(MNP) {
+						dp[0] = Integer.parseInt(info[6].split(",")[0]);
+                        dp[1] = Integer.parseInt(info[6].split(",")[1]);
+                        double[] ll = new double[ploidy+1];
+                        double gq = fit(ll, dp, ploidy);
+                        os.append(uniGT(ll));
+                        os.append(":");
+                        os.append(info[6]);
+                        os.append(":");    
+                        os.append(dp[0]+dp[1]);
+                        os.append(":");
+                        os.append(gq);
+                        os.append(":");
+                        os.append(cat(ll,","));
+                    } else {
+						dp[0] = Integer.parseInt(info[4]);
+                        dp[1] = Integer.parseInt(info[6]);
+                        double[] ll = new double[ploidy+1];
+                        double gq = fit(ll, dp, ploidy);
+                        os.append(uniGT(ll));
+                        os.append(":");
+                        os.append(info[4]);
+                        os.append(",");
+                        os.append(info[6]);
+                        os.append(":");
+                        os.append(dp[0]+dp[1]);
+                        os.append(":");
+                        os.append(gq);
+                        os.append(":");
+                        os.append(cat(ll,","));
+                    }
+                }
 				os.append("\n");
 				if(m/nF1>thres && !MN) {
-					log_f.write(snp+"\n");
-					continue;
-				} 
-				if(!MN)	bw.write(os.toString());
+					log_f.write("MIS | "+snp+"\n");
+                    continue;
+				}
+                if(!MN) bw.write(os.toString());
 			}
 			br.close();
 			bw.close();
-			log_f.close();
+            log_f.close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
 	
+	private static String cat(double[] ds, String delimeter) {
+		// TODO Auto-generated method stub
+		StringBuilder os = new StringBuilder();
+		os.append(ds[0]);
+		for(int i=1; i<ds.length; i++) {
+			os.append(delimeter);
+			os.append(ds[i]);
+		}
+		return os.toString();
+	}
+
+    private static String cat(int[] ds, String delimeter) {
+        // TODO Auto-generated method stub
+        StringBuilder os = new StringBuilder();
+        os.append(ds[0]);
+        for(int i=1; i<ds.length; i++) {
+            os.append(delimeter);
+            os.append(ds[i]);
+        }
+        return os.toString();
+    }
+
+    private static String uniGT(double[] ll) {
+        // TODO Auto-generated method stub
+        int l = ll.length-1;
+        int[] g = new int[l];
+        for(int i=0; i<l; i++) 
+            if(ll[i]!=0)
+                g[l-1-i]=1;
+            else break;
+        return cat(g, "/");
+    }
+
 	private static void recode(String in, String out) {
-		BufferedReader br = Utils.getBufferedReader(in);
-		BufferedWriter bw = Utils.getBufferedWriter(out);
 		String snp;
 		String[] s, info, qs;
-		double[] q;
-		Map<String, Integer> fieldMap = new HashMap<String, Integer>();
+	    double[] q;
 		StringBuilder os = new StringBuilder();
 		try {
-			while( (snp=br.readLine())!=null ) {
+		        
+            BufferedReader br = new BufferedReader(new FileReader(in));
+            BufferedWriter bw = new BufferedWriter(new FileWriter(out));
+
+            while( (snp=br.readLine())!=null ) {
 				if(snp.startsWith("#")) {
 					bw.write(snp+"\n");
 					continue;
 				}
 				s = snp.split("\\s+");
 				os.setLength(0);
-				os.append(s[0].replace(".", "_"));
+				os.append(s[0].replaceAll("^Itr_sc0{0,9}", "").
+						replace(".1", ""));
 				os.append("\t");
 				os.append(s[1]);
 				os.append("\t");
@@ -406,12 +581,6 @@ public class VcfToolPlugin {
 					os.append("\t");
 					os.append(s[i]);
 				}
-				if(fieldMap.isEmpty()) {
-					info = s[8].split(":");
-					for(int i=0; i<info.length; i++) {
-						fieldMap.put(info[i], i);
-					}
-				}
 				os.append("\tGT:AD:DP:GQ:PL");
 				for(int i=9; i<s.length; i++) {
 					os.append("\t");
@@ -420,21 +589,20 @@ public class VcfToolPlugin {
 						continue;
 					}
 					info = s[i].split(":");
-					os.append(info[fieldMap.get("GT")]);
+					/**
+                    os.append(info[0]);
 					os.append(":");
-					os.append(info[fieldMap.get("RO")]);
+					os.append(info[2]);
 					os.append(",");
-					os.append(info[fieldMap.get("AO")]);
+					os.append(info[4]);
 					os.append(":");
-					os.append(info[fieldMap.get("DP")]);
+					os.append(info[1]);
 					os.append(":");
-					os.append(info[fieldMap.get("GQ")]);
-					os.append(":");
-					qs = info[fieldMap.get("GL")].split(",");
-					q = new double[qs.length];
+					qs = info[6].split(",");
+					q = new int[qs.length];
 					for(int k=0; k<q.length; k++)
-						q[k] = -10*Double.parseDouble(qs[k]);
-					/***
+						q[k] = (int) Math.round(
+								-10*Double.parseDouble(qs[k]));
 					int gq = Integer.MAX_VALUE;
 					boolean b = false;
 					for(int k=0; k<q.length; k++) 
@@ -446,12 +614,32 @@ public class VcfToolPlugin {
 						}
 					os.append(gq);
 					os.append(":");
-					*/
-					os.append(String.format("%.3f", q[0]));
+					os.append(q[0]);
 					for(int k=1; k<q.length; k++) {
 						os.append(",");
-						os.append(String.format("%.3f", q[k]));
+						os.append(q[k]);
 					}
+                    **/
+
+                    os.append(info[0]);
+                    os.append(":");
+                    os.append(info[4]);
+                    os.append(",");
+                    os.append(info[6]);
+                    os.append(":");
+                    os.append(info[2]);
+                    os.append(":");
+                    os.append(info[1]);
+                    qs = info[8].split(",");
+                    q = new double[qs.length];
+                    for(int k=0; k<q.length; k++)
+                        q[k] = -10.0*Double.parseDouble(qs[k]);
+                    os.append(":");
+                    os.append(q[0]);
+                    for(int k=1; k<q.length; k++) {
+                        os.append(",");
+                        os.append(q[k]);
+                    }
 				}
 				os.append("\n");
 				bw.write(os.toString());

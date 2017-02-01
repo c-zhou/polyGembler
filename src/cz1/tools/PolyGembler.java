@@ -39,7 +39,7 @@ import cz1.swing.HMMPanel;
 import cz1.swing.Printer;
 import cz1.util.Constants;
 
-public class PolyMap {
+public class PolyGembler {
 
 	private static HMMFrame hmmf = null;
 	private static HMMPanel hmmp = null;
