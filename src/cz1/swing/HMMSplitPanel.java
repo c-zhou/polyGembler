@@ -152,8 +152,14 @@ public class HMMSplitPanel extends JPanel implements PropertyChangeListener{
 		// this.hittingProb = hmm.getHittingProb(hmm.noSnps);
 		this.setLayout(new BorderLayout());
 		//this.locP = new LocPanel(location,location.size()*mult, 50, this.offset_x, "hmm");
-		this.locP = new LocPanel(location,location.size()*mult, 50, new double[]{this.getX(0, false)+shift, 
-			this.getX(hmm.noSnps(), false)+shift}, "hmm");
+		double[] x_coor = new double[this.noSnps];
+		for(int i=0; i<this.noSnps; i++) x_coor[i] = this.getX(i, false)+shift;
+		this.locP = new LocPanel(location,
+				dim.width, 
+				50,
+				new double[]{x_coor[0], this.dim.width-x_coor[this.noSnps-1]},
+				x_coor,
+				"hmm");
 		JSplitPane sjp2 = new JSplitPane(JSplitPane.VERTICAL_SPLIT,locP, ratePanel);
 		sjp2.setDividerLocation(0.2);
 		JSplitPane sjp =   new JSplitPane1(JSplitPane.VERTICAL_SPLIT,  

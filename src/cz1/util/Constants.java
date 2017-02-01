@@ -172,6 +172,18 @@ public class Constants {
 	public ColorPalette colorPalette() {
 		return Constants.colorPalette;
 	}
+	
+	public static double haldane(double r) {
+		// TODO Auto-generated method stub
+		return -.5*Math.log(1-2*r)/Constants._con_base_r;
+	}
+
+	public static boolean isRF(double[] rf) {
+		// TODO Auto-generated method stub
+		for(int i=0; i<rf.length; i++)
+			if(rf[i]>1.0) return false;
+		return true;
+	}
 }
 
 

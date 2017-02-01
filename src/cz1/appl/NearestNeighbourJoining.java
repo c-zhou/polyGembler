@@ -18,6 +18,7 @@ import org.apache.commons.collections4.bidimap.TreeBidiMap;
 import org.apache.commons.lang3.ArrayUtils;
 
 import cz1.external.Queue;
+import cz1.model.LinkageMap;
 import cz1.util.IO;
 
 public class NearestNeighbourJoining {

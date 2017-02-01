@@ -151,14 +151,14 @@ public class PolyMap {
 				Constants.seed = Long.parseLong(line.getOptionValue("s"));
 				Constants.setRandomGenerator();
 			}
-			boolean isRF = isRF(seperation);
+			boolean isRF = Constants.isRF(seperation);
 			if(isRF && unifR)
 				for(int i=0; i<seperation.length; i++) 
-					seperation[i] = haldane(seperation[i]*
+					seperation[i] = Constants.haldane(seperation[i]*
 							Constants.rand.nextDouble());
 			else if(isRF)
 				for(int i=0; i<seperation.length; i++) 
-					seperation[i] = haldane(seperation[i]);
+					seperation[i] = Constants.haldane(seperation[i]);
 		} catch( ParseException exp ) {
 			System.out.println( "Unexpected exception:" + exp.getMessage() );
 		}
@@ -289,17 +289,5 @@ public class PolyMap {
 		hmm.write(output, experiment.
 				replace(".", "").
 				replace("_", ""), contig_str);
-	}
-
-	private static double haldane(double r) {
-		// TODO Auto-generated method stub
-		return -.5*Math.log(1-2*r)/Constants._con_base_r;
-	}
-
-	private static boolean isRF(double[] rf) {
-		// TODO Auto-generated method stub
-		for(int i=0; i<rf.length; i++)
-			if(rf[i]>1.0) return false;
-		return true;
 	}
 }
