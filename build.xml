@@ -1,8 +1,8 @@
-<project name="polymap" default="dist" basedir=".">
+<project name="polyGembler" default="dist" basedir=".">
     
     <description>
-        polymap: Pedigree Haplotype analyse toolkit, version 1.0
-        The polymap project may be distributed under the terms of 
+        polyGembler: Pedigree Haplotype analyse toolkit, version 1.0
+        The polyGembler project may be distributed under the terms of 
         the GNU Lesser General Public License
     </description>
 
@@ -16,7 +16,7 @@
     <property name="build" location="build"/>
     <property name="lib" location="lib"/>
     
-    <property name="polymap" location="${dist}\polymap.1.0.jar"/>
+    <property name="polyGembler" location="${dist}\polyGembler.1.0.jar"/>
     
     <path id="build.class.path">
         <fileset dir="${lib}">
@@ -76,7 +76,7 @@
             </fileset>
         </copy>
         
-        <jar jarfile="${polymap}" basedir="${build}">
+        <jar jarfile="${polyGembler}" basedir="${build}">
             <manifest>
                 <attribute name="Built-by" value="${user.name}" />
                 <!-- <attribute name="Main-Class" value="org.sweetpotatogenomics.app.Main"/> -->
