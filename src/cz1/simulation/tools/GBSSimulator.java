@@ -54,7 +54,7 @@ public class GBSSimulator extends Executor {
 			enzymeName = "PstI", 
 			libPrepFilePath = null, 
 			barcodeFilePath = null,
-			params = "confs/QualS_Markov_chain.cfg",
+			params = null,
 			outputDir = "./";
 		double avg = 5, sd = 5;
 		long RANDOM_SEED = System.nanoTime();
