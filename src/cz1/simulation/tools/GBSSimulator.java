@@ -72,16 +72,10 @@ public class GBSSimulator extends Executor {
 
 		if (myArgsEngine.getBoolean("-l")) {
 			libPrepFilePath = myArgsEngine.getString("-l");
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify the GBS library preparation file.");
 		}
 
 		if (myArgsEngine.getBoolean("-b")) {
 			barcodeFilePath = myArgsEngine.getString("-b");
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify the GBS barcode file.");
 		}
 
 		if (myArgsEngine.getBoolean("-t")) {

@@ -27,7 +27,7 @@ public class Main {
 		String[] args2 = new String[args.length-1];
 		System.arraycopy(args, 1, args2, 0, args2.length);
 		switch(args[0].toLowerCase()) {
-		case "popsimulaion":
+		case "popsimulation":
 			PopulationSimulator popsimulator = new PopulationSimulator();
 			popsimulator.setParameters(args2);
 			popsimulator.run();
