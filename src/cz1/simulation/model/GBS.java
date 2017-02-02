@@ -1,12 +1,11 @@
-package cz1.tools;
+package cz1.simulation.model;
 
-import cz1.data.DataPreparation;
 import cz1.gbs.Digest;
 import cz1.gbs.Enzyme;
-import cz1.util.ArgsEngine;
 
 import java.util.HashMap;
 import java.util.ArrayList;
+import java.util.List;
 import java.io.File;
 import java.io.FileReader;
 import java.io.BufferedWriter;
@@ -14,12 +13,6 @@ import java.io.FileWriter;
 import java.io.BufferedReader;
 import java.lang.StringBuilder;
 import java.util.Random;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionHandler;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 import java.io.OutputStreamWriter;
 import java.util.zip.GZIPOutputStream;
@@ -33,17 +26,17 @@ import java.util.Calendar;
 import java.text.SimpleDateFormat;
 import java.util.Collections;
 
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
 
-public class SimulationGBSSinglePlugin {
+public class GBS {
 
 	private final static Logger myLogger = 
-			Logger.getLogger(DataPreparation.class);
+			Logger.getLogger(GBS.class);
 	static {
 		BasicConfigurator.configure();
 	}
-	private ArgsEngine myArgsEngine = null;
 	public final static String NLS = System.getProperty("line.separator");
 	public final static String SEP = System.getProperty("file.separator");
 	private final int readLength = 101;
@@ -77,15 +70,16 @@ public class SimulationGBSSinglePlugin {
 	private final char[] BASE = new char[]{'A','T','C','G'};
 	private final Character MISSING_BASE_SYMBOL = 'N';
 	private final Character MISSING_QUAL_SCORE = '#';
-	private final ArrayList<String> fastaFileList;
-	private final HashMap<String, String> fastaFileBarcodeMap;
+	private final ArrayList<String> fastaFileList = 
+			new ArrayList<String>();
+	private final HashMap<String, String> fastaFileBarcodeMap = 
+			new HashMap<String, String>();
 	private final String COMMON_ADAPTER = "AGATCGGAAGAGCGGTTCAGCAGGAATGCCGAG";
 	private final Enzyme enzyme;
 	private final String[][] enzymeOverhang;
 	private final String[][] enzymeRemainWithCommanAdapter;
 	private final HashMap<Character, Character> baseComplementaryMap;
 	private final Random random;
-	private static long RANDOM_SEED = System.nanoTime(); //112019890314L;
 	private String GBSOutputDir;
 	private String GBSFastqFilePath;
 	//private BufferedWriter GBSFastqFileBufferedWriter;
@@ -97,130 +91,17 @@ public class SimulationGBSSinglePlugin {
 	private String dnaPlate;
 	private String genus;
 	private String species;
-	private static int sim_sample_index = -1;
 
-	private int THREADS = 1;
-	private static ExecutorService executor;
-	private BlockingQueue<Runnable> tasks = null;
-
-	private void initial_thread_pool() {
-		tasks = new ArrayBlockingQueue<Runnable>(THREADS);
-		executor = new ThreadPoolExecutor(THREADS, 
-				THREADS, 
-				1, 
-				TimeUnit.SECONDS, 
-				tasks, 
-				new RejectedExecutionHandler(){
-			@Override
-			public void rejectedExecution(Runnable task,
-					ThreadPoolExecutor arg1) {
-				// TODO Auto-generated method stub
-				try {
-					tasks.put(task);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
-		});
-	}
-
-	private void printUsage() {
-		myLogger.info(
-				"\n\nUsage is as follows:\n"
-						+ " -f  Directory contains genome fasta files to be sequenced. \n"
-						+ " -e  Enzyme(default PstI). \n"
-						+ " -p  HMM parameter file for quality scores. \n"
-						+ " -l  GBS protocol library preparation file. \n"
-						+ " -t  Threads (default 1).\n"
-						+ " -b	GBS protocol barcode file.\n" 
-						+ " -s	Random seed (default system time). \n"
-						+ " -o  Output directory (defult current directory).\n\n");
-	}
-
-	private static String fastaFileDir=null, 
-			enzymeName="PstI", 
-			parameterFilePath=null, 
-			libPrepFilePath=null,
-			barcodeFilePath=null,
-			outputDir="./";
 	
-	public void setParameters(String[] args) {
-		if (args.length == 0) {
-			printUsage();
-			throw new IllegalArgumentException("\n\nPlease use the above arguments/options.\n\n");
-		}
-
-		if (myArgsEngine == null) {
-			myArgsEngine = new ArgsEngine();
-			myArgsEngine.add("-f", "--fasta-file", true);
-			myArgsEngine.add("-e", "--enzyme", true);
-			myArgsEngine.add("-p", "--hmm-param-file", true);
-			myArgsEngine.add("-l", "--library", true);
-			myArgsEngine.add("-t", "--threads", true);
-			myArgsEngine.add("-b", "--barcode-file", true);
-			myArgsEngine.add("-s", "--random-seed", true);
-			myArgsEngine.add("-i", "--sim-sample-index", true);
-			myArgsEngine.add("-o", "--output-file", true);
-			myArgsEngine.parse(args);
-		}
-
-		if (myArgsEngine.getBoolean("-f")) {
-			fastaFileDir = myArgsEngine.getString("-f");
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify the FASTA files.");
-		}
-
-		if (myArgsEngine.getBoolean("-e")) {
-			enzymeName = myArgsEngine.getString("-e");
-		}
-
-		if (myArgsEngine.getBoolean("-p")) {
-			parameterFilePath = myArgsEngine.getString("-p");
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify the HMM parameter file.");
-		}
-
-		if (myArgsEngine.getBoolean("-l")) {
-			libPrepFilePath = myArgsEngine.getString("-l");
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify the GBS library preparation file.");
-		}
-
-		if (myArgsEngine.getBoolean("-b")) {
-			barcodeFilePath = myArgsEngine.getString("-b");
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify the GBS barcode file.");
-		}
-
-		if (myArgsEngine.getBoolean("-o")) {
-			outputDir = myArgsEngine.getString("-o");
-		}
-
-		if (myArgsEngine.getBoolean("-t")) {
-			this.THREADS = Integer.parseInt(myArgsEngine.getString("-t"));
-		}
-
-		if (myArgsEngine.getBoolean("-i")) {
-			sim_sample_index = Integer.parseInt(myArgsEngine.getString("-i"));
-		}
-
-		if (myArgsEngine.getBoolean("-s")) {
-			RANDOM_SEED = Long.parseLong(myArgsEngine.getString("-s"));
-		}
-	}
-	
-	public static void main(String[] args) {
-		SimulationGBSSinglePlugin sim = new SimulationGBSSinglePlugin(args);
-		sim.simulate();
-	}
-
-	public SimulationGBSSinglePlugin(String[] args) {
-		setParameters(args);
+	public GBS(String fastaFileDir,
+			String enzymeName,
+			double avg,
+			double sd,
+			String parameterFilePath,
+			String libPrepFilePath,
+			String barcodeFilePath,
+			String outputDir,
+			long RANDOM_SEED) {
 		/***
         meanDepth = 6.0;
         sdDepth = 6.0;
@@ -250,13 +131,11 @@ public class SimulationGBSSinglePlugin {
 		int[][] baseQualityCumsum = new int[readLength][QUAL_SCORE.length()];
 		int[][][] baseTransitionCumsum =
 				new int[readLength][QUAL_SCORE.length()][QUAL_SCORE.length()];
+		this.meanDepth = avg;
+		this.sdDepth = sd;
 		try(BufferedReader br = getBufferedReader(parameterFilePath)) {
 			String line;
 			String[] stringSplit;
-			while((line=br.readLine())!=null && line.startsWith("#")){}
-			this.meanDepth = Double.parseDouble(line);
-			while((line=br.readLine())!=null && line.startsWith("#")){}
-			this.sdDepth = Double.parseDouble(line);
 			while((line=br.readLine())!=null && line.startsWith("#")){}
 			stringSplit = line.split(",");
 			for(int i=0; i<readLength; i++) 
@@ -337,8 +216,34 @@ public class SimulationGBSSinglePlugin {
 			this.enzymeRemainWithCommanAdapter[i] = enzymeOverhang[i][0].equals("") ?
 					new String[]{enzymeOverhang[i][1]+COMMON_ADAPTER,COMMON_ADAPTER} :
 						new String[]{COMMON_ADAPTER,enzymeOverhang[i][0]+COMMON_ADAPTER} ;
-					this.fastaFileList = getFastaFileList(fastaFileDir);
-					this.fastaFileBarcodeMap = getFastaFileBarcodeMap(fastaFileList, enzymeName);
+					this.getFastaFileList(fastaFileDir);
+					this.getFastaFileBarcodeMap(fastaFileList, 
+							enzymeName,
+							this.setBarcode(barcodeFilePath));
+	}
+
+	private String setBarcode(String barcodeFilePath) {
+		// TODO Auto-generated method stub
+		if(barcodeFilePath!=null) return barcodeFilePath;
+		switch(this.enzyme.getName().toLowerCase()) {
+		case "apeki":
+			myLogger.info("Using barcode file 768-barcodes-ApeKI-size-4-9-v2.0.csv "
+					+ "generated by http://www.deenabio.com/services/gbs-adapters.");
+			return "confs/768-barcodes-ApeKI-size-4-9-v2.0.csv";
+		case "psti":
+			myLogger.info("Using barcode file 768-barcodes-PstI-size-4-9-v2.0.csv "
+					+ "generated by http://www.deenabio.com/services/gbs-adapters.");
+			return "confs/768-barcodes-PstI-size-4-9-v2.0.csv";
+		case "tsei":
+			myLogger.info("Using barcode file 768-barcodes-TseI-size-4-9-v2.0.csv "
+					+ "generated by http://www.deenabio.com/services/gbs-adapters.");
+			return "confs/768-barcodes-TseI-size-4-9-v2.0.csv";	
+		default:
+			throw new RuntimeException("No barcode file available for enzyme "
+		+this.enzyme.getName()+".\n"
+				+ "You need to provide a customer barcode file with -b/--barcode-file."
+				+ "You may generate barcodes from http://www.deenabio.com/services/gbs-adapters.\n");
+		}
 	}
 
 	private void cumsum(double[] w) {
@@ -353,6 +258,10 @@ public class SimulationGBSSinglePlugin {
 	}
 
 	private void setLibarayPreparation(String libPrepFilePath) {
+		if(libPrepFilePath==null) {
+			setLibarayPreparation();
+			return;
+		}
 		String line;
 		String[] s;
 		try(BufferedReader br = getBufferedReader(libPrepFilePath)) {
@@ -394,6 +303,18 @@ public class SimulationGBSSinglePlugin {
 		}
 	}
 
+	private void setLibarayPreparation() {
+		// TODO Auto-generated method stub
+		this.flowcell = RandomStringUtils.randomAlphanumeric(8).toUpperCase();
+		this.lane = ""+1;
+		this.libraryPlate = "Simulation";
+		this.libraryPrepID = "Random";
+		this.libraryPlateID = "Random";
+		this.dnaPlate = "Simulation";
+		this.genus = "G";
+		this.species = "S";
+	}
+
 	private HashMap<Character, Character> getBaseComplementaryMap() {
 		HashMap<Character, Character> map = new HashMap<Character, Character>();
 		map.put('A','T'); 
@@ -421,26 +342,32 @@ public class SimulationGBSSinglePlugin {
 		return map;
 	}
 
-	private HashMap<String, String> getFastaFileBarcodeMap(ArrayList<String> 
-	fastaFileList, String enzymeName) {
-		HashMap<String, String> fastaFileBarcodeMap = new HashMap<String, String>();
+	private void getFastaFileBarcodeMap(ArrayList<String> fastaFileList, 
+			String enzymeName, String barcodeFilePath) {
+		fastaFileBarcodeMap.clear();
 		try{
 			//BarcodeGenerator barcodeGenerator = new BarcodeGenerator(new String[]
 			//        {"-b", ""+fastaFileList.size(), "-e", enzymeName});
 			//barcodeGenerator.runBarcodeGenerator();
 			//BufferedReader br = getBufferedReader("barcode_list.txt");
+			String line;
 			BufferedReader br = getBufferedReader(barcodeFilePath);
-			BufferedWriter bw = getBufferedWriter(GBSOutputDir+SEP+flowcell+"_"+lane+"_key_"+sim_sample_index+".txt");
+			for(int i=0; i<16; i++) br.readLine();
+			List<String> barcodes = new ArrayList<String>();
+			while( (line=br.readLine())!=null && line.length()>0)
+				barcodes.add(line.split(",")[1]);
+			br.close(); 
+			Collections.shuffle(barcodes);
+			
+			BufferedWriter bw = getBufferedWriter(GBSOutputDir+SEP+flowcell+"_"+lane+"_key"+".txt");
 			bw.write("Flowcell\tLane\tBarcode\tDNASample\tLibraryPlate\tRow\tCol\t"+
 					"LibraryPrepID\tLibraryPlateID\tEnzyme\tBarcodeWell\tDNA_Plate\t"+
 					"SampleDNA_Well\tGenus\tSpecies\tPedigree\tPopulation\tSeedLot "+
 					"FullSampleName\n");
-
-			String line, dnaSample, paddedcol, pedigree;
+			String dnaSample, paddedcol, pedigree;
 			char row; int col;
-			int i = 0;
-			while((line=br.readLine()) != null) {
-				fastaFileBarcodeMap.put(fastaFileList.get(i),line);
+			for(int i=0; i<this.size(); i++) {
+				fastaFileBarcodeMap.put(fastaFileList.get(i),barcodes.get(i));
 				dnaSample = parseSampleName(new File(fastaFileList.get(i)).getName());
 				pedigree = dnaSample.contains("P1") || dnaSample.contains("P2") ? "NA" : "P1xP2";
 				row = (char) (i/12+'A');
@@ -448,7 +375,7 @@ public class SimulationGBSSinglePlugin {
 				paddedcol = col<10 ? "0"+col : ""+col;
 				bw.write(flowcell+"\t");
 				bw.write(lane+"\t");
-				bw.write(line+"\t");
+				bw.write(barcodes.get(i)+"\t");
 				bw.write(dnaSample+"\t");
 				bw.write(libraryPlate+"\t");
 				bw.write(row+"\t");
@@ -464,28 +391,24 @@ public class SimulationGBSSinglePlugin {
 				bw.write(pedigree+"\t");
 				bw.write(pedigree+"\t");
 				bw.write(dnaSample+":"+flowcell+":"+lane+":"+libraryPrepID+paddedcol+"\n");
-				i++;
 			}
-			br.close();
 			bw.close();
 			//} catch (IOException | StopExcecutionException e) {
 		} catch (IOException e) {
 			e.printStackTrace();
 			System.exit(1);
 		}
-		return fastaFileBarcodeMap;
 	}
 
-	private ArrayList<String> getFastaFileList(String fastaFileDir) {
+	private void getFastaFileList(String fastaFileDir) {
+		fastaFileList.clear();
 		File folder = new File(fastaFileDir);
 		File[] listOfFiles = folder.listFiles();
-		ArrayList<String> fastaFileList = new ArrayList<String>();
 		for (File file : listOfFiles) {
 			if (file.isFile() && isFastaFile(file.getName())) {
 				fastaFileList.add(file.getPath());
 			}
 		}
-		return fastaFileList;
 	}
 
 	public boolean isFastaFile(String fileName) {
@@ -499,7 +422,7 @@ public class SimulationGBSSinglePlugin {
 				replace(".fasta","").replace(".fa.gz","").replace(".fa","");
 	}
 
-	public void simulate() {
+	public void simulate(final int sim_sample_index) {
 
 		try {
 			//GBSFastqFileBufferedWriter = getGZIPBufferedWriter(GBSFastqFilePath);
@@ -732,6 +655,11 @@ public class SimulationGBSSinglePlugin {
 			this.plus = plus;
 			this.quality = quality;
 		}
+	}
+
+	public int size() {
+		// TODO Auto-generated method stub
+		return this.fastaFileList.size();
 	}
 }
 
