@@ -1,4 +1,4 @@
-package cz1.hmm.tools;
+package cz1.gbs.tools;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;

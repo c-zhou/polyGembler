@@ -1,4 +1,4 @@
-package cz1.hmm.tools;
+package cz1.gbs.tools;
 
 import cz1.util.ArgsEngine;
 import cz1.util.Utils;

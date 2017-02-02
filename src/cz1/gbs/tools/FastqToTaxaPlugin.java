@@ -1,4 +1,4 @@
-package cz1.hmm.tools;
+package cz1.gbs.tools;
 
 import cz1.gbs.core.BaseEncoder;
 import cz1.gbs.model.ParseBarcodeRead;
