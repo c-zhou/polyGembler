@@ -5,10 +5,10 @@ import java.io.File;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
 
-import cz1.data.DataCollection;
+import cz1.hmm.data.DataCollection;
+import cz1.hmm.tools.PolyGembler;
 import cz1.simulation.tools.GBSSimulator;
 import cz1.simulation.tools.PopulationSimulator;
-import cz1.tools.PolyGembler;
 
 public class Main {
 	
