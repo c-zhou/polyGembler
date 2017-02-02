@@ -189,7 +189,8 @@ public class Population {
 		String str2write;
 
 		Individual indiv =  popData.getIndiv(sim_sample_index);
-		try(BufferedWriter bw = getGZIPBufferedWriter(filePath+SEP+scenario+
+		try(BufferedWriter bw = getGZIPBufferedWriter(filePath+SEP+
+				scenario+SEP+
 				indiv.getIndivName()+".fasta.gz")) {
 			for (int c=0; c<N; c++) {
 				Chromosome chrom = popData.getChrom(c);
@@ -224,8 +225,8 @@ public class Population {
 					 **/
 					//debug
 					//println(getSystemTime()+" >>> Done. BufferedWriter Start writing...");
-
-					bw.write(">"+chr.getName()+"|ploidy "+PLOIDY+"|genome "+(h+1)+" of "+PLOIDY+NLS);
+					String header = ">"+chr.getName()+"|"+(h+1)+":"+PLOIDY;
+					bw.write(header+NLS);
 					int j0 = 0, j1 = chr.getLBasePairs();
 					for(int l=0; l<loci.size(); l++) {
 						pos = SNPs2PosMap.get(loci.get(l).getLocusName());
@@ -249,7 +250,7 @@ public class Population {
 					}
 
 					//debug
-					myLogger.info(getSystemTime()+" >>> done.");
+					myLogger.info(getSystemTime()+" "+header+" >>> done.");
 				}
 			}
 			bw.close();
@@ -344,12 +345,13 @@ public class Population {
 			// System.out.println(lambda+"\t\t"+next);
 			t += next;
 
-			char[] alleles = getRandomAlleles();
-			char[][] phase = getRandomPhase(alleles); //for 2 parents
-
 			int lb = chromosome[i].getLBasePairs();
 			String name = chromosome[i].getName();
 			while(t<lb) {
+				
+				char[] alleles = getRandomAlleles();
+				char[][] phase = getRandomPhase(alleles); //for 2 parents
+				
 				snps.add(new SNP(name+"."+t, name, alleles, phase[0], t, t*base));
 				snps.add(new SNP(name+"."+t, name, alleles, phase[1], t, t*base));
 				//debug

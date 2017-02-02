@@ -19,7 +19,7 @@ public class PopulationSimulator extends Executor {
 						+ " -n/--pop-size		Population size including parents (default 96). \n"
 						+ " -p/--ploidy  		Copy number of chromosomes (default 2). \n"
 						+ " -t/--threads 		Number of threads (default 1).\n"
-						+ " -s/--run-id			Unique running id (default Sc1).\n" 
+						+ " -s/--run-id			Unique run id (default Sc1).\n" 
 						+ " -o/--prefix 	 	Output directory (defult current directory).\n\n");
 	}
 

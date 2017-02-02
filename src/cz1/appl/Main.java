@@ -2,14 +2,28 @@ package cz1.appl;
 
 import java.io.File;
 
+import org.apache.log4j.BasicConfigurator;
+import org.apache.log4j.Logger;
+
 import cz1.data.DataCollection;
 import cz1.simulation.tools.GBSSimulator;
 import cz1.simulation.tools.PopulationSimulator;
 import cz1.tools.PolyGembler;
 
 public class Main {
-
+	
+	protected final static Logger myLogger = 
+			Logger.getLogger(Main.class);
+	static {
+		BasicConfigurator.configure();
+	}
+	
 	public static void main(String[] args) {
+	
+		if(args.length<1) {
+			printUsage();
+			throw new RuntimeException("Undefined tool!!!");
+		}
 		String[] args2 = new String[args.length-1];
 		System.arraycopy(args, 1, args2, 0, args2.length);
 		switch(args[0].toLowerCase()) {
@@ -18,7 +32,7 @@ public class Main {
 			popsimulator.setParameters(args2);
 			popsimulator.run();
 			break;
-		case "gbssimulaion":
+		case "gbssimulation":
 			GBSSimulator gbssimulator = new GBSSimulator();
 			gbssimulator.setParameters(args2);
 			gbssimulator.run();
@@ -35,7 +49,18 @@ public class Main {
 			PolyGembler.main(args2);
 			break;
 		default:
+			printUsage();
 			throw new RuntimeException("Undefined tool!!!");
 		}
+	}
+	
+	private static void printUsage() {
+		// TODO Auto-generated method stub
+		myLogger.info(
+				"\n\nUsage is as follows:\n"
+						+ " popsimulaion 		Simulate a full-sib mapping population. \n"
+						+ " gbssimulation 		Simulate GBS data. \n"
+						+ " datapreparation  	Prepare data for haplotype phasing. \n"
+						+ " haplotypephasing  	Contig/scaffold haplotype construction from a mapping population.\n");
 	}
 }
