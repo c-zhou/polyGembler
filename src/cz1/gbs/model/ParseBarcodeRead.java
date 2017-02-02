@@ -1,4 +1,4 @@
-package cz1.gbs;
+package cz1.gbs.model;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -9,6 +9,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 
 import org.apache.commons.lang3.StringUtils;
+
+import cz1.gbs.core.BaseEncoder;
 
 /**
  * Takes a key file and then sets up the methods to decode a read from the sequencer.

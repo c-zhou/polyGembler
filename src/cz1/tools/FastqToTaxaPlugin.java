@@ -1,8 +1,8 @@
 package cz1.tools;
 
-import cz1.gbs.BaseEncoder;
-import cz1.gbs.ParseBarcodeRead;
-import cz1.gbs.ReadBarcodeResult;
+import cz1.gbs.core.BaseEncoder;
+import cz1.gbs.model.ParseBarcodeRead;
+import cz1.gbs.model.ReadBarcodeResult;
 import cz1.util.ArgsEngine;
 import cz1.util.DirectoryCrawler;
 import cz1.util.ObjectSizeFetcher;

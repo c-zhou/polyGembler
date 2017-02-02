@@ -1,4 +1,4 @@
-package cz1.gbs;
+package cz1.gbs.model;
 
 import java.io.File;
 import java.io.FileReader;

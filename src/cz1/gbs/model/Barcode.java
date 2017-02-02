@@ -1,6 +1,8 @@
-package cz1.gbs;
+package cz1.gbs.model;
 
 import java.util.Arrays;
+
+import cz1.gbs.core.BaseEncoder;
 
 /**
  * Container class for storing information on GBS barcodes.

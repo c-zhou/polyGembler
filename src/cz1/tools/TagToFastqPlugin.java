@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.BitSet;
 
-import cz1.gbs.BaseEncoder;
+import cz1.gbs.core.BaseEncoder;
 import cz1.util.ArgsEngine;
 import cz1.util.DirectoryCrawler;
 import cz1.util.Utils;

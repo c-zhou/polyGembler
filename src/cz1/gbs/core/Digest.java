@@ -1,4 +1,4 @@
-package cz1.gbs;
+package cz1.gbs.core;
 
 import java.util.ArrayList;
 import java.util.Random;

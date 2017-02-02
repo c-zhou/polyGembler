@@ -1,4 +1,4 @@
-package cz1.gbs;
+package cz1.gbs.core;
 
 public class Enzyme {
 
