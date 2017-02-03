@@ -1,6 +1,7 @@
 package cz1.gbs.tools;
 
 import cz1.util.ArgsEngine;
+import cz1.util.Executor;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -26,24 +27,11 @@ import net.sf.samtools.SAMSequenceDictionary;
 import net.sf.samtools.SAMSequenceRecord;
 
 
-public class SamFileExtractPlugin {
+public class SamFileExtract extends Executor {
 
-	private final static String file_sep  = 
-			System.getProperty("file.separator");
-	private ArgsEngine myArgsEngine = null;
-	private final static Logger myLogger = 
-			Logger.getLogger(SamFileExtractPlugin.class);
-	static {
-		BasicConfigurator.configure();
-	}
-	
-	public static void main(String[] args) {
-		SamFileExtractPlugin ssp = new SamFileExtractPlugin();
-		ssp.setParameters(args);
-		ssp.extract();
-	}
-
-	private void printUsage() {
+	@Override
+	public void printUsage() {
+		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
 						+ " -i  input bam or sam file, should be sorted.\n"
@@ -55,7 +43,9 @@ public class SamFileExtractPlugin {
 	private static String bed_in;
 	private static String bam_out;
 	
+	@Override
 	public void setParameters(String[] args) {
+		// TODO Auto-generated method stub
 		if (args.length == 0) {
 			printUsage();
 			throw new IllegalArgumentException("\n\nPlease use the above arguments/options.\n\n");
@@ -90,7 +80,9 @@ public class SamFileExtractPlugin {
 		}
 	}
 
-	public void extract() {
+	@Override
+	public void run() {
+		// TODO Auto-generated method stub
 		
 		final SAMFileReader inputSam = new SAMFileReader(new File(bam_in));
 		inputSam.setValidationStringency(ValidationStringency.SILENT);

@@ -1,52 +1,45 @@
-package cz1.hmm.tools;
+package cz1.gbs.tools;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 import cz1.util.ArgsEngine;
 import cz1.util.DirectoryCrawler;
+import cz1.util.Executor;
 import cz1.util.Utils;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
 
-public class MergeTagtoTaxaPlugin {
+public class MergeTagSequence extends Executor{
 
-	private final static Logger myLogger = 
-			Logger.getLogger(MergeTagtoTaxaPlugin.class);
-	private ArgsEngine myArgsEngine = null;
 	private String myInputDirName = null;
-	private String myOutputDir = null;
-	private int myMinCount = 1;
-	private final static int mb = 1024*1024;
-	private final static Runtime instance = Runtime.getRuntime();
+	private String myOutputDir = "./";
 
-	static {
-		BasicConfigurator.configure();
+	public MergeTagSequence(String myInputDirName,
+			String myOutputDir) {
+		this.myInputDirName = myInputDirName;
+		this.myOutputDir = myOutputDir;
+		this.makeOutputDir();
 	}
-
-	public static void main(String[] args) {
-		MergeTagtoTaxaPlugin ftt = new MergeTagtoTaxaPlugin();
-		ftt.setParameters(args);
-		ftt.mergeTags();
-	}
-
-	private void printUsage() {
+	
+	@Override
+	public void printUsage() {
+		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " -i  Input directory containing FASTQ files in text or gzipped text.\n"
-						+ "     NOTE: Directory will be searched recursively and should\n"
-						+ "     be written WITHOUT a slash after its name.\n\n"
-						+ " -c  Minimum count of a tag to output (default is 1).\n"
-						+ " -o  Output directory to contain .cnt files (one per FASTQ file, defaults to input directory).\n\n");
-
+						+ " -i/--input-tags		Input directory containing tag sequence files.\n"
+						+ " -o/--prefix			Output directory.\n\n");
 	}
 
+	@Override
 	public void setParameters(String[] args) {
+		// TODO Auto-generated method stub
 		if (args.length == 0) {
 			printUsage();
 			throw new IllegalArgumentException("\n\nPlease use the above arguments/options.\n\n");
@@ -54,9 +47,8 @@ public class MergeTagtoTaxaPlugin {
 
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
-			myArgsEngine.add("-i", "--input-directory", true);
-			myArgsEngine.add("-c", "--min-count", true);
-			myArgsEngine.add("-o", "--output-file", true);
+			myArgsEngine.add("-i", "--input-tags", true);
+			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.parse(args);
 		}
 
@@ -67,23 +59,57 @@ public class MergeTagtoTaxaPlugin {
 			throw new IllegalArgumentException("Please specify the location of your FASTQ files.");
 		}
 
-		if (myArgsEngine.getBoolean("-c")) {
-			myMinCount = Integer.parseInt(myArgsEngine.getString("-c"));
-		}
-
 		if (myArgsEngine.getBoolean("-o")) {
 			myOutputDir = myArgsEngine.getString("-o");
-		} else {
-			myOutputDir = myInputDirName;
 		}
-
+		
+		this.makeOutputDir();
+	}
+	
+	private void makeOutputDir() {
+		// TODO Auto-generated method stub
+		File out = new File(myOutputDir);
+		if(!out.exists() || out.exists()&&!out.isDirectory()) {
+			out.mkdir();
+		} else {
+			String[] tags = out.list(new FilenameFilter() {
+				public boolean accept(File dir, String name) {
+					String lowercaseName = name.toLowerCase();
+					if (lowercaseName.endsWith(".cnt.gz")) {
+						return true;
+					} else {
+						return false;
+					}
+				}
+			});
+			if(tags.length>0) {
+				StringBuilder msg = new StringBuilder("Tag file(s) ");
+				for(int i=0; i<tags.length-1; i++) {
+					msg.append(tags[i]);
+					msg.append(", ");
+				}
+				msg.append(tags[tags.length-1]);
+				msg.append(" already in the output directory. "
+						+ "This is might be messed up in the next step.");
+				myLogger.warn(msg.toString());
+			}
+		}
 	}
 
-	private void mergeTags() {
+	@Override
+	public void run() {
 		// TODO Auto-generated method stub
 		File inputDirectory = new File(this.myInputDirName);
-		File[] countFileNames = DirectoryCrawler.listFiles("(?i).*\\.cnt$|.*\\.cnt\\.gz$|.*_cnt\\.txt$|.*_cnt\\.txt\\.gz$", inputDirectory.getAbsolutePath());
-		//                                              (?i) denotes case insensitive;                 \\. denotes escape . so it doesn't mean 'any char' & escape the backslash
+		File[] countFileNames = inputDirectory.listFiles(
+        		new FilenameFilter() {
+        			@Override
+        		    public boolean accept(File dir, String name) {
+        		        return name.matches("(?i).*\\.cnt$|.*\\.cnt\\.gz$|.*_cnt\\.txt$|.*_cnt\\.txt\\.gz$");
+        		        //                   (?i) denotes case insensitive;                 \\. denotes escape . so it doesn't mean 'any char' & escape the backslash
+        				
+        			}
+        		});
+		
 		if (countFileNames.length == 0 || countFileNames == null) {
 			myLogger.warn("Couldn't find any files that end with \".cnt\", \".cnt.gz\", \"_cnt.txt\", or \"_cnt.txt.gz\" in the supplied directory.");
 			return;
@@ -143,8 +169,7 @@ public class MergeTagtoTaxaPlugin {
 				tags[i] = brs[i].readLine().split("\\s+");
 			String tag, line;
 			int nTaxa = taxa.keySet().size();
-			int all = 0;
-			int C=0;
+			long all = 0;
 			while(true) {
 				tag = max(tags, 0);
 				if(tag==null) break;
@@ -165,17 +190,13 @@ public class MergeTagtoTaxaPlugin {
 					}
 				}
 				bw.write(tag);
-				for(int cc : count) {
+				for(int cc : count) 
 					bw.write("\t"+cc);
-					C += cc;
-				}
 				bw.write("\n");
 				all++; 
-				if(all%1000000==0)
-					myLogger.info(all+" tags");
+				if(all%1000000==0) myLogger.info(all+" tags");
 			}
 
-			myLogger.info(C+" tags processed");
 			bw.close();
 			for(int i=0; i<brs.length; i++) brs[i].close();
 		} catch(IOException e) {
@@ -201,12 +222,5 @@ public class MergeTagtoTaxaPlugin {
 				tag = tags[i][ii];
 		}
 		return tag;
-	}
-
-	private static void usage() {
-		myLogger.info("Max Memory: "+instance.maxMemory() / mb);
-		myLogger.info("Total Memory: "+instance.totalMemory() / mb);
-		myLogger.info("Free Memory: "+instance.freeMemory() / mb);
-		myLogger.info("Used Memory: "+(instance.totalMemory()-instance.freeMemory()) / mb);
 	}
 }

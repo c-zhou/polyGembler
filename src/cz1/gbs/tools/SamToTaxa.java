@@ -1,6 +1,7 @@
 package cz1.gbs.tools;
 
 import cz1.util.ArgsEngine;
+import cz1.util.Executor;
 import cz1.util.Utils;
 
 import java.io.BufferedReader;
@@ -28,38 +29,46 @@ import net.sf.samtools.SAMFileReader.ValidationStringency;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
 
-public class SamToTaxaPlugin {
-	private final static Logger myLogger = 
-			Logger.getLogger(SamToTaxaPlugin.class);
-	private ArgsEngine myArgsEngine = null;
+public class SamToTaxa extends Executor {
+	
 	private String mySamFileName = null;
-	private String myOutputDir = null;
 	private String myIndexFileName = null;
 	private boolean mySamIsSorted = false;
-	private final static int mb = 1024*1024;
-	private final static Runtime instance = Runtime.getRuntime();
+	private String myOutputDir = "./";
 
-	static {
-		BasicConfigurator.configure();
+	public SamToTaxa(String mySamFileName, String myIndexFileName,
+			boolean mySamIsSorted, String myOutputDir, int threads) {
+		this.mySamFileName = mySamFileName;
+		this.myIndexFileName = myIndexFileName;
+		this.mySamIsSorted = mySamIsSorted;
+		this.myOutputDir = myOutputDir;
+		this.THREADS = threads;
+		this.makeOutputDir();
 	}
-
-	public static void main(String[] args) {
-		SamToTaxaPlugin ftt = new SamToTaxaPlugin();
-		ftt.setParameters(args);
-		ftt.distributeTags();
-	}
-
-	private void printUsage() {
+	
+	@Override
+	public void printUsage() {
+		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " -s  Input sam/bam file.\n\n"
-						+ " -t  Threads (default is 1).\n\n"
-						+ " -S	The sam/bam file is sorted.\n\n" 
-						+ " -o  Output directory to contain .cnt files (one per FASTQ file, defaults to input directory).\n\n"
-						+ " -i  Tag index file.");
+						+ " -s/--sam-file		Input sam/bam file.\n"
+						+ " -t/--threads  		Threads (default is 1).\n"
+						+ " -S/--is-sorted		The sam/bam file is sorted by name.\n" 
+						+ " -i/--index-file		Tag index file.\n"
+						+ " -o/--prefix			Output directory. \n\n");
 	}
 
+	private void makeOutputDir() {
+		// TODO Auto-generated method stub
+		File out = new File(myOutputDir);
+		if(!out.exists() || out.exists()&&!out.isDirectory()) {
+			out.mkdir();
+		}
+	}
+	
+	@Override
 	public void setParameters(String[] args) {
+		// TODO Auto-generated method stub
 		if (args.length == 0) {
 			printUsage();
 			throw new IllegalArgumentException("\n\nPlease use the above arguments/options.\n\n");
@@ -69,7 +78,7 @@ public class SamToTaxaPlugin {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-i", "--index-file", true);
 			myArgsEngine.add("-t", "--threads", true);
-			myArgsEngine.add("-o", "--output-file", true);
+			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.add("-s", "--sam-file", true);
 			myArgsEngine.add("-S", "--sorted", false);
 			myArgsEngine.parse(args);
@@ -79,9 +88,16 @@ public class SamToTaxaPlugin {
 			mySamFileName = myArgsEngine.getString("-s");
 		} else {
 			printUsage();
-			throw new IllegalArgumentException("Please specify the location of your FASTQ files.");
+			throw new IllegalArgumentException("Please specify the name of your SAM/BAM file.");
 		}
 
+		if (myArgsEngine.getBoolean("-i")) {
+			myIndexFileName = myArgsEngine.getString("-i");
+		} else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify the index your FASTQ file.");
+		}
+		
 		if (myArgsEngine.getBoolean("-S")) {
 			mySamIsSorted = true;
 		}
@@ -90,14 +106,11 @@ public class SamToTaxaPlugin {
 			THREADS = Integer.parseInt(myArgsEngine.getString("-t"));
 		}
 
-		if (myArgsEngine.getBoolean("-i")) {
-			myIndexFileName = myArgsEngine.getString("-i");
-		}
-
 		if (myArgsEngine.getBoolean("-o")) {
 			myOutputDir = myArgsEngine.getString("-o");
 		}
-
+		
+		this.makeOutputDir();
 	}
 
 	/**
@@ -136,55 +149,11 @@ public class SamToTaxaPlugin {
 	private static BufferedReader indexReader = null;
 	private static long cursor = 0;
 	private Object lock = new Object();
-	private static int THREADS = 1;
-	private static ExecutorService executor;
 	private static long allReads = 0;
-	private BlockingQueue<Runnable> tasks = null;
 	private static String header_str = null;
 	private static SAMFileHeader header_sam = null;
 	private static int is = 0;
-	
-	public void start() {
-		tasks = new ArrayBlockingQueue<Runnable>(THREADS);
-		executor = new ThreadPoolExecutor(THREADS, 
-				THREADS, 
-				1, 
-				TimeUnit.SECONDS, 
-				tasks, 
-				new RejectedExecutionHandler(){
-			@Override
-			public void rejectedExecution(Runnable task,
-					ThreadPoolExecutor arg1) {
-				// TODO Auto-generated method stub
-				try {
-					tasks.put(task);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
-		});
-	}
 
-	public void distributeTags() {
-		if(this.mySamIsSorted)
-			if(this.mySamFileName.endsWith(".sam"))
-				distributeSortedSam();
-			else if(this.mySamFileName.endsWith(".bam"))
-				distributeSortedBam();
-			else
-				throw new RuntimeException(
-						"input file should be sorted sam or bam file.");
-		else
-			if(this.mySamFileName.endsWith(".sam"))
-				distributeUnsortedSam();
-			else if(this.mySamFileName.endsWith(".bam"))
-				distributeUnsortedBam();
-			else
-				throw new RuntimeException(
-						"input file should be sam or bam file.");
-	}
-	
 	private void cache() {
 		// TODO Auto-generated method stub
 		try {
@@ -194,7 +163,7 @@ public class SamToTaxaPlugin {
 			String[] Qs = new String[block];
 			int k = 0;
 			int buffer = 10000000, cached = 0;
-			start();
+			initial_thread_pool();
 			while( cached<buffer && temp!=null ) {
 				temp = indexReader.readLine();
 				if(temp!=null) {
@@ -262,7 +231,7 @@ public class SamToTaxaPlugin {
 			SAMRecordIterator iter=inputSam.iterator();
 			
 			cache();
-			start();
+			initial_thread_pool();
 			
 			int block = 10000;
 			SAMRecord[] Qs = new SAMRecord[block];
@@ -339,7 +308,7 @@ public class SamToTaxaPlugin {
 						executor.awaitTermination(365, TimeUnit.DAYS);
 						if(temp!=null) {
 							cache();
-							start();
+							initial_thread_pool();
 						}
 					}
 				}
@@ -359,7 +328,7 @@ public class SamToTaxaPlugin {
 	
 	private void distributeUnsortedBam() {
 		// TODO Auto-generated method stub
-		
+		throw new RuntimeException("Unimplemented function!!!");
 	}
 	
 	private void distributeSortedSam() {
@@ -377,7 +346,7 @@ public class SamToTaxaPlugin {
 			BufferedReader br = Utils.getBufferedReader(samFile, 65536);
 			
 			cache();
-			start();
+			initial_thread_pool();
 			
 			String temp;
 			int block = 10000;
@@ -460,7 +429,7 @@ public class SamToTaxaPlugin {
 						executor.awaitTermination(365, TimeUnit.DAYS);
 						if(temp!=null) {
 							cache();
-							start();
+							initial_thread_pool();
 						}
 					}
 				}
@@ -482,7 +451,7 @@ public class SamToTaxaPlugin {
 		long start = System.currentTimeMillis();
 		//executor = Executors.newFixedThreadPool(THREADS);
 		try {
-			start();
+			initial_thread_pool();
 			File indexFile = new File(myIndexFileName);
 			myLogger.info("Using the following index file:");
 			myLogger.info(indexFile.getAbsolutePath());
@@ -535,7 +504,7 @@ public class SamToTaxaPlugin {
 			executor.awaitTermination(365, TimeUnit.DAYS);
 			myLogger.info("Loading indices done. "+is+" tags.");
 
-			start();
+			initial_thread_pool();
 			File samFile = new File(mySamFileName);
 			myLogger.info("Using the following SAM file:");
 			myLogger.info(samFile.getAbsolutePath());
@@ -626,26 +595,24 @@ public class SamToTaxaPlugin {
 		}
 	}
 
-	private static double maxMemory() {
-		return instance.maxMemory() / mb;
-	}
-
-	private static double totalMemory() {
-		return instance.totalMemory() / mb;
-	}
-
-	private static double freeMemory() {
-		return instance.freeMemory() / mb;
-	}
-
-	private static double usedMemory() {
-		return totalMemory()-freeMemory();
-	}
-
-	private static void usage() {
-		myLogger.info("Max Memory: "+maxMemory());
-		myLogger.info("Total Memory: "+totalMemory());
-		myLogger.info("Free Memory: "+freeMemory());
-		myLogger.info("Used Memory: "+usedMemory());
+	@Override
+	public void run() {
+		// TODO Auto-generated method stub
+		if(this.mySamIsSorted)
+			if(this.mySamFileName.endsWith(".sam"))
+				distributeSortedSam();
+			else if(this.mySamFileName.endsWith(".bam"))
+				distributeSortedBam();
+			else
+				throw new RuntimeException(
+						"input file should be sorted sam or bam file.");
+		else
+			if(this.mySamFileName.endsWith(".sam"))
+				distributeUnsortedSam();
+			else if(this.mySamFileName.endsWith(".bam"))
+				distributeUnsortedBam();
+			else
+				throw new RuntimeException(
+						"input file should be sam or bam file.");
 	}
 }

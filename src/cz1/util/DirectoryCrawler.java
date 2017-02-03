@@ -14,28 +14,6 @@ public class DirectoryCrawler {
      */
     private static String defaultDirectory = ".";
 
-    public static void main(String args[]) {
-        File[] testFileArray = new File[2];
-        testFileArray[0] = new File("c:/file_visitor_test/1");
-        testFileArray[1] = new File("c:/file_visitor_test/xah");
-
-        String[] testStringArray = new String[2];
-        testStringArray[0] = "c:/file_visitor_test/1";
-        testStringArray[1] = "c:/file_visitor_test/xah";
-
-        File testFile = new File("c:/file_visitor_test");
-        String testString = new String("c:/file_visitor_test");
-
-        File[] returnFiles = DirectoryCrawler.listFiles(".*xa.*", testFileArray);
-        for (File returnFile : returnFiles) { //Iterate over results
-            System.out.println(returnFile.getName());
-        }
-    }
-
-    private DirectoryCrawler() {
-        // utility class.
-    }
-
     /**
      * Recursively searches the object's directory tree for a specific filename.
      *

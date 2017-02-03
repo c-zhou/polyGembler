@@ -1,10 +1,11 @@
 package cz1.gbs.tools;
 
 import cz1.gbs.core.BaseEncoder;
+import cz1.gbs.core.ReadBarcodeResult;
 import cz1.gbs.model.ParseBarcodeRead;
-import cz1.gbs.model.ReadBarcodeResult;
 import cz1.util.ArgsEngine;
 import cz1.util.DirectoryCrawler;
+import cz1.util.Executor;
 import cz1.util.ObjectSizeFetcher;
 import cz1.util.Utils;
 
@@ -13,6 +14,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
@@ -34,46 +36,47 @@ import java.util.zip.GZIPOutputStream;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
 
-public class FastqToTaxaPlugin {
-	private final static Logger myLogger = 
-			Logger.getLogger(FastqToTaxaPlugin.class);
-	private ArgsEngine myArgsEngine = null;
+public class FastqToTagSequence extends Executor {
+	
 	private String myInputDirName = null;
 	private String myKeyfile = null;
 	private String[] myEnzyme = null;
-	private String myOutputDir = null;
-	private int myMinQualS = 0;
-	private int[] myLeadingTrim; 
-	private String myBadReadRecorder = null;
-	private final static int mb = 1024*1024;
-	private final static Runtime instance = Runtime.getRuntime();
+	private String myOutputDir = "./";
+	private int myMinQualS = 10;
+	private int[] myLeadingTrim = new int[]{0};; 
 
-	static {
-		BasicConfigurator.configure();
+	public FastqToTagSequence(String myInputDirName,
+			String myKeyfile, String[] myEnzyme, String myOutputDir,
+			int myMinQualS, int[] myLeadingTrim, int threads) {
+		this.myInputDirName = myInputDirName;
+		this.myKeyfile = myKeyfile;
+		this.myEnzyme = myEnzyme;
+		this.myOutputDir = myOutputDir;
+		this.myMinQualS = myMinQualS;
+		this.myLeadingTrim = myLeadingTrim;
+		this.THREADS = threads;
+		this.makeOutputDir();
 	}
 	
-	public static void main(String[] args) {
-		FastqToTaxaPlugin ftt = new FastqToTaxaPlugin();
-		ftt.setParameters(args);
-		ftt.callTags();
-	}
-
-	private void printUsage() {
+	@Override
+	public void printUsage() {
+		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " -i  Input directory containing FASTQ files in text or gzipped text.\n"
-						+ "     NOTE: Directory will be searched recursively and should\n"
-						+ "     be written WITHOUT a slash after its name.\n\n"
-						+ " -k  Key file listing barcodes distinguishing the samples\n"
-						+ " -e  Enzyme used to create the GBS library, if it differs from the one listed in the key file.\n"
-						+ " -q  Minimum quality score (default is 0).\n"
-						+ " -t  Threads (default is 1).\n"
-						+ " -T  The length of leading fragments to trim off.\n"
-						+ " -b	The bad reads output file.\n" 
-						+ " -o  Output directory to contain .cnt files (one per FASTQ file, defaults to input directory).\n\n");
+						+ " -i/--input-fastq		Input directory containing FASTQ files in text or gzipped text.\n"
+						+ "     					NOTE: Directory will be searched recursively and should\n"
+						+ "     					be written WITHOUT a slash after its name.\n\n"
+						+ " -k/--key-file			Key file listing barcodes distinguishing the samples\n"
+						+ " -e/--enzyme  			Enzyme used to create the GBS library, if it differs from the one listed in the key file.\n"
+						+ " -q/--min-qualS			Minimum quality score (default is 10).\n"
+						+ " -t/--threads			Threads (default is 1).\n"
+						+ " -T/--trim-leading		The length of leading fragments to trim off.\n"
+						+ " -o/--prefix				Output directory to contain .cnt files (one per FASTQ file, defaults to input directory).\n\n");
 	}
 
+	@Override
 	public void setParameters(String[] args) {
+		// TODO Auto-generated method stub
 		if (args.length == 0) {
 			printUsage();
 			throw new IllegalArgumentException("\n\nPlease use the above arguments/options.\n\n");
@@ -81,14 +84,14 @@ public class FastqToTaxaPlugin {
 
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
-			myArgsEngine.add("-i", "--input-directory", true);
+			myArgsEngine.add("-i", "--input-fastq", true);
 			myArgsEngine.add("-k", "--key-file", true);
 			myArgsEngine.add("-e", "--enzyme", true);
-			myArgsEngine.add("-q", "--quality-score", true);
+			myArgsEngine.add("-q", "--min-qualS", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-T", "--trim-leading", true);
-			myArgsEngine.add("-b", "--bad-reads", true);
-			myArgsEngine.add("-o", "--output-file", true);
+			myArgsEngine.add("-b", "--unassgined-reads", true);
+			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.parse(args);
 		}
 
@@ -110,6 +113,22 @@ public class FastqToTaxaPlugin {
 			myEnzyme = myArgsEngine.getString("-e").split("-");
 		} else {
 			myLogger.warn("No enzyme specified.  Using enzyme listed in key file.");
+			try {
+				BufferedReader br = Utils.getBufferedReader(myKeyfile);
+				String[] s = br.readLine().split("\\s+");
+				int k = -1;
+				for(int i=0; i<s.length; i++) 
+					if(s[i].toLowerCase().equals("enzyme")) 
+						k=i;
+				if(k<0) throw new IllegalArgumentException("No enzyme found in the key file. "
+						+ "Please specify the enzyme with -e option.\n\n");
+				s = br.readLine().split("\\s+");
+				myEnzyme = s[k].split("-");
+				br.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
 
 		if (myArgsEngine.getBoolean("-q")) {
@@ -123,9 +142,7 @@ public class FastqToTaxaPlugin {
 		if (myArgsEngine.getBoolean("-T")) {
 			int leading = Integer.parseInt(myArgsEngine.getString("-T"));
 			
-			if(leading==0) {
-				myLeadingTrim = new int[]{0};
-			} else {
+			if(leading>0) {
 				List<Integer> leadings = new ArrayList<Integer>();
 				leadings.add(leading);
 				for(int i=1; i<4; i++) {
@@ -138,19 +155,45 @@ public class FastqToTaxaPlugin {
 			}
 		}
 		
-		if (myArgsEngine.getBoolean("-b")) {
-			myBadReadRecorder = myArgsEngine.getString("-b");
-			this.badReads_recorder = Utils.getBufferedWriter(myBadReadRecorder);
-		}
-		
 		if (myArgsEngine.getBoolean("-o")) {
 			myOutputDir = myArgsEngine.getString("-o");
-		} else {
-			myOutputDir = myInputDirName;
 		}
-
+		
+		this.makeOutputDir();
 	}
 	
+	private void makeOutputDir() {
+		// TODO Auto-generated method stub
+		File out = new File(myOutputDir);
+		if(!out.exists() || out.exists()&&!out.isDirectory()) {
+			out.mkdir();
+		} else {
+			String[] tags = out.list(new FilenameFilter() {
+				public boolean accept(File dir, String name) {
+					String lowercaseName = name.toLowerCase();
+					if (lowercaseName.endsWith(".cnt.gz")) {
+						return true;
+					} else {
+						return false;
+					}
+				}
+			});
+			if(tags.length>0) {
+				StringBuilder msg = new StringBuilder("Tag file(s) ");
+				for(int i=0; i<tags.length-1; i++) {
+					msg.append(tags[i]);
+					msg.append(", ");
+				}
+				msg.append(tags[tags.length-1]);
+				msg.append(" already in the output directory. "
+						+ "Please make sure "
+						+ (tags.length>1 ? "they're all" : "it's")
+						+ " part of this project and not stale.");
+				myLogger.warn(msg.toString());
+			}
+		}
+	}
+
 	/**
      * Derives a tagCount list for each fastq file in the fastqDirectory.
      *
@@ -158,21 +201,13 @@ public class FastqToTaxaPlugin {
      * included).
      * @param enzyme The enzyme used to create the library (currently ApeKI or
      * PstI).
-     * @param fastqDirectory Directory containing the fastq files (will be
-     * recursively searched).
-     * @param outputDir Directory to which the tagCounts files (one per fastq
-     * file) will be written.
-     * @param maxGoodReads The maximum number of barcoded reads expected in a
-     * fastq file
-     * @param minCount The minimum number of occurrences of a tag in a fastq
-     * file for it to be included in the output tagCounts file
+     * @param fastqDirectory Directory containing the fastq files.
+     * @param outputDir Directory to which the tagCounts files.
      */
 
 	private final static Map<BitSet, short[]> tagCounts = 
 			new HashMap<BitSet, short[]>();
 	private Object lock = new Object();
-	private static int THREADS = 1;
-	private static ExecutorService executor;
 	private static long allReads = 0;
     private static long goodBarcodedReads = 0;
     private static String os = null;
@@ -181,38 +216,22 @@ public class FastqToTaxaPlugin {
     private static ParseBarcodeRead[] thePBR;  // this reads the key file and store the expected barcodes for this lane
     private static String[] taxa; // taxa names
     private static int n; // number of taxa
-    private BlockingQueue<Runnable> tasks = null;
     private static final double load = 0.9;
-    private BufferedWriter badReads_recorder = null;
     
-    public void restart() {
-    	tasks = new ArrayBlockingQueue<Runnable>(THREADS);
-    	executor = new ThreadPoolExecutor(THREADS, 
-        		THREADS, 
-        		1, 
-        		TimeUnit.SECONDS, 
-        		tasks, 
-        		new RejectedExecutionHandler(){
-        	@Override
-        	public void rejectedExecution(Runnable task,
-        			ThreadPoolExecutor arg1) {
-        		// TODO Auto-generated method stub
-        		try {
-					tasks.put(task);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-        	}
-        });
-    }
-    
-    public void callTags() {
+    @Override
+    public void run() {
+    	
     	String[] countFileNames = null;
 
         File inputDirectory = new File(this.myInputDirName);
-        File[] fastqFiles = DirectoryCrawler.listFiles("(?i).*\\.fq$|.*\\.fq\\.gz$|.*\\.fastq$|.*_fastq\\.txt$|.*_fastq\\.gz$|.*_fastq\\.txt\\.gz$|.*_sequence\\.txt$|.*_sequence\\.txt\\.gz$", inputDirectory.getAbsolutePath());
-        //                                              (?i) denotes case insensitive;                 \\. denotes escape . so it doesn't mean 'any char' & escape the backslash
+        File[] fastqFiles = inputDirectory.listFiles(
+        		new FilenameFilter() {
+        			@Override
+        		    public boolean accept(File dir, String name) {
+        		        return name.matches("(?i).*\\.fq$|.*\\.fq\\.gz$|.*\\.fastq$|.*_fastq\\.txt$|.*_fastq\\.gz$|.*_fastq\\.txt\\.gz$|.*_sequence\\.txt$|.*_sequence\\.txt\\.gz$");
+        		        //                   (?i) denotes case insensitive;                 \\. denotes escape . so it doesn't mean 'any char' & escape the backslash
+        			}
+        		});
         if (fastqFiles.length == 0 || fastqFiles == null) {
             myLogger.warn("Couldn't find any files that end with \".fq\", \".fq.gz\", \".fastq\", \"_fastq.txt\", \"_fastq.gz\", \"_fastq.txt.gz\", \"_sequence.txt\", or \"_sequence.txt.gz\" in the supplied directory.");
             return;
@@ -225,7 +244,7 @@ public class FastqToTaxaPlugin {
                 myLogger.info(fastqFiles[i].getAbsolutePath());
             }
         }
-
+        
         for (int laneNum = 0; laneNum < fastqFiles.length; laneNum++) {
         //for (int laneNum = 2; laneNum < 3; laneNum++) {
         	if(new File(myOutputDir+
@@ -276,11 +295,10 @@ public class FastqToTaxaPlugin {
             }
             long start = System.currentTimeMillis();
             //executor = Executors.newFixedThreadPool(THREADS);
-            restart();
+            initial_thread_pool();
             try {
                 BufferedReader br = Utils.getBufferedReader(fastqFiles[laneNum], 65536);
-
-                
+              
                 int block = 10000;
                 String[][] Qs = new String[block][2];
                 int k = 0;
@@ -359,9 +377,6 @@ public class FastqToTaxaPlugin {
 												block_tagCounts.put(key, new short[n]);
 											}
 											block_tagCounts.get(key)[rr.taxonId]++;
-										} else {
-											if(badReads_recorder!=null)
-												badReads_recorder.write(fastq[i][0]+"\n");
 										}
 									} catch (Exception e) {
 										Thread t = Thread.currentThread();
@@ -413,14 +428,6 @@ public class FastqToTaxaPlugin {
             myLogger.info("Finished reading " + (laneNum + 1) + " of " + fastqFiles.length + " sequence files.");
 
             tagCounts.clear();
-        }
-        
-        try {
-        	if(this.badReads_recorder!=null)
-        		this.badReads_recorder.close();
-        } catch (IOException e) {
-        	// TODO Auto-generated catch block
-        	e.printStackTrace();
         }
     }
 
@@ -488,7 +495,7 @@ public class FastqToTaxaPlugin {
 		//myLogger.info("tagCounts size "+ObjectSizeFetcher.getObjectSize(tagCounts));
 		tagCounts.clear();
 		System.gc();
-		restart();
+		initial_thread_pool();
 	}
 
 	private String os(BitSet bs) {
@@ -499,26 +506,4 @@ public class FastqToTaxaPlugin {
 		return sb.toString();
 	}
 	
-	private static double maxMemory() {
-		return instance.maxMemory() / mb;
-	}
-	
-	private static double totalMemory() {
-		return instance.totalMemory() / mb;
-	}
-	
-	private static double freeMemory() {
-		return instance.freeMemory() / mb;
-	}
-	
-	private static double usedMemory() {
-		return totalMemory()-freeMemory();
-	}
-	
-	private static void usage() {
-		myLogger.info("Max Memory: "+maxMemory());
-		myLogger.info("Total Memory: "+totalMemory());
-		myLogger.info("Free Memory: "+freeMemory());
-		myLogger.info("Used Memory: "+usedMemory());
-	}
 }

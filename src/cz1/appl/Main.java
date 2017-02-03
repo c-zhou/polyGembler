@@ -5,6 +5,7 @@ import java.io.File;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
 
+import cz1.gbs.tools.GBSpileup;
 import cz1.hmm.data.DataCollection;
 import cz1.hmm.tools.PolyGembler;
 import cz1.simulation.tools.GBSSimulator;
@@ -36,6 +37,11 @@ public class Main {
 			GBSSimulator gbssimulator = new GBSSimulator();
 			gbssimulator.setParameters(args2);
 			gbssimulator.run();
+			break;
+		case "gbspileup":
+			GBSpileup gbspileup = new GBSpileup();
+			gbspileup.setParameters(args2);
+			gbspileup.run();
 			break;
 		case "datapreparation":
 			String vcf = args[1];

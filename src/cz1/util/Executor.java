@@ -1,5 +1,8 @@
 package cz1.util;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
@@ -14,7 +17,9 @@ import cz1.util.ArgsEngine;
 
 public abstract class Executor {
 
-
+	protected final static int mb = 1024*1024;
+	protected final static Runtime instance = Runtime.getRuntime();
+	
 	protected final static Logger myLogger = 
 			Logger.getLogger(Executor.class);
 	static {
@@ -52,5 +57,59 @@ public abstract class Executor {
 				}
 			}
 		});
+	}
+	
+	protected static void require(String tool) {
+		String command = "command -v "+tool+
+				" >/dev/null 2>&1 && { echo \"true\"; } || { echo \"false\"; }";
+		try {
+			Process check = bash(command);
+			BufferedReader in =
+					new BufferedReader(new InputStreamReader(check.getInputStream()));
+			String line = in.readLine();
+			in.close();
+			check.waitFor();
+			if(line.equals("false")) 
+				throw new RuntimeException(
+						"\n\nTool "+tool+" is required but not available on this machine.\n"
+						+ "In you have already installed it, you will need to add it\n"
+						+ "to system path or use \"module load\" to load the tool.\n\n ");
+		} catch (IOException | InterruptedException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+	}
+	
+	protected static Process bash(String command) {
+		String[] runnable = new String[]{"bash","-c",command};
+		try {
+			return instance.exec(runnable);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			throw new RuntimeException("Runtime exception!!!");
+		}
+	}
+	
+	protected static double maxMemory() {
+		return instance.maxMemory() / mb;
+	}
+	
+	protected static double totalMemory() {
+		return instance.totalMemory() / mb;
+	}
+	
+	protected static double freeMemory() {
+		return instance.freeMemory() / mb;
+	}
+	
+	protected static double usedMemory() {
+		return totalMemory()-freeMemory();
+	}
+	
+	protected static void usage() {
+		myLogger.info("Max Memory: "+maxMemory());
+		myLogger.info("Total Memory: "+totalMemory());
+		myLogger.info("Free Memory: "+freeMemory());
+		myLogger.info("Used Memory: "+usedMemory());
 	}
 }

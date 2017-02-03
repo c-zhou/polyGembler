@@ -1,7 +1,7 @@
 /*
  * ReadBarcodeResult
  */
-package cz1.gbs.model;
+package cz1.gbs.core;
 
 import java.util.BitSet;
 

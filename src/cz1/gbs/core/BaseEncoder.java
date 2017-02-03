@@ -4,23 +4,9 @@ import java.util.BitSet;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Utility class for encoding tags into longs.
- * <p>
- * Sequencing reads are chunked into 32bp and recorded in a 64-bit long.  Only 
- * A (00), C (01), G (10), T (11) are encoded.  Any other character sets the entire long to -1.
- * Missing data at the end is padded with poly-A or (0).  This missing end, is tracked
- * by the tag length attribute.
- * <p>
- * Some of these methods should be transitioned to {@link net.maizegenetics.pal.alignment.NucleotideAlignmentConstants},
- * however, BaseEncoder only supports four states, while NucleotideAlignment includes gaps, insertions, and missing.
- * 
- * @author Ed Buckler
- */
 public class BaseEncoder {
 
 	public static final int chunkSize = 21;
-	/** defines the number of bases fitting with a long */
     public static final char[] bases = {'A', 'C', 'G', 'T', 'N'};
     public static final Map<Integer, Character> baseMap;
     static
@@ -49,9 +35,9 @@ public class BaseEncoder {
     }
 
     /**
-     * Returns a long for a sequence in a String
+     * Returns a BitSet for a sequence
      * @param seq
-     * @return 2-bit encode sequence (-1 if an invalid sequence state is provided e.g. N)
+     * @return 3-bit encoded sequence
      *	1		001			A
      *	6		110			C
      *	4		100			G
@@ -94,9 +80,9 @@ public class BaseEncoder {
     }
         
     /**
-     * Returns a long for a sequence in a String
+     * Returns a long for a sequence (demultiplexing)
      * @param seq
-     * @return 3-bit encode sequence (-1 if an invalid sequence state is provided e.g. N)
+     * @return 2-bit encode sequence
      */
     public static long getLongFromSeq(String seq) {
         int seqLength = seq.length();
@@ -137,15 +123,23 @@ public class BaseEncoder {
         return v;
     }
 
+    /**
+     * Returns the reverse complement of a sequence
+     * @param seq DNA sequence
+     * @return reverse complement sequence
+     */
+    public static String getReverseComplement(String seq) {
+        StringBuilder sb = new StringBuilder(seq.length());
+        for (int i = seq.length() - 1; i >= 0; i--) {
+            sb.append(cBaseMap.get(seq.charAt(i)));
+        }
+        return sb.toString();
+    }
 
     /**
-     * Returns the reverse complement of a sequence already encoded in a 2-bit long.
-     * <p>
-     * Note: polyA is used represent unknown, but reverse complement will change it to polyT which does not mean the same
-     * sometimes it is best to reverseComplement by text below
-     * @param seq  2-bit encoded sequence
-     * @param len  length of the sequence
-     * @return  2-bit reverse complement
+     * Returns the reverse complement of a encoded sequence
+     * @param seq 3-bit encoded sequence
+     * @return 3-bit encoded reverse complement sequence
      */
     public static BitSet getReverseComplement(BitSet seq) {
         int len = seq.length();
@@ -156,26 +150,11 @@ public class BaseEncoder {
         rev.set(len-1);
         return rev;
     }
-
-    /**
-     * Returns a string based reverse complement.  Get around issues with the poly-A tailing in the 2-bit encoding approach.
-     *
-     * @param seq  DNA sequence
-     * @return  reverse complement DNA sequence
-     */
-    public static String getReverseComplement(String seq) {
-        StringBuilder sb = new StringBuilder(seq.length());
-        for (int i = seq.length() - 1; i >= 0; i--) {
-            sb.append(cBaseMap.get(seq.charAt(i)));
-        }
-        return sb.toString();
-    }
-
+    
      /**
-     * Return a string representation of the 2-bit encoded long.
-     * @param val 2-bit encoded sequence
-     * @param len length of the sequence
-     * @return DNA sequence as a string
+     * Return a sequence represented by a 3-bit encoded BitSet
+     * @param val 3-bit encoded sequence
+     * @return sequence
      */
     public static String getSequenceFromBitSet(BitSet val) {
         StringBuilder seq = new StringBuilder( (val.length()-1)/3 );
@@ -189,10 +168,19 @@ public class BaseEncoder {
         return seq.toString();
     }
     
-    public static byte seqDifferencesForSubset(long seq1, long seq2, int lengthOfComp, int maxDivergence) {
+    /**
+     * Return the divergence of two long-encoded sequence (demultiplexing)
+     * @param val1 long encoded sequence
+     * @param val2 long encoded sequence
+     * @param lengthOfComp number of bases for comparison
+     * @param maxDivergence stops when divergence exceeds this number
+     * @return divergence
+     */
+    public static byte seqDifferencesForSubset(long val1, long val2, 
+    		int lengthOfComp, int maxDivergence) {
         long mask = 7;
         byte cnt = 0;
-        long diff = seq1 ^ seq2;
+        long diff = val1 ^ val2;
         diff = diff >> (3 * (chunkSize - lengthOfComp));  //shift to 5' end of sequence
         for (int x = 0; x < lengthOfComp && cnt < maxDivergence; x++) {
             if ((diff & mask) > 0) {
@@ -204,12 +192,11 @@ public class BaseEncoder {
     }
     
     /**
-     * Returns the position of the first low quality positions based on a quality
-     * fastq (?) string.
+     * Returns the position of the first low quality positions based on a quality string
      * @param quality fastq quality string
      * @param minQual minimum quality threshold
-     * @return position of first low quality position (quality length is returned is not low
-     * quality base is found.
+     * @return position of first low quality position (quality length is returned if no low
+     * quality base is found).
      */
     public static int getFirstLowQualityPos(String quality, int minQual) {
         int qualInt = 0;

@@ -1,8 +1,6 @@
-package cz1.gbs.model;
+package cz1.gbs.core;
 
 import java.util.Arrays;
-
-import cz1.gbs.core.BaseEncoder;
 
 /**
  * Container class for storing information on GBS barcodes.
@@ -79,7 +77,8 @@ public class Barcode implements Comparable<Barcode> {
     public int compareSequence(long queryLong, int maxDivCheck) {
         int div = barOverLength;
         for (long targetLong : barOverLong) {
-            int c = BaseEncoder.seqDifferencesForSubset(targetLong, queryLong, barOverLength, maxDivCheck);
+            int c = BaseEncoder.seqDifferencesForSubset(targetLong, 
+            		queryLong, barOverLength, maxDivCheck);
             if (c < div) {
                 div = c;
             }
@@ -128,4 +127,23 @@ public class Barcode implements Comparable<Barcode> {
     public int getTaxaId() {
     	return taxonId;
     }
+    
+    public int getBarOverLength() {
+    	return this.barOverLength;
+    }
+
+	public String getFlowcell() {
+		// TODO Auto-generated method stub
+		return this.flowcell;
+	}
+
+	public String getLane() {
+		// TODO Auto-generated method stub
+		return this.lane;
+	}
+
+	public int getBarLength() {
+		// TODO Auto-generated method stub
+		return this.barLength;
+	}
 }
