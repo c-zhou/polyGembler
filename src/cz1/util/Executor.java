@@ -59,7 +59,7 @@ public abstract class Executor {
 		});
 	}
 	
-	protected static void require(String tool) {
+	protected void require(String tool) {
 		String command = "command -v "+tool+
 				" >/dev/null 2>&1 && { echo \"true\"; } || { echo \"false\"; }";
 		try {
@@ -80,13 +80,52 @@ public abstract class Executor {
 		}
 	}
 	
-	protected static Process bash(String command) {
+	protected Process bash(String command) {
 		String[] runnable = new String[]{"bash","-c",command};
 		try {
 			return instance.exec(runnable);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			throw new RuntimeException("Runtime exception!!!");
+		}
+	}
+	
+	protected void bash(final String[] commands) {
+		initial_thread_pool();
+		
+		for(int i=0; i<commands.length; i++) {
+			executor.submit(new Runnable() {
+				private int i;
+				
+				@Override
+				public void run() {
+					// TODO Auto-generated method stub
+					String[] runnable = new String[]{"bash","-c",commands[i]};
+					try {
+						try {
+							instance.exec(runnable).waitFor();
+						} catch (InterruptedException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						throw new RuntimeException("Runtime exception!!!");
+					}
+				}
+				public Runnable init(final int i) {
+			        this.i = i;
+			        return(this);
+			    }
+			}.init(i));
+		}
+		
+		try {
+			executor.shutdown();
+			executor.awaitTermination(365, TimeUnit.DAYS);
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
 	}
 	

@@ -21,6 +21,7 @@ import net.sf.samtools.SAMFileHeader;
 import net.sf.samtools.SAMFileReader;
 import net.sf.samtools.SAMFileWriter;
 import net.sf.samtools.SAMFileWriterFactory;
+import net.sf.samtools.SAMReadGroupRecord;
 import net.sf.samtools.SAMRecord;
 import net.sf.samtools.SAMRecordIterator;
 import net.sf.samtools.SAMFileHeader.SortOrder;
@@ -273,14 +274,18 @@ public class SamToTaxa extends Executor {
 										for(int t=0; t<tagObj.taxa.length; t++) {
 											taxa = tagObj.taxa[t];
 											if(!bam_writers.containsKey(taxa)) { 
+												SAMFileHeader header = header_sam.clone();
+												SAMReadGroupRecord rg = new SAMReadGroupRecord(taxa);
+												rg.setSample(taxa);
+												header.addReadGroup(rg);
 												bam_writers.put(taxa, 
 														new SAMFileWriterFactory().
-														makeSAMOrBAMWriter(header_sam,
+														makeSAMOrBAMWriter(header,
 																true, new File(myOutputDir+
 																		System.getProperty("file.separator")+
 																		taxa+".bam")));
 											}
-
+											sam[i].setAttribute("RG", taxa);
 											for(int r=0; r++<tagObj.count[t];)
 												bam_writers.get(taxa).addAlignment(sam[i]);
 										}

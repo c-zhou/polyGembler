@@ -2,6 +2,7 @@ package cz1.gbs.tools;
 
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
+import cz1.util.IO;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -12,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
@@ -30,9 +32,16 @@ import net.sf.samtools.SAMSequenceRecord;
 
 
 public class SamFileSplit extends Executor {
-
-	private final static String file_sep  = 
-			System.getProperty("file.separator");
+	
+	public SamFileSplit(String bam_in, 
+			String bed_in, 
+			String bam_out,
+			int threads) {
+		this.bam_in = bam_in;
+		this.bed_in = bed_in;
+		this.bam_out = bam_out;
+		this.THREADS = threads;
+	}
 	
 	@Override
 	public void printUsage() {
@@ -44,9 +53,9 @@ public class SamFileSplit extends Executor {
 						+ " -o  output directory.\n\n" );
 	}
 
-	private static String bam_in;
-	private static String bed_in;
-	private static String bam_out;
+	private String bam_in;
+	private String bed_in;
+	private String bam_out;
 	
 	@Override
 	public void setParameters(String[] args) {
@@ -58,7 +67,7 @@ public class SamFileSplit extends Executor {
 
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
-			myArgsEngine.add("-i", "--input-file", true);
+			myArgsEngine.add("-i", "--input-dir", true);
 			myArgsEngine.add("-b", "--bed-dir", true);
 			myArgsEngine.add("-o", "--output-dir", true);
 			myArgsEngine.parse(args);
@@ -68,85 +77,114 @@ public class SamFileSplit extends Executor {
 			bam_in = myArgsEngine.getString("-i");
 		} else {
 			printUsage();
-			throw new IllegalArgumentException("Please specify the location of your FASTQ files.");
+			throw new IllegalArgumentException("Please specify the location of your BAM files.");
 		}
 
 		if (myArgsEngine.getBoolean("-b")) {
 			bed_in = myArgsEngine.getString("-b");
 		} else {
 			printUsage();
-			throw new IllegalArgumentException("Please specify a barcode key file.");
+			throw new IllegalArgumentException("Please specify the location of your BED files.");
 		}
 
 		if (myArgsEngine.getBoolean("-o")) {
 			bam_out = myArgsEngine.getString("-o");
 		} else {
-			myLogger.warn("No enzyme specified.  Using enzyme listed in key file.");
+			printUsage();
+			throw new IllegalArgumentException("Please specify the location of your output BAM files.");
 		}
 	}
 
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		final SAMFileReader inputSam = new SAMFileReader(new File(bam_in));
-		final SAMFileHeader header = inputSam.getFileHeader();
-		inputSam.setValidationStringency(ValidationStringency.SILENT);
-		SAMRecordIterator iter=inputSam.iterator();
-		final SAMSequenceDictionary seqdic = header.getSequenceDictionary();
+		IO.makeOutputDir(bam_out);
+		final File[] beds = new File(bed_in).listFiles();
+		final String[] out_prefix = new String[beds.length];
+		for(int i=0; i<beds.length; i++) {
+			out_prefix[i] = bam_out+"/"+beds[i].getName().replaceAll(".bed$", "");
+			IO.makeOutputDir(out_prefix[i]);
+		}
 		
-		File[] bed_files = new File(bed_in).listFiles();
-		final SAMFileWriter[] outputSam = new SAMFileWriter[bed_files.length];
-		Map<String, Integer> outMap = new HashMap<String, Integer>();
-		for(int i=0; i<bed_files.length; i++) {
-			
-			Set<String> bed_seq = new HashSet<String>();
-			String out = bed_files[i].getName().split("\\.")[0];
-			String out_2 = new File(bam_in).getName().split("\\.")[0];
-			String tmp;
-			
-			try (BufferedReader br = new BufferedReader(
-					new FileReader(bed_files[i]))) {
-				String line;
-				while( (line=br.readLine()) !=null ) {
-					tmp = line.split("\\s+")[0];
-					bed_seq.add(tmp);
-					outMap.put(tmp, i);
+		final File[] bams = new File(bam_in).listFiles();
+		this.initial_thread_pool();
+		for(File bam : bams) {
+			executor.submit(new Runnable(){
+				private File bam;
+				@Override
+				public void run() {
+					// TODO Auto-generated method stub
+					final SAMFileReader inputSam = new SAMFileReader(bam);
+					final SAMFileHeader header = inputSam.getFileHeader();
+					inputSam.setValidationStringency(ValidationStringency.SILENT);
+					final SAMRecordIterator iter = inputSam.iterator();
+					final SAMSequenceDictionary seqdic = header.getSequenceDictionary();
+					
+					final SAMFileWriter[] outputSam = new SAMFileWriter[beds.length];
+					final Map<String, Integer> outMap = new HashMap<String, Integer>();
+					final String out = bam.getName();
+					for(int i=0; i<beds.length; i++) {
+						
+						Set<String> bed_seq = new HashSet<String>();
+						String tmp;
+						
+						try (BufferedReader br = new BufferedReader(
+								new FileReader(beds[i]))) {
+							String line;
+							while( (line=br.readLine()) !=null ) {
+								tmp = line.split("\\s+")[0];
+								bed_seq.add(tmp);
+								outMap.put(tmp, i);
+							}
+						} catch (IOException e) {
+							e.printStackTrace();
+							System.exit(1);
+						}
+						final SAMFileHeader header_i = new SAMFileHeader();
+						final SAMSequenceDictionary seqdic_i = new SAMSequenceDictionary();
+						header_i.setAttribute("VN", header.getAttribute("VN"));
+						header_i.setAttribute("SO", header.getAttribute("SO"));
+						List<SAMSequenceRecord> seqs = seqdic.getSequences();
+						for(SAMSequenceRecord seq : seqs)
+							if(bed_seq.contains(seq.getSequenceName()))
+								seqdic_i.addSequence(seq);
+						header_i.setSequenceDictionary(seqdic_i);
+						for(SAMReadGroupRecord rg : header.getReadGroups())
+							header_i.addReadGroup(rg);
+						for(SAMProgramRecord pg : header.getProgramRecords())
+							header_i.addProgramRecord(pg);
+						
+						outputSam[i] = new SAMFileWriterFactory().
+								makeSAMOrBAMWriter(header_i,
+										true, new File(out_prefix+"/"+out));
+					}
+					
+					while(iter.hasNext()) {
+						SAMRecord rec=iter.next();
+						outputSam[outMap.get(rec.getReferenceName())].addAlignment(rec);
+					}
+					iter.close();
+					inputSam.close();
+					for(int i=0; i<outputSam.length; i++)
+						outputSam[i].close();
+					
+					myLogger.info(out+" return true");
 				}
-			} catch (IOException e) {
-				e.printStackTrace();
-				System.exit(1);
-			}
-			final SAMFileHeader header_i = new SAMFileHeader();
-			final SAMSequenceDictionary seqdic_i = new SAMSequenceDictionary();
-			header_i.setAttribute("VN", header.getAttribute("VN"));
-			header_i.setAttribute("SO", header.getAttribute("SO"));
-			List<SAMSequenceRecord> seqs = seqdic.getSequences();
-			for(SAMSequenceRecord seq : seqs)
-				if(bed_seq.contains(seq.getSequenceName()))
-					seqdic_i.addSequence(seq);
-			header_i.setSequenceDictionary(seqdic_i);
-			for(SAMReadGroupRecord rg : header.getReadGroups())
-				header_i.addReadGroup(rg);
-			for(SAMProgramRecord pg : header.getProgramRecords())
-				header_i.addProgramRecord(pg);
-			
-			outputSam[i] = new SAMFileWriterFactory().
-					makeSAMOrBAMWriter(header_i,
-							true, new File(bam_out+file_sep+
-									out+file_sep+
-									out_2+".sam"));
+				
+				public Runnable init(File bam) {
+					this.bam = bam;
+					return(this);
+				}
+			}.init(bam));
 		}
 		
-		while(iter.hasNext()) {
-			SAMRecord rec=iter.next();
-			outputSam[outMap.get(rec.getReferenceName())].addAlignment(rec);
+		try {
+			executor.shutdown();
+			executor.awaitTermination(365, TimeUnit.DAYS);
+		} catch (InterruptedException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
 		}
-		iter.close();
-		inputSam.close();
-		for(int i=0; i<outputSam.length; i++)
-			outputSam[i].close();
-		
-		System.err.println(bam_in+" return true");
 	}
 }
 

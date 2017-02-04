@@ -11,6 +11,7 @@ import java.io.FileReader;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.BufferedReader;
+import java.io.FilenameFilter;
 import java.io.PrintStream;
 import java.util.zip.GZIPInputStream;
 import java.io.OutputStreamWriter;
@@ -187,5 +188,13 @@ public class IO {
 		// TODO Auto-generated method stub
 		for(char c : chars) IO.print(c+" ");
 		IO.println();
+	}
+	
+	public static void makeOutputDir(String dir) {
+		// TODO Auto-generated method stub
+		File out = new File(dir);
+		if(!out.exists() || out.exists()&&!out.isDirectory()) {
+			out.mkdir();
+		}
 	}
 }
