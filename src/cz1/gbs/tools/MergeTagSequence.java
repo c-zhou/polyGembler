@@ -5,7 +5,11 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import cz1.util.ArgsEngine;
@@ -119,15 +123,32 @@ public class MergeTagSequence extends Executor{
 				myLogger.info(countFileNames[i].getAbsolutePath());
 		}
 
+		if(countFileNames.length == 1) {
+			try {
+				myLogger.info("Only one tag file found. Copying file...");
+				Files.copy(countFileNames[0].toPath(), 
+						new File(myOutputDir+"/"+"tag.cnt.gz").toPath());
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+			return;
+		}
+		
 		BufferedReader[] brs = new BufferedReader[countFileNames.length];
+			
 		BufferedWriter bw = Utils.getBufferedWriter(
 				myOutputDir+
 				System.getProperty("file.separator")+
 				"tag.cnt.gz");
-		Map<String, int[]> taxa = new HashMap<String, int[]>();
-		String[] s, s0;
+		Map<String, List<List<Integer>>> taxa = 
+				new HashMap<String, List<List<Integer>>>();
+		
+		String[] s;
+		String s0;
 		int n = brs.length;
 		long start = System.currentTimeMillis();
+		int maxS = 0;
 		try{
 			for(int i=0; i<n; i++) {
 				brs[i] = Utils.getBufferedReader(countFileNames[i], 65536);
@@ -135,29 +156,29 @@ public class MergeTagSequence extends Executor{
 				s = brs[i].readLine().split("\\s+");
 				
 				for(int j=1; j<s.length; j++) {
-					s0 = s[j].split(":");
-					if(taxa.containsKey(s0[0])) 
-						taxa.get(s0[0])[i] = (taxa.get(s0[0])[i]<<8)+j;
+					s0 = s[j].split(":")[0];
+					if(taxa.containsKey(s0)) 
+						taxa.get(s0).get(i).add(j);
 					else {
-						int[] ii = new int[n];
-						ii[i] = j;
-						taxa.put(s0[0], ii);
+						List<List<Integer>> ii = new ArrayList<List<Integer>>();
+						for(int k=0; k<n; k++)
+							ii.add(new ArrayList<Integer>());
+						ii.get(i).add(j);
+						taxa.put(s0, ii);
 					}
 				}
+				if(s.length>maxS) maxS = s.length;
 			}
 			
 			String[] taxaName = taxa.keySet().
 					toArray(new String[taxa.keySet().size()]);
-			int[][] c = new int[n][97];
+			final int[][] c = new int[n][maxS];
 			for(int i=0; i<taxaName.length; i++) {
-				int[] ii = taxa.get(taxaName[i]);
+				List<List<Integer>> ii = taxa.get(taxaName[i]);
 				for(int j=0; j<n; j++) {
-					int jj = ii[j];
-					while( jj>0 ) {
-						int kk = jj & 127;
-						c[j][kk] = i;
-						jj = jj>>8;
-					}
+					List<Integer> jj = ii.get(j);
+					for(Integer k : jj)
+						c[j][k] = i;
 				}
 			}
 			bw.write("#Tag");

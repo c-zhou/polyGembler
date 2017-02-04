@@ -24,25 +24,17 @@ import org.apache.log4j.Logger;
 
 public class TagSequenceToFastq extends Executor {
 
-	private String myInputDirName = null;
+	private String myInputDir = null;
 	private String myOutputDir = "./";
 	private final static String poly5 = "55555555555555555555555555555"
 			+ "5555555555555555555555555555555555555555555555555555555555555555555555555555555555555555555";
 
-	public TagSequenceToFastq(String myInputDirName,
+	public TagSequenceToFastq(String myInputDir,
 			String myOutputDir, int threads) {
-		this.myInputDirName = myInputDirName;
+		this.myInputDir = myInputDir;
 		this.myOutputDir = myOutputDir;
 		this.THREADS = threads;
-		this.makeOutputDir();
-	}
-	
-	private void makeOutputDir() {
-		// TODO Auto-generated method stub
-		File out = new File(myOutputDir);
-		if(!out.exists() || out.exists()&&!out.isDirectory()) {
-			out.mkdir();
-		}
+		IO.makeOutputDir(this.myOutputDir);
 	}
 	
 	@Override
@@ -72,7 +64,7 @@ public class TagSequenceToFastq extends Executor {
 		}
 
 		if (myArgsEngine.getBoolean("-i")) {
-			myInputDirName = myArgsEngine.getString("-i");
+			myInputDir = myArgsEngine.getString("-i");
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify the location of your FASTQ files.");
@@ -86,17 +78,10 @@ public class TagSequenceToFastq extends Executor {
 			myOutputDir = myArgsEngine.getString("-o");
 		}
 		
-		this.makeOutputDir();
+		IO.makeOutputDir(this.myOutputDir);
 	}
 
-	final BufferedWriter bw = Utils.getBufferedWriter(
-			myOutputDir+
-			System.getProperty("file.separator")+
-			"master.fastq.gz");
-	final BufferedWriter bw2 = Utils.getBufferedWriter(
-			myOutputDir+
-			System.getProperty("file.separator")+
-			"master.index.gz");
+	BufferedWriter bw, bw2;
 	private final List<Long> synchedBlock = 
 			Collections.synchronizedList(new LinkedList<Long>());
 	
@@ -114,7 +99,7 @@ public class TagSequenceToFastq extends Executor {
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		File inputDirectory = new File(this.myInputDirName);
+		File inputDirectory = new File(this.myInputDir);
 		File[] countFileNames = inputDirectory.listFiles(
         		new FilenameFilter() {
         			@Override
@@ -132,7 +117,17 @@ public class TagSequenceToFastq extends Executor {
 				myLogger.info(countFileNames[i].getAbsolutePath());
 		}
 		
+		bw = Utils.getBufferedWriter(
+				myOutputDir+
+				System.getProperty("file.separator")+
+				"master.fastq.gz");
+		bw2 = Utils.getBufferedWriter(
+				myOutputDir+
+				System.getProperty("file.separator")+
+				"master.index.gz");
+		
 		long start = System.currentTimeMillis();
+		this.initial_thread_pool();
 		try{
 			for(int i=0; i<countFileNames.length; i++) {
 				BufferedReader br = Utils.getBufferedReader(
@@ -194,9 +189,6 @@ public class TagSequenceToFastq extends Executor {
 									}
 									index.setLength(index.length()-1);
 									index.append("\n");
-									
-									if(start_i%1000000==0)
-										myLogger.info(start_i+" tags processed");
 								}
 								try {
 									bw.write(fastq.toString());
@@ -205,6 +197,9 @@ public class TagSequenceToFastq extends Executor {
 									// TODO Auto-generated catch block
 									e.printStackTrace();
 								}
+								
+								if(start_i%1000000==0)
+									myLogger.info(start_i+" tags processed");
 							}
 							
 							public Runnable init(final String[] Qs, final long bS) {
@@ -214,7 +209,7 @@ public class TagSequenceToFastq extends Executor {
 						    }
 						}.init(Qs, bS));
 						bS++;
-                    	k=0;
+                    	k = 0;
                     	Qs = new String[block];
 					}
 				}
@@ -234,7 +229,7 @@ public class TagSequenceToFastq extends Executor {
 	
 	public void single_thread_run() {
 		// TODO Auto-generated method stub
-		File inputDirectory = new File(this.myInputDirName);
+		File inputDirectory = new File(this.myInputDir);
 		File[] countFileNames = DirectoryCrawler.listFiles("(?i).*\\.cnt$|.*\\.cnt\\.gz$|.*_cnt\\.txt$|.*_cnt\\.txt\\.gz$", inputDirectory.getAbsolutePath());
 		//                                              (?i) denotes case insensitive;                 \\. denotes escape . so it doesn't mean 'any char' & escape the backslash
 		if (countFileNames.length == 0 || countFileNames == null) {
