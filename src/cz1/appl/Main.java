@@ -66,6 +66,7 @@ public class Main {
 				"\n\nUsage is as follows:\n"
 						+ " popsimulaion 		Simulate a full-sib mapping population. \n"
 						+ " gbssimulation 		Simulate GBS data. \n"
+						+ " gbspileup 			Variant calling from GBS data. \n"
 						+ " datapreparation  	Prepare data for haplotype phasing. \n"
 						+ " haplotypephasing  	Contig/scaffold haplotype construction from a mapping population.\n");
 	}
