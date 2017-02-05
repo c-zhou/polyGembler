@@ -234,13 +234,15 @@ public class SamToTaxa extends Executor {
 			cache();
 			initial_thread_pool();
 			
-			int block = 10000;
+			final int block = 10000;
+			int bS = 0;
 			SAMRecord[] Qs = new SAMRecord[block];
 			SAMRecord temp = iter.next();
 			int k = 0;
 			allReads = 0;
 			long tag;
 			while ( temp!=null ) {
+				allReads++;
 				Qs[k] = temp;
 				temp = iter.hasNext() ? iter.next() : null;
 				k++;
@@ -250,6 +252,8 @@ public class SamToTaxa extends Executor {
 				if(k==block || temp==null || tag>=cursor) {
 					executor.submit(new Runnable() {
 						private SAMRecord[] sam;
+						private int block_i;
+						
 						@Override
 						public void run() {
 							// TODO Auto-generated method stub
@@ -259,15 +263,9 @@ public class SamToTaxa extends Executor {
 							String taxa;
 							for(int i=0; i<sam.length; i++) {
 								try {
-									if(sam[i]==null)
-										break;
-									synchronized(lock) {
-										allReads++;
-									}
+									if(sam[i]==null) break;
 
 									tag = Long.parseLong(sam[i].getReadName());
-									if (allReads % 1000000 == 0) 
-										myLogger.info("Total Reads:" + allReads);
 									synchronized(lock) {
 										tagObj = indexMap.get(tag);
 										//if(tagObj==null) continue;
@@ -298,16 +296,22 @@ public class SamToTaxa extends Executor {
 									System.exit(1);
 								}
 							}
+							
+							if (block*(block_i+1) % 1000000 == 0) 
+								myLogger.info("Tag processed: " + block*(block_i+1));
 						}
 
-						public Runnable init(SAMRecord[] sam) {
+						public Runnable init(SAMRecord[] sam, int bS) {
 							this.sam = sam;
+							this.block_i = bS;
 							return(this);
 						}
-					}.init(Qs));
+					}.init(Qs, bS));
 					
 					k=0;
 					Qs = new SAMRecord[block];
+					bS++;
+					
 					if(temp==null || tag>=cursor) {
 						executor.shutdown();
 						executor.awaitTermination(365, TimeUnit.DAYS);

@@ -122,18 +122,6 @@ public class MergeTagSequence extends Executor{
 			for (int i = 0; i < countFileNames.length; i++) 
 				myLogger.info(countFileNames[i].getAbsolutePath());
 		}
-
-		if(countFileNames.length == 1) {
-			try {
-				myLogger.info("Only one tag file found. Copying file...");
-				Files.copy(countFileNames[0].toPath(), 
-						new File(myOutputDir+"/"+"tag.cnt.gz").toPath());
-			} catch (IOException e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
-			}
-			return;
-		}
 		
 		BufferedReader[] brs = new BufferedReader[countFileNames.length];
 			
