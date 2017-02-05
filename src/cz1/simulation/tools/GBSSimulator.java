@@ -125,7 +125,15 @@ public class GBSSimulator extends Executor {
 
 					@Override
 					public void run() {
-						gbs.simulate(f);
+						try {
+							gbs.simulate(f);
+						} catch (Exception e) {
+							Thread t = Thread.currentThread();
+							t.getUncaughtExceptionHandler().uncaughtException(t, e);
+							e.printStackTrace();
+							executor.shutdown();
+							System.exit(1);
+						}
 					}
 					public Runnable init(int f) {
 						this.f = f;

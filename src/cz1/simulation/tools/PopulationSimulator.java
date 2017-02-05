@@ -89,7 +89,15 @@ public class PopulationSimulator extends Executor {
 
 				@Override
 				public void run() {
-					pop.writeGenomeFile(i);
+					try {
+						pop.writeGenomeFile(i);
+					} catch (Exception e) {
+						Thread t = Thread.currentThread();
+						t.getUncaughtExceptionHandler().uncaughtException(t, e);
+						e.printStackTrace();
+						executor.shutdown();
+						System.exit(1);
+					}
 				} 
 
 				public Runnable init(int i) {
