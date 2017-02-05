@@ -7,8 +7,11 @@ import cz1.util.Utils;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -179,20 +182,28 @@ public class SamToTaxa extends Executor {
 						@Override
 						public void run() {
 							// TODO Auto-generated method stub
-							long tag;
-							String[] s, taxa;
-							int[] count;
-							for(String x : index) {
-								s = x.split("\\s+");
-								tag = Long.parseLong(s[0]);
-								s = s[1].split("#|:");
-								taxa = new String[s.length/2];
-								count = new int[s.length/2];
-								for(int i=0; i<s.length/2; i++) {
-									taxa[i] = s[i*2];
-									count[i] = Integer.parseInt(s[i*2+1]);
+							try{
+								long tag;
+								String[] s, taxa;
+								int[] count;
+								for(String x : index) {
+									s = x.split("\\s+");
+									tag = Long.parseLong(s[0]);
+									s = s[1].split("#|:");
+									taxa = new String[s.length/2];
+									count = new int[s.length/2];
+									for(int i=0; i<s.length/2; i++) {
+										taxa[i] = s[i*2];
+										count[i] = Integer.parseInt(s[i*2+1]);
+									}
+									indexMap.put(tag, new Tag(taxa, count));
 								}
-								indexMap.put(tag, new Tag(taxa, count));
+							} catch (Exception e) {
+								Thread t = Thread.currentThread();
+								t.getUncaughtExceptionHandler().uncaughtException(t, e);
+								e.printStackTrace();
+								executor.shutdown();
+								System.exit(1);
 							}
 						}
 						public Runnable init(String[] index) {
@@ -223,11 +234,28 @@ public class SamToTaxa extends Executor {
 			File samFile = new File(mySamFileName);
 			myLogger.info("Using the following BAM file:");
 			myLogger.info(samFile.getAbsolutePath());
-
-			indexReader = Utils.getBufferedReader(indexFile, 65536);
+			
 			final SAMFileReader inputSam = new SAMFileReader(samFile);
 			header_sam = inputSam.getFileHeader();
 			header_sam.setSortOrder(SortOrder.unsorted);
+			
+			indexReader = Utils.getBufferedReader(indexFile, 65536);
+			String line = indexReader.readLine();
+			String[] samples = line.split("\\s+");
+			for(int i=1; i<samples.length; i++) { 
+				String taxa = samples[i];
+				SAMFileHeader header = header_sam.clone();
+				SAMReadGroupRecord rg = new SAMReadGroupRecord(taxa);
+				rg.setSample(taxa);
+				header.addReadGroup(rg);
+				bam_writers.put(taxa, 
+						new SAMFileWriterFactory().
+						makeSAMOrBAMWriter(header,
+								true, new File(myOutputDir+
+										System.getProperty("file.separator")+
+										taxa+".bam")));
+			}
+			
 			inputSam.setValidationStringency(ValidationStringency.SILENT);
 			SAMRecordIterator iter=inputSam.iterator();
 			
@@ -257,36 +285,20 @@ public class SamToTaxa extends Executor {
 						@Override
 						public void run() {
 							// TODO Auto-generated method stub
-
 							long tag;
 							Tag tagObj;
 							String taxa;
 							for(int i=0; i<sam.length; i++) {
 								try {
 									if(sam[i]==null) break;
-
 									tag = Long.parseLong(sam[i].getReadName());
-									synchronized(lock) {
-										tagObj = indexMap.get(tag);
-										//if(tagObj==null) continue;
-										for(int t=0; t<tagObj.taxa.length; t++) {
-											taxa = tagObj.taxa[t];
-											if(!bam_writers.containsKey(taxa)) { 
-												SAMFileHeader header = header_sam.clone();
-												SAMReadGroupRecord rg = new SAMReadGroupRecord(taxa);
-												rg.setSample(taxa);
-												header.addReadGroup(rg);
-												bam_writers.put(taxa, 
-														new SAMFileWriterFactory().
-														makeSAMOrBAMWriter(header,
-																true, new File(myOutputDir+
-																		System.getProperty("file.separator")+
-																		taxa+".bam")));
-											}
-											sam[i].setAttribute("RG", taxa);
-											for(int r=0; r++<tagObj.count[t];)
-												bam_writers.get(taxa).addAlignment(sam[i]);
-										}
+									tagObj = indexMap.get(tag);
+									int l = tagObj.taxa.length;
+									for(int t=0; t<l; t++) {
+										taxa = tagObj.taxa[t];
+										sam[i].setAttribute("RG", taxa);
+										for(int r=0; r<tagObj.count[t];r++)
+											bam_writers.get(taxa).addAlignment(sam[i]);
 									}
 								} catch (Exception e) {
 									Thread t = Thread.currentThread();
@@ -324,6 +336,7 @@ public class SamToTaxa extends Executor {
 			}
 			iter.close();
 			inputSam.close();
+			indexReader.close();
 			//executor.shutdown();
 			//executor.awaitTermination(365, TimeUnit.DAYS);
 			for(String key : bam_writers.keySet())
@@ -444,6 +457,7 @@ public class SamToTaxa extends Executor {
 				}
 			}
 			br.close();
+			indexReader.close();
 			//executor.shutdown();
 			//executor.awaitTermination(365, TimeUnit.DAYS);
 			for(String key : sam_writers.keySet())
@@ -593,6 +607,7 @@ public class SamToTaxa extends Executor {
 				}
 			}
 			br.close();
+			indexReader.close();
 			executor.shutdown();
 			executor.awaitTermination(365, TimeUnit.DAYS);
 			for(String key : sam_writers.keySet())

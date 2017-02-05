@@ -329,35 +329,35 @@ public class FastqToTagSequence extends Executor {
 							@Override
 							public void run() {
 								// TODO Auto-generated method stub
-								
-								final Map<BitSet, short[]> block_tagCounts = 
-										new HashMap<BitSet, short[]>();
-								int block_allReads = 0, block_goodBarcodedReads = 0;
-								ReadBarcodeResult rr = null;
-								BitSet key;
-								for(int i=0; i<fastq.length; i++) {
-									try {
-										if(fastq[i][0]==null)
-											break;
-										//synchronized(lock) {
-										//	allReads++;
-										//}
-										block_allReads++;
-										
-										outerloop:
-										for(int j=0; j<myLeadingTrim.length; j++) {
-											for(int k=0; k<thePBR.length; k++) {
-												rr = thePBR[k].parseReadIntoTagAndTaxa (
-														fastq[i][0].substring(myLeadingTrim[j]), 
-														fastq[i][1].substring(myLeadingTrim[j]), 
-														myMinQualS);
-												if(rr!=null) break outerloop;
-											}
-										}
+								try {
+									final Map<BitSet, short[]> block_tagCounts = 
+											new HashMap<BitSet, short[]>();
+											int block_allReads = 0, block_goodBarcodedReads = 0;
+											ReadBarcodeResult rr = null;
+											BitSet key;
+											for(int i=0; i<fastq.length; i++) {
 
-										if(rr!=null) {
-											key = rr.read;
-											/**
+												if(fastq[i][0]==null)
+													break;
+												//synchronized(lock) {
+												//	allReads++;
+												//}
+												block_allReads++;
+
+												outerloop:
+													for(int j=0; j<myLeadingTrim.length; j++) {
+														for(int k=0; k<thePBR.length; k++) {
+															rr = thePBR[k].parseReadIntoTagAndTaxa (
+																	fastq[i][0].substring(myLeadingTrim[j]), 
+																	fastq[i][1].substring(myLeadingTrim[j]), 
+																	myMinQualS);
+															if(rr!=null) break outerloop;
+														}
+													}
+
+												if(rr!=null) {
+													key = rr.read;
+													/**
 											synchronized(lock) {
 												goodBarcodedReads++;
 												if (allReads % 1000000 == 0) {
@@ -371,38 +371,39 @@ public class FastqToTagSequence extends Executor {
 												}
 												tagCounts.get(key)[rr.taxonId]++;
 											}
-											**/
-											block_goodBarcodedReads++;
-											if(!block_tagCounts.containsKey(key)) {
-												block_tagCounts.put(key, new short[n]);
+													 **/
+													block_goodBarcodedReads++;
+													if(!block_tagCounts.containsKey(key)) {
+														block_tagCounts.put(key, new short[n]);
+													}
+													block_tagCounts.get(key)[rr.taxonId]++;
+												}
+
 											}
-											block_tagCounts.get(key)[rr.taxonId]++;
-										}
-									} catch (Exception e) {
-										Thread t = Thread.currentThread();
-										t.getUncaughtExceptionHandler().uncaughtException(t, e);
-										e.printStackTrace();
-										executor.shutdown();
-										System.exit(1);
-									}
-								}
-								
-								synchronized(lock) {
-									allReads += block_allReads;
-									goodBarcodedReads += block_goodBarcodedReads;
-									//myLogger.info("Total Reads:" + allReads + 
-									//		" Reads with barcode and cut site overhang:" + 
-									//		goodBarcodedReads);
-									for(BitSet bs : block_tagCounts.keySet()) {
-										if(!tagCounts.containsKey(bs)) {
-											tags++;
-											tagCounts.put(bs, block_tagCounts.get(bs));
-										} else {
-											short[] copy = tagCounts.get(bs);
-											short[] block_copy = block_tagCounts.get(bs);
-											for(int i=0; i<n; i++) copy[i] += block_copy[i];
-										}
-									}
+
+											synchronized(lock) {
+												allReads += block_allReads;
+												goodBarcodedReads += block_goodBarcodedReads;
+												//myLogger.info("Total Reads:" + allReads + 
+												//		" Reads with barcode and cut site overhang:" + 
+												//		goodBarcodedReads);
+												for(BitSet bs : block_tagCounts.keySet()) {
+													if(!tagCounts.containsKey(bs)) {
+														tags++;
+														tagCounts.put(bs, block_tagCounts.get(bs));
+													} else {
+														short[] copy = tagCounts.get(bs);
+														short[] block_copy = block_tagCounts.get(bs);
+														for(int i=0; i<n; i++) copy[i] += block_copy[i];
+													}
+												}
+											}
+								} catch (Exception e) {
+									Thread t = Thread.currentThread();
+									t.getUncaughtExceptionHandler().uncaughtException(t, e);
+									e.printStackTrace();
+									executor.shutdown();
+									System.exit(1);
 								}
 							}
 							

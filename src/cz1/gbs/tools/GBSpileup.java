@@ -177,6 +177,7 @@ public class GBSpileup extends Executor {
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
+		
 		IO.makeOutputDir(this.myOutputDir);
 		
 		FastqToTagSequence fastq2TagSequence = 

@@ -111,11 +111,15 @@ public class TagSequenceToFastq extends Executor {
 		if (countFileNames.length == 0 || countFileNames == null) {
 			myLogger.warn("Couldn't find any files that end with \".cnt\", \".cnt.gz\", \"_cnt.txt\", or \"_cnt.txt.gz\" in the supplied directory.");
 			return;
+		} else if(countFileNames.length > 1) {
+			myLogger.warn("More than one files that end with \".cnt\", \".cnt.gz\", \"_cnt.txt\", or \"_cnt.txt.gz\" in the supplied directory.");
+			return;
 		} else {
 			myLogger.info("Using the following TagCount files:");
 			for (int i = 0; i < countFileNames.length; i++) 
 				myLogger.info(countFileNames[i].getAbsolutePath());
 		}
+		
 		
 		bw = Utils.getBufferedWriter(
 				myOutputDir+
@@ -129,33 +133,34 @@ public class TagSequenceToFastq extends Executor {
 		long start = System.currentTimeMillis();
 		this.initial_thread_pool();
 		try{
-			for(int i=0; i<countFileNames.length; i++) {
-				BufferedReader br = Utils.getBufferedReader(
-						countFileNames[i], 65536);
-				String line = br.readLine();
-				String[] s = line.split("\\s+");
-				final String[] taxa = Arrays.copyOfRange(s, 1, s.length);
-				final int block = 10000;
-				String[] Qs = new String[block];
-				int k = 0;
-				String temp = br.readLine();
-				long bS = 0;
-				while( temp!=null ) {
-					Qs[k] = temp;
-					k++;
-					temp = br.readLine();
-					
-					if(k==block || temp==null) {
-						
-						synchronized (synchedBlock) {synchedBlock.add(bS);}
-						
-						executor.submit(new Runnable() {
-							private String[] tag;
-							private long block_i;
-							@Override
-							public void run() {
-								// TODO Auto-generated method stub
-								
+			BufferedReader br = Utils.getBufferedReader(
+					countFileNames[0], 65536);
+			String line = br.readLine();
+			bw2.write(line.replaceAll("^#Tag", "#Sample")+"\n");
+			
+			String[] s = line.split("\\s+");
+			final String[] taxa = Arrays.copyOfRange(s, 1, s.length);
+			final int block = 10000;
+			String[] Qs = new String[block];
+			int k = 0;
+			String temp = br.readLine();
+			long bS = 0;
+			while( temp!=null ) {
+				Qs[k] = temp;
+				k++;
+				temp = br.readLine();
+
+				if(k==block || temp==null) {
+
+					synchronized (synchedBlock) {synchedBlock.add(bS);}
+
+					executor.submit(new Runnable() {
+						private String[] tag;
+						private long block_i;
+						@Override
+						public void run() {
+							// TODO Auto-generated method stub
+							try {
 								final long start_i = block_i*block;
 								final StringBuilder fastq = new StringBuilder();
 								final StringBuilder index = new StringBuilder();
@@ -164,10 +169,10 @@ public class TagSequenceToFastq extends Executor {
 								String sequence;
 								for(int i=0; i<tag.length; i++) {
 									if(tag[i]==null) break;
-									
+
 									s = tag[i].split("\\s+");
 									sequence = BaseEncoder.getSequenceFromBitSet(str2BitSet(s[0]));
-									
+
 									fastq.append("@");
 									fastq.append(start_i+i);
 									fastq.append("\n");
@@ -175,7 +180,7 @@ public class TagSequenceToFastq extends Executor {
 									fastq.append("\n+\n");
 									fastq.append(poly5.substring(0, sequence.length()));
 									fastq.append("\n");
-									
+
 									index.append(start_i+i);
 									index.append("\t");
 									for(int k=1; k<s.length; k++) {
@@ -190,31 +195,32 @@ public class TagSequenceToFastq extends Executor {
 									index.setLength(index.length()-1);
 									index.append("\n");
 								}
-								try {
-									bw.write(fastq.toString());
-									write(block_i, index.toString());
-								} catch (InterruptedException | IOException e) {
-									// TODO Auto-generated catch block
-									e.printStackTrace();
-								}
-								
+								bw.write(fastq.toString());
+								write(block_i, index.toString());
+
 								if(start_i%1000000==0)
 									myLogger.info(start_i+" tags processed");
+							} catch (Exception e) {
+								Thread t = Thread.currentThread();
+								t.getUncaughtExceptionHandler().uncaughtException(t, e);
+								e.printStackTrace();
+								executor.shutdown();
+								System.exit(1);
 							}
-							
-							public Runnable init(final String[] Qs, final long bS) {
-						        this.tag = Qs;
-						        this.block_i = bS;
-						        return(this);
-						    }
-						}.init(Qs, bS));
-						bS++;
-                    	k = 0;
-                    	Qs = new String[block];
-					}
+						}
+
+						public Runnable init(final String[] Qs, final long bS) {
+							this.tag = Qs;
+							this.block_i = bS;
+							return(this);
+						}
+					}.init(Qs, bS));
+					bS++;
+					k = 0;
+					Qs = new String[block];
 				}
-				br.close();
 			}
+			br.close();
 			executor.shutdown();
 			executor.awaitTermination(365, TimeUnit.DAYS);
 			bw.close();
