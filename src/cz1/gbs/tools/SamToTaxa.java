@@ -187,6 +187,7 @@ public class SamToTaxa extends Executor {
 								String[] s, taxa;
 								int[] count;
 								for(String x : index) {
+									if(x==null) break;
 									s = x.split("\\s+");
 									tag = Long.parseLong(s[0]);
 									s = s[1].split("#|:");
