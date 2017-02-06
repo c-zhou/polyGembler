@@ -249,14 +249,15 @@ public class SamToTaxa extends Executor {
 				SAMReadGroupRecord rg = new SAMReadGroupRecord(taxa);
 				rg.setSample(taxa);
 				header.addReadGroup(rg);
+				SAMFileWriterFactory factory = new SAMFileWriterFactory();
+				factory.setAsyncOutputBufferSize(65536);
 				bam_writers.put(taxa, 
-						new SAMFileWriterFactory().
-						makeSAMOrBAMWriter(header,
+						factory.makeSAMOrBAMWriter(header,
 								true, new File(myOutputDir+
 										System.getProperty("file.separator")+
 										taxa+".bam")));
 			}
-			
+
 			inputSam.setValidationStringency(ValidationStringency.SILENT);
 			SAMRecordIterator iter=inputSam.iterator();
 			
