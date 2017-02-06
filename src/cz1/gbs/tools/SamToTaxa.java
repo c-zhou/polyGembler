@@ -150,9 +150,10 @@ public class SamToTaxa extends Executor {
 			new HashMap<String, SAMFileWriter>();
 	private final static Map<Long, Tag> indexMap = 
 			new ConcurrentHashMap<Long, Tag>();
+	private final Map<String, Object> locks = new HashMap<String, Object>();
+	private final Object lock = new Object();
 	private static BufferedReader indexReader = null;
 	private static long cursor = 0;
-	private Object lock = new Object();
 	private static long allReads = 0;
 	private static String header_str = null;
 	private static SAMFileHeader header_sam = null;
@@ -249,15 +250,15 @@ public class SamToTaxa extends Executor {
 				SAMReadGroupRecord rg = new SAMReadGroupRecord(taxa);
 				rg.setSample(taxa);
 				header.addReadGroup(rg);
-				SAMFileWriterFactory factory = new SAMFileWriterFactory();
-				factory.setAsyncOutputBufferSize(65536);
 				bam_writers.put(taxa, 
-						factory.makeSAMOrBAMWriter(header,
+						new SAMFileWriterFactory().
+						makeSAMOrBAMWriter(header,
 								true, new File(myOutputDir+
 										System.getProperty("file.separator")+
 										taxa+".bam")));
+				locks.put(taxa, new Object());
 			}
-
+			
 			inputSam.setValidationStringency(ValidationStringency.SILENT);
 			SAMRecordIterator iter=inputSam.iterator();
 			
@@ -299,8 +300,11 @@ public class SamToTaxa extends Executor {
 									for(int t=0; t<l; t++) {
 										taxa = tagObj.taxa[t];
 										sam[i].setAttribute("RG", taxa);
-										for(int r=0; r<tagObj.count[t];r++)
-											bam_writers.get(taxa).addAlignment(sam[i]);
+										int p = tagObj.count[t];
+										synchronized(locks.get(taxa)) {
+											for(int r=0; r<p;r++)
+												bam_writers.get(taxa).addAlignment(sam[i]);
+										}
 									}
 								} catch (Exception e) {
 									Thread t = Thread.currentThread();
