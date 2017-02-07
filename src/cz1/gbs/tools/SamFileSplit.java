@@ -172,8 +172,7 @@ public class SamFileSplit extends Executor {
 						int f;
 						while(iter.hasNext()) {
 							SAMRecord rec=iter.next();
-							if(!rec.getReadUnmappedFlag() &&
-									refs.contains(ref=rec.getReferenceName())) {
+							if( refs.contains(ref=rec.getReferenceName()) ) {
 								f = outMap.get(ref);
 								rec.setReferenceIndex(seqdics[f].getSequenceIndex(ref));
 								outputSam[f].addAlignment(rec);
