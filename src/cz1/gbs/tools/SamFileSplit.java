@@ -168,8 +168,8 @@ public class SamFileSplit extends Executor {
 						String ref;
 						while(iter.hasNext()) {
 							SAMRecord rec=iter.next();
-							if(refs.contains(ref=rec.getReferenceName()) || 
-									!rec.getReadUnmappedFlag())
+							if(!rec.getReadUnmappedFlag() &&
+									refs.contains(ref=rec.getReferenceName()))
 								outputSam[outMap.get(ref)].addAlignment(rec);
 						}
 						iter.close();
