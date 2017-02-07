@@ -164,10 +164,13 @@ public class SamFileSplit extends Executor {
 											true, new File(out_prefix[i]+"/"+out));
 						}
 
+						Set<String> refs = outMap.keySet();
+						String ref;
 						while(iter.hasNext()) {
 							SAMRecord rec=iter.next();
-							if(!rec.getReadUnmappedFlag())
-								outputSam[outMap.get(rec.getReferenceName())].addAlignment(rec);
+							if(refs.contains(ref=rec.getReferenceName()) || 
+									!rec.getReadUnmappedFlag())
+								outputSam[outMap.get(ref)].addAlignment(rec);
 						}
 						iter.close();
 						inputSam.close();
