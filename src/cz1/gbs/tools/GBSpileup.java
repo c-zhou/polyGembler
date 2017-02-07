@@ -292,6 +292,7 @@ public class GBSpileup extends Executor {
 						scaff.append(line);
 						scaff.append("\n");
 					}
+					if(l<300) continue;
 					if(!sizes.containsKey(l)) sizes.put(l, new HashSet<String>());
 					sizes.get(l).add(id);
 					scaffs.put(id, scaff.toString());
