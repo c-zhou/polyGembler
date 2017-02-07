@@ -102,15 +102,21 @@ public abstract class Executor {
 					// TODO Auto-generated method stub
 					String[] runnable = new String[]{"bash","-c",commands[i]};
 					try {
-						try {
-							instance.exec(runnable).waitFor();
-						} catch (InterruptedException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
-					} catch (IOException e) {
+							Process process = instance.exec(runnable);
+							BufferedReader in =
+									new BufferedReader(new InputStreamReader(process.getInputStream()));
+							String line;
+							while( (line=in.readLine())!=null )
+								myLogger.info(line);
+							in.close();
+							process.waitFor();
+					} catch (Exception e) {
 						// TODO Auto-generated catch block
-						throw new RuntimeException("Runtime exception!!!");
+						Thread t = Thread.currentThread();
+						t.getUncaughtExceptionHandler().uncaughtException(t, e);
+						e.printStackTrace();
+						executor.shutdown();
+						System.exit(1);
 					}
 				}
 				public Runnable init(final int i) {
