@@ -128,8 +128,10 @@ public class SamFileSplit extends Executor {
 						final SAMSequenceDictionary seqdic = header.getSequenceDictionary();
 
 						final SAMFileWriter[] outputSam = new SAMFileWriter[beds.length];
+						final SAMSequenceDictionary[] seqdics = new SAMSequenceDictionary[beds.length];
 						final Map<String, Integer> outMap = new HashMap<String, Integer>();
 						final String out = bam.getName();
+						
 						for(int i=0; i<beds.length; i++) {
 
 							Set<String> bed_seq = new HashSet<String>();
@@ -162,15 +164,20 @@ public class SamFileSplit extends Executor {
 							outputSam[i] = new SAMFileWriterFactory().
 									makeSAMOrBAMWriter(header_i,
 											true, new File(out_prefix[i]+"/"+out));
+							seqdics[i] = seqdic_i;
 						}
 
 						Set<String> refs = outMap.keySet();
 						String ref;
+						int f;
 						while(iter.hasNext()) {
 							SAMRecord rec=iter.next();
 							if(!rec.getReadUnmappedFlag() &&
-									refs.contains(ref=rec.getReferenceName()))
-								outputSam[outMap.get(ref)].addAlignment(rec);
+									refs.contains(ref=rec.getReferenceName())) {
+								f = outMap.get(ref);
+								rec.setReferenceIndex(seqdics[f].getSequenceIndex(ref));
+								outputSam[f].addAlignment(rec);
+							}
 						}
 						iter.close();
 						inputSam.close();
