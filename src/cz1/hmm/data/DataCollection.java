@@ -30,7 +30,7 @@ public class DataCollection {
 			String vcfFilePath) {
 		String zipFilePath = wd+Constants.file_sep+experimentId+".zip";
 		List<String> info = Arrays.asList(Constants.
-				_vcf_format.split(":"));
+				_vcf_format_str.split(":"));
 		int _idx_gt = info.indexOf("GT"),
 				_idx_pl = info.indexOf("PL"),
 				_idx_ad = info.indexOf("AD");

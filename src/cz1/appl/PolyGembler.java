@@ -7,14 +7,14 @@ import org.apache.log4j.Logger;
 
 import cz1.gbs.tools.GBSpileup;
 import cz1.hmm.data.DataCollection;
-import cz1.hmm.tools.PolyGembler;
+import cz1.hmm.tools.Gembler;
 import cz1.simulation.tools.GBSSimulator;
 import cz1.simulation.tools.PopulationSimulator;
 
-public class Main {
+public class PolyGembler {
 	
 	protected final static Logger myLogger = 
-			Logger.getLogger(Main.class);
+			Logger.getLogger(PolyGembler.class);
 	static {
 		BasicConfigurator.configure();
 	}
@@ -52,7 +52,7 @@ public class Main {
 			DataCollection.zip(out_dir, zip, vcf);
 			break;
 		case "haplotypephasing":
-			PolyGembler.main(args2);
+			Gembler.main(args2);
 			break;
 		default:
 			printUsage();

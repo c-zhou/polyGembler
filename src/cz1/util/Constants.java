@@ -47,7 +47,12 @@ public class Constants {
 	/*** number of ancestral haplotypes - hidden states **/
 	public static int _haplotype_z=4;
 	public final static String _comment_syntax ="#";
-	public final static String _vcf_format = "GT:AD:DP:GQ:PL";
+	public final static String[] _vcf_format = new String[] {"GT","AD","DP","GQ","PL"};
+	public final static String _vcf_format_str = "GT:AD:DP:GQ:PL";
+	public final static String[] _vcf_header = new String[]{"CHROM","POS","ID",
+		"REF","ALT","QUAL","FILTER","INFO","FORMAT"};
+	public final static int[] _vcf_header_i = new int[]{0,1,2,3,4,5,6,7,8};
+	
 	public static String _founder_haps = "P1:P2";
 	//public final static String _founder_haps = "Tetra_TrifidaP1:Tetra_TrifidaP2";
 	//public final static String _founder_haps = "Atlantic:B1829";

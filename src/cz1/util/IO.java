@@ -197,4 +197,10 @@ public class IO {
 			out.mkdir();
 		}
 	}
+
+	public static void print(String[] strs) {
+		// TODO Auto-generated method stub
+		for(String str : strs) IO.print(str+" ");
+		IO.println();
+	}
 }

@@ -39,7 +39,7 @@ import cz1.hmm.swing.HMMPanel;
 import cz1.hmm.swing.Printer;
 import cz1.util.Constants;
 
-public class PolyGembler {
+public class Gembler {
 
 	private static HMMFrame hmmf = null;
 	private static HMMPanel hmmp = null;
