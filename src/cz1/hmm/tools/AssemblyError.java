@@ -37,7 +37,7 @@ import org.apache.commons.math3.stat.inference.GTest;
 
 import cz1.util.Algebra;
 
-public class MisScaffoldDetection {
+public class AssemblyError {
 	public static void main(String[] args) 
 			throws IOException, InterruptedException {
 
@@ -103,7 +103,7 @@ public class MisScaffoldDetection {
 			System.out.println( "Unexpected exception:" + exp.getMessage() );
 		}
 
-		MisScaffoldDetection sgRF = new MisScaffoldDetection(
+		AssemblyError sgRF = new AssemblyError(
 				workspace,experiment,ploidy,parents,t,s,d,goodnessOfFitTest,n);
 		sgRF.calcMisScaffold(output);
 	}
@@ -121,7 +121,7 @@ public class MisScaffoldDetection {
 	private static String goodness_of_fit;
 	private static int best_n;
 	
-	public MisScaffoldDetection (String workspace_, 
+	public AssemblyError (String workspace_, 
 			String experiment_, 
 			int ploidy_, 
 			String[] parents_,

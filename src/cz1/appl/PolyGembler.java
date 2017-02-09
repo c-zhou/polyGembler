@@ -8,7 +8,7 @@ import org.apache.log4j.Logger;
 import cz1.gbs.tools.GBSpileup;
 import cz1.hmm.data.DataCollection;
 import cz1.hmm.tools.DataPreparation;
-import cz1.hmm.tools.Gembler;
+import cz1.hmm.tools.Haplotyper;
 import cz1.simulation.tools.GBSSimulator;
 import cz1.simulation.tools.PopulationSimulator;
 
@@ -49,7 +49,7 @@ public class PolyGembler {
 			datapreparation.run();
 			break;
 		case "haplotypephasing":
-			Gembler.main(args2);
+			Haplotyper.main(args2);
 			break;
 		default:
 			printUsage();

@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class PseudoMolecule {
+public class PseudoMoleculConstructor {
 	
 	private final String name;
 	private final String sequence;
@@ -189,7 +189,7 @@ public class PseudoMolecule {
 		}
 	}
 	
-	public PseudoMolecule(String name, String sequence) {
+	public PseudoMoleculConstructor(String name, String sequence) {
 		this.name = name;
 		this.sequence = sequence;
 		this.size = this.sequence.length();
