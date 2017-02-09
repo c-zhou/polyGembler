@@ -53,6 +53,9 @@ public class Constants {
 		"REF","ALT","QUAL","FILTER","INFO","FORMAT"};
 	public final static int[] _vcf_header_i = new int[]{0,1,2,3,4,5,6,7,8};
 	
+	public static enum Field { PL, AD, GT, GL }
+	public final static char _universal_A_allele = 'A';
+	
 	public static String _founder_haps = "P1:P2";
 	//public final static String _founder_haps = "Tetra_TrifidaP1:Tetra_TrifidaP2";
 	//public final static String _founder_haps = "Atlantic:B1829";
@@ -73,6 +76,8 @@ public class Constants {
 	//public final static double threshMin = 1e-20d;
 	public final static double logThreshMax = Math.log(threshMax);
 	public final static double logThreshMin = Math.log(threshMin);
+	
+	public final static double seq_err = 0.01;
 	
 	public final static String scaff_collapsed_str = "____";
 	

@@ -21,9 +21,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import cz1.hmm.data.DataEntry;
+import cz1.hmm.tools.VCFtools;
 import cz1.util.Algebra;
 import cz1.util.Combination;
 import cz1.util.Constants;
+import cz1.util.Constants.Field;
 import cz1.util.IO;
 import cz1.util.Permutation;
 import cz1.util.Dirichlet;
@@ -32,7 +34,8 @@ public abstract class HiddenMarkovModel {
 	private final static Logger logger = LogManager.getLogger(HiddenMarkovModel.class.getName());
 	
 	protected final static Runtime runtime = Runtime.getRuntime();
-
+	
+	protected final Field field;
 	protected final DataEntry de;
 	protected final DP[][] dp;
 	protected final ST[] statespace;
@@ -64,7 +67,9 @@ public abstract class HiddenMarkovModel {
 	public HiddenMarkovModel(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse,
-			boolean trainExp) {
+			boolean trainExp,
+			Field field) {
+		this.field = field;
 		this.train_exp = trainExp;
 		this.de = this.catDE(de, seperation, reverse);
 		this.initialise();
@@ -111,20 +116,61 @@ public abstract class HiddenMarkovModel {
 		for(int i=0; i<sample.length; i++)
 			if(isParent(this.sample[i]))
 				p.add(i);
-		List<List<char[]>> gt = this.de.getGenotype();
-		double[] baf = new double[gt.size()];
-		for(int i=0; i<baf.length; i++) {
-			double cnt = 0, bcnt = 0;
-			String[] allele = this.de.getAllele().get(i);
-			for(int j : p) {
-				char[] g = gt.get(i).get(j);
-				for(int k=0; k<g.length; k++) {
-					cnt += 1;
-					bcnt += ((""+g[k]).equals(allele[1]) ? 1 : 0);
+		double[] baf = new double[this.M];
+		
+		switch(this.field) {
+		case GT:
+			List<List<char[]>> gt = this.de.getGenotype();
+			
+			for(int i=0; i<this.M; i++) {
+				double cnt = 0, bcnt = 0;
+				String[] allele = this.de.getAllele().get(i);
+				for(int j : p) {
+					char[] g = gt.get(i).get(j);
+					for(int k=0; k<g.length; k++) {
+						cnt += 1;
+						bcnt += ((""+g[k]).equals(allele[1]) ? 1 : 0);
+					}
 				}
+				baf[i] = bcnt/cnt;
+				if(baf[i]==0 || baf[i]==1) baf[i] = .5;
 			}
-			if(bcnt==cnt || bcnt==0) baf[i] = .5;
-			else baf[i] = bcnt/cnt;
+			break;
+		case PL:
+		case GL:
+			List<List<double[]>> pl = this.de.getPhredScaledLikelihood();
+			int cp = pl.get(0).get(0).length;
+			for(int i=0; i<this.M; i++) {
+				double bcnt = 0;
+				for(int j=0; j<this.N; j++) {
+					double[] ll = pl.get(i).get(j);
+					if(ll[0]<-1) 
+						for(int k=1; k<ll.length; k++)
+							bcnt += 1.0/cp*k;
+					else 
+						for(int k=1; k<ll.length; k++) 
+							bcnt += ll[k]*k;
+				}
+				baf[i] = bcnt/this.N/(cp-1);
+				if(baf[i]==0 || baf[i]==1) baf[i] = .5;
+			}
+			break;
+
+		case AD:
+			List<List<int[]>> ad = this.de.getAlleleDepth();
+			for(int i=0; i<this.M; i++) {
+				double acnt = 0, bcnt = 0;
+				for(int j=0; j<ad.get(i).size(); j++) {
+					int[] aa = ad.get(i).get(j);
+					acnt += aa[0];
+					bcnt += aa[1];
+				}
+				baf[i] = bcnt/(acnt+bcnt);
+				if(baf[i]==0 || baf[i]==1) baf[i] = .5;
+			}
+			break;
+		default:
+			throw new RuntimeException("Undefined Field!!!");
 		}
 		return baf;
 	}
@@ -552,34 +598,56 @@ public abstract class HiddenMarkovModel {
 	protected DP[][] makeDP() {
 		// TODO Auto-generated method stub
 		DP[][] dp = new DP[this.M][this.N];
-		switch(Constants._use_field_) {
-		case "PL":
+		switch(this.field) {
+		
+		case GT:
+			//TO-DO: calculate genotype likelihoods from genotype
+			List<List<char[]>> gt = this.de.getGenotype();
+			if(gt==null) throw new RuntimeException("need to convert GT field!!!");
+			for(int i=0; i<this.M; i++) {
+				for(int j=0; j<this.N; j++) {
+					dp[i][j] = new DP(VCFtools.fit(gt.get(i).get(j)),
+							this.statespace.length,
+							this.obspace[i].genotype.length,
+							isParent(this.sample[j]),
+							false);
+				}
+			}
+			break;
+			
+		case PL:
+		case GL:
 			List<List<double[]>> pl = this.de.getPhredScaledLikelihood();
-			for(int i=0; i<pl.size(); i++)
-				for(int j=0; j<pl.get(i).size(); j++)
+			if(pl==null) throw new RuntimeException("PL/GL feild not available!!!");
+			for(int i=0; i<this.M; i++) {
+				for(int j=0; j<this.N; j++) {
 					dp[i][j] = new DP(pl.get(i).get(j),
 							this.statespace.length,
 							this.obspace[i].genotype.length,
 							isParent(this.sample[j]),
 							false);
+				}
+			}
 			break;
-		case "AD":
-			//TO-DO: need a model to determine the 
-			// genotype likelihood from Allele Depth
-			throw new RuntimeException(
-					"check DataCollection line 406, 407!!!\n"
-					+ "need to convert AD field!!!");
-			//break;
-		case "GT":
-			//TO-DO: need a model to cast genotype
-			// to likelihood
-			throw new RuntimeException("need to convert GT field!!!");
-			//break;
+			
+		case AD:
+			//TO-DO: calculate genotype likelihoods from allele depth
+			List<List<int[]>> ad = this.de.getAlleleDepth();
+			if(ad==null) throw new RuntimeException("AD feild not available!!!");
+			for(int i=0; i<this.M; i++) {
+				for(int j=0; j<this.N; j++) {
+					dp[i][j] = new DP(VCFtools.fit(ad.get(i).get(j), Constants._ploidy_H),
+							this.statespace.length,
+							this.obspace[i].genotype.length,
+							isParent(this.sample[j]),
+							false);
+				}
+			}
+			break;
+		
 		default:
-			logger.error("Invalid field provided. "
-					+ "Should be \"PL\", \"AD\", or \"GT\". "
-					+ "Program halted.");
-			System.exit(1);
+			throw new RuntimeException("Invalid field provided. "
+					+ "Should be \"PL\", \"GL\", \"AD\", or \"GT\". ");
 		}
 		return dp;
 	}

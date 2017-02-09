@@ -27,6 +27,7 @@ import cz1.util.Constants;
 import cz1.util.IO;
 import cz1.util.Permutation;
 import cz1.util.Dirichlet;
+import cz1.util.Constants.Field;
 
 public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 	private final static Logger logger = LogManager.getLogger(HiddenMarkovModelBWT.class.getName());
@@ -35,8 +36,9 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 	public HiddenMarkovModelBWT(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse,
-			boolean trainExp) {
-		super(de, seperation, reverse, trainExp);
+			boolean trainExp,
+			Field field) {
+		super(de, seperation, reverse, trainExp, field);
 		
 		this.trainAllExp();
 		this.makeBWT();

@@ -23,6 +23,7 @@ import cz1.hmm.data.DataEntry;
 import cz1.util.Algebra;
 import cz1.util.Combination;
 import cz1.util.Constants;
+import cz1.util.Constants.Field;
 import cz1.util.IO;
 import cz1.util.Permutation;
 import cz1.util.Dirichlet;
@@ -33,8 +34,9 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 	public HiddenMarkovModelVBT(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse,
-			boolean trainExp) {
-		super(de, seperation, reverse, trainExp);
+			boolean trainExp,
+			Field field) {
+		super(de, seperation, reverse, trainExp, field);
 		
 		this.trainAllExp();
 		

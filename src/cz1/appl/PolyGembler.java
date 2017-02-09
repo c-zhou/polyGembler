@@ -7,6 +7,7 @@ import org.apache.log4j.Logger;
 
 import cz1.gbs.tools.GBSpileup;
 import cz1.hmm.data.DataCollection;
+import cz1.hmm.tools.DataPreparation;
 import cz1.hmm.tools.Gembler;
 import cz1.simulation.tools.GBSSimulator;
 import cz1.simulation.tools.PopulationSimulator;
@@ -44,12 +45,8 @@ public class PolyGembler {
 			gbspileup.run();
 			break;
 		case "datapreparation":
-			String vcf = args[1];
-			String zip = new File(vcf).getName().
-					replaceAll(".vcf.gz$", "").
-					replaceAll(".vcf$", "");
-			String out_dir = args[2];
-			DataCollection.zip(out_dir, zip, vcf);
+			DataPreparation datapreparation = new DataPreparation();
+			datapreparation.run();
 			break;
 		case "haplotypephasing":
 			Gembler.main(args2);

@@ -26,122 +26,6 @@ import cz1.util.IO;
 
 public class DataCollection {
 	
-	public static void zip(String wd, String experimentId, 
-			String vcfFilePath) {
-		String zipFilePath = wd+Constants.file_sep+experimentId+".zip";
-		List<String> info = Arrays.asList(Constants.
-				_vcf_format_str.split(":"));
-		int _idx_gt = info.indexOf("GT"),
-				_idx_pl = info.indexOf("PL"),
-				_idx_ad = info.indexOf("AD");
-		try {
-			
-			ZipOutputStream out = new ZipOutputStream(new 
-					FileOutputStream(zipFilePath));
-			
-			BufferedReader br = IO.getBufferedReader(vcfFilePath);
-			String line;
-			while( (line=br.readLine()).startsWith("##") ) {}
-			String[] s = line.split("\\s+");
-			List<String> sList = Arrays.asList(s);
-			int _idx_start = sList.indexOf("FORMAT")+1,
-					_idx_pos = sList.indexOf("POS"),
-					_idx_ref = sList.indexOf("REF"),
-					_idx_alt = sList.indexOf("ALT");
-			out.putNextEntry(new ZipEntry("samples"));
-			for(int i=_idx_start; i<s.length; i++) out.write((s[i]+
-					Constants.line_sep).getBytes());
-			List<Contig> contigs = new ArrayList<Contig>();
-			line = br.readLine();
-			while(line != null) {
-				int i=1;
-				String contig = line.split("\\s+")[0];
-				List<String[]> snps = new ArrayList<String[]>();
-				snps.add(line.split("\\s+"));
-				while( (line=br.readLine())!=null && 
-						line.split("\\s+")[0].equals(contig)) {
-					i++;
-					snps.add(line.split("\\s+"));
-				}
-				contigs.add(new Contig(contig,i));
-				out.putNextEntry(new ZipEntry(contig+
-						Constants.file_sep+"position"));
-				for(int j=0; j<snps.size(); j++)
-					out.write((snps.get(j)[_idx_pos]+Constants.line_sep).
-							getBytes());
-				out.putNextEntry(new ZipEntry(contig+
-						Constants.file_sep+"allele"));
-				for(int j=0; j<snps.size(); j++)
-					out.write((snps.get(j)[_idx_ref]+
-							"\t"+snps.get(j)[_idx_alt]+
-							Constants.line_sep).
-							getBytes());
-				out.putNextEntry(new ZipEntry(contig+
-						Constants.file_sep+"GT"));
-				for(int j=0; j<snps.size(); j++) {
-					for(int k=_idx_start; k<snps.get(j).length; k++)
-						out.write((snps.get(j)[k].split(":")[_idx_gt]+"\t")
-								.getBytes());
-					out.write("\n".getBytes());
-				}
-				out.putNextEntry(new ZipEntry(contig+
-						Constants.file_sep+"AD"));
-				for(int j=0; j<snps.size(); j++) {
-					for(int k=_idx_start; k<snps.get(j).length; k++)
-						try {
-							out.write((snps.get(j)[k].split(":")[_idx_ad]+"\t")
-									.getBytes());
-						} catch (ArrayIndexOutOfBoundsException e) {
-							out.write(".\t".getBytes());
-						}
-					out.write("\n".getBytes());
-				}
-				out.putNextEntry(new ZipEntry(contig+
-						Constants.file_sep+"PL"));
-				for(int j=0; j<snps.size(); j++) {
-					for(int k=_idx_start; k<snps.get(j).length; k++)
-						try {
-							out.write((snps.get(j)[k].split(":")[_idx_pl]+"\t")
-									.getBytes());
-						} catch (ArrayIndexOutOfBoundsException e) {
-							out.write(".\t".getBytes());
-						}
-					out.write("\n".getBytes());
-				}
-			}
-			br.close();
-			
-			Collections.sort(contigs);
-			Collections.reverse(contigs);
-			
-			out.putNextEntry(new ZipEntry("contig"));
-			for(Contig contig : contigs)
-				out.write((contig.id+"\t"+contig.markers+
-						Constants.line_sep).getBytes());
-			out.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
-
-	private static class Contig implements Comparable<Contig> {
-		private String id;
-		private int markers;
-		
-		public Contig(String id,
-				int markers) {
-			this.id = id;
-			this.markers = markers;
-		}
-		
-		@Override
-		public int compareTo(Contig contig) {
-			// TODO Auto-generated method stub
-			return this.markers-contig.markers;
-		}
-	}
-	
 	public static DataEntry[] readDataEntry(String zipFilePath,
 			String[] contig) {
 		DataEntry[] de = new DataEntry[contig.length];
@@ -269,6 +153,10 @@ public class DataCollection {
 		// TODO Auto-generated method stub
 		try {
 			final ZipFile in = new ZipFile(zipFilePath);
+			if(in.getEntry(contigId+Constants.file_sep+"GT")==null) {
+				in.close();
+				return null;
+			}
 			final InputStream is = in.getInputStream(
 					in.getEntry(contigId+Constants.file_sep+"GT"));
 			BufferedReader br = new BufferedReader(new InputStreamReader(is));
@@ -311,7 +199,7 @@ public class DataCollection {
 		Map<Integer, Character> alleleMap = 
 				new HashMap<Integer, Character>();
 		for(int i=0; i<n; i++) {
-			alleleMap.put(i, (char)('A'+i));
+			alleleMap.put(i, (char)(Constants._universal_A_allele+i));
 		}
 		return alleleMap;
 	}
@@ -321,6 +209,10 @@ public class DataCollection {
 		// TODO Auto-generated method stub
 		try {
 			final ZipFile in = new ZipFile(zipFilePath);
+			if(in.getEntry(contigId+Constants.file_sep+"PL")==null) {
+				in.close();
+				return null;
+			}
 			final InputStream is = in.getInputStream(
 					in.getEntry(contigId+Constants.file_sep+"PL"));
 			BufferedReader br = new BufferedReader(new InputStreamReader(is));
@@ -383,6 +275,10 @@ public class DataCollection {
 		// TODO Auto-generated method stub
 		try {
 			final ZipFile in = new ZipFile(zipFilePath);
+			if(in.getEntry(contigId+Constants.file_sep+"AD")==null) {
+				in.close();
+				return null;
+			}
 			final InputStream is = in.getInputStream(
 					in.getEntry(contigId+Constants.file_sep+"AD"));
 			BufferedReader br = new BufferedReader(new InputStreamReader(is));

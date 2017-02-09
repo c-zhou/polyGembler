@@ -38,6 +38,7 @@ import cz1.hmm.swing.HMMFrame;
 import cz1.hmm.swing.HMMPanel;
 import cz1.hmm.swing.Printer;
 import cz1.util.Constants;
+import cz1.util.Constants.Field;
 
 public class Gembler {
 
@@ -55,6 +56,7 @@ public class Gembler {
 	private static boolean[] reverse = null;
 	private static int max_iter = 30;
 	private static int ploidy = 2;
+	private static Field field = Field.PL;
 	
 	public static void main(String[] args) {
 
@@ -74,7 +76,9 @@ public class Gembler {
 		options.addOption( "s", "seed", true, "random seed.");
 		options.addOption( "S", "initial-seperation", true, "initial seperation.");
 		options.addOption( "R", "direction", true, "direction.");
-		options.addOption( "t", "train-exp", false, "train the exp parameter for RF.");
+		options.addOption( "G", "genotype", false, "direction.");
+		options.addOption( "D", "allele-depth", false, "direction.");
+		options.addOption( "L", "genotype-likelihood", false, "train the exp parameter for RF.");
 		options.addOption( "u", "unif-rand", false, "sample initial RF from a uniform distribution.");
 		options.addOption( "v", "segmental-kmeans", false, "using segmental k-means training.");
 		
@@ -159,6 +163,22 @@ public class Gembler {
 			else if(isRF)
 				for(int i=0; i<seperation.length; i++) 
 					seperation[i] = Constants.haldane(seperation[i]);
+			int i = 0;
+			if(line.hasOption("G")) {
+				field = Field.GT;
+				i++;
+			}
+			if(line.hasOption("D")) {
+				field = Field.AD;
+				i++;
+			}
+			if(line.hasOption("L")) {
+				field = Field.PL;
+				i++;
+			}
+			if(i>1) throw new RuntimeException("Options -G/--genotype, "
+					+ "-D/--allele-depth, and -L/--genotype-likelihood "
+					+ "are exclusive!!!");
 		} catch( ParseException exp ) {
 			System.out.println( "Unexpected exception:" + exp.getMessage() );
 		}
@@ -190,7 +210,7 @@ public class Gembler {
 		//		hmm = new HiddenMarkovModelDupSHEXA(de, seperation, reverse, trainExp);
 		//else
 		final HiddenMarkovModelBWT hmm = 
-				new HiddenMarkovModelBWT(de, seperation, reverse, trainExp);
+				new HiddenMarkovModelBWT(de, seperation, reverse, trainExp, field);
 
 		hmm.print(true);
 		

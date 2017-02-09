@@ -61,7 +61,7 @@ public class VCFtools extends Executor {
 						+ " -q/--min-qual  		Minimum quality to keep a SNP (QUAL).\n"
 						+ " -f/--min-maf		Minimum minor allele frequency to keep a SNP (default 0.1).\n"
 						+ " -m/--max-missing	Maximum proportion of missing data to keep a SNP (default 0.5).\n"
-						+ " -o/--prefix			Prefix for out put VCF file.\n\n");
+						+ " -o/--prefix			Prefix for output VCF file.\n\n");
 	}
 
 	@Override
@@ -466,8 +466,9 @@ public class VCFtools extends Executor {
 		return os.toString();
 	}
     
-    private final static double err = 0.01;
-    private static double fit(double[] ll, int[] depth, int ploidy) {
+	private final static double err = Constants.seq_err;
+	
+    public static double fit(double[] ll, int[] depth, int ploidy) {
     	int d = depth[0]+depth[1];
     	double maxLL = Double.NEGATIVE_INFINITY;
         for(int i=0; i<ll.length; i++) {
@@ -489,6 +490,27 @@ public class VCFtools extends Executor {
             }
         }
         return gq;
+    }
+    
+    public static double[] fit(int[] depth, int ploidy) {
+    	double[] ll = new double[ploidy+1];
+    	fit(ll, depth, ploidy);
+        return ll;
+    }
+    
+    public static void fit(double[] ll, char[] genotype) {
+    	Arrays.fill(ll, 255);
+    	int k = ll.length-1;
+    	for(char g : genotype)
+    		if(g==Constants._universal_A_allele)
+    			k--;
+    	ll[k] = 0;
+    }
+    
+    public static double[] fit(char[] genotype) {
+    	double[] ll = new double[genotype.length+1];
+    	fit(ll, genotype);
+    	return ll;
     }
     
     private static double nchoosek(int n, int k) {
