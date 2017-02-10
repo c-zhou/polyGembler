@@ -273,7 +273,7 @@ public class VCFtools extends Executor {
 				}
 				
 				os.setLength(0);
-				os.append(s[Constants._vcf_header_i[0]]);
+				os.append(s[Constants._vcf_header_i[0]].replace('|', '_'));
 				os.append("\t");
 				os.append(s[Constants._vcf_header_i[1]]);
 				os.append("\t");

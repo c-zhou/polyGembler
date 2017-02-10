@@ -106,14 +106,15 @@ public class DataPreparation extends Executor {
 					_idx_ref = sList.indexOf("REF"),
 					_idx_alt = sList.indexOf("ALT"),
 					_idx_format = sList.indexOf("FORMAT");
-			final Set<String> fields = new HashSet<String>();
-			String[] fs = s[_idx_format].split(":");
-			for(String f : fs) fields.add(f);
 			out.putNextEntry(new ZipEntry("samples"));
 			for(int i=_idx_start; i<s.length; i++) out.write((s[i]+
 					Constants.line_sep).getBytes());
 			List<Contig> contigs = new ArrayList<Contig>();
 			line = br.readLine();
+			s = line.split("\\s+");
+			final Set<String> fields = new HashSet<String>();
+			String[] fs = s[_idx_format].split(":");
+			for(String f : fs) fields.add(f);
 			while(line != null) {
 				int i=1;
 				String contig = line.split("\\s+")[0];
@@ -125,6 +126,10 @@ public class DataPreparation extends Executor {
 					snps.add(line.split("\\s+"));
 				}
 				contigs.add(new Contig(contig,i));
+				
+				out.putNextEntry(new ZipEntry(contig+
+						Constants.file_sep));
+				
 				out.putNextEntry(new ZipEntry(contig+
 						Constants.file_sep+"position"));
 				for(int j=0; j<snps.size(); j++)

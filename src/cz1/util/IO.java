@@ -1,6 +1,7 @@
 package cz1.util;
 
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -14,6 +15,8 @@ import java.io.BufferedReader;
 import java.io.FilenameFilter;
 import java.io.PrintStream;
 import java.util.zip.GZIPInputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.io.OutputStreamWriter;
 import java.util.zip.GZIPOutputStream;
 import java.io.FileOutputStream;
@@ -202,5 +205,28 @@ public class IO {
 		// TODO Auto-generated method stub
 		for(String str : strs) IO.print(str+" ");
 		IO.println();
+	}
+
+	public static String[] topLevelFolder(String zip_in) {
+		// TODO Auto-generated method stub
+		List<String> folders = new ArrayList<String>();
+		try {
+			ZipFile zipFile = new ZipFile(zip_in);
+			Enumeration<? extends ZipEntry> entries = zipFile.entries();
+			while (entries.hasMoreElements()) {
+	            ZipEntry entry = entries.nextElement();
+	            if(entry.isDirectory() && !entry.getName().
+	            		matches("\\S+/\\S+")) {
+	            	folders.add(entry.getName().replaceAll("/$", ""));
+	            }
+	        }
+			zipFile.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		String[] f = new String[folders.size()];
+		folders.toArray(f);
+		return f;
 	}
 }

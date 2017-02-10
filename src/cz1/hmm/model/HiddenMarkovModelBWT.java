@@ -489,13 +489,13 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 		
 		String root = experiment+"."+
 				scaff+"."+
-				Constants.seed+"_1_1_all_0_200mb/";
+				System.nanoTime()+"_1_1_all_0_200mb";
 		
 		try {
 			ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(new 
-					FileOutputStream(output, true), 65536));
-		
-			out.putNextEntry(new ZipEntry(root));
+					FileOutputStream(output+"/"+root+".zip"), 65536));
+			
+			out.putNextEntry(new ZipEntry(root+"/"));
 			out.putNextEntry(new ZipEntry(root+"/"+"phasedStates/"));
 			out.putNextEntry(new ZipEntry(root+"/"+"phasedStates/"+experiment+".txt"));
 			out.write((""+this.loglik()+"\n").getBytes());
@@ -514,7 +514,6 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 			}
 			
 			out.putNextEntry(new ZipEntry(root+"/"+"results_hmm/"));
-			
 			out.putNextEntry(new ZipEntry(root+"/"+"results_hmm/emissionModel.txt"));
 			for(int i=0; i<this.emissProbs.length; i++) {
 				double[][] emissProbs = this.emissProbs[i].probsMat;
@@ -547,7 +546,8 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 			out.write("cz1.model.HiddenMarkovModel:\n".getBytes());
 			out.write("cz1.model.HiidenMarkovModel$EM:\n".getBytes());
 			out.write(("log prob is "+this.loglik()+" at "+Constants.iteration).getBytes());
-
+			out.write(("random seed is"+Constants.seed).getBytes());
+			
 			out.putNextEntry(new ZipEntry(root+"/"+"snp_"+experiment+".txt"));
 			
 			StringBuilder os = new StringBuilder();

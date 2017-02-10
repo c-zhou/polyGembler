@@ -8,6 +8,7 @@ import org.apache.log4j.Logger;
 import cz1.gbs.tools.GBSpileup;
 import cz1.hmm.data.DataCollection;
 import cz1.hmm.tools.DataPreparation;
+import cz1.hmm.tools.Gembler;
 import cz1.hmm.tools.Haplotyper;
 import cz1.simulation.tools.GBSSimulator;
 import cz1.simulation.tools.PopulationSimulator;
@@ -53,6 +54,11 @@ public class PolyGembler {
 			Haplotyper haplotyper = new Haplotyper();
 			haplotyper.setParameters(args2);
 			haplotyper.run();
+			break;
+		case "gembler":
+			Gembler gembler = new Gembler();
+			gembler.setParameters(args2);
+			gembler.run();
 			break;
 		default:
 			printUsage();

@@ -44,19 +44,19 @@ import cz1.util.Executor;
 
 public class Haplotyper extends Executor {
 
-	private static HMMFrame hmmf = null;
-	private static HMMPanel hmmp = null;
-	private static String in_zip = null;
-	private static String out_prefix = null;
-	private static String[] scaff = null;
-	private static double[] seperation = null;
-	private static boolean trainExp = false;
-	private static boolean vbt = false;
-	private static boolean[] reverse = null;
-	private static int max_iter = 100;
-	private static int ploidy = 2;
-	private static Field field = Field.PL;
-	private static String plot_pdf = null;
+	private HMMFrame hmmf = null;
+	private HMMPanel hmmp = null;
+	private String in_zip = null;
+	private String out_prefix = null;
+	private String[] scaff = null;
+	private double[] seperation = null;
+	private boolean trainExp = false;
+	private boolean vbt = false;
+	private boolean[] reverse = new boolean[]{false};
+	private int max_iter = 100;
+	private int ploidy = 2;
+	private Field field = Field.PL;
+	private String plot_pdf = null;
 	
 	public Haplotyper() {}
 	
@@ -70,16 +70,38 @@ public class Haplotyper extends Executor {
 			int max_iter,
 			int ploidy,
 			Field field) {
-		
+		this.in_zip = in_zip;
+		this.out_prefix = out_prefix;
+		this.scaff = scaff;
+		this.seperation = seperation;
+		this.trainExp = trainExp;
+		this.vbt = vbt;
+		this.reverse = reverse;
+		this.max_iter = max_iter;
+		this.ploidy = ploidy;
+		this.field = field;
 	}
 	
+	public Haplotyper(String in_zip,
+			String out_prefix, 
+			String[] scaff,
+			int ploidy, 
+			Field field) {
+		// TODO Auto-generated constructor stub
+		this.in_zip = in_zip;
+		this.out_prefix = out_prefix;
+		this.scaff = scaff;
+		this.ploidy = ploidy;
+		this.field = field;
+	}
+
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
 							+" -i/--input					Input zipped file.\n"
-							+" -o/--prefix					Output file location, will be a zipped file directory.\n"
+							+" -o/--prefix					Output file location.\n"
 							+" -c/--scaffold				The scaffold/contig/chromosome id will run.\n"
 							+" -x/--max-iter				Maxmium rounds for EM optimization (default 100).\n"
 							+" -p/--ploidy					Ploidy of genome (default 2).\n"
@@ -149,7 +171,6 @@ public class Haplotyper extends Executor {
 
 		if(myArgsEngine.getBoolean("-o")) {
 			out_prefix = myArgsEngine.getString("-o");
-			if(!out_prefix.endsWith(".zip")) out_prefix += ".zip";
 		}  else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your output file prefix.");
@@ -262,20 +283,20 @@ public class Haplotyper extends Executor {
 
 		DataEntry[] de = DataCollection.readDataEntry(in_zip, scaff);
 		final HiddenMarkovModel hmm;
-		if(vbt) {
+		if(!vbt) {
 			hmm = new HiddenMarkovModelBWT(de, seperation, reverse, trainExp, field);
 		} else {
 			hmm = new HiddenMarkovModelVBT(de, seperation, reverse, trainExp, field);
 		}
 		
-		final File pdf = new File(plot_pdf);
 		if(Constants.plot()){
 			Runnable run = new Runnable(){
 				public void run(){
 					hmmf = new HMMFrame();
 					hmmf.clearTabs();
 					if(Constants.showHMM) 
-						hmmp = hmmf.addHMMTab(hmm, hmm.de(), new File(pdf.getParent()));
+						hmmp = hmmf.addHMMTab(hmm, hmm.de(), 
+								new File(out_prefix));
 				}
 			};
 			Thread th = new Thread(run);
@@ -291,7 +312,7 @@ public class Haplotyper extends Executor {
 
 		for(int i=0; i<max_iter; i++) {
 			hmm.train();
-			hmmp.update();
+			if(Constants.plot()) hmmp.update();
 			ll = hmm.loglik();
 			myLogger.info("----------loglik "+ll);
 			if(ll<ll0) {
@@ -333,10 +354,10 @@ public class Haplotyper extends Executor {
 			}
 		}
 		
-		String experiment = in_zip.replaceAll(".zip$", "").
-				replace(".", "").replace("_", "");
-		synchronized(Constants.public_lock) {
-			hmm.write(out_prefix, experiment, scaff_str);
-		}
+		String experiment = new File(in_zip).getName().
+				replaceAll(".zip$", "").
+				replace(".", "").
+				replace("_", "");
+		hmm.write(out_prefix, experiment, scaff_str);
 	}
 }
