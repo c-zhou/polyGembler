@@ -43,7 +43,7 @@ public class HMMFrame {
 	JPanel buttons = new JPanel();
 	public HMMFrame(){
 		//super();
-		if(Constants.plot()>1){
+		if(Constants.plot()){
 			jframe = new JFrame();
 			/*    buttons.setLayout(new BoxLayout(buttons, BoxLayout.X_AXIS));
             buttons.add(jbutton_it);
@@ -88,7 +88,7 @@ public class HMMFrame {
 	public void addTab(String name, JComponent ip){
 		this.tabs.add(name,ip);
 		tab_names.add(name);
-		if(Constants.plot()>=1)
+		if(Constants.plot())
 		{
 			setVisible(true);
 			this.pack();

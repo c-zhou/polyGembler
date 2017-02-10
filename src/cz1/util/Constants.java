@@ -109,12 +109,18 @@ public class Constants {
 	}
 
 	
-	private static int plot = 2;
-	public static int plot() {
+	private static boolean plot = false;
+	private static boolean print = false;
+	
+	public static boolean plot() {
 		// TODO Auto-generated method stub
 		return plot;
 	}
 
+	public static boolean printPlots() {
+		return print;
+	}
+	
 	public static char[] modify(int i) {
 		// TODO Auto-generated method stub
 		char[] x = new char[_haplotype_z];
@@ -168,10 +174,6 @@ public class Constants {
 	public static double hmmBubblePow() {
 		// TODO Auto-generated method stub
 		return hmmBubblePow;
-	}
-	
-	public static boolean printPlots() {
-		return Constants.plot==1;
 	}
 	
 	public enum ColorPalette {

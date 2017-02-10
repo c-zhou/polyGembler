@@ -37,10 +37,12 @@ import cz1.hmm.model.HiddenMarkovModelVBT;
 import cz1.hmm.swing.HMMFrame;
 import cz1.hmm.swing.HMMPanel;
 import cz1.hmm.swing.Printer;
+import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Constants.Field;
+import cz1.util.Executor;
 
-public class Haplotyper {
+public class Haplotyper extends Executor {
 
 	private static HMMFrame hmmf = null;
 	private static HMMPanel hmmp = null;
@@ -49,7 +51,6 @@ public class Haplotyper {
 	private static String output = null;
 	private static String[] contig = null;
 	private static double[] seperation = null;
-	private static boolean dupS = false;
 	private static boolean trainExp = false;
 	private static boolean unifR = false;
 	private static boolean vbt = false;
@@ -58,164 +59,189 @@ public class Haplotyper {
 	private static int ploidy = 2;
 	private static Field field = Field.PL;
 	
-	public static void main(String[] args) {
+	@Override
+	public void printUsage() {
+		// TODO Auto-generated method stub
+		
+	}
 
+	@Override
+	public void setParameters(String[] args) {
+		// TODO Auto-generated method stub
 		// create the command line parser
-		CommandLineParser parser = new PosixParser();
-		
-		// create the Options
-		Options options = new Options();
-		options.addOption( "e", "experiment", true, "experiment name." );
-		options.addOption( "w", "workspace", true, "directory contains input files." );
-		options.addOption( "o", "output", true, "output directory name." );
-		options.addOption( "c", "contig", true, "contig id.");
-		options.addOption( "i", "max-iteration", true, "maximum iterations.");
-		options.addOption( "d", "duplicate-hs", false, "duplicate hidden states.");
-		options.addOption( "p", "ploidy", true, "ploidy of genome.");
-		options.addOption( "P", "parents", true, "parental haplotypes.");
-		options.addOption( "s", "seed", true, "random seed.");
-		options.addOption( "S", "initial-seperation", true, "initial seperation.");
-		options.addOption( "R", "direction", true, "direction.");
-		options.addOption( "G", "genotype", false, "direction.");
-		options.addOption( "D", "allele-depth", false, "direction.");
-		options.addOption( "L", "genotype-likelihood", false, "train the exp parameter for RF.");
-		options.addOption( "u", "unif-rand", false, "sample initial RF from a uniform distribution.");
-		options.addOption( "v", "segmental-kmeans", false, "using segmental k-means training.");
-		
-		try {
-			// parse the command line arguments
-			CommandLine line = parser.parse( options, args );
-			if( line.hasOption("e") ) {
-				experiment = line.getOptionValue('e');
-			} else
-				throw new RuntimeException("!!!");
-			if(line.hasOption("w")) {
-				workspace = line.getOptionValue("w");
-			} else
-				throw new RuntimeException("!!!");
-			if(line.hasOption("o")) {
-				output = line.getOptionValue("o");
-			} else {
-				output = workspace;
-			}
-			if(line.hasOption("c")) {
-				contig = line.getOptionValue("c").split(":");
-			} else
-				throw new RuntimeException("!!!"); 
-			if(line.hasOption("S")) {
-				String[] ss = line.getOptionValue("S").split(":");
-				if(ss.length<contig.length-1)
-					throw new RuntimeException("!!!");
-				seperation = new double[contig.length-1];
-				for(int i=0; i<seperation.length; i++)
-					seperation[i] = Double.parseDouble(ss[i]);
-			} else {
-				seperation = new double[contig.length-1];
-				for(int i=0; i<seperation.length; i++)
-					seperation[i] = Math.max(Math.round(
-							Constants.rand.nextDouble()*
-							Constants._max_initial_seperation),1);
-			}
-			if(line.hasOption("R")) {
-				String[] dd = line.getOptionValue("R").split(":");
-				if(dd.length<contig.length)
-					throw new RuntimeException("!!!");
-				reverse = new boolean[contig.length];
-				for(int i=0; i<reverse.length; i++)
-					reverse[i] = Boolean.parseBoolean(dd[i]);
-			} else {
-				reverse = new boolean[contig.length];
-				Arrays.fill(reverse, false);
-			}
-			if(line.hasOption("i")) {
-				max_iter = Integer.parseInt(line.getOptionValue("i"));
-			}
-			if(line.hasOption("d")) {
-				dupS = true;
-			}
-			if(line.hasOption("t")) {
-				trainExp = true;
-			}
-			if(line.hasOption("u")) {
-				unifR = true;
-			}
-			if(line.hasOption("v")) {
-				vbt = true;
-			}
-			if(line.hasOption("p")) {
-				ploidy = Integer.parseInt(line.getOptionValue("p"));
-				Constants._ploidy_H = ploidy;
-				Constants._haplotype_z = ploidy*2;
-			}
-			if(line.hasOption("P")) {
-				Constants._founder_haps = line.getOptionValue("P");
-			} else
-				throw new RuntimeException("!!!");
-			if(line.hasOption("s")) {
-				Constants.seed = Long.parseLong(line.getOptionValue("s"));
-				Constants.setRandomGenerator();
-			}
-			boolean isRF = Constants.isRF(seperation);
-			if(isRF && unifR)
-				for(int i=0; i<seperation.length; i++) 
-					seperation[i] = Constants.haldane(seperation[i]*
-							Constants.rand.nextDouble());
-			else if(isRF)
-				for(int i=0; i<seperation.length; i++) 
-					seperation[i] = Constants.haldane(seperation[i]);
-			int i = 0;
-			if(line.hasOption("G")) {
-				field = Field.GT;
-				i++;
-			}
-			if(line.hasOption("D")) {
-				field = Field.AD;
-				i++;
-			}
-			if(line.hasOption("L")) {
-				field = Field.PL;
-				i++;
-			}
-			if(i>1) throw new RuntimeException("Options -G/--genotype, "
-					+ "-D/--allele-depth, and -L/--genotype-likelihood "
-					+ "are exclusive!!!");
-		} catch( ParseException exp ) {
-			System.out.println( "Unexpected exception:" + exp.getMessage() );
+
+		if (args.length == 0) {
+			printUsage();
+			throw new IllegalArgumentException("\n\nPlease use the above arguments/options.\n\n");
 		}
 
-		System.out.println(Constants.seed);
+		if (myArgsEngine == null) {
+			myArgsEngine = new ArgsEngine();
+			myArgsEngine.add("e", "--experiment", true);
+			myArgsEngine.add("w", "--workspace", true);
+			myArgsEngine.add("o", "--output", true);
+			myArgsEngine.add("c", "--contig", true);
+			myArgsEngine.add("i", "--max-iteration", true);
+			myArgsEngine.add("p", "--ploidy", true);
+			myArgsEngine.add("P", "--parents", true);
+			myArgsEngine.add("s", "--seed", true);
+			myArgsEngine.add("S", "--initial-seperation", true);
+			myArgsEngine.add("R", "--direction", true);
+			myArgsEngine.add("G", "--genotype", false);
+			myArgsEngine.add("D", "--allele-depth", false);
+			myArgsEngine.add("L", "--genotype-likelihood", false);
+			myArgsEngine.add("u", "--unif-rand", false);
+			myArgsEngine.add("v", "--segmental-kmeans", false);
+			myArgsEngine.parse(args);
+		}
+
+		if(myArgsEngine.getBoolean("-e")) {
+			experiment = myArgsEngine.getString("-e");
+		}  else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify your VCF file.");
+		}
+
+		if(myArgsEngine.getBoolean("-w")) {
+			workspace = myArgsEngine.getString("-w");
+		}
+
+		if(myArgsEngine.getBoolean("-o")) {
+			output = myArgsEngine.getString("-o");
+		} else {
+			output = workspace;
+		}
 		
+		if(myArgsEngine.getBoolean("-c")) {
+			contig = myArgsEngine.getString("-c").split(":");
+		} else
+			throw new RuntimeException("!!!");
+		
+		if(myArgsEngine.getBoolean("-S")) {
+			String[] ss = myArgsEngine.getString("-S").split(":");
+			if(ss.length<contig.length-1)
+				throw new RuntimeException("!!!");
+			seperation = new double[contig.length-1];
+			for(int i=0; i<seperation.length; i++)
+				seperation[i] = Double.parseDouble(ss[i]);
+		} else {
+			seperation = new double[contig.length-1];
+			for(int i=0; i<seperation.length; i++)
+				seperation[i] = Math.max(Math.round(
+						Constants.rand.nextDouble()*
+						Constants._max_initial_seperation),1);
+		}
+		
+		if(myArgsEngine.getBoolean("-R")) {
+			String[] dd = myArgsEngine.getString("-R").split(":");
+			if(dd.length<contig.length)
+				throw new RuntimeException("!!!");
+			reverse = new boolean[contig.length];
+			for(int i=0; i<reverse.length; i++)
+				reverse[i] = Boolean.parseBoolean(dd[i]);
+		} else {
+			reverse = new boolean[contig.length];
+			Arrays.fill(reverse, false);
+		}
+		
+		if(myArgsEngine.getBoolean("-i")) {
+			max_iter = Integer.parseInt(myArgsEngine.getString("-i"));
+		}
+		
+		if(myArgsEngine.getBoolean("-t")) {
+			trainExp = true;
+		}
+		
+		if(myArgsEngine.getBoolean("-u")) {
+			unifR = true;
+		}
+		
+		if(myArgsEngine.getBoolean("-v")) {
+			vbt = true;
+			throw new RuntimeException("Viterbi training not supported yet!!!");
+		}
+		
+		if(myArgsEngine.getBoolean("-p")) {
+			ploidy = Integer.parseInt(myArgsEngine.getString("p"));
+			Constants._ploidy_H = ploidy;
+			Constants._haplotype_z = ploidy*2;
+		}
+		
+		if(myArgsEngine.getBoolean("-P")) {
+			Constants._founder_haps = myArgsEngine.getString("-P");
+		} else
+			throw new RuntimeException("!!!");
+		if(myArgsEngine.getBoolean("s")) {
+			Constants.seed = Long.parseLong(myArgsEngine.getString("s"));
+			Constants.setRandomGenerator();
+		}
+		boolean isRF = Constants.isRF(seperation);
+		if(isRF && unifR)
+			for(int i=0; i<seperation.length; i++) 
+				seperation[i] = Constants.haldane(seperation[i]*
+						Constants.rand.nextDouble());
+		else if(isRF)
+			for(int i=0; i<seperation.length; i++) 
+				seperation[i] = Constants.haldane(seperation[i]);
+		
+		int i = 0;
+		if(myArgsEngine.getBoolean("-G")) {
+			field = Field.GT;
+			i++;
+		}
+		
+		if(myArgsEngine.getBoolean("-D")) {
+			field = Field.AD;
+			i++;
+		}
+		
+		if(myArgsEngine.getBoolean("-L")) {
+			field = Field.PL;
+			i++;
+		}
+		if(i>1) throw new RuntimeException("Options -G/--genotype, "
+				+ "-D/--allele-depth, and -L/--genotype-likelihood "
+				+ "are exclusive!!!");
+	}
+
+	@Override
+	public void run() {
+		// TODO Auto-generated method stub
+
+		System.out.println(Constants.seed);
+
 		DataEntry[] de = DataCollection.readDataEntry(
 				workspace+
 				Constants.file_sep+
 				experiment+".zip", 
 				contig);
-		
+
 		//de.print();
 		//System.exit(1);
-		
+
 		/*
 		de.get(5);
-		*/
+		 */
 		//for(int j=0; j<de.length; j++)
 		//	for(int i=24; i<de[j].getSample().length; i++)
 		//		de[j].remove(i);
 		/**/
 		//de.remove(new int[]{6,7,8,9,10,12,13,14});
-		
+
 		//if(!vbt)
 		//	if(Constants._ploidy_H<6)
 		//		hmm = new HiddenMarkovModelDupSLHEX(de, seperation, reverse, trainExp);
 		//	else
 		//		hmm = new HiddenMarkovModelDupSHEXA(de, seperation, reverse, trainExp);
 		//else
-		final HiddenMarkovModelBWT hmm = 
-				new HiddenMarkovModelBWT(de, seperation, reverse, trainExp, field);
-
-		hmm.print(true);
+		final HiddenMarkovModel hmm;
+		if(vbt) {
+			hmm = new HiddenMarkovModelBWT(de, seperation, reverse, trainExp, field);
+		} else {
+			hmm = new HiddenMarkovModelVBT(de, seperation, reverse, trainExp, field);
+		}
 		
-		if(Constants.plot()>=1){
-			//SwingUtilities.in
+		if(Constants.plot()){
 			Runnable run = new Runnable(){
 				public void run(){
 					hmmf = new HMMFrame();
@@ -227,75 +253,48 @@ public class Haplotyper {
 			Thread th = new Thread(run);
 			th.run();
 		}
-		
-		if(Constants.plot()>=1){
+
+		if(Constants.plot()){
 			hmmf.pack();
 			hmmf.setVisible(true);
 		}
-		
+
 		double ll, ll0 = hmm.loglik();
-		
+
 		for(int i=0; i<max_iter; i++) {
-			//System.out.println(i);
 			hmm.train();
 			hmmp.update();
-			
 			ll = hmm.loglik();
-			
-			System.err.println("----------loglik "+ll);
-			//hmm.print(true);
-			
+			myLogger.info("----------loglik "+ll);
 			if(ll<ll0) {
 				throw new RuntimeException("!!!");
 			}
-			
 			if( ll0!=Double.NEGATIVE_INFINITY && 
 					Math.abs((ll-ll0)/ll0)< 1e-4)
 				break;
 			ll0 = ll;
-			//hmm.print(true);
 		}
-		hmm.print(true);
-		
-		/**
-		PrinterJob pjob = PrinterJob.getPrinterJob();
-		PageFormat preformat = pjob.defaultPage();
-		preformat.setOrientation(PageFormat.LANDSCAPE);
-		PageFormat postformat = pjob.pageDialog(preformat);
-		//If user does not hit cancel then print.
-		if (preformat != postformat) {
-		    //Set print component
-		    pjob.setPrintable(new Printer(hmmf.jframe), postformat);
-		    if (pjob.printDialog()) {
-		        try {
-					pjob.print();
-				} catch (PrinterException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-		    }
+
+		if(Constants.printPlots()){
+			try {
+				float width = hmmf.jframe.getSize().width,
+						height = hmmf.jframe.getSize().height;
+				Document document = new Document(new Rectangle(width, height));
+				PdfWriter writer = PdfWriter.getInstance(document, new FileOutputStream("C:\\Users\\chenxi.zhou\\Desktop\\hmmf.pdf"));
+				document.open();
+				PdfContentByte canvas = writer.getDirectContent();
+				PdfTemplate template = canvas.createTemplate(width, height);
+				Graphics2D g2d = new PdfGraphics2D(template, width, height);
+				hmmf.jframe.paint(g2d);
+				g2d.dispose();
+				canvas.addTemplate(template, 0, 0);
+				document.close();
+			} catch (FileNotFoundException | DocumentException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 		}
-		**/
-		if(true){
-		try {
-			float width = hmmf.jframe.getSize().width,
-					height = hmmf.jframe.getSize().height;
-			 Document document = new Document(new Rectangle(width, height));
-			 PdfWriter writer = PdfWriter.getInstance(document, new FileOutputStream("C:\\Users\\chenxi.zhou\\Desktop\\hmmf.pdf"));
-			 document.open();
-		     PdfContentByte canvas = writer.getDirectContent();
-		     PdfTemplate template = canvas.createTemplate(width, height);
-		     Graphics2D g2d = new PdfGraphics2D(template, width, height);
-		     hmmf.jframe.paint(g2d);
-		     g2d.dispose();
-	    	 canvas.addTemplate(template, 0, 0);
-		     document.close();
-		} catch (FileNotFoundException | DocumentException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		}
-		
+
 		String contig_str = contig[0];
 		for(int i=1; i<contig.length; i++) {
 			if(contig_str.length()+contig[i].length()+8
@@ -309,5 +308,6 @@ public class Haplotyper {
 		hmm.write(output, experiment.
 				replace(".", "").
 				replace("_", ""), contig_str);
+
 	}
 }

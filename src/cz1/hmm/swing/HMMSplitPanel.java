@@ -96,7 +96,7 @@ public class HMMSplitPanel extends JPanel implements PropertyChangeListener{
 	//   double[][] mat;
 	//double[][] hittingProb;
 	public void update(){
-		if(plot==2|| Constants.plot()>=2){
+		if(Constants.plot()){
 			for(int i=0; i<this.mat.length; i++)
 				this.hmm.ep(i).getCounts(this.mat[i]);;
 				this.ratePanel.removeAll();

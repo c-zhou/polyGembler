@@ -46,10 +46,13 @@ public class PolyGembler {
 			break;
 		case "datapreparation":
 			DataPreparation datapreparation = new DataPreparation();
+			datapreparation.setParameters(args2);
 			datapreparation.run();
 			break;
 		case "haplotypephasing":
-			Haplotyper.main(args2);
+			Haplotyper haplotyper = new Haplotyper();
+			haplotyper.setParameters(args2);
+			haplotyper.run();
 			break;
 		default:
 			printUsage();
