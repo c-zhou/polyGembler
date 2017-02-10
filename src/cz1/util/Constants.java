@@ -85,8 +85,6 @@ public class Constants {
 	public final static double seq_err = 0.01;
 	
 	public final static String scaff_collapsed_str = "____";
-	
-	public static int iteration = 0;
 
 	private final static Logger logger = 
 			LogManager.getLogger(Constants.class.getName());

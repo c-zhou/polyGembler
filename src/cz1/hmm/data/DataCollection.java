@@ -533,4 +533,26 @@ public class DataCollection {
 	public static int getSampleNumber(String zipFilePath) {
 		return getSampleList(zipFilePath).size();
 	}
+	
+	public static Map<String, Integer> readScaff(String zipFilePath) {
+		// TODO Auto-generated method stub
+		final Map<String, Integer> scaffs = new HashMap<String, Integer>();
+		try {
+			final ZipFile in = new ZipFile(zipFilePath);
+
+			final InputStream is = in.getInputStream(in.getEntry("contig"));
+			BufferedReader br = new BufferedReader(new InputStreamReader(is));
+			String line;
+			String[] s;
+			while( (line=br.readLine())!=null ) {
+				s = line.split("\\s+");
+				scaffs.put(s[0], Integer.parseInt(s[1]));
+			}
+			in.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return scaffs;
+	}
 }

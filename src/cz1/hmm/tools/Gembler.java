@@ -2,7 +2,10 @@ package cz1.hmm.tools;
 
 import java.io.File;
 import java.util.Arrays;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import cz1.hmm.data.DataCollection;
 import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Executor;
@@ -203,17 +206,44 @@ public class Gembler extends Executor {
 		datapreparation.run();
 		
 		//#### STEP 02 single-point haplotype inferring
-		String in_zip = out_prefix+"/data/"+prefix_vcf+".recode.zip";
-		String[] scaffs = IO.topLevelFolder(in_zip);
-		String out = out_prefix+"/single_hap_infer";
-		
+		final String in_zip = out_prefix+"/data/"+prefix_vcf+".recode.zip";
+		final String out = out_prefix+"/single_hap_infer";
+		final Map<String, Integer> scaffs = DataCollection.readScaff(in_zip);
 		IO.makeOutputDir(out);
-		for(int i=0; i<2; i++) {
-			new Haplotyper(in_zip,
-					out,
-					new String[]{scaffs[2]},
-					ploidy,
-					Constants.Field.GL).run();
+		
+		this.initial_thread_pool();
+		
+		for(final String scaff : scaffs.keySet()) {
+			if(scaffs.get(scaff)<min_snpc) continue;
+			
+			executor.submit(new Runnable(){
+				
+				@Override
+				public void run() {
+					// TODO Auto-generated method stub
+					try {
+						new Haplotyper(in_zip,
+								out,
+								new String[]{scaff},
+								ploidy,
+								field).run();
+					} catch (Exception e) {
+						Thread t = Thread.currentThread();
+						t.getUncaughtExceptionHandler().uncaughtException(t, e);
+						e.printStackTrace();
+						executor.shutdown();
+						System.exit(1);
+					}
+				}
+			});
+		}
+		
+		try {
+			executor.shutdown();
+			executor.awaitTermination(365, TimeUnit.DAYS);
+		} catch (InterruptedException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
 		}
 		
 		

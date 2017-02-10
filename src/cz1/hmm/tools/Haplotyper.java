@@ -282,12 +282,9 @@ public class Haplotyper extends Executor {
 		myLogger.info("Random seed - "+Constants.seed);
 
 		DataEntry[] de = DataCollection.readDataEntry(in_zip, scaff);
-		final HiddenMarkovModel hmm;
-		if(!vbt) {
-			hmm = new HiddenMarkovModelBWT(de, seperation, reverse, trainExp, field);
-		} else {
-			hmm = new HiddenMarkovModelVBT(de, seperation, reverse, trainExp, field);
-		}
+		final HiddenMarkovModel hmm = vbt ? 
+				new HiddenMarkovModelVBT(de, seperation, reverse, trainExp, field):
+				new HiddenMarkovModelBWT(de, seperation, reverse, trainExp, field);
 		
 		if(Constants.plot()){
 			Runnable run = new Runnable(){
@@ -309,9 +306,10 @@ public class Haplotyper extends Executor {
 		}
 
 		double ll, ll0 = hmm.loglik();
-
+		
 		for(int i=0; i<max_iter; i++) {
 			hmm.train();
+			
 			if(Constants.plot()) hmmp.update();
 			ll = hmm.loglik();
 			myLogger.info("----------loglik "+ll);

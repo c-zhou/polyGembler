@@ -35,6 +35,8 @@ public abstract class HiddenMarkovModel {
 	
 	protected final static Runtime runtime = Runtime.getRuntime();
 	
+	protected int iteration = 0;
+	
 	protected final Field field;
 	protected final DataEntry de;
 	protected final DP[][] dp;
@@ -114,7 +116,7 @@ public abstract class HiddenMarkovModel {
 		String[] sample = this.de.getSample();
 		Set<Integer> p = new HashSet<Integer>();
 		for(int i=0; i<sample.length; i++)
-			if(isParent(this.sample[i]))
+			if(!isParent(this.sample[i]))
 				p.add(i);
 		double[] baf = new double[this.M];
 		
@@ -123,35 +125,37 @@ public abstract class HiddenMarkovModel {
 			List<List<char[]>> gt = this.de.getGenotype();
 			
 			for(int i=0; i<this.M; i++) {
-				double cnt = 0, bcnt = 0;
+				double acnt = 0, bcnt = 0;
 				String[] allele = this.de.getAllele().get(i);
 				for(int j : p) {
 					char[] g = gt.get(i).get(j);
 					for(int k=0; k<g.length; k++) {
-						cnt += 1;
+						acnt += ((""+g[k]).equals(allele[0]) ? 1 : 0);
 						bcnt += ((""+g[k]).equals(allele[1]) ? 1 : 0);
 					}
 				}
-				baf[i] = bcnt/cnt;
+				if(acnt+bcnt==0) baf[i] = .5;
+				baf[i] = bcnt/(acnt+bcnt);
 				if(baf[i]==0 || baf[i]==1) baf[i] = .5;
 			}
 			break;
 		case PL:
 		case GL:
 			List<List<double[]>> pl = this.de.getPhredScaledLikelihood();
-			int cp = pl.get(0).get(0).length;
+			int cp = pl.get(0).get(0).length-1;
 			for(int i=0; i<this.M; i++) {
+				double acnt = 0;
 				double bcnt = 0;
-				for(int j=0; j<this.N; j++) {
+				for(int j : p) {
 					double[] ll = pl.get(i).get(j);
-					if(ll[0]<-1) 
-						for(int k=1; k<ll.length; k++)
-							bcnt += 1.0/cp*k;
-					else 
-						for(int k=1; k<ll.length; k++) 
-							bcnt += ll[k]*k;
+					if(ll[0]<0) continue;
+					for(int k=0; k<ll.length; k++) {
+						acnt += ll[k]*(cp-k);
+						bcnt += ll[k]*k;
+					}
 				}
-				baf[i] = bcnt/this.N/(cp-1);
+				if(acnt+bcnt==0) baf[i] = .5;
+				baf[i] = bcnt/(acnt+bcnt);
 				if(baf[i]==0 || baf[i]==1) baf[i] = .5;
 			}
 			break;
@@ -160,11 +164,12 @@ public abstract class HiddenMarkovModel {
 			List<List<int[]>> ad = this.de.getAlleleDepth();
 			for(int i=0; i<this.M; i++) {
 				double acnt = 0, bcnt = 0;
-				for(int j=0; j<ad.get(i).size(); j++) {
+				for(int j : p) {
 					int[] aa = ad.get(i).get(j);
 					acnt += aa[0];
 					bcnt += aa[1];
 				}
+				if(acnt+bcnt==0) baf[i] = .5;
 				baf[i] = bcnt/(acnt+bcnt);
 				if(baf[i]==0 || baf[i]==1) baf[i] = .5;
 			}
@@ -857,7 +862,7 @@ public abstract class HiddenMarkovModel {
 			Arrays.fill(hweDist1, 1.0/likelihood.length);
 			if(logspace) likelihood = normalspace(likelihood);
 			if(StatUtils.max(likelihood)<=0.0) 
-				Arrays.fill(likelihood, 1.0/likelihood.length);
+				Arrays.fill(likelihood, 1.0);
 			likelihood = Algebra.normalize(likelihood);
 			for(int i=0; i<likelihood.length; i++)
 				likelihood[i] = hweDist1[i]*Constants._soften_ + 

@@ -49,9 +49,9 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 	}
 
 	public void train() {
-		Constants.iteration++;
+		iteration++;
 		logger.info("###################");
-		logger.info("train: "+Constants.iteration);
+		logger.info("train: "+iteration);
 		long[] tic = new long[10];
 		int k=0;
 		tic[k++] = System.nanoTime();
@@ -205,7 +205,7 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 	}
 	
 	public double loglik() {
-		if(Constants.iteration==0)
+		if(iteration==0)
 			return Double.NEGATIVE_INFINITY;
 		else {
 			double probability = 0;
@@ -219,7 +219,7 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 		double probability = 0;
 		//for(Viterbi vb: this.vb) probability += vb.probability;
 		//logger.info(" log-likelihood "+probability);
-		if(Constants.iteration==0)
+		if(iteration==0)
 			logger.info(" hmm initialised.");
 		else {
 			for(Viterbi v : this.vb) probability += v.probability;
@@ -330,8 +330,8 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 			
 			out.write("cz1.model.HiddenMarkovModel:\n".getBytes());
 			out.write("cz1.model.HiidenMarkovModel$EM:\n".getBytes());
-			out.write(("log prob is "+this.loglik()+" at "+Constants.iteration).getBytes());
-			out.write(("random seed is"+Constants.seed).getBytes());
+			out.write(("log prob is "+this.loglik()+" at "+iteration+"\n").getBytes());
+			out.write(("random seed is "+Constants.seed).getBytes());
 			
 			out.putNextEntry(new ZipEntry(root+"/"+"snp_"+experiment+".txt"));
 			
