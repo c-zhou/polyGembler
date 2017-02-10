@@ -25,6 +25,16 @@ public class DataPreparation extends Executor {
 	String id = null;
 	String out_file = null;
 	
+	public DataPreparation() {}
+	
+	public DataPreparation(String vcf_in, 
+			String id, 
+			String out_file) {
+		this.vcf_in = vcf_in;
+		this.id = id;
+		this.out_file = out_file;
+	}
+	
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub

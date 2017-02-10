@@ -58,6 +58,21 @@ public class Haplotyper extends Executor {
 	private static Field field = Field.PL;
 	private static String plot_pdf = null;
 	
+	public Haplotyper() {}
+	
+	public Haplotyper(String in_zip,
+			String out_prefix,
+			String[] scaff,
+			double[] seperation,
+			boolean trainExp,
+			boolean vbt,
+			boolean[] reverse,
+			int max_iter,
+			int ploidy,
+			Field field) {
+		
+	}
+	
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub
@@ -106,22 +121,22 @@ public class Haplotyper extends Executor {
 
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
-			myArgsEngine.add("i", "--input", true);
-			myArgsEngine.add("o", "--prefix", true);
-			myArgsEngine.add("c", "--scaffold", true);
-			myArgsEngine.add("x", "--max-iter", true);
-			myArgsEngine.add("p", "--ploidy", true);
-			myArgsEngine.add("f", "--parent", true);
-			myArgsEngine.add("s", "--initial-seperation", true);
-			myArgsEngine.add("r", "--reverse", true);
-			myArgsEngine.add("G", "--genotype", false);
-			myArgsEngine.add("D", "--allele-depth", false);
-			myArgsEngine.add("L", "--genotype-likelihood", false);
-			myArgsEngine.add("b", "--segmental-kmeans", false);
-			myArgsEngine.add("e", "train-exp", false);
-			myArgsEngine.add("S", "--random-seed", true);
-			myArgsEngine.add("pp", "--print-plot", false);
-			myArgsEngine.add("sp", "--save-plot", true);
+			myArgsEngine.add("-i", "--input", true);
+			myArgsEngine.add("-o", "--prefix", true);
+			myArgsEngine.add("-c", "--scaffold", true);
+			myArgsEngine.add("-x", "--max-iter", true);
+			myArgsEngine.add("-p", "--ploidy", true);
+			myArgsEngine.add("-f", "--parent", true);
+			myArgsEngine.add("-s", "--initial-seperation", true);
+			myArgsEngine.add("-r", "--reverse", true);
+			myArgsEngine.add("-G", "--genotype", false);
+			myArgsEngine.add("-D", "--allele-depth", false);
+			myArgsEngine.add("-L", "--genotype-likelihood", false);
+			myArgsEngine.add("-b", "--segmental-kmeans", false);
+			myArgsEngine.add("-e", "train-exp", false);
+			myArgsEngine.add("-S", "--random-seed", true);
+			myArgsEngine.add("-pp", "--print-plot", false);
+			myArgsEngine.add("-sp", "--save-plot", true);
 			myArgsEngine.parse(args);
 		}
 		
