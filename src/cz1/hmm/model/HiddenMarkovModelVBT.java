@@ -1,7 +1,9 @@
 package cz1.hmm.model;
 
+import java.io.BufferedOutputStream;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -10,6 +12,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.ArrayUtils;
@@ -210,153 +214,6 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 		}
 	}
 	
-	public void write(String output, 
-			String experiment, 
-			String contig) {
-		// TODO Auto-generated method stub
-		String home = output+
-				Constants.file_sep+
-				experiment+"."+
-				contig+"."+
-				Constants.seed+"_1_1_all_0_200mb";
-		File fhome = new File(home);
-		if(fhome.exists() && fhome.isDirectory()) {
-			try {
-				FileUtils.deleteDirectory(fhome);
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-				System.exit(1);
-			}
-		}
-		fhome.mkdir();
-		String phasedStates = home+Constants.file_sep+"phasedStates";
-		new File(phasedStates).mkdir();
-		String results_hmm = home+Constants.file_sep+"results_hmm";
-		new File(results_hmm).mkdir();
-
-		try {
-			BufferedWriter bw = IO.getBufferedWriter(phasedStates+
-					Constants.file_sep+
-					experiment+".txt");
-			bw.write(""+this.loglik()+"\n");
-			bw.write(""+this.dp.length+"\n");
-			for(int i=0; i<this.sample.length; i++) {
-				String[] path = this.vb[i].path_str;
-				List<String[]> path_s = new ArrayList<String[]>();
-				for(int j=0; j<path.length; j++)
-					path_s.add(path[j].split("_"));
-				for(int j=0; j<Constants._ploidy_H; j++) {
-					bw.write("# id "+this.sample[i]+":"+(j+1)+"\t\t\t");
-					for(int k=0; k<path_s.size(); k++)
-						bw.write(path_s.get(k)[j]);
-					bw.write("\n");;
-				}
-			}
-			bw.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			System.exit(1);
-		}
-
-		try {
-			BufferedWriter bw = IO.getBufferedWriter(results_hmm+
-					Constants.file_sep+
-					"emissionModel.txt");
-			for(int i=0; i<this.emissProbs.length; i++) {
-				double[][] emissProbs = this.emissProbs[i].probsMat;
-				String[] allele = this.emissProbs[i].allele;
-				bw.write(this.de.getId()+"_"+this.de.getPosition()[i]+"\t\t\t");
-				for(int j=0; j<emissProbs.length; j++) {
-					bw.write(this.hs[j]+"-> {");
-					for(int k=0; k<emissProbs[j].length; k++) 
-						bw.write(allele[k]+","+emissProbs[j][k]+";");
-					bw.write("} ");
-				}
-				bw.write("\n");
-			}
-			bw.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			System.exit(1);
-		}
-		
-		try {
-			BufferedWriter bw = IO.getBufferedWriter(results_hmm+
-					Constants.file_sep+
-					"transitionModel.txt");
-			for(int i=0; i<this.transProbs.length; i++) {
-				double[][] transProbs = this.transProbs[i].probsMat;
-				bw.write(this.de.getId()+"_"+this.de.getPosition()[i]+"\t\t\t");
-				for(int j=0; j<transProbs.length; j++) {
-					bw.write(this.hs[j]+"-> {");
-					for(int k=0; k<transProbs[j].length; k++) 
-						bw.write(this.hs[k]+","+transProbs[j][k]+";");
-					bw.write("} ");
-				}
-				bw.write("\n");
-			}
-			bw.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			System.exit(1);
-		}
-		
-
-		try {
-			BufferedWriter bw = IO.getBufferedWriter(fhome+
-					Constants.file_sep+
-					"stderr_true");
-			bw.write("cz1.model.HiddenMarkovModel:\n");
-			bw.write("cz1.model.HiidenMarkovModel$EM:\n");
-			bw.write("log prob is "+this.loglik()+" at "+Constants.iteration);
-			bw.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			System.exit(1);
-		}
-
-		try {
-			BufferedWriter bw = IO.getBufferedWriter(fhome+
-					Constants.file_sep+
-					"snp_"+experiment+".txt");
-			StringBuilder os = new StringBuilder();
-			List<String[]> allele = de.getAllele();
-			double[] position = de.getPosition();
-			String[] markers_id = de.getMarker();
-			String id = de.getId();
-			for(int i=0; i<position.length; i++) {
-				os.setLength(0);
-				os.append(id);
-				os.append("\t");
-				int p = (int) position[i];
-				os.append(p);
-				os.append("\t");
-				os.append(p);
-				os.append("\t");
-				os.append(markers_id[i]);
-				os.append("\t");
-				for(int j=0; j<allele.get(i).length; j++) {
-					os.append(allele.get(i)[j]);
-					os.append("\t");
-				}
-				os.append(experiment);
-				os.append("\t");
-				os.append("false\n");
-				bw.write(os.toString());
-			}
-			bw.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			System.exit(1);
-		}
-	}
-	
 	public void print(boolean detail) {
 		// TODO Auto-generated method stub
 		double probability = 0;
@@ -408,6 +265,105 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 				}
 				System.out.println();
 			}
+		}
+	}
+	
+	public void write(String output, 
+			String experiment, 
+			String scaff) {
+		// TODO Auto-generated method stub
+		String root = experiment+"."+
+				scaff+"."+
+				Constants.seed+"_1_1_all_0_200mb/";
+		
+		try {
+			ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(new 
+					FileOutputStream(output, true), 65536));
+		
+			out.putNextEntry(new ZipEntry(root));
+			out.putNextEntry(new ZipEntry(root+"/"+"phasedStates/"));
+			out.putNextEntry(new ZipEntry(root+"/"+"phasedStates/"+experiment+".txt"));
+			out.write((""+this.loglik()+"\n").getBytes());
+			out.write((""+this.dp.length+"\n").getBytes());
+			for(int i=0; i<this.sample.length; i++) {
+				String[] path = this.vb[i].path_str;
+				List<String[]> path_s = new ArrayList<String[]>();
+				for(int j=0; j<path.length; j++)
+					path_s.add(path[j].split("_"));
+				for(int j=0; j<Constants._ploidy_H; j++) {
+					out.write(("# id "+this.sample[i]+":"+(j+1)+"\t\t\t").getBytes());
+					for(int k=0; k<path_s.size(); k++)
+						out.write(path_s.get(k)[j].getBytes());
+					out.write("\n".getBytes());
+				}
+			}
+			
+			out.putNextEntry(new ZipEntry(root+"/"+"results_hmm/"));
+			
+			out.putNextEntry(new ZipEntry(root+"/"+"results_hmm/emissionModel.txt"));
+			for(int i=0; i<this.emissProbs.length; i++) {
+				double[][] emissProbs = this.emissProbs[i].probsMat;
+				String[] allele = this.emissProbs[i].allele;
+				out.write((this.de.getId()+"_"+this.de.getPosition()[i]+"\t\t\t").getBytes());
+				for(int j=0; j<emissProbs.length; j++) {
+					out.write((this.hs[j]+"-> {").getBytes());
+					for(int k=0; k<emissProbs[j].length; k++) 
+						out.write((allele[k]+","+emissProbs[j][k]+";").getBytes());
+					out.write("} ".getBytes());
+				}
+				out.write("\n".getBytes());
+			}
+
+			out.putNextEntry(new ZipEntry(root+"/"+"results_hmm/transitionModel.txt"));
+			for(int i=0; i<this.transProbs.length; i++) {
+				double[][] transProbs = this.transProbs[i].probsMat;
+				out.write((this.de.getId()+"_"+this.de.getPosition()[i]+"\t\t\t").getBytes());
+				for(int j=0; j<transProbs.length; j++) {
+					out.write((this.hs[j]+"-> {").getBytes());
+					for(int k=0; k<transProbs[j].length; k++) 
+						out.write((this.hs[k]+","+transProbs[j][k]+";").getBytes());
+					out.write("} ".getBytes());
+				}
+				out.write("\n".getBytes());
+			}
+
+			out.putNextEntry(new ZipEntry(root+"/"+"stderr_true"));
+			
+			out.write("cz1.model.HiddenMarkovModel:\n".getBytes());
+			out.write("cz1.model.HiidenMarkovModel$EM:\n".getBytes());
+			out.write(("log prob is "+this.loglik()+" at "+Constants.iteration).getBytes());
+
+			out.putNextEntry(new ZipEntry(root+"/"+"snp_"+experiment+".txt"));
+			
+			StringBuilder os = new StringBuilder();
+			List<String[]> allele = de.getAllele();
+			double[] position = de.getPosition();
+			String[] markers_id = de.getMarker();
+			String id = de.getId();
+			for(int i=0; i<position.length; i++) {
+				os.setLength(0);
+				os.append(id);
+				os.append("\t");
+				int p = (int) position[i];
+				os.append(p);
+				os.append("\t");
+				os.append(p);
+				os.append("\t");
+				os.append(markers_id[i]);
+				os.append("\t");
+				for(int j=0; j<allele.get(i).length; j++) {
+					os.append(allele.get(i)[j]);
+					os.append("\t");
+				}
+				os.append(experiment);
+				os.append("\t");
+				os.append("false\n");
+				out.write(os.toString().getBytes());
+			}			
+			out.close();
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
 		}
 	}
 }

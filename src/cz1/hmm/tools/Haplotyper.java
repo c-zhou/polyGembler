@@ -46,23 +46,52 @@ public class Haplotyper extends Executor {
 
 	private static HMMFrame hmmf = null;
 	private static HMMPanel hmmp = null;
-	private static String experiment = null;
-	private static String workspace = null;
-	private static String output = null;
-	private static String[] contig = null;
+	private static String in_zip = null;
+	private static String out_prefix = null;
+	private static String[] scaff = null;
 	private static double[] seperation = null;
 	private static boolean trainExp = false;
-	private static boolean unifR = false;
 	private static boolean vbt = false;
 	private static boolean[] reverse = null;
-	private static int max_iter = 30;
+	private static int max_iter = 100;
 	private static int ploidy = 2;
 	private static Field field = Field.PL;
+	private static String plot_pdf = null;
 	
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub
-		
+		myLogger.info(
+				"\n\nUsage is as follows:\n"
+							+" -i/--input					Input zipped file.\n"
+							+" -o/--prefix					Output file location, will be a zipped file directory.\n"
+							+" -c/--scaffold				The scaffold/contig/chromosome id will run.\n"
+							+" -x/--max-iter				Maxmium rounds for EM optimization (default 100).\n"
+							+" -p/--ploidy					Ploidy of genome (default 2).\n"
+							+" -f/--parent					Parent samples (seperated by a \":\").\n"
+							+" -s/--initial-seperation		Initialisations of distances between the adjacent scaffolds "
+							+"								if multiple scaffolds will be jointly inferred. The seperation"
+							+"								could be either physical distances or recombination frequencies, "
+							+"								i.e., if all values provided is below 0.5, the "
+							+"								program will take them as recombination frequencies. "
+							+"								Distances should be seperated by \":\".\n"
+							+" -r/--reverse					Take either 'true' or 'false', indicating whetherr the"
+							+"								scaffold is reversed before inferring haplotypes. Multiple"
+							+"								scaffolds are seperated by \":\".\n"
+							+" -G/--genotype				Use genotypes to infer haplotypes. Mutually exclusive with"
+							+"								option -D/--allele-depth and -L/--genetype likelihood.\n"
+							+" -D/--allele-depth			Use allele depth to infer haplotypes. Mutually exclusive "
+							+"								with option -G/--genotype and -L/--genetype likelihood.\n"
+							+" -L/--genotype-likelihood		Use genotype likelihoods to infer haplotypes. Mutually "
+							+"								exclusive with option -G/--genotype and -L/--allele-depth "
+							+"								(default).\n"
+							+" -b/--segmental-kmeans		Use Vitering training instead of Baum-Welch algorithm.\n"
+							+" -e/--train-exp				Re-estimate transition probabilities between founder/parental"
+							+"								haplotypes at each step.\n"
+							+" -S/--random-seed				Random seed for this run.\n"
+							+" -pp/--print-plot				Plot the hidden Markov model.\n"
+							+" -sp/--save-plot				Save the plot as a pdf file. The file name should be provided here.\n"
+							);
 	}
 
 	@Override
@@ -77,112 +106,95 @@ public class Haplotyper extends Executor {
 
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
-			myArgsEngine.add("e", "--experiment", true);
-			myArgsEngine.add("w", "--workspace", true);
-			myArgsEngine.add("o", "--output", true);
-			myArgsEngine.add("c", "--contig", true);
-			myArgsEngine.add("i", "--max-iteration", true);
+			myArgsEngine.add("i", "--input", true);
+			myArgsEngine.add("o", "--prefix", true);
+			myArgsEngine.add("c", "--scaffold", true);
+			myArgsEngine.add("x", "--max-iter", true);
 			myArgsEngine.add("p", "--ploidy", true);
-			myArgsEngine.add("P", "--parents", true);
-			myArgsEngine.add("s", "--seed", true);
-			myArgsEngine.add("S", "--initial-seperation", true);
-			myArgsEngine.add("R", "--direction", true);
+			myArgsEngine.add("f", "--parent", true);
+			myArgsEngine.add("s", "--initial-seperation", true);
+			myArgsEngine.add("r", "--reverse", true);
 			myArgsEngine.add("G", "--genotype", false);
 			myArgsEngine.add("D", "--allele-depth", false);
 			myArgsEngine.add("L", "--genotype-likelihood", false);
-			myArgsEngine.add("u", "--unif-rand", false);
-			myArgsEngine.add("v", "--segmental-kmeans", false);
+			myArgsEngine.add("b", "--segmental-kmeans", false);
+			myArgsEngine.add("e", "train-exp", false);
+			myArgsEngine.add("S", "--random-seed", true);
+			myArgsEngine.add("pp", "--print-plot", false);
+			myArgsEngine.add("sp", "--save-plot", true);
 			myArgsEngine.parse(args);
 		}
-
-		if(myArgsEngine.getBoolean("-e")) {
-			experiment = myArgsEngine.getString("-e");
-		}  else {
+		
+		if(myArgsEngine.getBoolean("-i")) {
+			in_zip = myArgsEngine.getString("-i");
+		} else {
 			printUsage();
-			throw new IllegalArgumentException("Please specify your VCF file.");
-		}
-
-		if(myArgsEngine.getBoolean("-w")) {
-			workspace = myArgsEngine.getString("-w");
+			throw new IllegalArgumentException("Please specify your input zip file.");
 		}
 
 		if(myArgsEngine.getBoolean("-o")) {
-			output = myArgsEngine.getString("-o");
-		} else {
-			output = workspace;
+			out_prefix = myArgsEngine.getString("-o");
+			if(!out_prefix.endsWith(".zip")) out_prefix += ".zip";
+		}  else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify your output file prefix.");
 		}
 		
 		if(myArgsEngine.getBoolean("-c")) {
-			contig = myArgsEngine.getString("-c").split(":");
-		} else
-			throw new RuntimeException("!!!");
+			scaff = myArgsEngine.getString("-c").split(":");
+		}  else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify the scaffold(s).");
+		}
 		
-		if(myArgsEngine.getBoolean("-S")) {
-			String[] ss = myArgsEngine.getString("-S").split(":");
-			if(ss.length<contig.length-1)
-				throw new RuntimeException("!!!");
-			seperation = new double[contig.length-1];
+		if(myArgsEngine.getBoolean("-x")) {
+			max_iter = Integer.parseInt(myArgsEngine.getString("-x"));
+		}
+		
+		if(myArgsEngine.getBoolean("-p")) {
+			ploidy = Integer.parseInt(myArgsEngine.getString("-p"));
+			Constants._ploidy_H = ploidy;
+			Constants._haplotype_z = ploidy*2;
+		}
+		
+		if(myArgsEngine.getBoolean("-f")) {
+			Constants._founder_haps = myArgsEngine.getString("-f");
+		} else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify the parent samples (seperated by a \":\").");
+		}
+		
+		if(myArgsEngine.getBoolean("-s")) {
+			String[] ss = myArgsEngine.getString("-s").split(":");
+			if(ss.length<scaff.length-1)
+				throw new RuntimeException("Number of scaffolds does not match number of initial seperations!!!");
+			seperation = new double[scaff.length-1];
 			for(int i=0; i<seperation.length; i++)
 				seperation[i] = Double.parseDouble(ss[i]);
 		} else {
-			seperation = new double[contig.length-1];
+			seperation = new double[scaff.length-1];
 			for(int i=0; i<seperation.length; i++)
 				seperation[i] = Math.max(Math.round(
 						Constants.rand.nextDouble()*
 						Constants._max_initial_seperation),1);
 		}
+		boolean isRF = Constants.isRF(seperation);
+		if(isRF) {
+			for(int i=0; i<seperation.length; i++) 
+				seperation[i] = Constants.haldane(seperation[i]);
+		}
 		
-		if(myArgsEngine.getBoolean("-R")) {
-			String[] dd = myArgsEngine.getString("-R").split(":");
-			if(dd.length<contig.length)
-				throw new RuntimeException("!!!");
-			reverse = new boolean[contig.length];
+		if(myArgsEngine.getBoolean("-r")) {
+			String[] dd = myArgsEngine.getString("-r").split(":");
+			if(dd.length<scaff.length)
+				throw new RuntimeException("Number of scaffolds does not match number of reverses!!!");
+			reverse = new boolean[scaff.length];
 			for(int i=0; i<reverse.length; i++)
 				reverse[i] = Boolean.parseBoolean(dd[i]);
 		} else {
-			reverse = new boolean[contig.length];
+			reverse = new boolean[scaff.length];
 			Arrays.fill(reverse, false);
 		}
-		
-		if(myArgsEngine.getBoolean("-i")) {
-			max_iter = Integer.parseInt(myArgsEngine.getString("-i"));
-		}
-		
-		if(myArgsEngine.getBoolean("-t")) {
-			trainExp = true;
-		}
-		
-		if(myArgsEngine.getBoolean("-u")) {
-			unifR = true;
-		}
-		
-		if(myArgsEngine.getBoolean("-v")) {
-			vbt = true;
-			throw new RuntimeException("Viterbi training not supported yet!!!");
-		}
-		
-		if(myArgsEngine.getBoolean("-p")) {
-			ploidy = Integer.parseInt(myArgsEngine.getString("p"));
-			Constants._ploidy_H = ploidy;
-			Constants._haplotype_z = ploidy*2;
-		}
-		
-		if(myArgsEngine.getBoolean("-P")) {
-			Constants._founder_haps = myArgsEngine.getString("-P");
-		} else
-			throw new RuntimeException("!!!");
-		if(myArgsEngine.getBoolean("s")) {
-			Constants.seed = Long.parseLong(myArgsEngine.getString("s"));
-			Constants.setRandomGenerator();
-		}
-		boolean isRF = Constants.isRF(seperation);
-		if(isRF && unifR)
-			for(int i=0; i<seperation.length; i++) 
-				seperation[i] = Constants.haldane(seperation[i]*
-						Constants.rand.nextDouble());
-		else if(isRF)
-			for(int i=0; i<seperation.length; i++) 
-				seperation[i] = Constants.haldane(seperation[i]);
 		
 		int i = 0;
 		if(myArgsEngine.getBoolean("-G")) {
@@ -202,38 +214,38 @@ public class Haplotyper extends Executor {
 		if(i>1) throw new RuntimeException("Options -G/--genotype, "
 				+ "-D/--allele-depth, and -L/--genotype-likelihood "
 				+ "are exclusive!!!");
+		
+		if(myArgsEngine.getBoolean("-b")) {
+			vbt = true;
+			throw new RuntimeException("Viterbi training not supported yet!!!");
+		}
+		
+		if(myArgsEngine.getBoolean("-S")) {
+			Constants.seed = Long.parseLong(myArgsEngine.getString("-S"));
+			Constants.setRandomGenerator();
+		}
+		
+		if(myArgsEngine.getBoolean("-e")) {
+			trainExp = true;
+		}
+		
+		if(myArgsEngine.getBoolean("-pp")) {
+			Constants.plot(true);
+		}
+		
+		if(myArgsEngine.getBoolean("-sp")) {
+			plot_pdf = myArgsEngine.getString("-sp");
+			Constants.plot(true);
+			Constants.printPlots(true);
+		}
 	}
 
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
+		myLogger.info("Random seed - "+Constants.seed);
 
-		System.out.println(Constants.seed);
-
-		DataEntry[] de = DataCollection.readDataEntry(
-				workspace+
-				Constants.file_sep+
-				experiment+".zip", 
-				contig);
-
-		//de.print();
-		//System.exit(1);
-
-		/*
-		de.get(5);
-		 */
-		//for(int j=0; j<de.length; j++)
-		//	for(int i=24; i<de[j].getSample().length; i++)
-		//		de[j].remove(i);
-		/**/
-		//de.remove(new int[]{6,7,8,9,10,12,13,14});
-
-		//if(!vbt)
-		//	if(Constants._ploidy_H<6)
-		//		hmm = new HiddenMarkovModelDupSLHEX(de, seperation, reverse, trainExp);
-		//	else
-		//		hmm = new HiddenMarkovModelDupSHEXA(de, seperation, reverse, trainExp);
-		//else
+		DataEntry[] de = DataCollection.readDataEntry(in_zip, scaff);
 		final HiddenMarkovModel hmm;
 		if(vbt) {
 			hmm = new HiddenMarkovModelBWT(de, seperation, reverse, trainExp, field);
@@ -241,13 +253,14 @@ public class Haplotyper extends Executor {
 			hmm = new HiddenMarkovModelVBT(de, seperation, reverse, trainExp, field);
 		}
 		
+		final File pdf = new File(plot_pdf);
 		if(Constants.plot()){
 			Runnable run = new Runnable(){
 				public void run(){
 					hmmf = new HMMFrame();
 					hmmf.clearTabs();
 					if(Constants.showHMM) 
-						hmmp = hmmf.addHMMTab(hmm, hmm.de(), new File(workspace));
+						hmmp = hmmf.addHMMTab(hmm, hmm.de(), new File(pdf.getParent()));
 				}
 			};
 			Thread th = new Thread(run);
@@ -267,10 +280,10 @@ public class Haplotyper extends Executor {
 			ll = hmm.loglik();
 			myLogger.info("----------loglik "+ll);
 			if(ll<ll0) {
-				throw new RuntimeException("!!!");
+				throw new RuntimeException("Fatal error!!!");
 			}
 			if( ll0!=Double.NEGATIVE_INFINITY && 
-					Math.abs((ll-ll0)/ll0)< 1e-4)
+					Math.abs((ll-ll0)/ll0) < Constants.minImprov)
 				break;
 			ll0 = ll;
 		}
@@ -280,7 +293,7 @@ public class Haplotyper extends Executor {
 				float width = hmmf.jframe.getSize().width,
 						height = hmmf.jframe.getSize().height;
 				Document document = new Document(new Rectangle(width, height));
-				PdfWriter writer = PdfWriter.getInstance(document, new FileOutputStream("C:\\Users\\chenxi.zhou\\Desktop\\hmmf.pdf"));
+				PdfWriter writer = PdfWriter.getInstance(document, new FileOutputStream(plot_pdf));
 				document.open();
 				PdfContentByte canvas = writer.getDirectContent();
 				PdfTemplate template = canvas.createTemplate(width, height);
@@ -295,19 +308,20 @@ public class Haplotyper extends Executor {
 			}
 		}
 
-		String contig_str = contig[0];
-		for(int i=1; i<contig.length; i++) {
-			if(contig_str.length()+contig[i].length()+8
-					<=Constants.MAX_FILE_ID_LENGTH)
-				contig_str += Constants.scaff_collapsed_str+contig[i];
+		String scaff_str = scaff[0];
+		for(int i=1; i<scaff.length; i++) {
+			if(scaff_str.length()+scaff[i].length()+8<=Constants.MAX_FILE_ID_LENGTH)
+				scaff_str += Constants.scaff_collapsed_str+scaff[i];
 			else {
-				contig_str += Constants.scaff_collapsed_str+"etc"+contig.length;
+				scaff_str += Constants.scaff_collapsed_str+"etc"+scaff.length;
 				break;
 			}
 		}
-		hmm.write(output, experiment.
-				replace(".", "").
-				replace("_", ""), contig_str);
-
+		
+		String experiment = in_zip.replaceAll(".zip$", "").
+				replace(".", "").replace("_", "");
+		synchronized(Constants.public_lock) {
+			hmm.write(out_prefix, experiment, scaff_str);
+		}
 	}
 }

@@ -1,5 +1,6 @@
 package cz1.hmm.tools;
 
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -82,8 +83,8 @@ public class DataPreparation extends Executor {
 				_idx_ad = info.indexOf("AD");
 		try {
 			
-			ZipOutputStream out = new ZipOutputStream(new 
-					FileOutputStream(zipFilePath));
+			ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(new 
+					FileOutputStream(zipFilePath), 65536));
 			
 			BufferedReader br = IO.getBufferedReader(vcf_in);
 			String line;

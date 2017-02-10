@@ -28,6 +28,9 @@ public class Constants {
 	public final static double MIN_EXP_DOUBLE = Math.log(Double.MIN_VALUE);
 	public final static double MAX_EXP_DOUBLE = Math.log(Double.MAX_VALUE);
 	public final static double log2 = Math.log(2);
+	
+	public final static Object public_lock = new Object(); 
+	
 	/*** constants for Dirichlet and Beta distribution
 	 * e for E-step
 	 * m for M-step 
@@ -77,6 +80,8 @@ public class Constants {
 	public final static double logThreshMax = Math.log(threshMax);
 	public final static double logThreshMin = Math.log(threshMin);
 	
+	public final static double minImprov = 1e-4;
+	
 	public final static double seq_err = 0.01;
 	
 	public final static String scaff_collapsed_str = "____";
@@ -119,6 +124,17 @@ public class Constants {
 
 	public static boolean printPlots() {
 		return print;
+	}
+	
+	public static void plot(boolean b) {
+		// TODO Auto-generated method stub
+		plot = true;
+	}
+
+	public static void printPlots(boolean b) {
+		// TODO Auto-generated method stub
+		plot = true;
+		print = true;
 	}
 	
 	public static char[] modify(int i) {
@@ -181,6 +197,7 @@ public class Constants {
 	}
 	
 	public static ColorPalette colorPalette = ColorPalette.GGPLOT2;
+	
 	public ColorPalette colorPalette() {
 		return Constants.colorPalette;
 	}
