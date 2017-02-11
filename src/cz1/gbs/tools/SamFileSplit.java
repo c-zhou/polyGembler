@@ -2,7 +2,7 @@ package cz1.gbs.tools;
 
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
-import cz1.util.IO;
+import cz1.util.Utils;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -104,12 +104,12 @@ public class SamFileSplit extends Executor {
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		IO.makeOutputDir(bam_out);
+		Utils.makeOutputDir(bam_out);
 		final File[] beds = new File(bed_in).listFiles();
 		final String[] out_prefix = new String[beds.length];
 		for(int i=0; i<beds.length; i++) {
 			out_prefix[i] = bam_out+"/"+beds[i].getName().replaceAll(".bed$", "");
-			IO.makeOutputDir(out_prefix[i]);
+			Utils.makeOutputDir(out_prefix[i]);
 		}
 		
 		final File[] bams = new File(bam_in).listFiles();

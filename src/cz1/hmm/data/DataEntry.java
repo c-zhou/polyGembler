@@ -13,7 +13,7 @@ import org.apache.commons.math3.stat.inference.ChiSquareTest;
 import cz1.util.Algebra;
 import cz1.util.Combination;
 import cz1.util.Constants;
-import cz1.util.IO;
+import cz1.util.Utils;
 
 public class DataEntry {
 	private String id;	// contig name
@@ -146,7 +146,7 @@ public class DataEntry {
 					ds[k] += d[k]>0 ? d[k] : 0;
 			}
 			System.out.println(distortion(ds));
-			IO.print(ds);
+			Utils.print(ds);
 			if(distortion(ds)<0.01) rl.add(i);
 		}
 		this.remove(ArrayUtils.toPrimitive(rl.toArray(new Integer[rl.size()])));
@@ -293,62 +293,62 @@ public class DataEntry {
 
 	private void printGenotype() {
 		// TODO Auto-generated method stub
-		IO.println("---Genotype---");
+		Utils.println("---Genotype---");
 		int m = 1;
-		IO.print("Sample "+"\t\t|\t");
+		Utils.print("Sample "+"\t\t|\t");
 		for(int i=1; i<=this.sample.length; i++)
-			IO.print(String.format("%04d", i)+"\t");
-		IO.print("\n");
+			Utils.print(String.format("%04d", i)+"\t");
+		Utils.print("\n");
 		for(List<char[]> list : this.gt) {
-			IO.print("Marker "+m+++"\t|\t");
+			Utils.print("Marker "+m+++"\t|\t");
 			for(char[] chars : list) 
-				IO.print(StringUtils.join(chars, ',')+";\t");
-			IO.println();
+				Utils.print(StringUtils.join(chars, ',')+";\t");
+			Utils.println();
 		}
 	}
 
 	private void printPhredScaledLikelihood() {
 		// TODO Auto-generated method stub
-		IO.println("---Likelihood---");
+		Utils.println("---Likelihood---");
 		int m = 1;
 		for(List<double[]> list : this.pl) {
-			IO.print("Marker "+m+++"\t|\t");
+			Utils.print("Marker "+m+++"\t|\t");
 			for(double[] doubles : list) 
-				IO.print(StringUtils.join(doubles, ',')+"; ");
-			IO.println();
+				Utils.print(StringUtils.join(doubles, ',')+"; ");
+			Utils.println();
 		}
 	}
 
 	private void printAlleleDepth() {
 		// TODO Auto-generated method stub
-		IO.println("---Allele Depth---");
+		Utils.println("---Allele Depth---");
 		int m = 1;
 		for(List<int[]> list : this.ad) {
-			IO.print("Marker "+m+++"\t|\t");
+			Utils.print("Marker "+m+++"\t|\t");
 			for(int[] ints : list) 
-				IO.print(StringUtils.join(ints, ',')+"; ");
-			IO.println();
+				Utils.print(StringUtils.join(ints, ',')+"; ");
+			Utils.println();
 		}
 	}
 
 	private void printAllele() {
 		// TODO Auto-generated method stub
-		IO.println("---Allele---");
+		Utils.println("---Allele---");
 		for(String[] allele : this.allele)
-			IO.print(StringUtils.join(allele, ',')+"\t");
-		IO.println();
+			Utils.print(StringUtils.join(allele, ',')+"\t");
+		Utils.println();
 	}
 
 	private void printPosition() {
 		// TODO Auto-generated method stub
-		IO.println("---Position---");
-		IO.print(this.position);
+		Utils.println("---Position---");
+		Utils.print(this.position);
 	}
 
 	private void printId() {
 		// TODO Auto-generated method stub
-		IO.println("---Block Id---");
-		IO.println(this.id);
+		Utils.println("---Block Id---");
+		Utils.println(this.id);
 	}
 
 	public String[] getSample() {

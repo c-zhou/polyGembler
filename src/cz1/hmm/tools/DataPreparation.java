@@ -17,7 +17,7 @@ import java.util.zip.ZipOutputStream;
 import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Executor;
-import cz1.util.IO;
+import cz1.util.Utils;
 
 public class DataPreparation extends Executor {
 
@@ -96,7 +96,7 @@ public class DataPreparation extends Executor {
 			ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(new 
 					FileOutputStream(zipFilePath), 65536));
 			
-			BufferedReader br = IO.getBufferedReader(vcf_in);
+			BufferedReader br = Utils.getBufferedReader(vcf_in);
 			String line;
 			while( (line=br.readLine()).startsWith("##") ) {}
 			String[] s = line.split("\\s+");

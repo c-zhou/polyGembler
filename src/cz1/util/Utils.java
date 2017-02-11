@@ -1,51 +1,225 @@
-/*
- * Utils.java
- *
- * Created on May 27, 2003, 2:03 AM
- */
 package cz1.util;
 
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.net.URL;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.io.BufferedOutputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.BufferedReader;
+import java.io.FilenameFilter;
+import java.io.InputStream;
+import java.io.PrintStream;
 import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import java.io.OutputStreamWriter;
+import java.util.zip.GZIPOutputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.FileInputStream;
+import java.io.InputStreamReader;
+import java.net.URL;
+import java.util.Calendar;
+import java.text.SimpleDateFormat;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.log4j.Logger;
 
-/**
- *
- * @author terryc
- */
-public final class Utils {
+public class Utils {
+	
+	private static final Logger myLogger = Logger.getLogger(Utils.class);
 
-    private static final Logger myLogger = Logger.getLogger(Utils.class);
-    private static Collection<String> myJavaPackages = null;
+	public static BufferedWriter getGZIPBufferedWriter(String path) throws IOException {
+		return new BufferedWriter(new OutputStreamWriter(new
+				GZIPOutputStream(new FileOutputStream(path))));
+	}
 
-    private Utils() {
-        // Utility Class
-    }
+	public static String getSystemTime(){
+		return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").
+				format(Calendar.getInstance().getTime());
+	}
 
-    /**
+	public static void println() {
+		System.out.println();
+	}
+
+	public static void println(char character) {
+		System.out.println(character);
+	}
+
+	public static void print(char character) {
+		System.out.print(character);
+	}
+	
+	public static void print(String message) {
+		System.out.print(message);
+	}
+
+
+	public static void println(String message) {
+		print(message+"\n");
+	}
+
+	public static void print(ArrayList<Integer> array) {
+		for(int i=0; i<array.size(); i++)
+			print(array.get(i)+"\t");
+		println();
+	}
+
+	public static void print(int[][] matrix) {
+		for(int i=0; i<matrix.length; i++)
+			print(matrix[i]);
+	}
+
+	public static void print(int a) {
+		print(a+"");
+	}
+
+	public static void println(int a) {
+		println(a+"");
+	}
+
+	public static void print(int[] array) {
+		if(array==null) {
+			Utils.println("null");
+			return;
+		}
+		for(int i=0; i<array.length; i++)
+			print(array[i]+"\t");
+		println();
+	}
+
+	public static void print(double a) {
+		print(a+"\t");
+	}
+
+	public static void println(double a) {
+		println(a+"");
+	}
+
+	public static void print(double[] array) {
+		for(int i=0; i<array.length; i++)
+			print(array[i]+"\t");
+		println();
+	}
+
+	public static void print(Double[] array) {
+		print(ArrayUtils.toPrimitive(array));
+	}
+
+	public static void print(double[][] matrix) {
+		if(matrix!=null)
+			for(int i=0; i<matrix.length; i++)
+				print(matrix[i]);
+	}
+
+	public static void print(long[] array) {
+		for(int i=0; i<array.length; i++)
+			print(array[i]+"\t");
+		println();
+	}
+
+	public static void print(Set<Character> set) {
+		for(Character c : set) print(c);
+		println();
+	}
+
+	public static void print(List<Character> list) {
+		for(Character c : list) print(c);
+		println();
+	}
+
+	public static void print(Character[] array) {
+		for(Character c : array) print(c);
+		println();
+	}
+
+	public static void print(Map<Character, Map<Character, Double>> map) {
+		// TODO Auto-generated method stub
+		Map<Character, Double> map0;
+		for(Character c0 : map.keySet()) {
+			print(c0+" - ");
+			map0 = map.get(c0);
+			for(Character c1 : map0.keySet())
+				print(map0.get(c1)+"\t");
+			println();
+		}
+	}
+
+	public static String readFastaFileByID(String filePath, String id) {
+		String sequence = null;
+		try {
+			BufferedReader br = getBufferedReader(filePath);
+			String line;
+			while( (line = br.readLine()) != null ) {
+				if(line.startsWith(">") && line.equals(">"+id)) {
+					StringBuilder sb = new StringBuilder();
+					while( (line=br.readLine()) != null && !line.startsWith(">") ) 
+						sb.append(br.readLine());
+					sequence = sb.toString();
+					return sequence;
+				}
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
+		return sequence;
+	}
+
+	public static void print(char[] chars) {
+		// TODO Auto-generated method stub
+		for(char c : chars) Utils.print(c+" ");
+		Utils.println();
+	}
+	
+	public static void makeOutputDir(String dir) {
+		// TODO Auto-generated method stub
+		File out = new File(dir);
+		if(!out.exists() || out.exists()&&!out.isDirectory()) {
+			out.mkdir();
+		}
+	}
+
+	public static void print(String[] strs) {
+		// TODO Auto-generated method stub
+		for(String str : strs) Utils.print(str+" ");
+		Utils.println();
+	}
+
+	public static String[] topLevelFolder(String zip_in) {
+		// TODO Auto-generated method stub
+		List<String> folders = new ArrayList<String>();
+		try {
+			ZipFile zipFile = new ZipFile(zip_in);
+			Enumeration<? extends ZipEntry> entries = zipFile.entries();
+			while (entries.hasMoreElements()) {
+	            ZipEntry entry = entries.nextElement();
+	            if(entry.isDirectory() && !entry.getName().
+	            		matches("\\S+/\\S+")) {
+	            	folders.add(entry.getName().replaceAll("/$", ""));
+	            }
+	        }
+			zipFile.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		String[] f = new String[folders.size()];
+		folders.toArray(f);
+		return f;
+	}
+	
+	 /**
      * Returns the base name of a string delimited with periods (i.e. Java
      * Class).
      *
@@ -123,53 +297,6 @@ public final class Utils {
 
         return result;
 
-    }
-
-    public static List<String> getFullyQualifiedClassNames(String simpleName) {
-
-        if (myJavaPackages == null) {
-            myJavaPackages = getJavaPackages();
-        }
-
-        List<String> fqns = new ArrayList<String>();
-        for (String aPackage : myJavaPackages) {
-            try {
-                String fqn = aPackage + "." + simpleName;
-                Class.forName(fqn);
-                fqns.add(fqn);
-            } catch (Exception e) {
-                // Do Nothing
-            }
-        }
-        return fqns;
-
-    }
-
-    public static Collection<String> getJavaPackages() {
-        String classpath = System.getProperty("java.class.path");
-        return getPackagesFromClassPath(classpath);
-    }
-
-    public static Set<String> getPackagesFromClassPath(String classpath) {
-        Set<String> packages = new HashSet<String>();
-        String[] paths = classpath.split(File.pathSeparator);
-        for (String path : paths) {
-            if (path.trim().length() == 0) {
-                continue;
-            } else {
-                File file = new File(path);
-                if (file.exists()) {
-                    String childPath = file.getAbsolutePath();
-                    if (childPath.endsWith(".jar")) {
-                        packages.addAll(readZipFile(childPath));
-                    } else {
-                        packages.addAll(readDirectory(childPath));
-                    }
-                }
-            }
-
-        }
-        return packages;
     }
 
     public static Set<String> readDirectory(String path) {
@@ -522,8 +649,17 @@ public final class Utils {
         return s;
     }
     
-    public static String getSystemTime(){
-		return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").
-				format(Calendar.getInstance().getTime());
+	public static String cat(double[] array, String sep) {
+		String s = ""+array[0];
+		for(int i=1; i<array.length; i++)
+			s += sep+array[i];
+		return s;
+	}
+	
+	public static String cat(int[] array, String sep) {
+		String s = ""+array[0];
+		for(int i=1; i<array.length; i++)
+			s += sep+array[i];
+		return s;
 	}
 }

@@ -28,7 +28,7 @@ import cz1.util.Algebra;
 import cz1.util.Combination;
 import cz1.util.Constants;
 import cz1.util.Constants.Field;
-import cz1.util.IO;
+import cz1.util.Utils;
 import cz1.util.Permutation;
 import cz1.util.Dirichlet;
 

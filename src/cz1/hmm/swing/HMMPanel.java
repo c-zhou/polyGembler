@@ -56,7 +56,7 @@ import cz1.hmm.model.HiddenMarkovModel;
 import cz1.hmm.model.HiddenMarkovModel.TP;
 import cz1.util.Algebra;
 import cz1.util.Constants;
-import cz1.util.IO;
+import cz1.util.Utils;
 
 /*@Author Lachlan Coin*/
 public class HMMPanel extends JPanel implements PropertyChangeListener{

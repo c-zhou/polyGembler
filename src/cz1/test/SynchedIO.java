@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import cz1.util.Executor;
-import cz1.util.IO;
+import cz1.util.Utils;
 
 public class SynchedIO extends Executor {
 
@@ -38,7 +38,7 @@ public class SynchedIO extends Executor {
 			while (synchedBlock.get(0)!=i)
 				synchedBlock.wait();
 			//IO.print("Thread "+t+" - ");
-			IO.print(Q);
+			Utils.print(Q);
 			synchedBlock.remove(0);
 			synchedBlock.notifyAll();
 		}

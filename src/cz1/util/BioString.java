@@ -111,7 +111,7 @@ public class BioString {
 			String map,
 			String output) throws IOException {
 		// TODO Auto-generated method stub
-		BufferedReader br = IO.getBufferedReader(snp);
+		BufferedReader br = Utils.getBufferedReader(snp);
 		Map<String, int[]> snpMap = new HashMap<String, int[]>();
 		String[] s;
 		String line = br.readLine();
@@ -136,7 +136,7 @@ public class BioString {
 		}
 		br.close();
 		
-		br = IO.getBufferedReader(map);
+		br = Utils.getBufferedReader(map);
 		Map<String, double[]> mapMap = new HashMap<String, double[]>();
 		while( (line=br.readLine())!=null ) {
 			if(line.startsWith("#"))
@@ -154,7 +154,7 @@ public class BioString {
 		}
 		br.close();
 		
-		br = IO.getBufferedReader(stat);
+		br = Utils.getBufferedReader(stat);
 		Map<String, Contig> contigMap = new HashMap<String, Contig>();
 		line = br.readLine();
 		scaffold = null;
@@ -180,7 +180,7 @@ public class BioString {
 		}
 		br.close();
 		
-		BufferedWriter bw = IO.getBufferedWriter(output);
+		BufferedWriter bw = Utils.getBufferedWriter(output);
 		for(String scaf : snpMap.keySet()) {
 			int[] posi = snpMap.get(scaf);
 			double[] rf = mapMap.get(scaf);
@@ -233,8 +233,8 @@ public class BioString {
 	private void contigstats(String input, String output) 
 			throws IOException {
 		// TODO Auto-generated method stub
-		BufferedReader br = IO.getBufferedReader(input);
-		BufferedWriter bw = IO.getGZIPBufferedWriter(output);
+		BufferedReader br = Utils.getBufferedReader(input);
+		BufferedWriter bw = Utils.getGZIPBufferedWriter(output);
 
 		String scaffold=null, contig = null;
 		String[] s;
@@ -269,8 +269,8 @@ public class BioString {
 
 	public void scafflod2contig(String input, String output) 
 			throws IOException {
-		BufferedReader br = IO.getBufferedReader(input);
-		BufferedWriter bw = IO.getGZIPBufferedWriter(output);
+		BufferedReader br = Utils.getBufferedReader(input);
+		BufferedWriter bw = Utils.getGZIPBufferedWriter(output);
 
 		String scaffold = null;
 		int contig = -1, position = -1;
@@ -333,15 +333,15 @@ public class BioString {
 	
 	private void rename(String vcf, String contig,
 			String vcf_new) throws IOException {
-		BufferedReader br = IO.getBufferedReader(contig);
+		BufferedReader br = Utils.getBufferedReader(contig);
 		List<String> contigs = new ArrayList<String>();
 		contigs.add("DUMMY");
 		String line;
 		while( (line=br.readLine())!=null ) 
 			contigs.add(line.replaceAll("^Trifida_0{0,}", ""));
 		br.close();
-		br = IO.getBufferedReader(vcf);
-		BufferedWriter bw = IO.getBufferedWriter(vcf_new);
+		br = Utils.getBufferedReader(vcf);
+		BufferedWriter bw = Utils.getBufferedWriter(vcf_new);
 		String[] s;
 		Map<String, String> all_snps = new HashMap<String, String>();
 		while( (line=br.readLine())!=null ) {
@@ -370,15 +370,15 @@ public class BioString {
 	private void rename(String snp, String map, String contig,
 			String snp_new, String map_new) 
 			throws IOException {
-		BufferedReader br = IO.getBufferedReader(contig);
+		BufferedReader br = Utils.getBufferedReader(contig);
 		List<String> contigs = new ArrayList<String>();
 		contigs.add("DUMMY");
 		String line;
 		while( (line=br.readLine())!=null ) 
 			contigs.add(line.replaceAll("^Trifida_0{0,}", ""));
 		br.close();
-		br = IO.getBufferedReader(snp);
-		BufferedWriter bw = IO.getBufferedWriter(snp_new);
+		br = Utils.getBufferedReader(snp);
+		BufferedWriter bw = Utils.getBufferedWriter(snp_new);
 		String[] s;
 		while( (line=br.readLine())!=null ) {
 			s = line.split("_");
@@ -387,8 +387,8 @@ public class BioString {
 		}
 		bw.close();
 		br.close();
-		br = IO.getBufferedReader(map);
-		bw = IO.getBufferedWriter(map_new);
+		br = Utils.getBufferedReader(map);
+		bw = Utils.getBufferedWriter(map_new);
 		while( (line=br.readLine())!=null ) {
 			if(line.startsWith("#")) { 
 				bw.write(line+"\n");

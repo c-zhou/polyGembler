@@ -16,7 +16,6 @@ import cz1.gbs.core.BaseEncoder;
 import cz1.util.ArgsEngine;
 import cz1.util.DirectoryCrawler;
 import cz1.util.Executor;
-import cz1.util.IO;
 import cz1.util.Utils;
 
 import org.apache.log4j.BasicConfigurator;
@@ -34,7 +33,7 @@ public class TagSequenceToFastq extends Executor {
 		this.myInputDir = myInputDir;
 		this.myOutputDir = myOutputDir;
 		this.THREADS = threads;
-		IO.makeOutputDir(this.myOutputDir);
+		Utils.makeOutputDir(this.myOutputDir);
 	}
 	
 	@Override
@@ -78,7 +77,7 @@ public class TagSequenceToFastq extends Executor {
 			myOutputDir = myArgsEngine.getString("-o");
 		}
 		
-		IO.makeOutputDir(this.myOutputDir);
+		Utils.makeOutputDir(this.myOutputDir);
 	}
 
 	BufferedWriter bw, bw2;

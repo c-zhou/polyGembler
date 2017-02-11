@@ -9,7 +9,7 @@ import cz1.hmm.data.DataCollection;
 import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Executor;
-import cz1.util.IO;
+import cz1.util.Utils;
 import cz1.util.Constants.Field;
 
 public class Gembler extends Executor {
@@ -27,6 +27,12 @@ public class Gembler extends Executor {
 	private int min_qual = 0;
 	private double min_maf = 0.1;
 	private double max_missing = 0.5;
+	
+	private int[] repeat = new int[]{30,30,10};
+	private int refine_repeat = 10;
+	
+	private int nB = 10;
+	private int phi = 2;
 	
 	@Override
 	public void printUsage() {
@@ -59,6 +65,12 @@ public class Gembler extends Executor {
 						+ "									(default).\n"
 						+ " 	-b/--segmental-kmeans		Use Vitering training instead of Baum-Welch algorithm.\n"
 						+ " 	-c/--min-snp-count			Minimum number of SNPs on a scaffold to run.\n"
+						+ " 	-r/--repeat					Repeat haplotype inferring for multiple times as EM algorithm \n"
+						+ "									could be trapped in local optima. The program takes three values \n"
+						+ "									from here, i.e., for scaffold, for superscaffold and for genetic \n"
+						+ "									linkage map refinement. Three values should be seperated by ',' \n"
+						+ "									(default 30,30,10 ).\n"
+						+ "		-rr/--refinement-round		Number of rounds to refine pseudomelecules (default 10.)\n"
 				);
 	}
 
@@ -91,6 +103,8 @@ public class Gembler extends Executor {
 			myArgsEngine.add("-mf", "--min-maf", true);
 			myArgsEngine.add("-mm", "--max-missing", true);
 			myArgsEngine.add("-c", "--min-snp-count", true);
+			myArgsEngine.add("-r", "--repeat", true);
+			myArgsEngine.add("-rr", "--refinement-round", true);
 			myArgsEngine.parse(args);
 		}
 		
@@ -125,22 +139,22 @@ public class Gembler extends Executor {
 			throw new IllegalArgumentException("Please specify the parent samples (seperated by a \":\").");
 		}
 		
-		int i = 0;
+		int c = 0;
 		if(myArgsEngine.getBoolean("-G")) {
 			field = Field.GT;
-			i++;
+			c++;
 		}
 		
 		if(myArgsEngine.getBoolean("-D")) {
 			field = Field.AD;
-			i++;
+			c++;
 		}
 		
 		if(myArgsEngine.getBoolean("-L")) {
 			field = Field.PL;
-			i++;
+			c++;
 		}
-		if(i>1) throw new RuntimeException("Options -G/--genotype, "
+		if(c>1) throw new IllegalArgumentException("Options -G/--genotype, "
 				+ "-D/--allele-depth, and -L/--genotype-likelihood "
 				+ "are exclusive!!!");
 		
@@ -181,61 +195,77 @@ public class Gembler extends Executor {
 		if (myArgsEngine.getBoolean("-c")) {
 			min_snpc = Integer.parseInt(myArgsEngine.getString("-c"));
 		}
+		
+		if (myArgsEngine.getBoolean("-r")) {
+			String[] rs = myArgsEngine.getString("-r").split(",");
+			if(rs.length!=3) 
+				throw new IllegalArgumentException("Option -r/--repeat should "
+						+ "be 3 integers seperated by \",\".");
+			for(int i=0; i<3; i++)
+				repeat[i] = Integer.parseInt(rs[i]);
+		}
+		
+		if (myArgsEngine.getBoolean("-rr")) {
+			refine_repeat = Integer.parseInt(myArgsEngine.getString("-rr"));
+		}
 	}
 
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
 	
-		IO.makeOutputDir(out_prefix);
+		Utils.makeOutputDir(out_prefix);
 		String prefix_vcf = new File(in_vcf).getName().
 				replaceAll(".vcf$", "");
 		
 		//#### STEP 01 filter SNPs and create ZIP file
-		IO.makeOutputDir(out_prefix+"/data");
+		Utils.makeOutputDir(out_prefix+"/data");
 		VCFtools vcftools = new VCFtools(ploidy, min_depth, 
 				max_depth, min_qual, 
 				min_maf, max_missing, 
 				in_vcf, out_prefix+"/data/"+prefix_vcf+".recode.vcf");
-		vcftools.run();
+		//vcftools.run();
 		
 		DataPreparation datapreparation = new DataPreparation(
 				out_prefix+"/data/"+prefix_vcf+".recode.vcf",
 				prefix_vcf+".recode",
 				out_prefix+"/data/");
-		datapreparation.run();
+		//datapreparation.run();
 		
 		//#### STEP 02 single-point haplotype inferring
 		final String in_zip = out_prefix+"/data/"+prefix_vcf+".recode.zip";
 		final String out = out_prefix+"/single_hap_infer";
 		final Map<String, Integer> scaffs = DataCollection.readScaff(in_zip);
-		IO.makeOutputDir(out);
+		Utils.makeOutputDir(out);
 		
 		this.initial_thread_pool();
 		
-		for(final String scaff : scaffs.keySet()) {
+		//for(final String scaff : scaffs.keySet()) {
+		for(final String scaff : new String[]{"scaffold7_size520567"}) {
 			if(scaffs.get(scaff)<min_snpc) continue;
 			
-			executor.submit(new Runnable(){
-				
-				@Override
-				public void run() {
-					// TODO Auto-generated method stub
-					try {
-						new Haplotyper(in_zip,
-								out,
-								new String[]{scaff},
-								ploidy,
-								field).run();
-					} catch (Exception e) {
-						Thread t = Thread.currentThread();
-						t.getUncaughtExceptionHandler().uncaughtException(t, e);
-						e.printStackTrace();
-						executor.shutdown();
-						System.exit(1);
+			for(int i=0; i<repeat[0]; i++) {
+				executor.submit(new Runnable(){
+
+					@Override
+					public void run() {
+						// TODO Auto-generated method stub
+						try {
+							new Haplotyper(in_zip,
+									out,
+									new String[]{scaff},
+									ploidy,
+									field).run();
+						} catch (Exception e) {
+							Thread t = Thread.currentThread();
+							t.getUncaughtExceptionHandler().uncaughtException(t, e);
+							e.printStackTrace();
+							executor.shutdown();
+							System.exit(1);
+						}
 					}
-				}
-			});
+				});
+			}
 		}
 		
 		try {
@@ -246,8 +276,8 @@ public class Gembler extends Executor {
 			e1.printStackTrace();
 		}
 		
-		
 		//#### STEP 03 assembly errors
+		
 		
 		//#### STEP 04 single-point haplotype inferring (assembly errors) 
 	

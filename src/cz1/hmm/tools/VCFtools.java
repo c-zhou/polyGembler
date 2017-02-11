@@ -18,7 +18,7 @@ import org.apache.commons.math3.stat.StatUtils;
 import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Executor;
-import cz1.util.IO;
+import cz1.util.Utils;
 
 
 public class VCFtools extends Executor {
@@ -131,8 +131,8 @@ public class VCFtools extends Executor {
 		// recoding and filtering
 		
 		try {
-			BufferedReader br = IO.getBufferedReader(vcf_in);
-			BufferedWriter bw = IO.getBufferedWriter(vcf_out);
+			BufferedReader br = Utils.getBufferedReader(vcf_in);
+			BufferedWriter bw = Utils.getBufferedWriter(vcf_out);
 			int af_i = -1;
 			int dp_i = -1;
 			int nS = -1;

@@ -35,7 +35,7 @@ import java.lang.StringBuilder;
 import cz1.util.Algebra;
 import cz1.util.Combination;
 import cz1.util.Constants;
-import cz1.util.IO;
+import cz1.util.Utils;
 import cz1.util.JohnsonTrotter;
 import cz1.util.Permutation;
 
@@ -296,7 +296,7 @@ public class Copy_8_of_SingleCNVHapRF {
 
 	private static void ci (final String ci_in, final String rf_in, final String out) {
 		try {
-			final BufferedReader br_ci = IO.getBufferedReader(ci_in);
+			final BufferedReader br_ci = Utils.getBufferedReader(ci_in);
 			String[] s;
 			String line = br_ci.readLine();
 			Map<String, double[]> cis = new HashMap<String, double[]>();
@@ -334,8 +334,8 @@ public class Copy_8_of_SingleCNVHapRF {
 			}
 			br_ci.close();
 
-			final BufferedWriter bw_out = IO.getBufferedWriter(out);
-			final BufferedReader br_rf = IO.getBufferedReader(rf_in);
+			final BufferedWriter bw_out = Utils.getBufferedWriter(out);
+			final BufferedReader br_rf = Utils.getBufferedReader(rf_in);
 			while( (line=br_rf.readLine())!=null ) {
 				s = line.split("\\s+");
 				double[] ci_1 = cis.get(s[6]),
@@ -536,7 +536,7 @@ public class Copy_8_of_SingleCNVHapRF {
 			int scaff_n = 0;
 
 			try {
-				BufferedReader br = IO.getBufferedReader(this.files[0].getAbsolutePath()+
+				BufferedReader br = Utils.getBufferedReader(this.files[0].getAbsolutePath()+
 						"/snp_"+experiment+".txt");
 				List<List<String>> markers_all = new ArrayList<List<String>>();
 
@@ -640,7 +640,7 @@ public class Copy_8_of_SingleCNVHapRF {
 				}
 				try {
 					BufferedReader br = 
-							IO.getBufferedReader(file.getAbsolutePath()+
+							Utils.getBufferedReader(file.getAbsolutePath()+
 									"/phasedStates/"+experiment+".txt");
 					br.readLine();
 					String marker_str = br.readLine();
@@ -778,7 +778,7 @@ public class Copy_8_of_SingleCNVHapRF {
 		private int[] readHaplotypes(final int i) {
 			// TODO Auto-generated method stub
 			try {
-				BufferedReader br_states = IO.getBufferedReader(
+				BufferedReader br_states = Utils.getBufferedReader(
 						this.files[i].file+
 						"/phasedStates/"+experiment+".txt");;
 						String line, stateStr;
@@ -1661,7 +1661,7 @@ public class Copy_8_of_SingleCNVHapRF {
 				"; \n R pool key-value pair, "+rf_pool.size() +
 				"; \n R factory key-value pair, "+rf_factory.size());
 		//for(long key : rf_pool.keySet()) System.out.println(key);
-		IO.print(scale_times);
+		Utils.print(scale_times);
 		System.out.println(counter);
 		
 		rfMedianWriter.close();
@@ -1861,7 +1861,7 @@ public class Copy_8_of_SingleCNVHapRF {
 			String[] parents, int nF1) {
 		// TODO Auto-generated method stub
 		try {
-			BufferedReader br = IO.getBufferedReader(phasedStates);
+			BufferedReader br = Utils.getBufferedReader(phasedStates);
 			br.readLine();
 			int m = Integer.parseInt(br.readLine());
 			char[][] h = new char[nF1*ploidy][m];

@@ -22,7 +22,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import cz1.util.Algebra;
 import cz1.util.Combination;
 import cz1.util.Constants;
-import cz1.util.IO;
+import cz1.util.Utils;
 
 public class DataCollection {
 	
@@ -71,7 +71,7 @@ public class DataCollection {
 		List<List<int[]>> ad = readAlleleDepth(zipFilePath, 
 				contigId, allele);
 		try {
-			BufferedWriter bw = IO.getBufferedWriter(output,append);
+			BufferedWriter bw = Utils.getBufferedWriter(output,append);
 			for(int i=0; i<position.length; i++) {
 				String line = ">"+contigId+"\t";
 				line += position[i];
@@ -104,13 +104,13 @@ public class DataCollection {
 		gpMap.put("1/1/1/1", "255,255,255,0,255");
 		try {
 			BufferedReader br, br2;
-			br = IO.getBufferedReader(template);
+			br = Utils.getBufferedReader(template);
 			String header = "";
 			while(!header.startsWith("#CHROM")) header=br.readLine();
 			br.close();
-			br = IO.getBufferedReader(adFile);
-			br2 = IO.getBufferedReader(SOAPoutput);
-			BufferedWriter wr = IO.getBufferedWriter(output);
+			br = Utils.getBufferedReader(adFile);
+			br2 = Utils.getBufferedReader(SOAPoutput);
+			BufferedWriter wr = Utils.getBufferedWriter(output);
 			String line, _new_line;
 			String[] s, _ad1, _ad2;
 			int count = 0;

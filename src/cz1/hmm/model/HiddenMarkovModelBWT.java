@@ -29,7 +29,7 @@ import cz1.hmm.data.DataEntry;
 import cz1.util.Algebra;
 import cz1.util.Combination;
 import cz1.util.Constants;
-import cz1.util.IO;
+import cz1.util.Utils;
 import cz1.util.Permutation;
 import cz1.util.Dirichlet;
 import cz1.util.Constants.Field;
@@ -45,7 +45,7 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 			Field field) {
 		super(de, seperation, reverse, trainExp, field);
 		
-		this.trainAllExp();
+		//this.trainAllExp();
 		this.makeBWT();
 		//this.makeViterbi();
 		//this.print();

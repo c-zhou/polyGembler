@@ -36,8 +36,30 @@ import org.apache.commons.math3.stat.inference.ChiSquareTest;
 import org.apache.commons.math3.stat.inference.GTest;
 
 import cz1.util.Algebra;
+import cz1.util.Executor;
+import cz1.util.Utils;
 
-public class AssemblyError {
+public class AssemblyError extends Executor {
+	
+	@Override
+	public void printUsage() {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void setParameters(String[] args) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void run() {
+		// TODO Auto-generated method stub
+		
+	}
+	
+	
 	public static void main(String[] args) 
 			throws IOException, InterruptedException {
 
@@ -173,7 +195,7 @@ public class AssemblyError {
 				}
 				try {
 					BufferedReader br = 
-							getBufferedReader(file.getAbsolutePath()+
+							Utils.getBufferedReader(file.getAbsolutePath()+
 									"/phasedStates/"+experiment+".txt");
 					br.readLine();
 					String mak = br.readLine();
@@ -196,7 +218,7 @@ public class AssemblyError {
 					File _res_hmm = new File(res);
 					String line;
 					if( _res_hmm.exists() ) {
-						BufferedReader br2 = getBufferedReader(res);
+						BufferedReader br2 = Utils.getBufferedReader(res);
 						String lprob=null;
 						while( (line=br2.readLine()) !=null) {
 							if(line.startsWith("log"))
@@ -209,7 +231,7 @@ public class AssemblyError {
 						}
 					} else {
 						BufferedReader br2 = 
-								getBufferedReader(file.getAbsolutePath()+
+								Utils.getBufferedReader(file.getAbsolutePath()+
 										"/phasedStates/"+
 										experiment+".txt");
 						String lprob=br2.readLine();
@@ -245,12 +267,12 @@ public class AssemblyError {
 					if( maf>1/skew_thres || mif<skew_thres) {
 						System.out.println(this.files[maxN[k]].getName()+
 								" was dropped due to large haploptype frequency variance. (" +
-								cat(phases, ",") +")");
+								Utils.cat(phases, ",") +")");
 						drop[k] = true;
 					}
 					if(drop[k]) dropped++;
 					oos.append("["+(drop[k]?"drop](maf,":"keep](maf,")+maf+";mif,"+mif+") "+
-							cat(haps_observed,",")+"\t"+this.files[maxN[k]].getName()+"\n");
+							Utils.cat(haps_observed,",")+"\t"+this.files[maxN[k]].getName()+"\n");
 					break;
 				case "chisq":
 					observed = new long[ploidy*2];
@@ -260,7 +282,7 @@ public class AssemblyError {
 					if(p<skew_thres) drop[k] = true;
 					if(drop[k]) dropped++;
 					oos.append("["+(drop[k]?"drop](p,":"keep](p,")+formatter.format(p)+") "+
-							cat(haps_observed,",")+"\t"+this.files[maxN[k]].getName()+"\n");
+							Utils.cat(haps_observed,",")+"\t"+this.files[maxN[k]].getName()+"\n");
 					break;
 				case "gtest":
 					observed = new long[ploidy*2];
@@ -270,7 +292,7 @@ public class AssemblyError {
 					if(p<skew_thres) drop[k] = true;
 					if(drop[k]) dropped++;
 					oos.append("["+(drop[k]?"drop](p,":"keep](p,")+formatter.format(p)+") "+
-							cat(haps_observed,",")+"\t"+this.files[maxN[k]].getName()+"\n");
+							Utils.cat(haps_observed,",")+"\t"+this.files[maxN[k]].getName()+"\n");
 					break;
 				default:
 					System.err.println("Goodness-of-fit test should be fraction, chisq or gTest.");
@@ -299,7 +321,7 @@ public class AssemblyError {
 		private int[] readHaplotypes(final int i) {
 			// TODO Auto-generated method stub
 			try {
-				BufferedReader br_states = getBufferedReader(this.files[i]+
+				BufferedReader br_states = Utils.getBufferedReader(this.files[i]+
 								"/phasedStates/"+experiment+".txt");;
 				String line, stateStr;
 				String[] s;
@@ -369,7 +391,7 @@ public class AssemblyError {
 				os.append("*"+contig+"\n");
 				for(int k=0; k<rf_all.length; k++)
 					if(rf_all[k]!=null)
-						os.append(cat(rf_all[k], ",")+"\n");
+						os.append(Utils.cat(rf_all[k], ",")+"\n");
 				mapWriter.write(os.toString());
 			} catch (MathIllegalArgumentException | IOException e) {
 				// TODO Auto-generated catch block
@@ -405,7 +427,7 @@ public class AssemblyError {
 					String phasedStates = file.getAbsolutePath()+
 							"/phasedStates/"+experiment+".txt";
 					if(new File(phasedStates).exists()) {
-						br = getBufferedReader(phasedStates);
+						br = Utils.getBufferedReader(phasedStates);
 						int n = 0;
 						String l;
 						while( (l=br.readLine())!=null ) 
@@ -451,58 +473,20 @@ public class AssemblyError {
 		executor.awaitTermination(365, TimeUnit.DAYS);
 
 		System.out.println(map.keySet().size());
-		System.out.println("["+getSystemTime()+"] LOADING FILES DONE.");
-		System.out.println("["+getSystemTime()+"] READING LOG LIKELIHOOD DONE.");
+		System.out.println("["+Utils.getSystemTime()+"] LOADING FILES DONE.");
+		System.out.println("["+Utils.getSystemTime()+"] READING LOG LIKELIHOOD DONE.");
 		
 		reset();
-		mapWriter = getBufferedWriter(outputFilePath+".map");
+		mapWriter = Utils.getBufferedWriter(outputFilePath+".map");
 		for(int i=0; i<dc.length; i++) 
 			executor.submit(new mapCalculator(i));
 		executor.shutdown();
 		executor.awaitTermination(365, TimeUnit.DAYS);
 		mapWriter.close();
 
-		System.out.println("["+getSystemTime()+"] DONE.");
+		System.out.println("["+Utils.getSystemTime()+"] DONE.");
 	}
 
-	private static String cat(double[] array, String sep) {
-		String s = ""+array[0];
-		for(int i=1; i<array.length; i++)
-			s += sep+array[i];
-		return s;
-	}
-	
-	private static String cat(int[] array, String sep) {
-		String s = ""+array[0];
-		for(int i=1; i<array.length; i++)
-			s += sep+array[i];
-		return s;
-	}
-
-	private static BufferedReader getBufferedReader(String path) throws IOException {
-		BufferedReader br = null;
-		if(path.endsWith(".gz")){
-			br = new BufferedReader(new InputStreamReader(new GZIPInputStream(new
-					FileInputStream(path))), 65536);
-		}else{
-			br = new BufferedReader(new FileReader(path), 65536);
-		}
-		return br;
-	}
-
-	private static BufferedWriter getBufferedWriter(String path) throws IOException {
-		return new BufferedWriter(new FileWriter(new File(path)));
-	}
-
-	private static BufferedWriter getGZIPBufferedWriter(String path) throws IOException {
-		return new BufferedWriter(new OutputStreamWriter(new
-				GZIPOutputStream(new FileOutputStream(path))));
-	}
-
-	private static String getSystemTime(){
-		return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").
-				format(Calendar.getInstance().getTime());
-	}
 
 	public void calcGDsAll(String phasedStates, int ploidy, 
 			String[] parents, int nF1, int nSNP, 
@@ -563,7 +547,7 @@ public class AssemblyError {
 			String[] parents, int nF1) {
 		// TODO Auto-generated method stub
 		try {
-			BufferedReader br = getBufferedReader(phasedStates);
+			BufferedReader br = Utils.getBufferedReader(phasedStates);
 			br.readLine();
 			int m = Integer.parseInt(br.readLine());
 			char[][] h = new char[nF1*ploidy][m];

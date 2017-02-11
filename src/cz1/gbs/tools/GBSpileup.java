@@ -18,7 +18,6 @@ import java.util.Set;
 
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
-import cz1.util.IO;
 import cz1.util.Utils;
 
 public class GBSpileup extends Executor {
@@ -178,7 +177,7 @@ public class GBSpileup extends Executor {
 	public void run() {
 		// TODO Auto-generated method stub
 		
-		IO.makeOutputDir(this.myOutputDir);
+		Utils.makeOutputDir(this.myOutputDir);
 		
 		FastqToTagSequence fastq2TagSequence = 
 				new FastqToTagSequence(myInputDirName, myKeyfile, 
@@ -195,7 +194,7 @@ public class GBSpileup extends Executor {
 				myOutputDir+"/tagFastq", THREADS);
 		tagSequence2Fastq.run();
 		
-		IO.makeOutputDir(myOutputDir+"/tagBam");
+		Utils.makeOutputDir(myOutputDir+"/tagBam");
 		String bwaMem = "bwa mem -t "+THREADS+" "+myReference+
 				" "+myOutputDir+"/tagFastq/master.fastq.gz > "+myOutputDir+"/tagBam/master.sam";
 		String sam2bam = "samtools view -S -b "+myOutputDir+"/tagBam/master.sam > "+
@@ -246,9 +245,9 @@ public class GBSpileup extends Executor {
 		comm.toArray(commands);
 		this.bash(commands);
 		
-		IO.makeOutputDir(myOutputDir+"/freebayes");
-		IO.makeOutputDir(myOutputDir+"/freebayes/bam_list");
-		IO.makeOutputDir(myOutputDir+"/freebayes/vcf_list");
+		Utils.makeOutputDir(myOutputDir+"/freebayes");
+		Utils.makeOutputDir(myOutputDir+"/freebayes/bam_list");
+		Utils.makeOutputDir(myOutputDir+"/freebayes/vcf_list");
 		commands = new String[THREADS];
 		for(int i=0; i<THREADS; i++)
 			commands[i] = "ls "+myOutputDir+"/splitBam/"+i+"/*.bam > "
@@ -274,12 +273,12 @@ public class GBSpileup extends Executor {
 
 	private void generateSplitReference() {
 		// TODO Auto-generated method stub
-		IO.makeOutputDir(myOutputDir+"/bed");
-		IO.makeOutputDir(myOutputDir+"/ref");
+		Utils.makeOutputDir(myOutputDir+"/bed");
+		Utils.makeOutputDir(myOutputDir+"/ref");
 		final Map<Long, Set<String>> sizes = new HashMap<Long, Set<String>>();
 		final Map<String, String> scaffs = new HashMap<String, String>();
 		try {
-			final BufferedReader br = IO.getBufferedReader(this.myReference);
+			final BufferedReader br = Utils.getBufferedReader(this.myReference);
 			String line = br.readLine();
 			while( line!=null ) {
 				if(line.startsWith(">")) {
