@@ -18,7 +18,6 @@ public class Gembler extends Executor {
 	private String out_prefix = null;
 	private boolean vbt = false;
 	private int max_iter = 100;
-	private int ploidy = 2;
 	private Field field = Field.PL;
 	
 	private int min_snpc = 5;
@@ -127,9 +126,7 @@ public class Gembler extends Executor {
 		}
 		
 		if(myArgsEngine.getBoolean("-p")) {
-			ploidy = Integer.parseInt(myArgsEngine.getString("-p"));
-			Constants._ploidy_H = ploidy;
-			Constants._haplotype_z = ploidy*2;
+			Constants.ploidy(Integer.parseInt(myArgsEngine.getString("-p")));
 		}
 		
 		if(myArgsEngine.getBoolean("-f")) {
@@ -220,7 +217,7 @@ public class Gembler extends Executor {
 		
 		//#### STEP 01 filter SNPs and create ZIP file
 		Utils.makeOutputDir(out_prefix+"/data");
-		VCFtools vcftools = new VCFtools(ploidy, min_depth, 
+		VCFtools vcftools = new VCFtools(Constants._ploidy_H, min_depth, 
 				max_depth, min_qual, 
 				min_maf, max_missing, 
 				in_vcf, out_prefix+"/data/"+prefix_vcf+".recode.vcf");
@@ -254,7 +251,7 @@ public class Gembler extends Executor {
 							new Haplotyper(in_zip,
 									out,
 									new String[]{scaff},
-									ploidy,
+									Constants._ploidy_H,
 									field).run();
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();

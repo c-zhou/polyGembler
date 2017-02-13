@@ -211,6 +211,12 @@ public class Constants {
 			if(rf[i]>1.0) return false;
 		return true;
 	}
+
+	public static void ploidy(int ploidy) {
+		// TODO Auto-generated method stub
+		_ploidy_H = ploidy;
+		_haplotype_z = ploidy*2;
+	}
 }
 
 

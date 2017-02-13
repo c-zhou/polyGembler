@@ -54,7 +54,6 @@ public class Haplotyper extends Executor {
 	private boolean vbt = false;
 	private boolean[] reverse = new boolean[]{false};
 	private int max_iter = 100;
-	private int ploidy = 2;
 	private Field field = Field.PL;
 	private String plot_pdf = null;
 	
@@ -78,7 +77,7 @@ public class Haplotyper extends Executor {
 		this.vbt = vbt;
 		this.reverse = reverse;
 		this.max_iter = max_iter;
-		this.ploidy = ploidy;
+		Constants.ploidy(ploidy);
 		this.field = field;
 	}
 	
@@ -91,7 +90,7 @@ public class Haplotyper extends Executor {
 		this.in_zip = in_zip;
 		this.out_prefix = out_prefix;
 		this.scaff = scaff;
-		this.ploidy = ploidy;
+		Constants.ploidy(ploidy);
 		this.field = field;
 	}
 
@@ -188,9 +187,7 @@ public class Haplotyper extends Executor {
 		}
 		
 		if(myArgsEngine.getBoolean("-p")) {
-			ploidy = Integer.parseInt(myArgsEngine.getString("-p"));
-			Constants._ploidy_H = ploidy;
-			Constants._haplotype_z = ploidy*2;
+			Constants.ploidy(Integer.parseInt(myArgsEngine.getString("-p")));
 		}
 		
 		if(myArgsEngine.getBoolean("-f")) {
