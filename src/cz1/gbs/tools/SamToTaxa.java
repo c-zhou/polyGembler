@@ -168,7 +168,7 @@ public class SamToTaxa extends Executor {
 			String[] Qs = new String[block];
 			int k = 0;
 			int buffer = 10000000, cached = 0;
-			initial_thread_pool();
+			this.initial_thread_pool();
 			while( cached<buffer && temp!=null ) {
 				temp = indexReader.readLine();
 				if(temp!=null) {
@@ -217,8 +217,7 @@ public class SamToTaxa extends Executor {
 					Qs = new String[block];
 				}
 			}
-			executor.shutdown();
-			executor.awaitTermination(365, TimeUnit.DAYS);
+			this.waitFor();
 			myLogger.info("Cached indices. "+cached);
 			myLogger.info("Tags processed. "+allReads);
 		} catch (Exception e) {
@@ -263,7 +262,7 @@ public class SamToTaxa extends Executor {
 			SAMRecordIterator iter=inputSam.iterator();
 			
 			cache();
-			initial_thread_pool();
+			this.initial_thread_pool();
 			
 			final int block = 10000;
 			int bS = 0;
@@ -331,11 +330,10 @@ public class SamToTaxa extends Executor {
 					bS++;
 					
 					if(temp==null || tag>=cursor) {
-						executor.shutdown();
-						executor.awaitTermination(365, TimeUnit.DAYS);
+						this.waitFor();
 						if(temp!=null) {
 							cache();
-							initial_thread_pool();
+							this.initial_thread_pool();
 						}
 					}
 				}
@@ -374,7 +372,7 @@ public class SamToTaxa extends Executor {
 			BufferedReader br = Utils.getBufferedReader(samFile, 65536);
 			
 			cache();
-			initial_thread_pool();
+			this.initial_thread_pool();
 			
 			String temp;
 			int block = 10000;
@@ -453,11 +451,10 @@ public class SamToTaxa extends Executor {
 					k=0;
 					Qs = new String[block];
 					if(temp==null || tag>=cursor) {
-						executor.shutdown();
-						executor.awaitTermination(365, TimeUnit.DAYS);
+						this.waitFor();
 						if(temp!=null) {
 							cache();
-							initial_thread_pool();
+							this.initial_thread_pool();
 						}
 					}
 				}
@@ -480,7 +477,7 @@ public class SamToTaxa extends Executor {
 		long start = System.currentTimeMillis();
 		//executor = Executors.newFixedThreadPool(THREADS);
 		try {
-			initial_thread_pool();
+			this.initial_thread_pool();
 			File indexFile = new File(myIndexFileName);
 			myLogger.info("Using the following index file:");
 			myLogger.info(indexFile.getAbsolutePath());
@@ -529,11 +526,10 @@ public class SamToTaxa extends Executor {
 				}
 			}
 			br.close();
-			executor.shutdown();
-			executor.awaitTermination(365, TimeUnit.DAYS);
+			this.waitFor();
 			myLogger.info("Loading indices done. "+is+" tags.");
 
-			initial_thread_pool();
+			this.initial_thread_pool();
 			File samFile = new File(mySamFileName);
 			myLogger.info("Using the following SAM file:");
 			myLogger.info(samFile.getAbsolutePath());
@@ -614,8 +610,7 @@ public class SamToTaxa extends Executor {
 			}
 			br.close();
 			indexReader.close();
-			executor.shutdown();
-			executor.awaitTermination(365, TimeUnit.DAYS);
+			this.waitFor();
 			for(String key : sam_writers.keySet())
 				sam_writers.get(key).close();
 			myLogger.info("Total number of reads in lane=" + allReads);

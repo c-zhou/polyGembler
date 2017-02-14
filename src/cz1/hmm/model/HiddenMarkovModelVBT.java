@@ -280,9 +280,7 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 			ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(new 
 					FileOutputStream(output+"/"+root+".zip"), 65536));
 		
-			out.putNextEntry(new ZipEntry(root+"/"));
-			out.putNextEntry(new ZipEntry(root+"/"+"phasedStates/"));
-			out.putNextEntry(new ZipEntry(root+"/"+"phasedStates/"+experiment+".txt"));
+			out.putNextEntry(new ZipEntry("phasedStates/"+experiment+".txt"));
 			out.write((""+this.loglik()+"\n").getBytes());
 			out.write((""+this.dp.length+"\n").getBytes());
 			for(int i=0; i<this.sample.length; i++) {
@@ -298,8 +296,7 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 				}
 			}
 			
-			out.putNextEntry(new ZipEntry(root+"/"+"results_hmm/"));
-			out.putNextEntry(new ZipEntry(root+"/"+"results_hmm/emissionModel.txt"));
+			out.putNextEntry(new ZipEntry("results_hmm/emissionModel.txt"));
 			for(int i=0; i<this.emissProbs.length; i++) {
 				double[][] emissProbs = this.emissProbs[i].probsMat;
 				String[] allele = this.emissProbs[i].allele;
@@ -313,7 +310,7 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 				out.write("\n".getBytes());
 			}
 
-			out.putNextEntry(new ZipEntry(root+"/"+"results_hmm/transitionModel.txt"));
+			out.putNextEntry(new ZipEntry("results_hmm/transitionModel.txt"));
 			for(int i=0; i<this.transProbs.length; i++) {
 				double[][] transProbs = this.transProbs[i].probsMat;
 				out.write((this.de.getId()+"_"+this.de.getPosition()[i]+"\t\t\t").getBytes());
@@ -326,14 +323,14 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 				out.write("\n".getBytes());
 			}
 
-			out.putNextEntry(new ZipEntry(root+"/"+"stderr_true"));
+			out.putNextEntry(new ZipEntry("stderr_true"));
 			
 			out.write("cz1.model.HiddenMarkovModel:\n".getBytes());
 			out.write("cz1.model.HiidenMarkovModel$EM:\n".getBytes());
 			out.write(("log prob is "+this.loglik()+" at "+iteration+"\n").getBytes());
 			out.write(("random seed is "+Constants.seed).getBytes());
 			
-			out.putNextEntry(new ZipEntry(root+"/"+"snp_"+experiment+".txt"));
+			out.putNextEntry(new ZipEntry("snp_"+experiment+".txt"));
 			
 			StringBuilder os = new StringBuilder();
 			List<String[]> allele = de.getAllele();

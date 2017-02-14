@@ -200,12 +200,6 @@ public class SamFileSplit extends Executor {
 			}.init(bam));
 		}
 		
-		try {
-			executor.shutdown();
-			executor.awaitTermination(365, TimeUnit.DAYS);
-		} catch (InterruptedException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
+		this.waitFor();
 	}
 }

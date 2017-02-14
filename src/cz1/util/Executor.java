@@ -59,6 +59,17 @@ public abstract class Executor {
 		});
 	}
 	
+	protected void waitFor() {
+		// TODO Auto-generated method stub
+		try {
+			executor.shutdown();
+			executor.awaitTermination(365, TimeUnit.DAYS);
+		} catch (InterruptedException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+	}
+	
 	protected void require(String tool) {
 		String command = "command -v "+tool+
 				" >/dev/null 2>&1 && { echo \"true\"; } || { echo \"false\"; }";
@@ -91,7 +102,7 @@ public abstract class Executor {
 	}
 	
 	protected void bash(final String[] commands) {
-		initial_thread_pool();
+		this.initial_thread_pool();
 		
 		for(int i=0; i<commands.length; i++) {
 			executor.submit(new Runnable() {
@@ -126,13 +137,7 @@ public abstract class Executor {
 			}.init(i));
 		}
 		
-		try {
-			executor.shutdown();
-			executor.awaitTermination(365, TimeUnit.DAYS);
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		this.waitFor();
 	}
 	
 	protected static double maxMemory() {

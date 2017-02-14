@@ -294,8 +294,7 @@ public class FastqToTagSequence extends Executor {
                 taxaNames[i] = thePBR[0].getTheBarcodes(i).getTaxaName();
             }
             long start = System.currentTimeMillis();
-            //executor = Executors.newFixedThreadPool(THREADS);
-            initial_thread_pool();
+            this.initial_thread_pool();
             try {
                 BufferedReader br = Utils.getBufferedReader(fastqFiles[laneNum], 65536);
               
@@ -321,7 +320,9 @@ public class FastqToTagSequence extends Executor {
                     if(k==block || temp==null) {
                     	
                     	if( usedMemory()/maxMemory()>load ) {
+                    		this.waitFor();
                     		writeHardDisk();
+                    		this.initial_thread_pool();
                     	}
                     	
                     	executor.submit(new Runnable() {
@@ -416,8 +417,10 @@ public class FastqToTagSequence extends Executor {
                     	Qs = new String[block][2];
                     }
                 }
-                if(!tagCounts.isEmpty())
+                if(!tagCounts.isEmpty()) {
+                	this.waitFor();
                 	writeHardDisk();
+                }
                 br.close();
                 myLogger.info("Total number of reads in lane=" + allReads);
         		myLogger.info("Total number of good barcoded reads=" + goodBarcodedReads);
@@ -432,10 +435,8 @@ public class FastqToTagSequence extends Executor {
         }
     }
 
-	private void writeHardDisk() throws InterruptedException, IOException {
+	private void writeHardDisk() throws IOException  {
 		// TODO Auto-generated method stub
-		executor.shutdown();
-		executor.awaitTermination(365, TimeUnit.DAYS);
 		double load_this = 0;
 		if( (load_this=usedMemory()/maxMemory())>load ) {
 			myLogger.info("Memory usage exceeds"+load*100+"% of the GC limit. Load "+load_this);
@@ -496,7 +497,6 @@ public class FastqToTagSequence extends Executor {
 		//myLogger.info("tagCounts size "+ObjectSizeFetcher.getObjectSize(tagCounts));
 		tagCounts.clear();
 		System.gc();
-		initial_thread_pool();
 	}
 
 	private String os(BitSet bs) {

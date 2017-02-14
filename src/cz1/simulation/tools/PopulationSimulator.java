@@ -106,14 +106,8 @@ public class PopulationSimulator extends Executor {
 				}
 			}.init(i) );
 		}
-
-		executor.shutdown();
-		try {
-			executor.awaitTermination(365, TimeUnit.DAYS);
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		
+		this.waitFor();
 	}
 
 }

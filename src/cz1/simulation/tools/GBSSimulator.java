@@ -116,39 +116,29 @@ public class GBSSimulator extends Executor {
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		try {
-			//GBSFastqFileBufferedWriter = getGZIPBufferedWriter(GBSFastqFilePath);
-			this.initial_thread_pool();
-			for(int f=0; f<gbs.size(); f++) {
-				executor.submit(new Runnable() {
-					private int f;
+		this.initial_thread_pool();
+		for(int f=0; f<gbs.size(); f++) {
+			executor.submit(new Runnable() {
+				private int f;
 
-					@Override
-					public void run() {
-						try {
-							gbs.simulate(f);
-						} catch (Exception e) {
-							Thread t = Thread.currentThread();
-							t.getUncaughtExceptionHandler().uncaughtException(t, e);
-							e.printStackTrace();
-							executor.shutdown();
-							System.exit(1);
-						}
+				@Override
+				public void run() {
+					try {
+						gbs.simulate(f);
+					} catch (Exception e) {
+						Thread t = Thread.currentThread();
+						t.getUncaughtExceptionHandler().uncaughtException(t, e);
+						e.printStackTrace();
+						executor.shutdown();
+						System.exit(1);
 					}
-					public Runnable init(int f) {
-						this.f = f;
-						return(this);
-					}
-				}.init(f) );
-			}
-			executor.shutdown();
-			executor.awaitTermination(365, TimeUnit.DAYS);
-			//GBSFastqFileBufferedWriter.close();
-			//} catch (IOException | InterruptedException e) {
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-			System.exit(1);
+				}
+				public Runnable init(int f) {
+					this.f = f;
+					return(this);
+				}
+			}.init(f) );
 		}
-
+		this.waitFor();
 	}	
 }

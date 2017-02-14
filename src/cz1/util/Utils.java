@@ -503,6 +503,16 @@ public class Utils {
         return getBufferedReader(file.getAbsolutePath(), bufSize);
     }
 
+    public static BufferedReader getBufferedReader(InputStream is) {
+		// TODO Auto-generated method stub
+		return new BufferedReader(new InputStreamReader(is));
+	}
+    
+    public static BufferedReader getBufferedReader(InputStream is, int bufSize) {
+		// TODO Auto-generated method stub
+		return new BufferedReader(new InputStreamReader(is), bufSize);
+	}
+    
     public static BufferedWriter getBufferedWriter(String filename) {
         return getBufferedWriter(filename, false);
     }

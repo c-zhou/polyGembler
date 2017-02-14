@@ -79,13 +79,7 @@ public class SynchedIO extends Executor {
         	}.init(Q, i));
 		}
 		
-		executor.shutdown();
-		try {
-			executor.awaitTermination(10, TimeUnit.SECONDS);
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		this.waitFor();
 	}
 
 }

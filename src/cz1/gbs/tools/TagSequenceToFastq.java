@@ -220,11 +220,10 @@ public class TagSequenceToFastq extends Executor {
 				}
 			}
 			br.close();
-			executor.shutdown();
-			executor.awaitTermination(365, TimeUnit.DAYS);
+			this.waitFor();
 			bw.close();
 			bw2.close();
-		} catch(IOException | InterruptedException e) {
+		} catch(IOException e) {
 			e.printStackTrace();
 			System.exit(1);
 		}

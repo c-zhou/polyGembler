@@ -8,6 +8,7 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.Serializable;
@@ -32,6 +33,7 @@ import java.text.NumberFormat;
 import java.text.DecimalFormat;
 import java.lang.StringBuilder;
 
+import cz1.hmm.tools.RFUtils.PhasedDataCollection;
 import cz1.util.Algebra;
 import cz1.util.Combination;
 import cz1.util.Constants;
@@ -84,7 +86,6 @@ public class Copy_11_of_SingleCNVHapRF extends RFUtils {
 		options.addOption( "e", "experiment", true, "experiment name." );
 		options.addOption( "w", "workspace", true, "directory contains input files." );
 		options.addOption( "o", "output", true, "output file prefix." );
-		options.addOption( "c", "contig-file", true, "file contaions contigs information.");
 		options.addOption( "p", "parent-obj",true, "parents; dilimited by a colon(:)." );
 		options.addOption( "P", "ploidy",true, "ploidy of the genome." );
 		options.addOption( "n", "n-best", true, "the best n run is used.");
@@ -93,8 +94,8 @@ public class Copy_11_of_SingleCNVHapRF extends RFUtils {
 		options.addOption( "d", "drop", true, "threshold do drop a scaffold.");
 		options.addOption( "T", "test", true, "goodness-of-fit test.");
 		options.addOption( "C", "scaff-only", true, "calculate RFs only for specified scaffolds.");
-		String experiment=null, workspace=null, output=null, contigFile=null, 
-				parentObj=null, goodnessOfFitTest="fraction";
+		String experiment=null, workspace=null, output=null, parentObj=null,
+				goodnessOfFitTest="fraction";
 		String[] parents = new String[2];
 		Arrays.fill(parents, null);
 		int ploidy=-1, n=1, t=1, d=0;
@@ -110,9 +111,6 @@ public class Copy_11_of_SingleCNVHapRF extends RFUtils {
 			}
 			if(line.hasOption("o")) {
 				output = line.getOptionValue("o");
-			}
-			if(line.hasOption("c")) {
-				contigFile = line.getOptionValue("c");
 			}
 			if(line.hasOption("p")) {
 				parentObj = line.getOptionValue("p");
@@ -149,25 +147,14 @@ public class Copy_11_of_SingleCNVHapRF extends RFUtils {
 
 		Copy_11_of_SingleCNVHapRF sgRF = new Copy_11_of_SingleCNVHapRF(
 				workspace,experiment,ploidy,parents,t,s,d,goodnessOfFitTest,n);
-		sgRF.calcRFsForAll2(output, contigFile);
+		sgRF.calcRFsForAll2(output);
 	}
-
-	private final static int NUM_CORES = 
-			Runtime.getRuntime().availableProcessors();
-	private static String workspace;
-	private static String experiment;
-	private static String[] parents;
+	
 	private static int ploidy;
 	private static int ploidy2;
 	private static int mask_length;
 	private static int shift_bits2;
-	private static int shift_bits4;
-	private static int THREADS = NUM_CORES-1;
-	private static int drop_thres;
-	private static double skew_thres;
 	private static double[] probs_uniform;
-	private static String goodness_of_fit;
-	private static int best_n;
 	private final static Set<String> scaff_only = new HashSet<String>();	
 
 	public Copy_11_of_SingleCNVHapRF (String workspace_, 
@@ -200,22 +187,126 @@ public class Copy_11_of_SingleCNVHapRF extends RFUtils {
 	}
 
 	private static char[][] haps = null;
-	private static int factorial_ploidy = -1;;
+	private static int factorial_ploidy = -1;
 	private final int[] hap_index = new int[256];
 	private static int[][] johnson_trotter_permutation;
+	
+	private PhasedDataCollection[][] dc;
+	
+	protected class PhasedDataCollection extends RFUtils.PhasedDataCollection{	
+		protected final boolean[][][][] data;
+		protected int[][][] hashcode;
 
+		public PhasedDataCollection(String file,
+				String[] markers, 
+				int[] start_end) {
+			// TODO Auto-generated constructor stub
+			super(file, markers, start_end);
+			this.data = this.data(start_end[0], start_end[1]);
+			this.hash();
+		}
+		
+		public PhasedDataCollection(String file,
+				String[] markers,
+				boolean[][][][] data,
+				int[] start_end) {
+			// TODO Auto-generated constructor stub
+			super(file, markers, start_end);
+			this.data = data;
+		}
+
+		private void hash() {
+			// TODO Auto-generated method stub
+			this.hashcode = new int[2][2][nF1];
+			for(int i=0; i<2; i++)
+				for(int j=0; j<2; j++) {
+					boolean[][] d = this.data[i][j];
+					int[] code = this.hashcode[i][j];
+					for(int k=0; k<nF1; k++) {
+						int key = 0;
+						for(int p=0; p<Constants._ploidy_H; p++)
+							key = (key<<mask_length)+(d[p][k] ? 1 : 0);
+						code[k] = key;
+					}
+				}
+		}
+
+		public PhasedDataCollection clone() {
+			final boolean[][][][] data = new boolean[2][2][Constants._ploidy_H][nF1];
+			for(int i=0; i<2; i++) 
+				for(int j=0; j<2; j++)
+					for(int k=0; k<Constants._ploidy_H; k++)
+						data[i][j][k] = this.data[i][j][k].clone();
+			return new PhasedDataCollection(this.file, 
+					this.markers, data, 
+					this.start_end_position);
+		}
+
+		private boolean[][][][] data(int start, int end) {
+			// TODO Auto-generated method stub
+			boolean[][][][] data = new boolean[2][2][Constants._ploidy_H][nF1];
+
+			try {
+				BufferedReader br = Utils.getBufferedReader(
+						in_haps+"/"+
+								this.file+
+								"/phasedStates/"+
+								expr_id+".txt");
+				String line;
+				String[] s;
+				String stateStr;
+				int n=0;
+
+				while( (line=br.readLine())!=null ) {
+
+					if(!line.startsWith("#")) continue;
+					//if(skip++<2) continue;
+					s = line.split("\\s+|:");
+					if(Arrays.asList(founder_haps).contains(s[2])) continue;
+
+					stateStr = s[s.length-1];
+					data[0][0][hap_index[stateStr.charAt(start)]][n] = true;
+					data[0][1][hap_index[stateStr.charAt(end)]][n] = true;
+
+					for(byte i=1; i<Constants._ploidy_H/2; i++) {
+						line = br.readLine();
+						s = line.split("\\s+");
+						stateStr = s[s.length-1];
+						data[0][0][hap_index[stateStr.charAt(start)]][n] = true;
+						data[0][1][hap_index[stateStr.charAt(end)]][n] = true;
+					}
+					for(byte i=0; i<Constants._ploidy_H/2; i++) {
+						line = br.readLine();
+						s = line.split("\\s+");
+						stateStr = s[s.length-1];
+						data[1][0][hap_index[stateStr.charAt(start)]][n] = true;
+						data[1][1][hap_index[stateStr.charAt(end)]][n] = true;
+					}
+
+					n++;
+				}
+				br.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+				System.exit(1);
+			}
+
+			return data;
+		}
+	}
+	
 	private void setHaps() {
-		factorial_ploidy = (int) Permutation.factorial(ploidy);
+		factorial_ploidy = (int) Permutation.factorial(Constants._ploidy_H);
 		List<List<Character>> haps_list = new ArrayList<List<Character>>();
 		List<Character> hap = new ArrayList<Character>();
-		for(int i=1; i<=ploidy; i++) {
+		for(int i=1; i<=Constants._ploidy_H; i++) {
 			hap.add( i<10 ? Character.toChars('0'+i)[0] : 
 				Character.toChars('a'+i-10)[0] );
 		}
 		haps_list.add(hap);
 		hap = new ArrayList<Character>();
-		for(int i=ploidy+1; 
-				i<=2*ploidy; i++) {
+		for(int i=Constants._ploidy_H+1; 
+				i<=Constants._haplotype_z; i++) {
 			hap.add( i<10 ? Character.toChars('0'+i)[0] : 
 				Character.toChars('a'+i-10)[0] );
 		}
@@ -227,9 +318,10 @@ public class Copy_11_of_SingleCNVHapRF extends RFUtils {
 				hap_index[haps[i][j]] = j;
 			}
 		}
-		johnson_trotter_permutation = JohnsonTrotter.perm(ploidy);
+		johnson_trotter_permutation = JohnsonTrotter.perm(Constants._ploidy_H);
 		initialiseRFactory();
 	}
+	
 
 	private void initialiseRFactory() {
 		// TODO Auto-generated method stub
@@ -269,344 +361,6 @@ public class Copy_11_of_SingleCNVHapRF extends RFUtils {
 		for(int i=0; i<ploidy; i++)
 			hash = (hash<<mask_length)+(bools[i] ? 1 : 0);
 		return hash;
-	}
-
-	private class FileObject {
-		private final File file;
-		private final String[] markers; 
-		private final int[] start_end_position;
-
-		public FileObject(File file, 
-				String[] markers,
-				int[] start_end_position) {
-			this.file = file;
-			this.markers = markers;
-			this.start_end_position = start_end_position;
-		}
-	}
-
-	private final static Map<String, Set<FileObject>> fileObj = 
-			new HashMap<String, Set<FileObject>>();
-	private final static Object lock = new Object();
-
-	private class FileExtraction implements Runnable {
-		private final File[] files;
-
-		public FileExtraction(File[] files) {
-			this.files = files;
-		}
-		@Override
-		public void run() {
-			// TODO Auto-generated method stub
-			List<String> scaff_all = new ArrayList<String>();
-			String[][] markers = null;
-			int[][] start_end_position = null;
-			int scaff_n = 0;
-
-			try {
-				BufferedReader br = Utils.getBufferedReader(this.files[0].getAbsolutePath()+
-						"/snp_"+experiment+".txt");
-				List<List<String>> markers_all = new ArrayList<List<String>>();
-
-				String marker = br.readLine().split("\\s+")[3];
-				String scaff_prev = marker.replaceAll("_[0-9]{1,}$", ""),
-						scaff;
-				scaff_all.add(scaff_prev);
-				String line;
-				markers_all.add(new ArrayList<String>());
-				int n_=0;
-				markers_all.get(n_).add(marker);
-				while( (line=br.readLine())!=null ) {
-					marker = line.split("\\s+")[3];
-					scaff = marker.replaceAll("_[0-9]{1,}$", "");
-					if(scaff.equals(scaff_prev))
-						markers_all.get(n_).add(marker);
-					else {
-						markers_all.add(new ArrayList<String>());
-						n_++;
-						markers_all.get(n_).add(marker);
-						scaff_prev = scaff;
-						scaff_all.add(scaff_prev);
-					}
-				}
-				br.close();
-				int cuv = 0;
-				scaff_n = scaff_all.size();
-				markers = new String[scaff_n][];
-				start_end_position = new int[scaff_n][2];
-				for(int i=0; i<scaff_n; i++) {
-					markers[i] = new String[markers_all.get(i).size()];
-					markers_all.get(i).toArray(markers[i]);
-					int s = Integer.parseInt(markers[i][0].
-							replaceAll(".*[^\\d](\\d+).*", "$1")),
-							e = Integer.parseInt(markers[i][1].
-									replaceAll(".*[^\\d](\\d+).*", "$1"));
-					if(s<=e) {
-						start_end_position[i][0] = cuv;
-						cuv += markers[i].length;
-						start_end_position[i][1] = cuv-1;
-					} else {
-						start_end_position[i][1] = cuv;
-						cuv += markers[i].length;
-						start_end_position[i][0] = cuv-1;
-					}
-				}
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-
-			for(int i=0; i<this.files.length; i++) 
-				for(int j=0; j<scaff_n; j++) {
-					String scaff = scaff_all.get(j); 
-					synchronized(lock) {
-						if(!fileObj.containsKey(scaff))
-							fileObj.put(scaff, new HashSet<FileObject>());
-						fileObj.get(scaff).add(new FileObject(
-								this.files[i],
-								markers[j],
-								start_end_position[j]));
-					}
-				}
-		}			
-	}
-
-	private class FileLoader implements Runnable {
-		private final String id;
-		private final FileObject[] files;
-		private final int i;
-
-		public FileLoader(String id, FileObject[] files, int i) {
-			this.id = id;
-			this.files = files;
-			this.i = i;
-		}
-
-		@Override
-		public void run() {
-			// TODO Auto-generated method stub
-
-			double[] ll = new double[this.files.length];
-			for(int k=0; k<ll.length; k++) 
-				ll[k]=Double.NEGATIVE_INFINITY;
-			int marker_n = this.files[0].markers.length;
-
-			if( marker_n<2 ) {
-				System.err.println("warning: "+
-						this.id +" #marker is less than 2.");
-				return;
-			}
-
-			for(int k=0; k<this.files.length; k++) {
-				File file = this.files[k].file;
-				if(!new File(file.getAbsolutePath()+
-						"/phasedStates/"+experiment+".txt").exists()) {
-					System.err.println("warning: "+
-							file.getName()+
-							" exsits, but phased states do not.");
-					continue;
-				}
-				try {
-					BufferedReader br = 
-							Utils.getBufferedReader(file.getAbsolutePath()+
-									"/phasedStates/"+experiment+".txt");
-					br.readLine();
-					String marker_str = br.readLine();
-					br.close();
-					if( marker_str==null ) {
-						System.err.println("warning: "+
-								file.getName()+
-								" exists, but phased states are NULL.");
-						continue;
-					}
-					double frac = marker_n/Double.parseDouble(marker_str);
-
-					String res = file.getAbsolutePath()+"/stderr_true";
-					//IO.println(res);
-					File _res_hmm = new File(res);
-					String line;
-					if( _res_hmm.exists() ) {
-						BufferedReader br2 = Utils.getBufferedReader(res);
-						String lprob=null;
-						while( (line=br2.readLine()) !=null) {
-							if(line.startsWith("log"))
-								lprob = line;
-						}
-						br2.close();
-						if( lprob!=null ) {
-							String[] s0 = lprob.split("\\s+");
-							ll[k] = Double.parseDouble(s0[3])*frac;
-						}
-					} else {
-						BufferedReader br2 = 
-								Utils.getBufferedReader(file.getAbsolutePath()+
-										"/phasedStates/"+
-										experiment+".txt");
-						String lprob=br2.readLine();
-						br2.close();
-						if( lprob!=null ) 
-							ll[k] = Double.parseDouble(lprob)*frac;
-						System.out.println(ll[k]);
-					}
-				} catch (IOException e) {
-					e.printStackTrace();
-					System.exit(1);
-				}
-			}
-
-			int[] maxN = maxN(ll);
-			StringBuilder oos = new StringBuilder();
-			boolean[] drop = new boolean[maxN.length];
-			int dropped = 0;
-			for(int k=0; k<maxN.length; k++) {
-
-				int[] haps_observed = readHaplotypes(maxN[k]);
-				/**
-					br_states = IO.getBufferedReader(this.files[maxN[k]]+
-							"/phasedStates/"+experiment+".txt");
-					String line_states;
-					String[] s_states;
-					double[] phases = new double[ploidy*2];
-					while( (line_states=br_states.readLine())!=null ) {
-						if(!line_states.startsWith("#"))
-							continue;
-						s_states = line_states.split("\\s+");
-						phases[s_states[s_states.length-1].charAt(0)-'1'] += 1.0;
-					}
-				 ***/
-
-				long[] observed;
-				double p;
-				switch(goodness_of_fit) {
-				case "fraction":
-					double[] phases = new double[ploidy*2];
-					for(int z=0; z<phases.length; z++) 
-						phases[z] = (double) haps_observed[z];
-					double expected = StatUtils.sum(phases)/ploidy/2;
-					double maf = StatUtils.max(phases)/expected, 
-							mif = StatUtils.min(phases)/expected;
-					if( maf>1/skew_thres || mif<skew_thres) {
-						System.out.println(this.files[maxN[k]].file.getName()+
-								" was dropped due to large haploptype frequency variance. (" +
-								cat(phases, ",") +")");
-						drop[k] = true;
-					}
-					if(drop[k]) dropped++;
-					oos.append("["+(drop[k]?"drop](maf,":"keep](maf,")+maf+";mif,"+mif+") "+
-							cat(haps_observed,",")+"\t"+
-							this.files[maxN[k]].file.getName()+"\n");
-					break;
-				case "chisq":
-					observed = new long[ploidy*2];
-					for(int z=0; z<observed.length; z++) 
-						observed[z] = (long) haps_observed[z];
-					p = new ChiSquareTest().chiSquareTest(probs_uniform, observed);
-					if(p<skew_thres) drop[k] = true;
-					if(drop[k]) dropped++;
-					oos.append("["+(drop[k]?"drop](p,":"keep](p,")+formatter.format(p)+") "+
-							cat(haps_observed,",")+"\t"+
-							this.files[maxN[k]].file.getName()+"\n");
-					break;
-				case "gtest":
-					observed = new long[ploidy*2];
-					for(int z=0; z<observed.length; z++) 
-						observed[z] = (long) haps_observed[z];
-					p = new GTest().gTest(probs_uniform, observed);
-					if(p<skew_thres) drop[k] = true;
-					if(drop[k]) dropped++;
-					oos.append("["+(drop[k]?"drop](p,":"keep](p,")+formatter.format(p)+") "+
-							cat(haps_observed,",")+"\t"+
-							this.files[maxN[k]].file.getName()+"\n");
-					break;
-				default:
-					System.err.println("Goodness-of-fit test should be fraction, chisq or gTest.");
-					System.exit(1);
-				}
-			}
-			System.out.print(oos.toString());
-			System.err.println(this.id+" - dropped "+dropped);
-			if( drop.length-dropped<drop_thres ) {
-				System.err.println("Scaffold "+this.id+" dropped.");
-			} else {
-				int kk=0;
-				for(int k=0; k<drop.length; k++) {
-					if(!drop[k]) {
-						FileObject fobj = this.files[maxN[k]];
-						dc[i][kk] = new PhasedDataCollection(
-								fobj.file.getName(),
-								fobj.markers,
-								fobj.start_end_position);
-						kk++;
-					}
-					if(kk>=best_n) break;
-				}
-			}
-		}
-
-		private int[] readHaplotypes(final int i) {
-			// TODO Auto-generated method stub
-			try {
-				BufferedReader br_states = Utils.getBufferedReader(
-						this.files[i].file+
-						"/phasedStates/"+experiment+".txt");;
-						String line, stateStr;
-						String[] s;
-						int[] haps_observed = new int[ploidy*2];
-						while( (line=br_states.readLine())!=null ) {
-							if(!line.startsWith("#")) continue;
-							s = line.split("\\s+|:");
-							stateStr = s[s.length-1];
-							for(char h : stateStr.toCharArray())
-								haps_observed[h>'9'?(h-'a'+9):(h-'1')]++;
-						}
-						br_states.close();
-						return haps_observed;
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-				System.exit(1);
-			}
-			return null;
-		}
-
-		private int[] maxN(double[] ll) {
-			double[] ll0 = Arrays.copyOf(ll, ll.length);
-			int n = ll.length;//best_n_phases[0].length;
-			int[] maxN = new int[n];
-			Arrays.fill(maxN, -1);
-			for(int k=0; k<n; k++) {
-				if(k>=ll0.length) return maxN;
-				int p = 0;
-				double e = Double.NEGATIVE_INFINITY;
-				for(int s=0; s<ll0.length; s++)
-					if(ll0[s]>e) {
-						e = ll0[s];
-						p = s;
-					}
-				maxN[k] = p;
-				ll0[p] = Double.NEGATIVE_INFINITY;
-			}
-			return maxN;
-		}
-
-		private int[] maxN(double[] ll, int N) {
-			double[] ll0 = Arrays.copyOf(ll, ll.length);
-			int[] maxN = new int[N];
-			Arrays.fill(maxN, -1);
-			for(int k=0; k<N; k++) {
-				if(k>=ll0.length) return maxN;
-				int p = 0;
-				double e = Double.NEGATIVE_INFINITY;
-				for(int s=0; s<ll0.length; s++)
-					if(ll0[s]>e) {
-						e = ll0[s];
-						p = s;
-					}
-				maxN[k] = p;
-				ll0[p] = Double.NEGATIVE_INFINITY;
-			}
-			return maxN;
-		}
 	}
 
 	private final static Map<Integer, Byte> rf_factory = new HashMap<Integer, Byte>();
@@ -674,23 +428,9 @@ public class Copy_11_of_SingleCNVHapRF extends RFUtils {
 					}
 					os.append("\n");
 				}
-				rfAllWriter.write(os.toString());
 				double[] rf; 
 				String w;
-				rf = new double[4];
-				for(int k=0; k<4; k++) {
-					double[] rf_tmp = removeNEG(rf_all[k]);
-					if(rf_tmp==null)
-						rf[k] = -1;
-					else
-						rf[k] = median(rf_all[k]);
-				}
-				w = "NULL\t"+StatUtils.min(rf)+"\t";
-				for(int k=0; k<rf.length; k++) w += rf[k]+"\t";
-				w += contig+"\t"+contig2
-						+"\t"+contigs.get(contig)+"\t"+contigs.get(contig2)+"\n";
-				rfMedianWriter.write(w);
-
+				
 				rf = new double[4];
 				for(int k=0; k<4; k++) {
 					double[] rf_tmp = removeNEG(rf_all[k]);
@@ -704,20 +444,6 @@ public class Copy_11_of_SingleCNVHapRF extends RFUtils {
 				w += contig+"\t"+contig2
 						+"\t"+contigs.get(contig)+"\t"+contigs.get(contig2)+"\n";
 				rfMinimumWriter.write(w);
-
-				rf = new double[4];
-				for(int k=0; k<4; k++) {
-					double[] rf_tmp = removeNEG(rf_all[k]);
-					if(rf_tmp==null)
-						rf[k] = -1;
-					else
-						rf[k] = StatUtils.mean(rf_tmp);
-				}
-				w = "NULL\t"+StatUtils.min(rf)+"\t";
-				for(int k=0; k<rf.length; k++) w += rf[k]+"\t";
-				w += contig+"\t"+contig2
-						+"\t"+contigs.get(contig)+"\t"+contigs.get(contig2)+"\n";
-				rfMeanWriter.write(w);
 			} catch (IOException e) {
 				e.printStackTrace();
 				System.exit(1);
@@ -975,349 +701,52 @@ public class Copy_11_of_SingleCNVHapRF extends RFUtils {
 			return ds[r];
 		}
 	}
-
-	private double median(double[] ds) {
-		// TODO Auto-generated method stub
-		double[] ds0 = removeNEG(ds);
-		if(ds0==null) return -1;
-		Arrays.sort(ds0);
-		int n = ds0.length;
-		if (n % 2 == 0)
-			return (ds0[n/2] + ds0[n/2-1])/2;
-		else
-			return ds0[n/2];
-	}
-
-	private double[] removeNEG(double[] ds) {
-		List<Double> ds0 = new ArrayList<Double>();
-		for(double d : ds)
-			if(d>=0)
-				ds0.add(d);
-		if(ds0.isEmpty()) return null;
-		return ArrayUtils.toPrimitive(
-				ds0.toArray(new Double[ds0.size()]));
-
-	}
-
-	private class mapCalculator implements Runnable {
-
-		private final int i;
-
-		public mapCalculator(int i) {
-			this.i = i;
-		}
-
-		@Override
-		public void run() {
-			// TODO Auto-generated method stub
-			double[][] kosambi_all = null;
-			double[] kd_all = new double[dc[i].length];
-			Arrays.fill(kd_all, -1);
-
-			for(int k=0; k<dc[this.i].length; k++) {
-				PhasedDataCollection dc_ik= dc[i][k];
-				if(dc_ik !=null ) {
-					double[] kosambi_ = calcGDs(workspace+"/"+dc_ik.file+"/phasedStates/"+experiment+".txt",
-							ploidy,
-							parents,
-							nF1,
-							dc_ik.start_end_position);
-					if(kosambi_all==null) {
-						kosambi_all = new double[dc[i].length][kosambi_.length];
-						fill(kosambi_all, -1);
-					}
-
-					kosambi_all[k] = kosambi_;
-
-					kd_all[k] = calcGD(workspace+"/"+dc[i][k].file+"/phasedStates/"+experiment+".txt",
-							ploidy,
-							parents,
-							nF1,
-							dc_ik.start_end_position,
-							"kosambi");
-				}
-			}
-
-			if(kosambi_all==null) return;
-
-			double[] kosambi = new double[kosambi_all[0].length];
-			kosambi_all = Algebra.transpose(kosambi_all);
-			for(int k=0; k<kosambi.length; k++) 
-				kosambi[k] = median(kosambi_all[k]);
-
-			if(removeNEG(kd_all)==null || removeNEG(kosambi)==null)
-				return;
-
-			String contig = dc[i][0].markers[0].replaceAll("_[0-9]{1,}$", "");
-
-			try {
-				mapWriter.write("*"+contig+"\t"+
-						median(kd_all)+"\t"+
-						StatUtils.sum(kosambi)+"\t"+
-						cat(kosambi, ",")+"\n");
-			} catch (MathIllegalArgumentException | IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-
-	}
-
-	private class gdCalculator implements Runnable {
-		private final int i;
-
-		public gdCalculator(int i) {
-			this.i = i;
-		}
-
-		@Override
-		public void run() {
-			// TODO Auto-generated method stub
-			try {
-				PhasedDataCollection _0 = null;
-				for(PhasedDataCollection f : dc[i]) {
-					_0 = f;
-					if(f!=null)
-						break;
-				}
-				if(_0==null) return;
-
-
-				String[] snp_id = _0.markers;
-				int[] snp_pos = new int[snp_id.length];
-				for(int ii=0; ii<snp_pos.length; ii++) 
-					snp_pos[ii] = Integer.parseInt(snp_id[ii].
-							replaceAll(".*[^\\d](\\d+).*", "$1"));
-
-				int nSNP = snp_id.length;
-				double[][] rfAll = new double[nSNP*(nSNP-1)/2]
-						[dc[i].length];
-				fill(rfAll, -1);
-				for(int k=0; k<dc[i].length; k++)
-					if(dc[i][k]!=null)
-						calcGDsAll(workspace+"/"+dc[i][k].file+
-								"/phasedStates/"+experiment+".txt",
-								ploidy,
-								parents,
-								nF1,
-								dc[i][k].start_end_position,
-								rfAll,
-								k);
-				int c=0;
-				StringBuilder os = new StringBuilder();
-				for(int m=0; m<nSNP; m++)
-					for(int n=m+1; n<nSNP; n++) {
-						double rf = median(rfAll[c++]);
-						if(rf!=-1) {
-							os.append(snp_id[m]+"\t"+snp_id[n]+
-									"\t"+Math.abs(snp_pos[m]-snp_pos[n])+
-									"\t"+rf+"\n");
-						}
-					}
-				gdWriter.write(os.toString());
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-	}
-
-	private void fill(double[][] dss, 
-			double d) {
-		// TODO Auto-generated method stub
-		for(double[] ds : dss) 
-			Arrays.fill(ds, d);
-	}
-
-	private static PhasedDataCollection[][] dc;
-	private static int nF1;
-	private static Map<String, Integer> contigs;
-	private static BufferedWriter rfMedianWriter;
-	private static BufferedWriter rfMeanWriter;
+	
 	private static BufferedWriter rfMinimumWriter;
-	private static BufferedWriter rfAllWriter;
-	private static BufferedWriter mapWriter;
-	private static BufferedWriter gdWriter;
-	private static BufferedWriter ciWriter;
-	private static NumberFormat formatter = new DecimalFormat("#0.000");
 
-	private class PhasedDataCollection {
-		private final String file;
-		private final String[] markers;
-		private final boolean[][][][] data;
-		private final int[] start_end_position;
-		private int[][][] hashcode;
+	private void calcRFsForAll2(String outputFilePath) throws IOException, InterruptedException {
 
-		public PhasedDataCollection(String file,
-				String[] markers, 
-				int[] start_end) {
-			// TODO Auto-generated constructor stub
-			this.file = file;
-			this.markers = markers;
-			if(markers.length!=
-					Math.abs(start_end[0]-start_end[1])+1)
-				throw new RuntimeException("!!!");
-			this.data = this.data(start_end[0], start_end[1]);
-			this.start_end_position = start_end;
-			this.hash();
-		}
-
-		private void hash() {
-			// TODO Auto-generated method stub
-			this.hashcode = new int[2][2][nF1];
-			for(int i=0; i<2; i++)
-				for(int j=0; j<2; j++) {
-					boolean[][] d = this.data[i][j];
-					int[] code = this.hashcode[i][j];
-					for(int k=0; k<nF1; k++) {
-						int key = 0;
-						for(int p=0; p<ploidy; p++)
-							key = (key<<mask_length)+(d[p][k] ? 1 : 0);
-						code[k] = key;
-					}
-				}
-		}
-
-		public PhasedDataCollection(String file,
-				String[] markers,
-				boolean[][][][] data,
-				int[] start_end_position) {
-			// TODO Auto-generated constructor stub
-			this.file = file;
-			this.markers = markers;
-			this.data = data;
-			this.start_end_position = start_end_position;
-		}
-
-		public PhasedDataCollection clone() {
-			final boolean[][][][] data = new boolean[2][2][ploidy][nF1];
-			for(int i=0; i<2; i++) 
-				for(int j=0; j<2; j++)
-					for(int k=0; k<ploidy; k++)
-						data[i][j][k] = this.data[i][j][k].clone();
-			return new PhasedDataCollection(this.file, 
-					this.markers, data, 
-					this.start_end_position);
-		}
-
-		private boolean[][][][] data(int start, int end) {
-			// TODO Auto-generated method stub
-			boolean[][][][] data = new boolean[2][2][ploidy][nF1];
-
-			try {
-				BufferedReader br = Utils.getBufferedReader(
-						workspace+"/"+
-								this.file+
-								"/phasedStates/"+
-								experiment+".txt");
-				String line;
-				String[] s;
-				String stateStr;
-				int n=0;
-
-				while( (line=br.readLine())!=null ) {
-
-					if(!line.startsWith("#")) continue;
-					//if(skip++<2) continue;
-					s = line.split("\\s+|:");
-					if(Arrays.asList(parents).contains(s[2])) continue;
-
-					stateStr = s[s.length-1];
-					data[0][0][hap_index[stateStr.charAt(start)]][n] = true;
-					data[0][1][hap_index[stateStr.charAt(end)]][n] = true;
-
-					for(byte i=1; i<ploidy/2; i++) {
-						line = br.readLine();
-						s = line.split("\\s+");
-						stateStr = s[s.length-1];
-						data[0][0][hap_index[stateStr.charAt(start)]][n] = true;
-						data[0][1][hap_index[stateStr.charAt(end)]][n] = true;
-					}
-					for(byte i=0; i<ploidy/2; i++) {
-						line = br.readLine();
-						s = line.split("\\s+");
-						stateStr = s[s.length-1];
-						data[1][0][hap_index[stateStr.charAt(start)]][n] = true;
-						data[1][1][hap_index[stateStr.charAt(end)]][n] = true;
-					}
-
-					n++;
-				}
-				br.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-				System.exit(1);
-			}
-
-			return data;
-		}
-
-		private Map[][] map() {
-			// TODO Auto-generated method stub
-			Map[][] map = new HashMap[2][2];
-			for(int i=0; i<2; i++)
-				for(int j=0; j<2; j++)
-					map[i][j] = new HashMap();
-			return map;
-		}
-	}
-
-	private static ExecutorService executor = 
-			Executors.newFixedThreadPool(THREADS);
-	private void reset() {
-		executor = Executors.newFixedThreadPool(THREADS);
-	}
-
-	private void calcRFsForAll2(String outputFilePath,
-			String contigFilePath) throws IOException, InterruptedException {
-
-		String[] s;
-		contigs = new HashMap<String, Integer>();
-		BufferedReader br = Utils.getBufferedReader(contigFilePath);
-		int c=0;
-		String line;
-		while( (line=br.readLine())!=null ) {
-			s = line.split("\\s+");
-			contigs.put(s[0], ++c);
-			if(!s[0].startsWith("chr"))
-				contigs.put("chr"+s[0], c);
-		}
-		br.close();
-
-		File folder = new File(workspace);
+		File folder = new File(in_haps);
 		File[] listFiles = folder.listFiles();
 		nF1 = 0;
 
 		for(File file:listFiles) {
 			String name = file.getName();
-			if(file.isDirectory() &&
-					name.startsWith(experiment)) {
+			if( name.startsWith(expr_id) ) {
 				if(nF1<1) {
-					String phasedStates = file.getAbsolutePath()+
-							"/phasedStates/"+experiment+".txt";
-					if(new File(phasedStates).exists()) {
-						br = Utils.getBufferedReader(phasedStates);
-						int n = 0;
-						String l;
-						while( (l=br.readLine())!=null ) 
-							if(l.startsWith("#")) n++;
-						nF1 = (n/ploidy)-2;
-						System.out.println(nF1+" F1 samples in the experiment.");
-						br.close();
+					try {
+						InputStream is = this.getInputStream(
+								file.getAbsolutePath(),
+								"phasedStates");
+						if( is!=null ) {
+							BufferedReader br = Utils.getBufferedReader(is);
+							int n = 0;
+							String l;
+
+							while( (l=br.readLine())!=null ) 
+								if(l.startsWith("#")) n++;
+
+							nF1 = (n/Constants._ploidy_H)-2;
+							myLogger.info(nF1+" F1 samples in the experiment.");
+							br.close();
+						}
+						is.close();
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
 					}
 				}
 			}
 			if(nF1>0) break;
 		}
 
-		Map<String, List<File>> map = new HashMap<String, 
-				List<File>>();
+		Map<String, List<File>> map = new HashMap<String, List<File>>();
 		List<File> list;
+		String[] s;
 		for(File file:listFiles) {
 			String name = file.getName();
-			if(file.isDirectory() &&
-					name.startsWith(experiment)) {
-				name = name.replace(experiment,"experiment");
+			if( name.startsWith(expr_id) ) {
+				name = name.replace(expr_id,"experiment");
 				s = name.split("\\.");
 
 				if(map.get(s[1])==null) {
@@ -1329,7 +758,7 @@ public class Copy_11_of_SingleCNVHapRF extends RFUtils {
 				}
 			}
 		}
-
+		
 		String[] keys = new String[map.keySet().size()];
 		map.keySet().toArray(keys);
 
@@ -1341,7 +770,7 @@ public class Copy_11_of_SingleCNVHapRF extends RFUtils {
 		executor.shutdown();
 		executor.awaitTermination(365, TimeUnit.DAYS);
 
-		reset();
+		this.initial_thread_pool();
 		String[] scaff_all = new String[fileObj.keySet().size()];
 		fileObj.keySet().toArray(scaff_all);
 		dc = new PhasedDataCollection[scaff_all.length][best_n];
@@ -1350,20 +779,12 @@ public class Copy_11_of_SingleCNVHapRF extends RFUtils {
 			executor.submit(new FileLoader(scaff_all[i],
 					files.toArray(new FileObject[files.size()]),
 					i));
-			//new FileLoader(keys[i],
-					//		files.toArray(new File[files.size()]),
-			//		i).run();
 		}
 		executor.shutdown();
 		executor.awaitTermination(365, TimeUnit.DAYS);
 
-		//System.exit(1);
 		System.out.println(map.keySet().size());
 		System.out.println("["+Utils.getSystemTime()+"] LOADING FILES DONE.");
-
-		//if( (size=map.get(key).size()) != 10) {
-		//	System.out.println(key+"\t"+size);
-		//}
 		System.out.println("["+Utils.getSystemTime()+"] READING LOG LIKELIHOOD DONE.");
 
 		StringBuilder os = new StringBuilder();
@@ -1377,29 +798,8 @@ public class Copy_11_of_SingleCNVHapRF extends RFUtils {
 			os.append("\n");
 		}
 
-		/**
-		reset();
-		ciWriter = getGZIPBufferedWriter(outputFilePath+".ci.gz");
-		ciWriter.write(os.toString());
-		for(int i=0; i<dc.length; i++) 
-			executor.submit(new ciCalculator(i));
-			//new ciCalculator(i).run();
-		executor.shutdown();
-		executor.awaitTermination(365, TimeUnit.DAYS);
-		ciWriter.close();
-
-		System.exit(0);
-		 **/
-
-		reset();
-		rfMedianWriter = Utils.getBufferedWriter(outputFilePath+".med");
-		rfMeanWriter = Utils.getBufferedWriter(outputFilePath+".mea");
+		this.initial_thread_pool();
 		rfMinimumWriter = Utils.getBufferedWriter(outputFilePath+".min");
-		rfAllWriter = Utils.getGZIPBufferedWriter(outputFilePath+".all.gz");
-		//rfAllWriter = getBufferedWriter(outputFilePath+".all");
-
-
-		rfAllWriter.write(os.toString());
 		long start = System.nanoTime();
 		for(int i=0; i<dc.length; i++) 
 			for(int j=i+1; j<dc.length; j++) 
@@ -1410,115 +810,19 @@ public class Copy_11_of_SingleCNVHapRF extends RFUtils {
 		long end = System.nanoTime();
 		System.out.println("elapsed, "+(end-start)+"; R pool key-value pair, "+rf_pool.size());
 		Utils.print(scale_times);
-
-		rfMedianWriter.close();
-		rfMeanWriter.close();
 		rfMinimumWriter.close();
-		rfAllWriter.close();
 
-		//System.exit(1);
 
-		reset();
+		this.initial_thread_pool();
 		mapWriter = Utils.getBufferedWriter(outputFilePath+".map");
 		mapWriter.write("##id\tkosambi\thaldane\tkSum\thSum\tkAll\thAll\n");
 		for(int i=0; i<dc.length; i++) 
 			executor.submit(new mapCalculator(i));
-		//new mapCalculator(i).run();
 		executor.shutdown();
 		executor.awaitTermination(365, TimeUnit.DAYS);
 		mapWriter.close();
 
-		/**
-		reset();
-		gdWriter = getBufferedWriter(outputFilePath+".gds");
-		for(int i=0; i<dc.length; i++) 
-			executor.submit(new gdCalculator(i));
-			//new gdCalculator(i).run();
-		executor.shutdown();
-		executor.awaitTermination(365, TimeUnit.DAYS);
-		gdWriter.close();
-		 **/
-
 		System.out.println("["+Utils.getSystemTime()+"] DONE.");
-	}
-
-	private static String cat(double[] array, String sep) {
-		String s = ""+array[0];
-		for(int i=1; i<array.length; i++)
-			s += sep+array[i];
-		return s;
-	}
-
-	private static String cat(int[] array, String sep) {
-		String s = ""+array[0];
-		for(int i=1; i<array.length; i++)
-			s += sep+array[i];
-		return s;
-	}
-
-	public void calcGDsAll(String phasedStates, int ploidy, 
-			String[] parents, int nF1, int[] start_end,  
-			double[][] rfAll, int s) {
-		// TODO Auto-generated method stub
-		char[][] h = readHaplotypes(phasedStates, 
-				ploidy, parents, nF1);
-		int c = 0;
-		if(start_end[0]<=start_end[1]) {
-			for(int i=start_end[0]; i<=start_end[1]; i++) { 
-				for(int j=i+1; j<=start_end[1]; j++) {
-					double r = 0;
-					for(int k=0; k<h.length; k++) 
-						r += h[k][i]==h[k][j] ? 0 : 1;
-					rfAll[c++][s] = r/h.length;
-				}
-			}
-		} else {
-			for(int i=start_end[0]; i>=start_end[1]; i--) { 
-				for(int j=i-1; j>=start_end[1]; j--) {
-					double r = 0;
-					for(int k=0; k<h.length; k++) 
-						r += h[k][i]==h[k][j] ? 0 : 1;
-					rfAll[c++][s] = r/h.length;
-				}
-			}
-		}
-	}
-
-	public static double[] calcGDs(String phasedStates, int ploidy, 
-			String[] parents, int nF1, int[] start_end) {
-		// TODO Auto-generated method stub
-		char[][] h = readHaplotypes(phasedStates, ploidy, parents, nF1);
-		if(start_end[0]<=start_end[1]) {
-			double[] d = new double[start_end[1]-start_end[0]+1];
-			for(int i=start_end[0]; i<start_end[1]; i++) {
-				double c = 0;
-				for(int j=0; j<h.length; j++) 
-					c += h[j][i]==h[j][i+1] ? 0 : 1;
-				//d[i] = geneticDistance( c/h.length, mapFunc);
-				d[i-start_end[0]] = c/h.length;
-			}
-			return d;
-		} else {
-			double[] d = new double[start_end[0]-start_end[1]+1];
-			for(int i=start_end[0]; i>start_end[1]; i--) {
-				double c = 0;
-				for(int j=0; j<h.length; j++) 
-					c += h[j][i]==h[j][i-1] ? 0 : 1;
-				//d[i] = geneticDistance( c/h.length, mapFunc);
-				d[start_end[0]-i] = c/h.length;
-			}
-			return d;
-		}
-	}
-
-	public static double calcGD(String phasedStates, int ploidy,
-			String[] parents, int nF1, int[] start_end, String mapFunc) {
-		char[][] h = readHaplotypes(phasedStates, ploidy, parents, nF1);
-		double c = 0;
-		for(int i=0; i<h.length; i++)
-			c += h[i][start_end[0]]==h[i][start_end[1]] ? 0 : 1;
-		//return geneticDistance( c/h.length, mapFunc);
-		return c/h.length;	
 	}
 }
 
