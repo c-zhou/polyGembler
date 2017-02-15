@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -32,6 +33,7 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.exception.MathIllegalArgumentException;
 import org.apache.commons.math3.stat.StatUtils;
 import org.apache.commons.math3.stat.inference.ChiSquareTest;
@@ -47,6 +49,29 @@ import cz1.util.Constants;
 import cz1.util.Utils;
 
 public class AssemblyError extends RFUtils {
+	private final static double breakage_thres = 0.05;
+	
+	public AssemblyError (String in_haps, 
+			String out_prefix,
+			String expr_id, 
+			int ploidy, 
+			String[] founder_haps,
+			int threads,
+			double skew_phi,
+			int drop_thres,
+			int best_n) {
+		this.in_haps = in_haps;
+		this.out_prefix = out_prefix;
+		this.expr_id = expr_id;
+		Constants.ploidy(ploidy);
+		this.founder_haps = founder_haps;
+		this.THREADS = threads;
+		this.drop_thres = drop_thres;
+		this.skew_phi = skew_phi;
+		this.probs_uniform = new double[ploidy*2];
+		Arrays.fill(this.probs_uniform, .5/ploidy);
+		this.best_n = best_n;
+	}
 	
 	@Override
 	public void printUsage() {
@@ -254,28 +279,121 @@ public class AssemblyError extends RFUtils {
 			executor.submit(new mapCalculator(i));
 		this.waitFor();
 
+		write();
+		
+		render();
+		
 		myLogger.info("["+Utils.getSystemTime()+"] DONE.");
 	}
 
-	public AssemblyError (String in_haps, 
-			String out_prefix,
-			String expr_id, 
-			int ploidy, 
-			String[] founder_haps,
-			int threads,
-			double skew_phi,
-			int drop_thres,
-			int best_n) {
-		this.in_haps = in_haps;
-		this.out_prefix = out_prefix;
-		this.expr_id = expr_id;
-		Constants.ploidy(ploidy);
-		this.founder_haps = founder_haps;
-		this.THREADS = threads;
-		this.drop_thres = drop_thres;
-		this.skew_phi = skew_phi;
-		this.probs_uniform = new double[ploidy*2];
-		Arrays.fill(this.probs_uniform, .5/ploidy);
-		this.best_n = best_n;
+	private void write() {
+		// TODO Auto-generated method stub
+		BufferedWriter bw = Utils.getBufferedWriter(out_prefix);
+		try {
+			for(String scaff : mapCalc.keySet()) {
+				double[][] rfs = mapCalc.get(scaff);
+				if(rfs[0]==null) continue;
+				bw.write("*");
+				bw.write(scaff);
+				bw.write("\n");
+				for(double[] rf : rfs) {
+					if(rf==null) break;
+					bw.write(cat(rf,","));
+					bw.write("\n");
+				}
+			}
+			bw.close();
+		} catch(IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	final private Map<String, double[]> errs = new HashMap<String, double[]>();
+	
+	private void render() {
+		// TODO Auto-generated method stub
+		for(int i=0; i<dc.length; i++) {
+			if(dc[i][0]==null) continue;
+			String scaff = dc[i][0].markers[0].replaceAll("_[0-9]{1,}$", "");
+			double[][] rfs = mapCalc.get(scaff);
+			double[] rf = new double[rfs[0].length];
+			int bound = 0;
+			for(bound=0; bound<rfs.length; bound++) 
+				if(rfs[bound]==null) break;
+			for(int j=0; j<rf.length; j++) 
+				for(int k=0; k<bound; k++)
+					rf[j] += rfs[k][j];
+			String[] markers = dc[i][0].markers;
+			final List<Double> breakage_pos = new ArrayList<Double>();
+			for(int j=0; j<rf.length; j++) {
+ 				rf[j] /= bound;
+ 				if(rf[j]>=breakage_thres) {
+ 					String[] s = markers[j].split("_");
+ 					double x = Double.parseDouble(s[s.length-1]);
+ 					s = markers[j+1].split("_");
+ 					x += Double.parseDouble(s[s.length-1]);
+ 					breakage_pos.add(x/2); 
+ 				}
+ 			}
+			if(breakage_pos.size()==0) continue;
+			Double[] ls = new Double[breakage_pos.size()];
+			breakage_pos.toArray(ls);
+			errs.put(scaff, ArrayUtils.toPrimitive(ls));
+		}
+		return;
+	}
+	
+	public Map<String, double[]> errs() {
+		return this.errs;
+	}
+
+	public Set<String> split(String in_vcf) {
+		// TODO Auto-generated method stub
+		final Set<String> scaff_breakge = new HashSet<String>();
+		try {
+			String command = "mv "+in_vcf+" "+in_vcf+".bak";
+			Process p = this.bash(command);
+			p.waitFor();
+
+			BufferedReader br = Utils.getBufferedReader(in_vcf+".bak");
+			BufferedWriter bw = Utils.getBufferedWriter(in_vcf);
+			 
+			String[] s;
+			String line = br.readLine();
+			while( line!=null ) {
+				if(line.startsWith("#")) {
+					bw.write(line+"\n");
+					line = br.readLine();
+					continue;
+				}
+				s = line.split("\\s+");
+				if(!this.errs.containsKey(s[0])) {
+					bw.write(line+"\n");
+					line = br.readLine();
+				} else {
+					String scaff = s[0];
+					scaff_breakge.add(scaff);
+					double[] tmp = this.errs.get(scaff);
+					double[] breakage_pos = new double[tmp.length+1];
+					System.arraycopy(tmp, 0, breakage_pos, 0, tmp.length);
+					breakage_pos[tmp.length] = Double.POSITIVE_INFINITY;
+					int sub = 1;
+					while( line!=null ) {
+						s = line.split("\\s+");
+						if( !scaff.equals(s[0]) ) break;
+						if( Double.parseDouble(s[1])>breakage_pos[sub-1] )
+							sub++;
+						bw.write(line.replaceAll("$"+scaff, scaff+"_"+sub));
+						line = br.readLine();
+					}
+				}
+			}
+			br.close();
+			bw.close();
+		} catch (InterruptedException | IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return scaff_breakge;
 	}
 }

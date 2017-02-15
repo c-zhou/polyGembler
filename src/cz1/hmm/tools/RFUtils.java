@@ -28,11 +28,11 @@ import cz1.util.Executor;
 import cz1.util.Utils;
 
 public abstract class RFUtils extends Executor {
-	
+
 	protected static final double kb = 1024;
 	protected static final double mb = 1024*1024;
 	protected static final double gb = 1024*1024*1024;
-	
+
 	protected String in_haps;
 	protected String out_prefix;
 	protected String[] founder_haps;
@@ -41,13 +41,13 @@ public abstract class RFUtils extends Executor {
 	protected double skew_phi = 2;
 	protected int best_n = 10;
 	protected final String goodness_of_fit = "fraction";
-	
+
 	protected double[] probs_uniform = new double[]{.5,.5,.5,.5};
 
 	protected static NumberFormat formatter = new DecimalFormat("#0.000");
 	protected static int nF1;
-	
-	
+
+
 	protected final static Map<String, Set<FileObject>> fileObj = 
 			new HashMap<String, Set<FileObject>>();
 	protected final static Object lock = new Object();
@@ -65,7 +65,7 @@ public abstract class RFUtils extends Executor {
 			this.start_end_position = start_end_position;
 		}
 	}
-	
+
 	protected class FileExtraction implements Runnable {
 		private final File[] files;
 
@@ -75,12 +75,13 @@ public abstract class RFUtils extends Executor {
 		@Override
 		public void run() {
 			// TODO Auto-generated method stub
-			List<String> scaff_all = new ArrayList<String>();
-			String[][] markers = null;
-			int[][] start_end_position = null;
-			int scaff_n = 0;
 
 			try {
+				List<String> scaff_all = new ArrayList<String>();
+				String[][] markers = null;
+				int[][] start_end_position = null;
+				int scaff_n = 0;
+
 				InputStream is = getInputStream(this.files[0].getAbsolutePath(), "SNP");
 				BufferedReader br = Utils.getBufferedReader(is);
 				List<List<String>> markers_all = new ArrayList<List<String>>();
@@ -129,26 +130,30 @@ public abstract class RFUtils extends Executor {
 						start_end_position[i][0] = cuv-1;
 					}
 				}
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
 
-			for(int i=0; i<this.files.length; i++) 
-				for(int j=0; j<scaff_n; j++) {
-					String scaff = scaff_all.get(j); 
-					synchronized(lock) {
-						if(!fileObj.containsKey(scaff))
-							fileObj.put(scaff, new HashSet<FileObject>());
-						fileObj.get(scaff).add(new FileObject(
-								this.files[i],
-								markers[j],
-								start_end_position[j]));
+				for(int i=0; i<this.files.length; i++) 
+					for(int j=0; j<scaff_n; j++) {
+						scaff = scaff_all.get(j); 
+						synchronized(lock) {
+							if(!fileObj.containsKey(scaff))
+								fileObj.put(scaff, new HashSet<FileObject>());
+							fileObj.get(scaff).add(new FileObject(
+									this.files[i],
+									markers[j],
+									start_end_position[j]));
+						}
 					}
-				}
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				Thread t = Thread.currentThread();
+				t.getUncaughtExceptionHandler().uncaughtException(t, e);
+				e.printStackTrace();
+				executor.shutdown();
+				System.exit(1);
+			}
 		}
 	}
-	
+
 	protected class FileLoader implements Runnable {
 		protected final String id;
 		protected final FileObject[] files;
@@ -164,147 +169,157 @@ public abstract class RFUtils extends Executor {
 		public void run() {
 			// TODO Auto-generated method stub
 
-			double[] ll = new double[this.files.length];
-			for(int k=0; k<ll.length; k++) 
-				ll[k]=Double.NEGATIVE_INFINITY;
-			int marker_n = this.files[0].markers.length;
+			try {
+				double[] ll = new double[this.files.length];
+				for(int k=0; k<ll.length; k++) 
+					ll[k]=Double.NEGATIVE_INFINITY;
+				int marker_n = this.files[0].markers.length;
 
-			if( marker_n<2 ) {
-				myLogger.warn("warning: "+
-						this.id +" #marker is less than 2.");
-				return;
-			}
+				if( marker_n<2 ) {
+					myLogger.warn("warning: "+
+							this.id +" #marker is less than 2.");
+					return;
+				}
 
-			InputStream is;
-			for(int k=0; k<this.files.length; k++) {
-				File file = this.files[k].file;
-				try {
-					if( (is = getInputStream(file.getAbsolutePath(), 
-							"PHASEDSTATES"))==null ) {
-						myLogger.warn("warning: "+
-								file.getName()+
-								" exsits, but phased states do not.");
-						continue;
-					} 
-					
-					BufferedReader br = Utils.getBufferedReader(is);
-					br.readLine();
-					String marker_str = br.readLine();
-					br.close();
-					is.close();
-					
-					if( marker_str==null ) {
-						myLogger.warn("warning: "+
-								file.getName()+
-								" exists, but phased states are NULL.");
-						continue;
-					}
-					double frac = marker_n/Double.parseDouble(marker_str);
+				InputStream is;
+				for(int k=0; k<this.files.length; k++) {
+					File file = this.files[k].file;
+					try {
+						if( (is = getInputStream(file.getAbsolutePath(), 
+								"PHASEDSTATES"))==null ) {
+							myLogger.warn("warning: "+
+									file.getName()+
+									" exsits, but phased states do not.");
+							continue;
+						} 
 
-					String line;
-					if( (is = getInputStream(file.getAbsolutePath(), 
-							"STDERR"))!=null ) {
-						BufferedReader br2 = Utils.getBufferedReader(is);
-						String lprob=null;
-						while( (line=br2.readLine()) !=null) {
-							if(line.startsWith("log"))
-								lprob = line;
-						}
-						br2.close();
+						BufferedReader br = Utils.getBufferedReader(is);
+						br.readLine();
+						String marker_str = br.readLine();
+						br.close();
 						is.close();
-						if( lprob!=null ) {
-							String[] s0 = lprob.split("\\s+");
-							ll[k] = Double.parseDouble(s0[3])*frac;
+
+						if( marker_str==null ) {
+							myLogger.warn("warning: "+
+									file.getName()+
+									" exists, but phased states are NULL.");
+							continue;
 						}
-					} else {
-						is = getInputStream(file.getAbsolutePath(), "PHASEDSTATES");
-						BufferedReader br2 = Utils.getBufferedReader(is);
-						String lprob = br2.readLine();
-						br2.close();
-						is.close();
-						if( lprob!=null ) 
-							ll[k] = Double.parseDouble(lprob)*frac;
-						myLogger.info(ll[k]);
-					}
-				} catch (IOException e) {
-					e.printStackTrace();
-					System.exit(1);
-				}
-			}
+						double frac = marker_n/Double.parseDouble(marker_str);
 
-			int[] maxN = maxN(ll);
-			StringBuilder oos = new StringBuilder();
-			boolean[] drop = new boolean[maxN.length];
-			int dropped = 0;
-			for(int k=0; k<maxN.length; k++) {
-
-				int[] haps_observed = readHaplotypes(maxN[k]);
-
-				long[] observed;
-				double p;
-				switch(goodness_of_fit) {
-				case "fraction":
-					double[] phases = new double[Constants._ploidy_H*2];
-					for(int z=0; z<phases.length; z++) 
-						phases[z] = (double) haps_observed[z];
-					double expected = StatUtils.sum(phases)/Constants._ploidy_H/2;
-					double maf = StatUtils.max(phases)/expected, 
-							mif = StatUtils.min(phases)/expected;
-					if( maf>1/skew_phi || mif<skew_phi) {
-						myLogger.info(this.files[maxN[k]].file.getName()+
-								" was dropped due to large haploptype frequency variance. (" +
-								cat(phases, ",") +")");
-						drop[k] = true;
+						String line;
+						if( (is = getInputStream(file.getAbsolutePath(), 
+								"STDERR"))!=null ) {
+							BufferedReader br2 = Utils.getBufferedReader(is);
+							String lprob=null;
+							while( (line=br2.readLine()) !=null) {
+								if(line.startsWith("log"))
+									lprob = line;
+							}
+							br2.close();
+							is.close();
+							if( lprob!=null ) {
+								String[] s0 = lprob.split("\\s+");
+								ll[k] = Double.parseDouble(s0[3])*frac;
+							}
+						} else {
+							is = getInputStream(file.getAbsolutePath(), "PHASEDSTATES");
+							BufferedReader br2 = Utils.getBufferedReader(is);
+							String lprob = br2.readLine();
+							br2.close();
+							is.close();
+							if( lprob!=null ) 
+								ll[k] = Double.parseDouble(lprob)*frac;
+							myLogger.info(ll[k]);
+						}
+					} catch (IOException e) {
+						e.printStackTrace();
+						System.exit(1);
 					}
-					if(drop[k]) dropped++;
-					oos.append("["+(drop[k]?"drop](maf,":"keep](maf,")+maf+";mif,"+mif+") "+
-							cat(haps_observed,",")+"\t"+
-							this.files[maxN[k]].file.getName()+"\n");
-					break;
-				case "chisq":
-					observed = new long[Constants._haplotype_z];
-					for(int z=0; z<observed.length; z++) 
-						observed[z] = (long) haps_observed[z];
-					p = new ChiSquareTest().chiSquareTest(probs_uniform, observed);
-					if(p<skew_phi) drop[k] = true;
-					if(drop[k]) dropped++;
-					oos.append("["+(drop[k]?"drop](p,":"keep](p,")+formatter.format(p)+") "+
-							cat(haps_observed,",")+"\t"+
-							this.files[maxN[k]].file.getName()+"\n");
-					break;
-				case "gtest":
-					observed = new long[Constants._haplotype_z];
-					for(int z=0; z<observed.length; z++) 
-						observed[z] = (long) haps_observed[z];
-					p = new GTest().gTest(probs_uniform, observed);
-					if(p<skew_phi) drop[k] = true;
-					if(drop[k]) dropped++;
-					oos.append("["+(drop[k]?"drop](p,":"keep](p,")+formatter.format(p)+") "+
-							cat(haps_observed,",")+"\t"+
-							this.files[maxN[k]].file.getName()+"\n");
-					break;
-				default:
-					throw new RuntimeException("Goodness-of-fit test should be fraction, "
-							+ "chisq or gTest.");
 				}
-			}
-			myLogger.info(oos.toString());
-			myLogger.error(this.id+" - dropped "+dropped);
-			if( drop.length-dropped<drop_thres ) {
-				myLogger.error("Scaffold "+this.id+" dropped.");
-			} else {
-				int kk=0;
-				for(int k=0; k<drop.length; k++) {
-					if(!drop[k]) {
-						FileObject fobj = this.files[maxN[k]];
-						dc[i][kk] = new PhasedDataCollection(
-								fobj.file.getName(),
-								fobj.markers,
-								fobj.start_end_position);
-						kk++;
+
+				int[] maxN = maxN(ll);
+				StringBuilder oos = new StringBuilder();
+				boolean[] drop = new boolean[maxN.length];
+				int dropped = 0;
+				for(int k=0; k<maxN.length; k++) {
+
+					int[] haps_observed = readHaplotypes(maxN[k]);
+
+					long[] observed;
+					double p;
+					switch(goodness_of_fit) {
+					case "fraction":
+						double[] phases = new double[Constants._ploidy_H*2];
+						for(int z=0; z<phases.length; z++) 
+							phases[z] = (double) haps_observed[z];
+						double expected = StatUtils.sum(phases)/Constants._ploidy_H/2;
+						double maf = StatUtils.max(phases)/expected, 
+								mif = StatUtils.min(phases)/expected;
+						if( maf>skew_phi || mif<1/skew_phi) {
+							myLogger.info(this.files[maxN[k]].file.getName()+
+									" was dropped due to large haploptype frequency variance. (" +
+									cat(phases, ",") +")");
+							drop[k] = true;
+						}
+						if(drop[k]) dropped++;
+						oos.append("["+(drop[k]?"drop](maf,":"keep](maf,")+maf+";mif,"+mif+") "+
+								cat(haps_observed,",")+"\t"+
+								this.files[maxN[k]].file.getName()+"\n");
+						break;
+					case "chisq":
+						observed = new long[Constants._haplotype_z];
+						for(int z=0; z<observed.length; z++) 
+							observed[z] = (long) haps_observed[z];
+						p = new ChiSquareTest().chiSquareTest(probs_uniform, observed);
+						if(p<skew_phi) drop[k] = true;
+						if(drop[k]) dropped++;
+						oos.append("["+(drop[k]?"drop](p,":"keep](p,")+formatter.format(p)+") "+
+								cat(haps_observed,",")+"\t"+
+								this.files[maxN[k]].file.getName()+"\n");
+						break;
+					case "gtest":
+						observed = new long[Constants._haplotype_z];
+						for(int z=0; z<observed.length; z++) 
+							observed[z] = (long) haps_observed[z];
+						p = new GTest().gTest(probs_uniform, observed);
+						if(p<skew_phi) drop[k] = true;
+						if(drop[k]) dropped++;
+						oos.append("["+(drop[k]?"drop](p,":"keep](p,")+formatter.format(p)+") "+
+								cat(haps_observed,",")+"\t"+
+								this.files[maxN[k]].file.getName()+"\n");
+						break;
+					default:
+						throw new RuntimeException("Goodness-of-fit test should be fraction, "
+								+ "chisq or gTest.");
 					}
-					if(kk>=best_n) break;
 				}
+				myLogger.info(oos.toString());
+				myLogger.info(this.id+" - dropped "+dropped);
+				if( drop.length-dropped<drop_thres ) {
+					myLogger.info("Scaffold "+this.id+" dropped.");
+				} else {
+					int kk=0;
+					for(int k=0; k<drop.length; k++) {
+						if(!drop[k]) {
+							FileObject fobj = this.files[maxN[k]];
+							dc[i][kk] = new PhasedDataCollection(
+									fobj.file.getName(),
+									fobj.markers,
+									fobj.start_end_position);
+							kk++;
+						}
+						if(kk>=best_n) break;
+					}
+				}
+
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				Thread t = Thread.currentThread();
+				t.getUncaughtExceptionHandler().uncaughtException(t, e);
+				e.printStackTrace();
+				executor.shutdown();
+				System.exit(1);
 			}
 		}
 
@@ -313,18 +328,18 @@ public abstract class RFUtils extends Executor {
 			try {
 				InputStream is = getInputStream(this.files[i].file.getAbsolutePath(), 
 						"PHASEDSTATES");
-				BufferedReader br_states = Utils.getBufferedReader(is);
+				BufferedReader br = Utils.getBufferedReader(is);
 				String line, stateStr;
 				String[] s;
 				int[] haps_observed = new int[Constants._haplotype_z];
-				while( (line=br_states.readLine())!=null ) {
+				while( (line=br.readLine())!=null ) {
 					if(!line.startsWith("#")) continue;
 					s = line.split("\\s+|:");
 					stateStr = s[s.length-1];
 					for(char h : stateStr.toCharArray())
 						haps_observed[h>'9'?(h-'a'+9):(h-'1')]++;
 				}
-				br_states.close();
+				br.close();
 				is.close();
 				return haps_observed;
 			} catch (IOException e) {
@@ -374,10 +389,10 @@ public abstract class RFUtils extends Executor {
 			return maxN;
 		}
 	}
-	
+
 	protected final Map<String, double[][]> mapCalc = 
 			new HashMap<String, double[][]>();
-	
+
 	protected class mapCalculator implements Runnable {
 
 		private final int i;
@@ -389,21 +404,33 @@ public abstract class RFUtils extends Executor {
 		@Override
 		public void run() {
 			// TODO Auto-generated method stub
-			double[][] rfs = new double[dc[i].length][];
-			
-			for(int k=0; k<dc[this.i].length; k++) {
-				PhasedDataCollection dc_ik= dc[i][k];
-				if(dc_ik !=null ) {
-					rfs[k] = calcGDs(
-							dc_ik.file,
-							Constants._ploidy_H,
-							founder_haps,
-							nF1,
-							dc_ik.start_end_position);
+
+			try {
+				if(dc[i][0]==null) return;
+				double[][] rfs = new double[dc[i].length][];
+
+				for(int k=0; k<dc[this.i].length; k++) {
+					PhasedDataCollection dc_ik = dc[i][k];
+					if(dc_ik !=null ) {
+						rfs[k] = calcGDs(
+								in_haps+"/"+dc_ik.file,
+								Constants._ploidy_H,
+								founder_haps,
+								nF1,
+								dc_ik.start_end_position);
 					}
+				}
+
+				mapCalc.put(dc[i][0].markers[0].replaceAll("_[0-9]{1,}$", ""), rfs);
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				Thread t = Thread.currentThread();
+				t.getUncaughtExceptionHandler().uncaughtException(t, e);
+				e.printStackTrace();
+				executor.shutdown();
+				System.exit(1);
 			}
 
-			mapCalc.put(dc[i][0].markers[0].replaceAll("_[0-9]{1,}$", ""), rfs);
 			/**
 			String contig = dc[i][0].markers[0].replaceAll("_[0-9]{1,}$", "");
 			try {
@@ -415,11 +442,11 @@ public abstract class RFUtils extends Executor {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-			**/
+			 **/
 		}
 
 	}
-	
+
 	protected double median(double[] ds) {
 		// TODO Auto-generated method stub
 		double[] ds0 = removeNEG(ds);
@@ -442,16 +469,16 @@ public abstract class RFUtils extends Executor {
 				ds0.toArray(new Double[ds0.size()]));
 
 	}
-	
+
 	private void fill(double[][] dss, 
 			double d) {
 		// TODO Auto-generated method stub
 		for(double[] ds : dss) 
 			Arrays.fill(ds, d);
 	}
-	
+
 	protected static PhasedDataCollection[][] dc;
-	
+
 	protected class PhasedDataCollection {
 		protected final String file;
 		protected final String[] markers;
@@ -469,7 +496,7 @@ public abstract class RFUtils extends Executor {
 			this.start_end_position = start_end;
 		}
 	}
-	
+
 	public void calcGDsAll(String phasedStates, int ploidy, 
 			String[] parents, int nF1, int[] start_end,  
 			double[][] rfAll, int s) {
@@ -498,7 +525,7 @@ public abstract class RFUtils extends Executor {
 		}
 	}
 
-	public static double[] calcGDs(String phasedStates, int ploidy, 
+	public double[] calcGDs(String phasedStates, int ploidy, 
 			String[] parents, int nF1, int[] start_end) {
 		// TODO Auto-generated method stub
 		char[][] h = readHaplotypes(phasedStates, ploidy, parents, nF1);
@@ -525,7 +552,7 @@ public abstract class RFUtils extends Executor {
 		}
 	}
 
-	public static double calcGD(String phasedStates, int ploidy,
+	public double calcGD(String phasedStates, int ploidy,
 			String[] parents, int nF1, int[] start_end) {
 		char[][] h = readHaplotypes(phasedStates, ploidy, parents, nF1);
 		double c = 0;
@@ -535,11 +562,12 @@ public abstract class RFUtils extends Executor {
 		return c/h.length;	
 	}
 
-	protected static char[][] readHaplotypes(String phasedStates, int ploidy,
+	protected char[][] readHaplotypes(String phasedStates, int ploidy,
 			String[] parents, int nF1) {
 		// TODO Auto-generated method stub
 		try {
-			BufferedReader br = Utils.getBufferedReader(phasedStates);
+			InputStream is = this.getInputStream(phasedStates, "PHASEDSTATES");
+			BufferedReader br = Utils.getBufferedReader(is);
 			br.readLine();
 			int m = Integer.parseInt(br.readLine());
 			char[][] h = new char[nF1*ploidy][m];
@@ -555,6 +583,7 @@ public abstract class RFUtils extends Executor {
 				h[c++] = stateStr.toCharArray();
 			}
 			br.close();
+			is.close();
 			return h;
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -564,7 +593,7 @@ public abstract class RFUtils extends Executor {
 
 		return null;
 	}
-	
+
 	protected static double geneticDistance(double r, String mapFunc) {
 		// TODO Auto-generated method stub
 		switch(mapFunc.toUpperCase()) {
@@ -614,7 +643,7 @@ public abstract class RFUtils extends Executor {
 		}
 		return null;
 	}
-	
+
 	protected static String cat(double[] array, String sep) {
 		String s = ""+array[0];
 		for(int i=1; i<array.length; i++)

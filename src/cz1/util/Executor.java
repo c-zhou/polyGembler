@@ -111,9 +111,8 @@ public abstract class Executor {
 				@Override
 				public void run() {
 					// TODO Auto-generated method stub
-					String[] runnable = new String[]{"bash","-c",commands[i]};
 					try {
-							Process process = instance.exec(runnable);
+							Process process = bash(commands[i]);
 							BufferedReader in =
 									new BufferedReader(new InputStreamReader(process.getInputStream()));
 							String line;
