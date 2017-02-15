@@ -65,9 +65,13 @@ public class SynchedIO extends Executor {
 					try {
 						write(this.i, this.Q, 
 								(int)Thread.currentThread().getId()%THREADS);
-					} catch (InterruptedException e) {
+					} catch (Exception e) {
 						// TODO Auto-generated catch block
+						Thread t = Thread.currentThread();
+						t.getUncaughtExceptionHandler().uncaughtException(t, e);
 						e.printStackTrace();
+						executor.shutdown();
+						System.exit(1);
 					}
 				}
 				

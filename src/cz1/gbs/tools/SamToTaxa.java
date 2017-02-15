@@ -501,18 +501,27 @@ public class SamToTaxa extends Executor {
 							String[] s, taxa;
 							int[] count;
 							for(String x : index) {
-								s = x.split("\\s+");
-								tag = Long.parseLong(s[0]);
-								s = s[1].split("#|:");
-								taxa = new String[s.length/2];
-								count = new int[s.length/2];
-								for(int i=0; i<s.length/2; i++) {
-									taxa[i] = s[i*2];
-									count[i] = Integer.parseInt(s[i*2+1]);
-								}
-								indexMap.put(tag, new Tag(taxa, count));
-								synchronized(lock) {
-									is++;
+								try {
+									s = x.split("\\s+");
+									tag = Long.parseLong(s[0]);
+									s = s[1].split("#|:");
+									taxa = new String[s.length/2];
+									count = new int[s.length/2];
+									for(int i=0; i<s.length/2; i++) {
+										taxa[i] = s[i*2];
+										count[i] = Integer.parseInt(s[i*2+1]);
+									}
+									indexMap.put(tag, new Tag(taxa, count));
+									synchronized(lock) {
+										is++;
+									}
+								} catch (Exception e) {
+									// TODO Auto-generated catch block
+									Thread t = Thread.currentThread();
+									t.getUncaughtExceptionHandler().uncaughtException(t, e);
+									e.printStackTrace();
+									executor.shutdown();
+									System.exit(1);
 								}
 							}
 						}

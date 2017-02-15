@@ -286,11 +286,17 @@ public class Haplotyper extends Executor {
 		if(Constants.plot()){
 			Runnable run = new Runnable(){
 				public void run(){
-					hmmf = new HMMFrame();
-					hmmf.clearTabs();
-					if(Constants.showHMM) 
-						hmmp = hmmf.addHMMTab(hmm, hmm.de(), 
-								new File(out_prefix));
+					try {
+						hmmf = new HMMFrame();
+						hmmf.clearTabs();
+						if(Constants.showHMM) 
+							hmmp = hmmf.addHMMTab(hmm, hmm.de(), 
+									new File(out_prefix));
+					} catch (Exception e) {
+						Thread t = Thread.currentThread();
+						t.getUncaughtExceptionHandler().uncaughtException(t, e);
+						e.printStackTrace();
+					}
 				}
 			};
 			Thread th = new Thread(run);

@@ -116,7 +116,13 @@ public class HMMPanel extends JPanel implements PropertyChangeListener{
 				this.ratePanel.add(this.getChart());
 				SwingUtilities.invokeLater(new Runnable(){
 					public void run(){
-						updateUI();
+						try {
+							updateUI();
+						} catch (Exception e) {
+							Thread t = Thread.currentThread();
+							t.getUncaughtExceptionHandler().uncaughtException(t, e);
+							e.printStackTrace();
+						}
 					}
 				});
 		}

@@ -115,8 +115,14 @@ public class HMMFrame {
 				new Runnable()
 				{
 					public void run(){
-						if(jframe!=null) jframe.setVisible(b);
-						else jframeH.setVisible(b);
+						try{
+							if(jframe!=null) jframe.setVisible(b);
+							else jframeH.setVisible(b);
+						} catch (Exception e) {
+							Thread t = Thread.currentThread();
+							t.getUncaughtExceptionHandler().uncaughtException(t, e);
+							e.printStackTrace();
+						}
 					}
 				});
 
