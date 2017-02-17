@@ -22,9 +22,7 @@ public abstract class Executor {
 	
 	protected final static Logger myLogger = 
 			Logger.getLogger(Executor.class);
-	static {
-		BasicConfigurator.configure();
-	}
+	
 	protected ArgsEngine myArgsEngine = null;
 
 	public abstract void printUsage();

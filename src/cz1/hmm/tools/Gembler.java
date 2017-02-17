@@ -2,7 +2,11 @@ package cz1.hmm.tools;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -246,24 +250,125 @@ public class Gembler extends Executor {
 		
 		//#### STEP 01 filter SNPs and create ZIP file
 		Utils.makeOutputDir(out_prefix+"/data");
-		VCFtools vcftools = new VCFtools(Constants._ploidy_H, min_depth, 
+		/**
+		new VCFtools(Constants._ploidy_H, min_depth, 
 				max_depth, min_qual, 
 				min_maf, max_missing, 
-				in_vcf, out_prefix+"/data/"+prefix_vcf+".recode.vcf");
-		vcftools.run();
+				in_vcf, out_prefix+"/data/"+prefix_vcf+".recode.vcf")
+		.run();
 		
-		DataPreparation datapreparation = new DataPreparation(
+		new DataPreparation(
 				out_prefix+"/data/"+prefix_vcf+".recode.vcf",
 				prefix_vcf+".recode",
-				out_prefix+"/data/");
-		datapreparation.run();
-		
+				out_prefix+"/data/")
+		.run();
+		**/
 		//#### STEP 02 single-point haplotype inferring
 		final String in_zip = out_prefix+"/data/"+prefix_vcf+".recode.zip";
 		final String out = out_prefix+"/single_hap_infer";
 		final Map<String, Integer> scaffs = DataCollection.readScaff(in_zip);
+		final String expr_id = new File(in_zip).getName().
+				replaceAll(".zip$", "").
+				replace(".", "").
+				replace("_", "");
 		Utils.makeOutputDir(out);
+		//this.runHaplotyper(scaffs, expr_id, in_zip, out);
 		
+		//#### STEP 03 assembly errors
+		final String metafile_prefix = out_prefix+"/meta/";
+		Utils.makeOutputDir(metafile_prefix);
+		final String ass_err_map = metafile_prefix+prefix_vcf;
+		AssemblyError assemblyError = new AssemblyError (out, 
+				ass_err_map,
+				expr_id, 
+				Constants._ploidy_H,
+				founder_haps,
+				THREADS,
+				phi,
+				drop,
+				nB);
+		/**
+		assemblyError.run();
+		final String prefix_vcf_assError = prefix_vcf+".recode.assError";
+		Set<String> scaff_breakage = 
+				assemblyError.split(out_prefix+"/data/"+prefix_vcf+".recode.vcf",
+						metafile_prefix+prefix_vcf_assError+".vcf");
+		if(!scaff_breakage.isEmpty()) {
+			this.move(scaff_breakage, out, expr_id);
+
+			new DataPreparation(
+					metafile_prefix+prefix_vcf_assError+".vcf",
+					prefix_vcf_assError,
+					metafile_prefix)
+			.run();
+			String in_zip_assError = metafile_prefix+prefix_vcf_assError+".zip";
+			final Map<String, Integer> scaffs_assError = DataCollection.readScaff(
+					in_zip_assError);
+			this.runHaplotyper(scaffs_assError, expr_id, in_zip_assError, out);
+		}
+		**/
+		final String rf_prefix = metafile_prefix+prefix_vcf;
+		RecombinationFreqEstimator recombinationFreqEstimator = 
+				new RecombinationFreqEstimator (out, 
+				rf_prefix,
+				expr_id, 
+				Constants._ploidy_H,
+				founder_haps,
+				THREADS,
+				phi,
+				drop,
+				nB);
+		recombinationFreqEstimator.run();
+	
+		//#### STEP 04 recombination frequency estimation
+		
+		
+		//#### STEP 05 building superscaffolds (nearest neighbour joining)
+		
+		//#### STEP 06 multi-point hapotype inferring
+		
+		//#### STEP 07 recombination frequency estimation
+		
+		//#### STEP 08 genetic mapping
+		
+		//#### STEP 09 genetic map refinement
+		
+		//#### STEP 10 pseudo melecules construction
+		
+	}
+
+	private void move(final Set<String> scaff_breakage, 
+			final String out, 
+			final String expr_id) {
+		// TODO Auto-generated method stub
+		String out_err = out+"/assembly_error";
+		Utils.makeOutputDir(out_err);
+		for(final String scaff : scaff_breakage) {
+			File[] files = new File(out).listFiles(
+					new FilenameFilter() {
+						@Override
+						public boolean accept(File dir, String name) {
+							return name.matches("^"+expr_id+"."+scaff+".*");    
+						}
+					});
+			for(File f : files)
+				try {
+					Files.move(f.toPath(), 
+							Paths.get(out_err+"/"+f.getName()),
+							StandardCopyOption.REPLACE_EXISTING,
+							StandardCopyOption.ATOMIC_MOVE);
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+		}
+	}
+
+	private void runHaplotyper(final Map<String, Integer> scaffs,
+			final String expr_id,
+			final String in_zip,
+			final String out) {
+		// TODO Auto-generated method stub
 		this.initial_thread_pool();
 		for(final String scaff : scaffs.keySet()) {
 			if(scaffs.get(scaff)<min_snpc) continue;
@@ -279,7 +384,8 @@ public class Gembler extends Executor {
 									out,
 									new String[]{scaff},
 									Constants._ploidy_H,
-									field).run();
+									field,
+									expr_id).run();
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();
 							t.getUncaughtExceptionHandler().uncaughtException(t, e);
@@ -292,79 +398,6 @@ public class Gembler extends Executor {
 			}
 		}
 		this.waitFor();
-		
-		//#### STEP 03 assembly errors
-		Utils.makeOutputDir(out_prefix+"/assembly_error");
-		final String expr_id = new File(in_zip).getName().
-				replaceAll(".zip$", "").
-				replace(".", "").
-				replace("_", "");
-		final String ass_err_map = out_prefix+"/assembly_error/"+prefix_vcf+".map";
-		AssemblyError assemblyError = new AssemblyError (out, 
-				ass_err_map,
-				expr_id, 
-				Constants._ploidy_H,
-				founder_haps,
-				THREADS,
-				phi,
-				drop,
-				nB);
-		assemblyError.run();
-		Set<String> scaff_breakage = 
-				assemblyError.split(out_prefix+"/data/"+prefix_vcf+".recode.vcf");
-		if(!scaff_breakage.isEmpty()) {
-			
-			myLogger.info("!!!!!!!!!!!!!");
-			System.exit(1);
-			
-			
-			String out_err = out+"/assembly_error";
-			Utils.makeOutputDir(out_err);
-			
-			
-			this.initial_thread_pool();
-			for(final String scaff : scaff_breakage) {
-				if(scaffs.get(scaff)<min_snpc) continue;
-				for(int i=0; i<repeat[0]; i++) {
-					executor.submit(new Runnable(){
-						@Override
-						public void run() {
-							// TODO Auto-generated method stub
-							try {
-								new Haplotyper(in_zip,
-										out,
-										new String[]{scaff},
-										Constants._ploidy_H,
-										field).run();
-							} catch (Exception e) {
-								Thread t = Thread.currentThread();
-								t.getUncaughtExceptionHandler().uncaughtException(t, e);
-								e.printStackTrace();
-								executor.shutdown();
-								System.exit(1);
-							}
-						}
-					});
-				}
-			}
-			this.waitFor();
-		}
-		//#### STEP 04 single-point haplotype inferring (assembly errors) 
-	
-		//#### STEP 05 recombination frequency estimation
-		
-		//#### STEP 06 building superscaffolds (nearest neighbour joining)
-		
-		//#### STEP 07 multi-point hapotype inferring
-		
-		//#### STEP 08 recombination frequency estimation
-		
-		//#### STEP 09 genetic mapping
-		
-		//#### STEP 10 genetic map refinement
-		
-		//#### STEP 11 pseudo melecules construction
-		
 	}
 
 	

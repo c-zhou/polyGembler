@@ -56,6 +56,7 @@ public class Haplotyper extends Executor {
 	private int max_iter = 100;
 	private Field field = Field.PL;
 	private String plot_pdf = null;
+	private String expr_id = null;
 	
 	public Haplotyper() {}
 	
@@ -79,6 +80,34 @@ public class Haplotyper extends Executor {
 		this.max_iter = max_iter;
 		Constants.ploidy(ploidy);
 		this.field = field;
+		this.expr_id = new File(in_zip).getName().
+				replaceAll(".zip$", "").
+				replace(".", "").
+				replace("_", "");
+	}
+	
+	public Haplotyper(String in_zip,
+			String out_prefix,
+			String[] scaff,
+			double[] seperation,
+			boolean trainExp,
+			boolean vbt,
+			boolean[] reverse,
+			int max_iter,
+			int ploidy,
+			Field field,
+			String expr_id) {
+		this.in_zip = in_zip;
+		this.out_prefix = out_prefix;
+		this.scaff = scaff;
+		this.seperation = seperation;
+		this.trainExp = trainExp;
+		this.vbt = vbt;
+		this.reverse = reverse;
+		this.max_iter = max_iter;
+		Constants.ploidy(ploidy);
+		this.field = field;
+		this.expr_id = expr_id;
 	}
 	
 	public Haplotyper(String in_zip,
@@ -92,6 +121,25 @@ public class Haplotyper extends Executor {
 		this.scaff = scaff;
 		Constants.ploidy(ploidy);
 		this.field = field;
+		this.expr_id = new File(in_zip).getName().
+				replaceAll(".zip$", "").
+				replace(".", "").
+				replace("_", "");
+	}
+	
+	public Haplotyper(String in_zip,
+			String out_prefix, 
+			String[] scaff,
+			int ploidy, 
+			Field field,
+			String expr_id) {
+		// TODO Auto-generated constructor stub
+		this.in_zip = in_zip;
+		this.out_prefix = out_prefix;
+		this.scaff = scaff;
+		Constants.ploidy(ploidy);
+		this.field = field;
+		this.expr_id = expr_id;
 	}
 
 	@Override
@@ -355,10 +403,7 @@ public class Haplotyper extends Executor {
 			}
 		}
 		
-		String experiment = new File(in_zip).getName().
-				replaceAll(".zip$", "").
-				replace(".", "").
-				replace("_", "");
-		hmm.write(out_prefix, experiment, scaff_str);
+		
+		hmm.write(out_prefix, expr_id, scaff_str);
 	}
 }
