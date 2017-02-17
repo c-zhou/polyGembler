@@ -250,7 +250,7 @@ public class Gembler extends Executor {
 		
 		//#### STEP 01 filter SNPs and create ZIP file
 		Utils.makeOutputDir(out_prefix+"/data");
-		/**
+		
 		new VCFtools(Constants._ploidy_H, min_depth, 
 				max_depth, min_qual, 
 				min_maf, max_missing, 
@@ -262,7 +262,7 @@ public class Gembler extends Executor {
 				prefix_vcf+".recode",
 				out_prefix+"/data/")
 		.run();
-		**/
+		
 		//#### STEP 02 single-point haplotype inferring
 		final String in_zip = out_prefix+"/data/"+prefix_vcf+".recode.zip";
 		final String out = out_prefix+"/single_hap_infer";
@@ -272,7 +272,7 @@ public class Gembler extends Executor {
 				replace(".", "").
 				replace("_", "");
 		Utils.makeOutputDir(out);
-		//this.runHaplotyper(scaffs, expr_id, in_zip, out);
+		this.runHaplotyper(scaffs, expr_id, in_zip, out);
 		
 		//#### STEP 03 assembly errors
 		final String metafile_prefix = out_prefix+"/meta/";
@@ -287,7 +287,7 @@ public class Gembler extends Executor {
 				phi,
 				drop,
 				nB);
-		/**
+		
 		assemblyError.run();
 		final String prefix_vcf_assError = prefix_vcf+".recode.assError";
 		Set<String> scaff_breakage = 
@@ -306,7 +306,8 @@ public class Gembler extends Executor {
 					in_zip_assError);
 			this.runHaplotyper(scaffs_assError, expr_id, in_zip_assError, out);
 		}
-		**/
+	
+		//#### STEP 04 recombination frequency estimation
 		final String rf_prefix = metafile_prefix+prefix_vcf;
 		RecombinationFreqEstimator recombinationFreqEstimator = 
 				new RecombinationFreqEstimator (out, 
@@ -319,11 +320,9 @@ public class Gembler extends Executor {
 				drop,
 				nB);
 		recombinationFreqEstimator.run();
-	
-		//#### STEP 04 recombination frequency estimation
-		
 		
 		//#### STEP 05 building superscaffolds (nearest neighbour joining)
+		
 		
 		//#### STEP 06 multi-point hapotype inferring
 		
