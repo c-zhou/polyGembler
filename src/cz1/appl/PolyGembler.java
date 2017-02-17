@@ -17,9 +17,6 @@ public class PolyGembler {
 	
 	protected final static Logger myLogger = 
 			Logger.getLogger(PolyGembler.class);
-	static {
-		BasicConfigurator.configure();
-	}
 	
 	public static void main(String[] args) {
 	

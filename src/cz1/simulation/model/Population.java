@@ -48,9 +48,6 @@ import org.apache.log4j.Logger;
 public class Population {
 	private final static Logger myLogger = 
 			Logger.getLogger(Population.class);
-	static {
-		BasicConfigurator.configure();
-	}
 	
 	public final static String NLS = System.getProperty("line.separator");
 	public final static String SEP = System.getProperty("file.separator");

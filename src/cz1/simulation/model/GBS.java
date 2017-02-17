@@ -35,9 +35,6 @@ public class GBS {
 
 	private final static Logger myLogger = 
 			Logger.getLogger(GBS.class);
-	static {
-		BasicConfigurator.configure();
-	}
 	public final static String NLS = System.getProperty("line.separator");
 	public final static String SEP = System.getProperty("file.separator");
 	private final int readLength = 101;
