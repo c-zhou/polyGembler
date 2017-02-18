@@ -3,6 +3,8 @@ package cz1.hmm.tools;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.DecimalFormat;
@@ -14,13 +16,25 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipFile;
+
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.exception.MathIllegalArgumentException;
 import org.apache.commons.math3.stat.StatUtils;
 import org.apache.commons.math3.stat.inference.ChiSquareTest;
 import org.apache.commons.math3.stat.inference.GTest;
+import org.renjin.eval.Context;
+import org.renjin.parser.ParseException;
+import org.renjin.primitives.io.serialization.RDataWriter;
+import org.renjin.primitives.matrix.DoubleMatrixBuilder;
+import org.renjin.sexp.AttributeMap;
+import org.renjin.sexp.ListVector;
+import org.renjin.sexp.Vector;
 
 import cz1.util.Algebra;
 import cz1.util.Constants;
@@ -879,6 +893,56 @@ public abstract class RFUtils extends Executor {
 
 	protected static void makeRMatrix(String in_vcf, String out_Rmat) {
 		// TODO Auto-generated method stub
-		
+		ScriptEngineManager manager = new ScriptEngineManager();
+		ScriptEngine engine = manager.getEngineByName("Renjin"); 
+		if(engine == null) { 
+			throw new RuntimeException("Renjin not found!!!"); 
+		}
+		try {
+			Vector res = (Vector) engine.eval("matrix(seq(9), nrow = 3)");
+			
+			DoubleMatrixBuilder dMat = new DoubleMatrixBuilder(3,3);
+			for(int i=0; i<3; i++)
+				for(int j=0; j<3; j++)
+					dMat.set(i, j, i*j);
+			
+			if (res.hasAttributes()) {
+				AttributeMap attributes = res.getAttributes();
+				Vector dim = attributes.getDim();
+				if (dim == null) {
+					System.out.println("Result is a vector of length " +
+							res.length());
+
+				} else {
+					if (dim.length() == 2) {
+						System.out.println("Result is a " +
+								dim.getElementAsInt(0) + "x" +
+								dim.getElementAsInt(1) + " matrix.");
+					} else {
+						System.out.println("Result is an array with " +
+								dim.length() + " dimensions.");
+					}
+				}
+			}
+			
+			Context context = Context.newTopLevelContext();
+			FileOutputStream fos = new FileOutputStream("c:\\users\\chenxi.zhou\\desktop\\x.RData");
+			GZIPOutputStream zos = new GZIPOutputStream(fos);
+			RDataWriter writer = new RDataWriter(context, zos);
+			
+			ListVector.NamedBuilder mat = new ListVector.NamedBuilder();
+			
+			mat.add("x",res);
+			mat.add("y", dMat.build());
+			writer.save(mat.build());
+			writer.close();
+		} catch (ScriptException | IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	public static void main(String[] args) {
+		makeRMatrix(null, null);
 	}
 }
