@@ -876,4 +876,9 @@ public abstract class RFUtils extends Executor {
 		myLogger.info("["+Utils.getSystemTime()+"] LOADING FILES DONE.");
 		myLogger.info("["+Utils.getSystemTime()+"] READING LOG LIKELIHOOD DONE.");
 	}
+
+	protected static void makeRMatrix(String in_vcf, String out_Rmat) {
+		// TODO Auto-generated method stub
+		
+	}
 }

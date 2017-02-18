@@ -43,6 +43,10 @@ public class Gembler extends Executor {
 	private double phi = 2;
 	private int nB = 10;
 	
+	public Gembler() {
+		this.require("R");
+	}
+	
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub
@@ -246,6 +250,7 @@ public class Gembler extends Executor {
 	
 		Utils.makeOutputDir(out_prefix);
 		String prefix_vcf = new File(in_vcf).getName().
+				replaceAll(".vcf.gz$", "").
 				replaceAll(".vcf$", "");
 		
 		//#### STEP 01 filter SNPs and create ZIP file
@@ -322,6 +327,7 @@ public class Gembler extends Executor {
 		recombinationFreqEstimator.run();
 		
 		//#### STEP 05 building superscaffolds (nearest neighbour joining)
+		RFUtils.makeRMatrix(rf_prefix+".txt", rf_prefix+".RMat");
 		
 		
 		//#### STEP 06 multi-point hapotype inferring
@@ -398,6 +404,4 @@ public class Gembler extends Executor {
 		}
 		this.waitFor();
 	}
-
-	
 }

@@ -149,6 +149,7 @@ public class Haplotyper extends Executor {
 				"\n\nUsage is as follows:\n"
 							+" -i/--input					Input zipped file.\n"
 							+" -o/--prefix					Output file location.\n"
+							+ " -ex/--experiment-id			Common prefix of haplotype files for this experiment.\n"
 							+" -c/--scaffold				The scaffold/contig/chromosome id will run.\n"
 							+" -x/--max-iter				Maxmium rounds for EM optimization (default 100).\n"
 							+" -p/--ploidy					Ploidy of genome (default 2).\n"
@@ -202,7 +203,7 @@ public class Haplotyper extends Executor {
 			myArgsEngine.add("-D", "--allele-depth", false);
 			myArgsEngine.add("-L", "--genotype-likelihood", false);
 			myArgsEngine.add("-b", "--segmental-kmeans", false);
-			myArgsEngine.add("-e", "train-exp", false);
+			myArgsEngine.add("-e", "--train-exp", false);
 			myArgsEngine.add("-S", "--random-seed", true);
 			myArgsEngine.add("-pp", "--print-plot", false);
 			myArgsEngine.add("-sp", "--save-plot", true);
@@ -221,6 +222,15 @@ public class Haplotyper extends Executor {
 		}  else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your output file prefix.");
+		}
+		
+		if(myArgsEngine.getBoolean("-ex")) {
+			expr_id = myArgsEngine.getString("-ex");
+		}  else {
+			expr_id = new File(in_zip).getName().
+					replaceAll(".zip$", "").
+					replace(".", "").
+					replace("_", "");
 		}
 		
 		if(myArgsEngine.getBoolean("-c")) {
