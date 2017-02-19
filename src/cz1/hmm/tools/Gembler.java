@@ -44,7 +44,7 @@ public class Gembler extends Executor {
 	private int nB = 10;
 	
 	public Gembler() {
-		this.require("R");
+		this.require("Rscript");
 	}
 	
 	@Override
@@ -327,14 +327,21 @@ public class Gembler extends Executor {
 		recombinationFreqEstimator.run();
 		
 		//#### STEP 05 building superscaffolds (nearest neighbour joining)
-		RFUtils.makeRMatrix(rf_prefix+".txt", rf_prefix+".RMat");
-		
+		RFUtils.makeRMatrix(rf_prefix+".txt", rf_prefix+".RData");
+		String command = "";
+		try {
+			this.bash(command).waitFor();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		
 		//#### STEP 06 multi-point hapotype inferring
 		
 		//#### STEP 07 recombination frequency estimation
 		
 		//#### STEP 08 genetic mapping
+		//RFUtils.makeRMatrix(rf_prefix+".txt", rf_prefix+".RData");
 		
 		//#### STEP 09 genetic map refinement
 		

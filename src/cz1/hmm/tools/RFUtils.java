@@ -23,6 +23,8 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 
+import org.apache.commons.collections4.BidiMap;
+import org.apache.commons.collections4.bidimap.TreeBidiMap;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.exception.MathIllegalArgumentException;
 import org.apache.commons.math3.stat.StatUtils;
@@ -34,6 +36,8 @@ import org.renjin.primitives.io.serialization.RDataWriter;
 import org.renjin.primitives.matrix.DoubleMatrixBuilder;
 import org.renjin.sexp.AttributeMap;
 import org.renjin.sexp.ListVector;
+import org.renjin.sexp.StringArrayVector;
+import org.renjin.sexp.StringVector;
 import org.renjin.sexp.Vector;
 
 import cz1.util.Algebra;
@@ -891,7 +895,12 @@ public abstract class RFUtils extends Executor {
 		myLogger.info("["+Utils.getSystemTime()+"] READING LOG LIKELIHOOD DONE.");
 	}
 
-	protected static void makeRMatrix(String in_vcf, String out_Rmat) {
+	/** 
+	 * make RData object from Renjin 
+	 * renjin-script-engine-*-with dependencies.jar required
+	 * https://nexus.bedatadriven.com/content/groups/public/org/renjin/renjin-script-engine/
+	**/
+	protected static void makeRMatrix(String in_rf, String out_Rmat) {
 		// TODO Auto-generated method stub
 		ScriptEngineManager manager = new ScriptEngineManager();
 		ScriptEngine engine = manager.getEngineByName("Renjin"); 
@@ -899,50 +908,70 @@ public abstract class RFUtils extends Executor {
 			throw new RuntimeException("Renjin not found!!!"); 
 		}
 		try {
-			Vector res = (Vector) engine.eval("matrix(seq(9), nrow = 3)");
-			
-			DoubleMatrixBuilder dMat = new DoubleMatrixBuilder(3,3);
-			for(int i=0; i<3; i++)
-				for(int j=0; j<3; j++)
-					dMat.set(i, j, i*j);
-			
-			if (res.hasAttributes()) {
-				AttributeMap attributes = res.getAttributes();
-				Vector dim = attributes.getDim();
-				if (dim == null) {
-					System.out.println("Result is a vector of length " +
-							res.length());
-
-				} else {
-					if (dim.length() == 2) {
-						System.out.println("Result is a " +
-								dim.getElementAsInt(0) + "x" +
-								dim.getElementAsInt(1) + " matrix.");
-					} else {
-						System.out.println("Result is an array with " +
-								dim.length() + " dimensions.");
-					}
-				}
+			BufferedReader br = Utils.getBufferedReader(in_rf);
+			final BidiMap<Integer, String> scaffs = 
+					new TreeBidiMap<Integer, String>();
+			String line;
+			String s[];
+			int w = 0;
+			int A = 0;
+			while( (line=br.readLine())!=null ) {
+				s = line.split("\\s+");
+				if(!scaffs.containsValue(s[5])) 
+					scaffs.put(w++, s[5]);
+				if(!scaffs.containsValue(s[6])) 
+					scaffs.put(w++, s[6]);
+				A++;
 			}
+			br.close();
+			
+			int n = scaffs.size();
+			DoubleMatrixBuilder dMat = new DoubleMatrixBuilder(n,n);
+			DoubleMatrixBuilder iMat = new DoubleMatrixBuilder(n,n);
+			DoubleMatrixBuilder dAllMat = new DoubleMatrixBuilder(A*2,4);
+			br = Utils.getBufferedReader(in_rf);
+			w = 0;
+			while( (line=br.readLine())!=null ) {
+				s = line.split("\\s+");
+				int i=scaffs.getKey(s[5]),
+						j=scaffs.getKey(s[6]);
+				double d = Double.parseDouble(s[0]);
+				dMat.set(i,j,d);
+				dMat.set(j,i,d);
+				iMat.set(i,j,w+1);
+				iMat.set(j,i,w+1+A);
+				for(int k=0; k<4; k++) {
+					d = Double.parseDouble(s[k+1]);
+					dAllMat.set(w, k, d);
+					dAllMat.set(w+A, (k==0||k==3)?k:(3-k), d);
+				}
+				w++;
+			}
+			br.close();
+			StringVector scf = new StringArrayVector(scaffs.values());
+			dMat.setRowNames(scf);
+			dMat.setColNames(scf);
+			iMat.setRowNames(scf);
+			iMat.setColNames(scf);
 			
 			Context context = Context.newTopLevelContext();
-			FileOutputStream fos = new FileOutputStream("c:\\users\\chenxi.zhou\\desktop\\x.RData");
+			FileOutputStream fos = new FileOutputStream(out_Rmat);
 			GZIPOutputStream zos = new GZIPOutputStream(fos);
 			RDataWriter writer = new RDataWriter(context, zos);
 			
-			ListVector.NamedBuilder mat = new ListVector.NamedBuilder();
-			
-			mat.add("x",res);
-			mat.add("y", dMat.build());
-			writer.save(mat.build());
+			ListVector.NamedBuilder Rdat = new ListVector.NamedBuilder();
+			Rdat.add("scaffs", scf);
+			Rdat.add("n", n);
+			Rdat.add("A", A);
+			Rdat.add("distanceAll", dAllMat.build());
+			Rdat.add("indexMat", iMat.build());
+			Rdat.add("distanceMat", dMat.build());
+			writer.save(Rdat.build());
 			writer.close();
-		} catch (ScriptException | IOException e) {
+			
+		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-	}
-	
-	public static void main(String[] args) {
-		makeRMatrix(null, null);
 	}
 }
