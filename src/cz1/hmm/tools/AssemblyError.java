@@ -174,6 +174,7 @@ public class AssemblyError extends RFUtils {
 		this.initialise();
 		
 		this.initial_thread_pool();
+		
 		for(int i=0; i<dc.length; i++) 
 			executor.submit(new mapCalculator(i));
 		this.waitFor();

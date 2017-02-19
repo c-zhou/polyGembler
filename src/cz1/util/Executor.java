@@ -1,14 +1,25 @@
 package cz1.util;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.security.CodeSource;
+import java.security.ProtectionDomain;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
@@ -158,5 +169,53 @@ public abstract class Executor {
 		myLogger.info("Total Memory: "+totalMemory());
 		myLogger.info("Free Memory: "+freeMemory());
 		myLogger.info("Used Memory: "+usedMemory());
+	}
+	
+	protected static URI uri() {
+		try {
+			return Executor.class.
+					getProtectionDomain().
+					getCodeSource().
+					getLocation().
+					toURI();
+		} catch (URISyntaxException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return null;
+	}
+	
+	protected static String makeExecutable(
+			String executable,
+			String out_prefix) {
+        try {
+        	final ZipFile zipFile = new ZipFile(new File(uri()));
+
+            final File tempFile = new File(out_prefix+"/"+new File(executable).getName());
+            //tempFile.deleteOnExit();
+            final ZipEntry entry = zipFile.getEntry(executable);
+            
+            if(entry == null) {
+            	zipFile.close();
+            	throw new RuntimeException("Executable file "+zipFile.getName()+" not found!!!");
+            }
+            
+            final InputStream zipStream  = zipFile.getInputStream(entry);
+            final byte[] buf = new byte[65536];
+            int i = 0;
+            final OutputStream fileStream = new FileOutputStream(tempFile);
+            while((i = zipStream.read(buf)) != -1) fileStream.write(buf, 0, i);
+            
+            fileStream.close();
+            zipStream.close();
+            zipFile.close();
+            
+            return tempFile.getAbsolutePath();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+        
+        return null;
 	}
 }

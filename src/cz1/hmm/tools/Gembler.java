@@ -44,7 +44,7 @@ public class Gembler extends Executor {
 	private int nB = 10;
 	
 	public Gembler() {
-		this.require("Rscript");
+		//this.require("Rscript");
 	}
 	
 	@Override
@@ -255,7 +255,7 @@ public class Gembler extends Executor {
 		
 		//#### STEP 01 filter SNPs and create ZIP file
 		Utils.makeOutputDir(out_prefix+"/data");
-		
+		/**
 		new VCFtools(Constants._ploidy_H, min_depth, 
 				max_depth, min_qual, 
 				min_maf, max_missing, 
@@ -267,7 +267,7 @@ public class Gembler extends Executor {
 				prefix_vcf+".recode",
 				out_prefix+"/data/")
 		.run();
-		
+		**/
 		//#### STEP 02 single-point haplotype inferring
 		final String in_zip = out_prefix+"/data/"+prefix_vcf+".recode.zip";
 		final String out = out_prefix+"/single_hap_infer";
@@ -277,13 +277,13 @@ public class Gembler extends Executor {
 				replace(".", "").
 				replace("_", "");
 		Utils.makeOutputDir(out);
-		this.runHaplotyper(scaffs, expr_id, in_zip, out);
+		//this.runHaplotyper(scaffs, expr_id, in_zip, out);
 		
 		//#### STEP 03 assembly errors
 		final String metafile_prefix = out_prefix+"/meta/";
 		Utils.makeOutputDir(metafile_prefix);
 		final String ass_err_map = metafile_prefix+prefix_vcf;
-		AssemblyError assemblyError = new AssemblyError (out, 
+		AssemblyError assemblyError = new AssemblyError(out, 
 				ass_err_map,
 				expr_id, 
 				Constants._ploidy_H,
@@ -328,13 +328,34 @@ public class Gembler extends Executor {
 		
 		//#### STEP 05 building superscaffolds (nearest neighbour joining)
 		RFUtils.makeRMatrix(rf_prefix+".txt", rf_prefix+".RData");
-		String command = "";
+		String command = "Rscript ../scripts/makennsuperscafold.R "
+				+ "-i "+rf_prefix+".RData "
+				+ "-n 2 "
+				+ "-o "+rf_prefix+".nnss";
+		/**
 		try {
-			this.bash(command).waitFor();
+			//this.bash(command).waitFor();
+			this.bash("sleep 1s").waitFor();
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		**/
+		
+		final String temfile_prefix = metafile_prefix+".tmp/";
+		Utils.makeOutputDir(temfile_prefix);
+		final String concorde_path = 
+				RFUtils.makeExecutable("cz1/hmm/executable/concorde", temfile_prefix);
+		final String linkern_path = 
+				RFUtils.makeExecutable("cz1/hmm/executable/linkern", temfile_prefix);
+		final String rscripts_path = 
+				RFUtils.makeExecutable("cz1/hmm/scripts/make_nnsuperscaffold.R", temfile_prefix);
+		//myLogger.info(concorde_path);
+		//myLogger.info(linkern_path);
+		//myLogger.info(rscripts_path);
+		new File(concorde_path).setExecutable(true, true);
+		new File(linkern_path).setExecutable(true, true);
+		
 		
 		//#### STEP 06 multi-point hapotype inferring
 		
