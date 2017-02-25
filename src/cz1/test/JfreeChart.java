@@ -25,7 +25,7 @@ import javax.swing.JPanel;
 import javax.swing.WindowConstants;
 
 import org.apache.commons.lang3.StringEscapeUtils;
-import org.apache.commons.math.stat.StatUtils;
+import org.apache.commons.math3.stat.StatUtils;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
