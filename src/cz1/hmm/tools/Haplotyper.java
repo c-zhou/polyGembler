@@ -132,7 +132,9 @@ public class Haplotyper extends Executor {
 			String[] scaff,
 			int ploidy, 
 			Field field,
-			String expr_id) {
+			String expr_id,
+			int max_iter,
+			boolean vbt) {
 		// TODO Auto-generated constructor stub
 		this.in_zip = in_zip;
 		this.out_prefix = out_prefix;
@@ -140,6 +142,37 @@ public class Haplotyper extends Executor {
 		Constants.ploidy(ploidy);
 		this.field = field;
 		this.expr_id = expr_id;
+		this.max_iter = max_iter;
+		this.vbt = vbt;
+	}
+	
+	public Haplotyper(String in_zip,
+			String out_prefix, 
+			String scaff,
+			String seperation,
+			String reverse,
+			int ploidy, 
+			Field field,
+			String expr_id,
+			int max_iter,
+			boolean vbt) {
+		// TODO Auto-generated constructor stub
+		this.in_zip = in_zip;
+		this.out_prefix = out_prefix;
+		this.scaff = scaff.split(":");
+		String[] s = seperation.split(":");
+		this.seperation = new double[s.length];
+		for(int i=0; i<s.length; i++) 
+			this.seperation[i] = Double.parseDouble(s[i]);
+		s = reverse.split(":");
+		this.reverse = new boolean[s.length];
+		for(int i=0; i<s.length; i++) 
+			this.reverse[i] = Boolean.parseBoolean(s[i]);
+		Constants.ploidy(ploidy);
+		this.field = field;
+		this.expr_id = expr_id;
+		this.max_iter = max_iter;
+		this.vbt = vbt;
 	}
 
 	@Override
