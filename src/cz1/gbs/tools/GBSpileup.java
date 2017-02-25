@@ -258,7 +258,7 @@ public class GBSpileup extends Executor {
 					+myOutputDir+"/freebayes/vcf_list/____"+i+".vcf";
 		this.bash(commands);
 		
-		String command = "grep -v '^##contig='"+myOutputDir+"/freebayes/vcf_list/____0.vcf > "
+		String command = "grep -v '^##contig=' "+myOutputDir+"/freebayes/vcf_list/____0.vcf > "
 				+myOutputDir+"/freebayes/out.vcf";
 		for(int i=1; i<THREADS; i++) 
 			command += " && grep -v '^#' "+myOutputDir+"/freebayes/vcf_list/____"+i+".vcf >> "
