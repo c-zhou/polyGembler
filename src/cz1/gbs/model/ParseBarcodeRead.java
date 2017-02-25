@@ -260,12 +260,10 @@ public class ParseBarcodeRead {
                     }
                     theBarcodesArrayList.add(theBC);
                     System.out.println(theBC.getBarcodeString() + " " + theBC.getTaxaName());
-                    theBC = new Barcode("N"+theBC.getBarcodeString().substring(1), initialCutSiteRemnant, 
-                    		theBC.getTaxaName(), theBC.getFlowcell(), theBC.getLane(), k++);
-                    theBarcodesArrayList.add(theBC);
-                    System.out.println(theBC.getBarcodeString() + " " + theBC.getTaxaName());
                 }
             }
+            br.close();
+            
             theBarcodes = new Barcode[theBarcodesArrayList.size()];
             theBarcodesArrayList.toArray(theBarcodes);
             Arrays.sort(theBarcodes);

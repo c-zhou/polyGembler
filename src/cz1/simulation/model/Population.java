@@ -76,13 +76,14 @@ public class Population {
 	private String REFERENCE = null;
 	private int THREADS = 1;
 	private final int CHUNK_SIZE = 100; //when writing fasta file
-	private final double CHROM_BASE_LENGTH = 100.0;
-	private final double CHROM_BASE_CENTROMERE_POS = 40.0;
 	private final long RANDOM_SEED = System.nanoTime(); //112019890314L;
 	private final Random random= new Random(RANDOM_SEED);
 	private final double REF_ALLELE_FRQ = 0.75;
 	private final char[] BASE = new char[] {'A','C','G','T'};
 	private final int BASE_NUM = BASE.length;
+	private double GENETIC_LENGTH = -1.0;
+	private double CENTROMERE_POS = 0.4;
+	
 	private final double[][] SNP_TRANS_MAT = new double[][]{
 			/***To*/ /******      A      C       G       T   */
 			/***From*/     /***A*/ { 0.0000, 1862.0, 6117.0, 1363.0 },
@@ -104,10 +105,11 @@ public class Population {
 
 
 	public Population(String fastaFilePath, int offspring, 
-			int ploidy, String scenario, String filePath) {
+			int ploidy, double cM, String scenario, String filePath) {
 		this.scenario = scenario;
 		this.filePath = filePath;
 		this.PLOIDY = ploidy;
+		this.GENETIC_LENGTH = cM;
 		this.pedigree = generatePedigree(offspring);
 		this.chromosome = generateChromosome(fastaFilePath);
 		this.parentSNPs = generateParentSNPs();
@@ -449,11 +451,13 @@ public class Population {
 	public Chromosome0[] generateChromosome(String fastaFilePath) {
 
 		List<String> chroms = new ArrayList<String>();
+		double physicaL = 0.0;
 		try {
 			BufferedReader br = getBufferedReader(fastaFilePath);
 
 			StringBuilder sb = new StringBuilder();
 			String line = br.readLine();
+			
 			while( line!=null ) {
 				if(line.startsWith(">")) {
 					sb.setLength(0);
@@ -461,6 +465,7 @@ public class Population {
 							!line.startsWith(">"))
 						sb.append(line);
 					chroms.add(sb.toString());
+					physicaL += sb.length();
 				}
 			}
 			br.close();
@@ -469,18 +474,17 @@ public class Population {
 			e.printStackTrace();
 		}
 
+		double CHROM_BASE_LENGTH = GENETIC_LENGTH>0 ? GENETIC_LENGTH/physicaL : 1e-6;
+		
 		int N = chroms.size();
-		double L = 0;
-		for(int i=0; i<N; i++) L+=chroms.get(i).length();
-		double mean = L/N;
-
+		
 		Chromosome0[] chromosome = new Chromosome0[N];
 		for(int i=0; i<N; i++) {
-			double cm = chroms.get(i).length()/mean*CHROM_BASE_LENGTH;
+			double cm = chroms.get(i).length()*CHROM_BASE_LENGTH;
 			chromosome[i] = new Chromosome0("CHROM"+(i+1), chroms.get(i),
 					chroms.get(i).length(), 
 					cm, 
-					CHROM_BASE_CENTROMERE_POS/CHROM_BASE_LENGTH*cm,
+					CENTROMERE_POS*cm,
 					random.nextFloat()/2+0.5, 0.0);
 		}
 		return chromosome;

@@ -18,6 +18,9 @@ public class PopulationSimulator extends Executor {
 						+ " -r/--reference		Reference (fasta file format). \n"
 						+ " -n/--pop-size		Population size including parents (default 96). \n"
 						+ " -p/--ploidy  		Copy number of chromosomes (default 2). \n"
+						+ " -c/--centimorgan	Total genetic length to simulate. Assume the physical length \n"
+						+ "						and genetic length has linear correlation (default calculated \n"
+						+ "						from the reference, 1cM per 1Mbp)."
 						+ " -t/--threads 		Number of threads (default 1).\n"
 						+ " -s/--run-id			Unique run id (default Sc1).\n" 
 						+ " -o/--prefix 	 	Output directory (defult current directory).\n\n");
@@ -36,6 +39,7 @@ public class PopulationSimulator extends Executor {
 			myArgsEngine.add("-r", "--reference", true);
 			myArgsEngine.add("-n", "--pop-size", true);
 			myArgsEngine.add("-p", "--ploidy", true);
+			myArgsEngine.add("-c", "--centimorgan", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-s", "--run-id", true);
 			myArgsEngine.add("-o", "--prefix", true);
@@ -44,6 +48,7 @@ public class PopulationSimulator extends Executor {
 
 		String reference, id="Sc1", output="./";
 		int f1=94, ploidy=2;
+		double cM = -1.0;
 		if (myArgsEngine.getBoolean("-r")) {
 			reference = myArgsEngine.getString("-r");
 		} else {
@@ -51,13 +56,16 @@ public class PopulationSimulator extends Executor {
 			throw new IllegalArgumentException("Please specify the reference FASTA file.");
 		}
 
-
 		if (myArgsEngine.getBoolean("-n")) {
 			f1 = Integer.parseInt(myArgsEngine.getString("-n"))-2;
 		}
 
 		if (myArgsEngine.getBoolean("-p")) {
 			ploidy = Integer.parseInt(myArgsEngine.getString("-p"));
+		}
+		
+		if (myArgsEngine.getBoolean("-c")) {
+			cM = Double.parseDouble(myArgsEngine.getString("-c"));
 		}
 
 		if (myArgsEngine.getBoolean("-t")) {
@@ -72,7 +80,7 @@ public class PopulationSimulator extends Executor {
 			output = myArgsEngine.getString("-o");
 		}
 		
-		pop = new Population(reference, f1, ploidy, id, output);
+		pop = new Population(reference, f1, ploidy, cM, id, output);
 	}
 
 	@Override
