@@ -10,8 +10,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.gicentre.utils.colour.CIELuv;
-
 import cz1.hmm.model.HiddenMarkovModel;
 import cz1.util.Constants;
 
