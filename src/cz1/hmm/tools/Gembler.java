@@ -458,7 +458,7 @@ public class Gembler extends Executor {
 				command = "Rscript "+mklgR_path+" "
 						+ "-i "+mm_rf_prefix_ij+".RData "
 						+ "-m "+mm_rf_prefix_ij+".map "
-						+ "-o "+mm_rf_prefix_ij
+						+ "-o "+mm_rf_prefix_ij+" "
 						+ "-1 "
 						+ "--concorde "+new File(concorde_path).getParent()
 						+ (RLibPath==null ? "" : " --include "+RLibPath);
