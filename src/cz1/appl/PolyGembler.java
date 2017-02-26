@@ -67,7 +67,7 @@ public class PolyGembler {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " popsimulation        Simulate a full-sib mapping population. \n"
+						+ " popsimulation       Simulate a full-sib mapping population. \n"
 						+ " gbssimulation       Simulate GBS data. \n"
 						+ " gbspileup           Variant calling from GBS data. \n"
 						+ " datapreparation     Prepare data for haplotype phasing. \n"

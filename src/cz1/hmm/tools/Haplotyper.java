@@ -182,7 +182,7 @@ public class Haplotyper extends Executor {
 				"\n\nUsage is as follows:\n"
 							+" -i/--input                   Input zipped file.\n"
 							+" -o/--prefix                  Output file location.\n"
-							+ " -ex/--experiment-id         Common prefix of haplotype files for this experiment.\n"
+							+" -ex/--experiment-id          Common prefix of haplotype files for this experiment.\n"
 							+" -c/--scaffold                The scaffold/contig/chromosome id will run.\n"
 							+" -x/--max-iter                Maxmium rounds for EM optimization (default 100).\n"
 							+" -p/--ploidy                  Ploidy of genome (default 2).\n"
