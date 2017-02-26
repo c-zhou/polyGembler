@@ -15,16 +15,16 @@ public class GBSSimulator extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " -f/--fasta-file 	Directory contains genome fasta files to be sequenced. \n"
-						+ " -e/--enzyme 		Enzyme(default PstI). \n"
-						+ " -l/--library  		GBS protocol library preparation file (default null). \n"
-						+ " -t/--threads  		Number of threads (default 1).\n"
-						+ " -b/--barcode-file	GBS protocol barcode file (default null).\n"
-						+ " -m/--avg-depth		Depth of coverage (default 5).\n"
-						+ " -s/--sdev			Standard deviation of depth of coverage (default 5).\n"
-						+ " -S/--random-seed	Random seed (default system nano time). \n"
-						+ " -q/--quality-file	Markov chain parameter file for quality scores (default null). \n"
-						+ " -o/--output-prefix	Output directory (defult current directory).\n\n");
+						+ " -f/--fasta-file     Directory contains genome fasta files to be sequenced. \n"
+						+ " -e/--enzyme         Enzyme(default PstI). \n"
+						+ " -l/--library        GBS protocol library preparation file (default null). \n"
+						+ " -t/--threads        Number of threads (default 1).\n"
+						+ " -b/--barcode-file   GBS protocol barcode file (default null).\n"
+						+ " -m/--avg-depth      Depth of coverage (default 5).\n"
+						+ " -s/--sdev           Standard deviation of depth of coverage (default 5).\n"
+						+ " -S/--random-seed    Random seed (default system nano time). \n"
+						+ " -q/--quality-file   Markov chain parameter file for quality scores (default null). \n"
+						+ " -o/--output-prefix  Output directory (defult current directory).\n\n");
 	}
 	
 	@Override

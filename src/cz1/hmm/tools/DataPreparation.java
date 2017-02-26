@@ -40,9 +40,9 @@ public class DataPreparation extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " -i/--vcf			Input VCF file.\n"
-						+ " -s/--id				Unique id of this run (default: input VCF file name prefix).\n"
-						+ " -o/--prefix			Prefix for output (default: input VCF file folder).\n\n");
+						+ " -i/--vcf            Input VCF file.\n"
+						+ " -s/--id             Unique id of this run (default: input VCF file name prefix).\n"
+						+ " -o/--prefix         Prefix for output (default: input VCF file folder).\n\n");
 	}
 
 	@Override

@@ -42,17 +42,17 @@ public class GBSpileup extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " -i/--input-fastq		Input directory containing FASTQ files in text or gzipped text.\n"
-						+ "     					NOTE: Directory will be searched recursively and should\n"
-						+ "     					be written WITHOUT a slash after its name.\n\n"
-						+ " -k/--key-file			Key file listing barcodes distinguishing the samples\n"
-						+ " -e/--enzyme  			Enzyme used to create the GBS library, if it differs from the one listed in the key file.\n"
-						+ " -q/--min-qualS			Minimum quality score (default is 10).\n"
-						+ " -p/--ploidy				Ploidy of the genome (default is 2).\n"
-						+ " -t/--threads			Threads (default is 1).\n"
-						+ " -T/--trim-leading		The length of leading fragments to trim off.\n"
-						+ " -f/--reference			The reference genome (in fasta format).\n"
-						+ " -o/--prefix				Output directory to contain .cnt files (one per FASTQ file, defaults to input directory).\n\n");
+						+ " -i/--input-fastq        Input directory containing FASTQ files in text or gzipped text.\n"
+						+ "                         NOTE: Directory will be searched recursively and should\n"
+						+ "                         be written WITHOUT a slash after its name.\n\n"
+						+ " -k/--key-file           Key file listing barcodes distinguishing the samples\n"
+						+ " -e/--enzyme             Enzyme used to create the GBS library, if it differs from the one listed in the key file.\n"
+						+ " -q/--min-qualS          Minimum quality score (default is 10).\n"
+						+ " -p/--ploidy             Ploidy of the genome (default is 2).\n"
+						+ " -t/--threads            Threads (default is 1).\n"
+						+ " -T/--trim-leading       The length of leading fragments to trim off.\n"
+						+ " -f/--reference          The reference genome (in fasta format).\n"
+						+ " -o/--prefix             Output directory to contain .cnt files (one per FASTQ file, defaults to input directory).\n\n");
 	}
 
 	@Override

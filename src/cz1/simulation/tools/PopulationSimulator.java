@@ -15,15 +15,15 @@ public class PopulationSimulator extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " -r/--reference		Reference (fasta file format). \n"
-						+ " -n/--pop-size		Population size including parents (default 96). \n"
-						+ " -p/--ploidy  		Copy number of chromosomes (default 2). \n"
-						+ " -c/--centimorgan	Total genetic length to simulate. Assume the physical length \n"
-						+ "						and genetic length has linear correlation (default calculated \n"
-						+ "						from the reference, 1cM per 1Mbp)."
-						+ " -t/--threads 		Number of threads (default 1).\n"
-						+ " -s/--run-id			Unique run id (default Sc1).\n" 
-						+ " -o/--prefix 	 	Output directory (defult current directory).\n\n");
+						+ " -r/--reference      Reference (fasta file format). \n"
+						+ " -n/--pop-size       Population size including parents (default 96). \n"
+						+ " -p/--ploidy         Copy number of chromosomes (default 2). \n"
+						+ " -c/--centimorgan    Total genetic length to simulate. Assume the physical length \n"
+						+ "	                    and genetic length has linear correlation (default calculated \n"
+						+ "	                    from the reference, 1cM per 1Mbp)."
+						+ " -t/--threads        Number of threads (default 1).\n"
+						+ " -s/--run-id         Unique run id (default Sc1).\n" 
+						+ " -o/--prefix         Output directory (defult current directory).\n\n");
 	}
 
 	@Override
