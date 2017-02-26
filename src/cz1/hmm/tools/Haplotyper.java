@@ -408,7 +408,9 @@ public class Haplotyper extends Executor {
 			ll = hmm.loglik();
 			myLogger.info("----------loglik "+ll);
 			if(ll<ll0) {
-				throw new RuntimeException("Fatal error!!!");
+				//throw new RuntimeException("Fatal error!!!");
+				myLogger.info("LOGLIK DECREASED!!!");
+				break;
 			}
 			if( ll0!=Double.NEGATIVE_INFINITY && 
 					Math.abs((ll-ll0)/ll0) < Constants.minImprov)
