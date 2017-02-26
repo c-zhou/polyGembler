@@ -37,6 +37,7 @@ public class JohnsonTrotter {
 	private static int cursor = 1;
 	
 	public static char[][] perm(char[] cs) {
+		cursor = 1;
 		int[][] p = perm(cs.length);
 		char[][] ps = new char[p.length][2];
 		for(int i=0; i<p.length; i++)
@@ -46,6 +47,7 @@ public class JohnsonTrotter {
 	}
 	
     public static int[][] perm(int n) {
+    	cursor = 1;
     	int k = perm_count(n);
     	int[][] swap = new int[k][2];
         int[] p   = new int[n];     // permutation

@@ -451,7 +451,7 @@ public class Gembler extends Executor {
 						Constants._ploidy_H,
 						founder_haps,
 						THREADS,
-						phi,
+						Double.POSITIVE_INFINITY,
 						drop,
 						nB).run();
 				RFUtils.makeRMatrix(mm_rf_prefix_ij+".txt", mm_rf_prefix_ij+".RData");
@@ -531,7 +531,7 @@ public class Gembler extends Executor {
 			BufferedReader br = Utils.getBufferedReader(in_file);
 			String line;
 			while( (line=br.readLine())!=null &&
-					!line.startsWith("\\$cm") ){}
+					!line.startsWith("$cm") ){}
 			line = br.readLine();
 			String[] s = line.split(",");
 			br.close();

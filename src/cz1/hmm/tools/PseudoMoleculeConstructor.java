@@ -141,7 +141,7 @@ public class PseudoMoleculeConstructor extends Executor {
 		}
 	}
 	
-	private static class Scaffold {
+	private class Scaffold {
 		private final String name;
 		private final String sequence;
 		private final int size;
@@ -188,14 +188,14 @@ public class PseudoMoleculeConstructor extends Executor {
 		}
 	}
 	
-	public static String toFasta(String name,
+	public String toFasta(String name,
 			String sequence, 
 			int linewidth) {
 		return ">"+name+
 				"\n"+wrap(sequence, linewidth);
 	}
 
-	private static String wrap(String sequence, 
+	private String wrap(String sequence, 
 			int linewidth) {
 		// TODO Auto-generated method stub
 		StringBuilder sb = new StringBuilder();

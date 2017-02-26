@@ -229,10 +229,10 @@ public class RecombinationFreqEstimator extends RFUtils {
 		this.waitFor();
 	}
 
-	private static int ploidy2;
-	private static int shift_bits2;
-	private static double[] probs_uniform;
-	private final static Set<String> scaff_only = new HashSet<String>();	
+	private int ploidy2;
+	private int shift_bits2;
+	private double[] probs_uniform;
+	private final Set<String> scaff_only = new HashSet<String>();	
 
 	public RecombinationFreqEstimator (String in_haps, 
 				String out_prefix,
@@ -259,9 +259,9 @@ public class RecombinationFreqEstimator extends RFUtils {
 		setHaps();
 	}
 	
-	private static char[][] haps = null;
-	private static int factorial_ploidy = -1;
-	private static int[][] johnson_trotter_permutation;
+	private char[][] haps = null;
+	private int factorial_ploidy = -1;
+	private int[][] johnson_trotter_permutation;
 	
 	private void setHaps() {
 		factorial_ploidy = (int) Permutation.factorial(Constants._ploidy_H);
@@ -332,8 +332,8 @@ public class RecombinationFreqEstimator extends RFUtils {
 		return hash;
 	}
 
-	private final static Map<Integer, Byte> rf_factory = new HashMap<Integer, Byte>();
-	private final static Map<Long, byte[]> rf_pool = new ConcurrentHashMap<Long, byte[]>();
+	private final Map<Integer, Byte> rf_factory = new HashMap<Integer, Byte>();
+	private final Map<Long, byte[]> rf_pool = new ConcurrentHashMap<Long, byte[]>();
 
 	private class rfCalculator implements Runnable {
 

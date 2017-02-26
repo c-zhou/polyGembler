@@ -63,13 +63,13 @@ public abstract class RFUtils extends Executor {
 
 	protected double[] probs_uniform = new double[]{.5,.5,.5,.5};
 
-	protected static NumberFormat formatter = new DecimalFormat("#0.000");
-	protected static int nF1;
+	protected NumberFormat formatter = new DecimalFormat("#0.000");
+	protected int nF1;
 
 
-	protected final static Map<String, Set<FileObject>> fileObj = 
+	protected final Map<String, Set<FileObject>> fileObj = 
 			new HashMap<String, Set<FileObject>>();
-	protected final static Object lock = new Object();
+	protected final Object lock = new Object();
 
 	protected class FileObject {
 		protected final File file;
@@ -521,8 +521,8 @@ public abstract class RFUtils extends Executor {
 	}
 
 	protected PhasedDataCollection[][] dc;
-	protected static final int[] hap_index = new int[256];
-	protected final static int mask_length = 1;
+	protected final int[] hap_index = new int[256];
+	protected final int mask_length = 1;
 	
 	protected class PhasedDataCollection {
 		protected final String file;
