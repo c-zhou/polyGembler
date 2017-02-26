@@ -360,7 +360,7 @@ public class Gembler extends Executor {
 		final String temfile_prefix = metafile_prefix+".tmp/";
 		Utils.makeOutputDir(temfile_prefix);
 		final String concorde_path = 
-				RFUtils.makeExecutable("cz1/hmm/executable/concorde", temfile_prefix, true);
+				RFUtils.makeExecutable("cz1/hmm/executable/concorde", temfile_prefix);
 		final String nnssR_path = 
 				RFUtils.makeExecutable("cz1/hmm/scripts/make_nnsuperscaffold.R", temfile_prefix);
 		RFUtils.makeExecutable("cz1/hmm/scripts/include.R", temfile_prefix);
@@ -370,9 +370,9 @@ public class Gembler extends Executor {
 				+ "-i "+rf_prefix+".RData "
 				+ "-n 2 "
 				+ "-o "+rf_prefix+".nnss "
-				+ "--concorde "+concorde_path
-				+ RLibPath==null ? "" : " --include "+RLibPath;
-		this.execute(command);
+				+ "--concorde "+new File(concorde_path).getParent()
+				+ (RLibPath==null ? "" : " --include "+RLibPath);
+		this.consume(this.bash(command));
 		
 		//#### STEP 06 multi-point hapotype inferring
 		final String mm_out = out_prefix+"/2nn_hap_infer";
@@ -404,9 +404,9 @@ public class Gembler extends Executor {
 				+ "-i "+mm_rf_prefix+".RData "
 				+ "-m "+mm_rf_prefix+".map "
 				+ "-o "+mm_rf_prefix
-				+ "--concorde "+concorde_path
-				+ RLibPath==null ? "" : " --include "+RLibPath;
-		this.execute(command);
+				+ "--concorde "+new File(concorde_path).getParent()
+				+ (RLibPath==null ? "" : " --include "+RLibPath);
+		this.consume(this.bash(command));
 		
 		//#### STEP 09 genetic map refinement
 		final String out_refine = out_prefix+"/refine_hap_infer/";
@@ -460,9 +460,9 @@ public class Gembler extends Executor {
 						+ "-m "+mm_rf_prefix_ij+".map "
 						+ "-o "+mm_rf_prefix_ij
 						+ "-1 "
-						+ "--concorde "+concorde_path
-						+ RLibPath==null ? "" : " --include "+RLibPath;
-				this.execute(command);
+						+ "--concorde "+new File(concorde_path).getParent()
+						+ (RLibPath==null ? "" : " --include "+RLibPath);
+				this.consume(this.bash(command));
 				lgCM[j] = this.lgCM(mm_rf_prefix_ij+".log");
 				this.readSS(mm_rf_prefix_ij+".par", 
 						mm_scaffs_i, mm_seperation_i, mm_reverse_i);
@@ -567,16 +567,6 @@ public class Gembler extends Executor {
 			}
 			mm_br.close();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
-
-	private void execute(String command) {
-		// TODO Auto-generated method stub
-		try {
-			this.bash(command).waitFor();
-		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}

@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipFile;
 
@@ -409,7 +410,7 @@ public abstract class RFUtils extends Executor {
 	}
 
 	protected final Map<String, double[][]> mapCalc = 
-			new HashMap<String, double[][]>();
+			new ConcurrentHashMap<String, double[][]>();
 
 	protected class mapCalculator implements Runnable {
 

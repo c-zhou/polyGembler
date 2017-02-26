@@ -88,13 +88,13 @@ public abstract class Executor {
 					new BufferedReader(new InputStreamReader(check.getInputStream()));
 			String line = in.readLine();
 			in.close();
-			check.waitFor();
+			this.consume(check);
 			if(line.equals("false")) 
 				throw new RuntimeException(
 						"\n\nTool "+tool+" is required but not available on this machine.\n"
 						+ "In you have already installed it, you will need to add it\n"
 						+ "to system path or use \"module load\" to load the tool.\n\n ");
-		} catch (IOException | InterruptedException e1) {
+		} catch (IOException e1) {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
@@ -122,13 +122,7 @@ public abstract class Executor {
 					// TODO Auto-generated method stub
 					try {
 							Process process = bash(commands[i]);
-							BufferedReader in =
-									new BufferedReader(new InputStreamReader(process.getInputStream()));
-							String line;
-							while( (line=in.readLine())!=null )
-								myLogger.info(line);
-							in.close();
-							process.waitFor();
+							consume(process);
 					} catch (Exception e) {
 						// TODO Auto-generated catch block
 						Thread t = Thread.currentThread();
@@ -148,6 +142,27 @@ public abstract class Executor {
 		this.waitFor();
 	}
 	
+	protected void consume(Process process) {
+		// TODO Auto-generated method stub
+		
+		try {
+			BufferedReader in =
+					new BufferedReader(new InputStreamReader(process.getInputStream()));
+			String line;
+			while( (line=in.readLine())!=null )
+				myLogger.info(line);
+			in.close();
+			in = new BufferedReader(new InputStreamReader(process.getErrorStream()));
+			while( (line=in.readLine())!=null )
+				myLogger.error(line);
+			in.close();
+			process.waitFor();
+		} catch (IOException | InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
 	protected static double maxMemory() {
 		return instance.maxMemory() / mb;
 	}

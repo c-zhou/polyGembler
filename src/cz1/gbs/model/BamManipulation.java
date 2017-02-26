@@ -8,6 +8,9 @@ import java.io.BufferedReader;
 import java.util.zip.GZIPInputStream;
 import java.io.OutputStreamWriter;
 import java.util.zip.GZIPOutputStream;
+
+import cz1.util.Executor;
+
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -18,7 +21,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.text.SimpleDateFormat;
 
-public class BamManipulation {
+public class BamManipulation extends Executor {
 
     public final static String NLS = System.getProperty("line.separator");
     public final static String SEP = System.getProperty("file.separator");
@@ -58,12 +61,9 @@ public class BamManipulation {
             bwaDir+SEP+"bwa aln -t "+threads+" "+reference+" "+fastq_file+" > "+mapped_file+".bwa",
             bwaDir+SEP+"bwa samse "+reference+" "+mapped_file+".bwa "+fastq_file+" > "+mapped_file+".sam",
             samtoolsDir+SEP+"samtools view -S -b "+mapped_file+".sam > "+mapped_file+".bam"};
-        String[] runnable;
         for(int i=0; i<commands.length; i++) {
             //System.out.println(commands[i]);
-
-            runnable = new String[]{"bash","-c",commands[i]};
-            Runtime.getRuntime().exec(runnable).waitFor();
+        	this.consume(this.bash(commands[i]));
         }
         new File(fastq_file).delete();
         new File(mapped_file+".bwa").delete();
@@ -97,6 +97,24 @@ public class BamManipulation {
         return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").
             format(Calendar.getInstance().getTime());
     }
+
+	@Override
+	public void printUsage() {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void setParameters(String[] args) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void run() {
+		// TODO Auto-generated method stub
+		
+	}
 }
 
 

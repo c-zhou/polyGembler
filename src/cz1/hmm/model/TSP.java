@@ -5,9 +5,10 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.Random;
 
+import cz1.util.Executor;
 import cz1.util.Utils;
 
-public class TSP {
+public class TSP extends Executor {
 	// a lower triangular matrix
 	public static String CONCORDE_PATH = "old_home/sw/TSP_solver";
 	private final double[][] distance;
@@ -66,19 +67,8 @@ public class TSP {
 	
 	private void tsp_CONCORDE() {
 		// solve TSP with concorde
-		String[] commands = new String[] {
-				CONCORDE_PATH+"/concorde "+tmpdir+"/tmp_TSPLIB.tsp"};
-		String[] runnable;
-		for(int i=0; i<commands.length; i++) {
-			//System.out.println(commands[i]);
-			runnable = new String[]{"bash","-c",commands[i]};
-			try {
-				Runtime.getRuntime().exec(runnable).waitFor();
-			} catch (InterruptedException | IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
+		this.consume(this.bash(
+				CONCORDE_PATH+"/concorde "+tmpdir+"/tmp_TSPLIB.tsp"));
 		try {
 			BufferedReader br = Utils.getBufferedReader(tmpdir+"/tmp_TSPLIB.sol");
 			br.readLine();
@@ -116,5 +106,23 @@ public class TSP {
         for(int i=0; i<sol.length; i++) {
                 System.out.println(sol[i]);
         }
+	}
+
+	@Override
+	public void printUsage() {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void setParameters(String[] args) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void run() {
+		// TODO Auto-generated method stub
+		
 	}
 }

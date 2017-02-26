@@ -100,12 +100,7 @@ public class GBSpileup extends Executor {
 					!new File(myReference+".pac").exists() ||
 					!new File(myReference+".sa").exists()) {
 				String index = "bwa index -p "+myReference+" -a bwtsw "+myReference;
-				try {
-					this.bash(index).waitFor();
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+				this.consume(this.bash(index));
 			}
 		} else {
 			printUsage();
@@ -202,15 +197,10 @@ public class GBSpileup extends Executor {
 		String clearSam = "rm "+myOutputDir+"/tagBam/master.sam";
 		String sortBam = "samtools sort -n -o "+myOutputDir+"/tagBam/master.sorted.bam "+ 
 				myOutputDir+"/tagBam/master.bam";
-		try {
-			this.bash(bwaMem).waitFor();
-			this.bash(sam2bam).waitFor();
-			this.bash(clearSam).waitFor();
-			this.bash(sortBam).waitFor();
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		this.consume(this.bash(bwaMem));
+		this.consume(this.bash(sam2bam));
+		this.consume(this.bash(clearSam));
+		this.consume(this.bash(sortBam));
 		
 		SamToTaxa sam2Taxa = new SamToTaxa(myOutputDir+"/tagBam/master.sorted.bam", 
 				myOutputDir+"/tagFastq/master.index.gz",
@@ -263,12 +253,7 @@ public class GBSpileup extends Executor {
 		for(int i=1; i<THREADS; i++) 
 			command += " && grep -v '^#' "+myOutputDir+"/freebayes/vcf_list/____"+i+".vcf >> "
 					+myOutputDir+"/freebayes/out.vcf";
-		try {
-			this.bash(command).waitFor();
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		this.consume(this.bash(command));
 	}
 
 	private void generateSplitReference() {
