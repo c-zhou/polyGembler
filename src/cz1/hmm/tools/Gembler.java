@@ -57,7 +57,7 @@ public class Gembler extends Executor {
 	private String RLibPath = null;
 	
 	public Gembler() {
-		//this.require("Rscript");
+		this.require("Rscript");
 	}
 	
 	@Override
