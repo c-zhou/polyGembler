@@ -418,8 +418,8 @@ public class Gembler extends Executor {
 			@Override
 			public int compare(String scaff0, String scaff1) {
 				// TODO Auto-generated method stub
-				return StringUtils.countMatches(scaff0, ":")-
-						StringUtils.countMatches(scaff1, ":");
+				return StringUtils.countMatches(scaff1, ":")-
+						StringUtils.countMatches(scaff0, ":");
 			}
 		});
 		
