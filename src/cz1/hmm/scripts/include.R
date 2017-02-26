@@ -338,7 +338,9 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
             rf = rbind(rf, as.numeric(strsplit(cDx[j],",")[[1]]))
             j = j+1
         }
-        dC[i] = sum(.cm_d(apply(rf,2,mean)))
+		means = rf
+        if(!is.null(dim(rf))) means = apply(rf,2,mean)
+        dC[i] = sum(.cm_d(means))
     }
 
 	lgCM = rep(NA,length(o))
