@@ -100,7 +100,7 @@ public class Gembler extends Executor {
 						+ "                                 could be trapped in local optima. The program takes three values \n"
 						+ "                                 from here, i.e., for scaffold, for superscaffold and for genetic \n"
 						+ "                                 linkage map refinement. Three values should be seperated by ',' \n"
-						+ "                                 (default 30,30,10 ).\n"
+						+ "                                 (default 30,30,10).\n"
 						+ "     -rr/--refinement-round      Number of rounds to refine pseudomelecules (default 10.)\n"
 						+ "\n"
 						+ " Recombination frequency estimation:\n"
@@ -108,7 +108,7 @@ public class Gembler extends Executor {
 						+ "     -phi/--skew-phi             For a haplotype inference, the frequencies of parental \n"
 						+ "                                 haplotypes need to be in the interval [1/phi, phi], \n"
 						+ "                                 otherwise will be discared (default 2).\n"
-						+ "     -nd/--drop                  At least nd haplotype inferences are required for \n"
+						+ "     -nd/--drop                  At least nd haplotype inferences are required for calculation.\n"
 						+"\n"
 				);
 	}
@@ -360,7 +360,7 @@ public class Gembler extends Executor {
 		final String temfile_prefix = metafile_prefix+".tmp/";
 		Utils.makeOutputDir(temfile_prefix);
 		final String concorde_path = 
-				RFUtils.makeExecutable("cz1/hmm/executable/concorde", temfile_prefix);
+				RFUtils.makeExecutable("cz1/hmm/executable/concorde", temfile_prefix, true);
 		final String nnssR_path = 
 				RFUtils.makeExecutable("cz1/hmm/scripts/make_nnsuperscaffold.R", temfile_prefix);
 		RFUtils.makeExecutable("cz1/hmm/scripts/include.R", temfile_prefix);

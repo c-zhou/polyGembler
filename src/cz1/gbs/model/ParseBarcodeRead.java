@@ -410,12 +410,9 @@ public class ParseBarcodeRead {
 
 	public String[] getSortedTaxaNames() {
 		// TODO Auto-generated method stub
-		String[] result = new String[getBarCodeCount()];
+		String[] taxa = new String[getBarCodeCount()];
 		for (int i = 0; i < theBarcodes.length; i++) 
-            result[theBarcodes[i].getTaxaId()] = theBarcodes[i].getTaxaName();
-		String[] taxa = new String[getBarCodeCount()/2];
-		for(int i=0; i<taxa.length; i++)
-			taxa[i] = result[2*i];
+			taxa[theBarcodes[i].getTaxaId()] = theBarcodes[i].getTaxaName();
         return taxa;
 	}
 }

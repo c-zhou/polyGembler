@@ -67,10 +67,10 @@
         <!-- Create the distribution directory -->
         <mkdir dir="${dist}"/>
         
-        <copy todir="${build}" description="copy configuration files">
+        <copy todir="${build}" description="copy all files except java source">
             <fileset dir="${src}">
-                <include name="**/*.xml"/>
-            	<include name="**/*.properties"/>
+            	<include name="**/*"/>
+            	<exclude name="**/*.java"/>
             </fileset>
         </copy>
         

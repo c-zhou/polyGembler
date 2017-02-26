@@ -429,6 +429,7 @@ public abstract class RFUtils extends Executor {
 
 				for(int k=0; k<dc[this.i].length; k++) {
 					PhasedDataCollection dc_ik = dc[i][k];
+					myLogger.info(dc_ik.file);
 					if(dc_ik !=null ) {
 						rfs[k] = calcGDs(
 								in_haps+"/"+dc_ik.file,

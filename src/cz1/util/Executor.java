@@ -197,7 +197,8 @@ public abstract class Executor {
             
             if(entry == null) {
             	zipFile.close();
-            	throw new RuntimeException("Executable file "+zipFile.getName()+" not found!!!");
+            	throw new RuntimeException("Executable file "+executable+
+            			" not found in "+zipFile.getName()+"!!!");
             }
             
             final InputStream zipStream  = zipFile.getInputStream(entry);
@@ -217,5 +218,13 @@ public abstract class Executor {
 		}
         
         return null;
+	}
+	
+	protected static String makeExecutable(
+			String executable,
+			String out_prefix,
+			boolean parent_only) {
+		final String path =  makeExecutable(executable, out_prefix);
+		return parent_only ? new File(path).getParent() : path;
 	}
 }
