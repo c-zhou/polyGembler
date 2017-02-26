@@ -104,13 +104,13 @@ public class Constants {
 					+ "be less than ploidy. Program halted.");
 		return;
 	}
-
+	
 	public static void setRandomGenerator() {
 		// TODO Auto-generated method stub
 		rand = new Random(seed);
 		rg = new Well19937c(seed);
 	}
-
+	
 	
 	private static boolean plot = false;
 	private static boolean print = false;
@@ -146,10 +146,10 @@ public class Constants {
 		// TODO Auto-generated method stub
 		return 1;
 	}
-
+	
 	public static int nextInt(int tot) {
 		// TODO Auto-generated method stub
-		return rand.nextInt(tot);
+		return new Random().nextInt(tot);
 	}
 	
 	public static boolean useLocInHap = false;
