@@ -47,7 +47,7 @@ public class PolyGembler {
 			datapreparation.setParameters(args2);
 			datapreparation.run();
 			break;
-		case "haplotypephasing":
+		case "haplotyper":
 			Haplotyper haplotyper = new Haplotyper();
 			haplotyper.setParameters(args2);
 			haplotyper.run();
@@ -67,11 +67,11 @@ public class PolyGembler {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " popsimulaion 		Simulate a full-sib mapping population. \n"
-						+ " gbssimulation 		Simulate GBS data. \n"
-						+ " gbspileup 			Variant calling from GBS data. \n"
-						+ " datapreparation  	Prepare data for haplotype phasing. \n"
-						+ " haplotypephasing  	Contig/scaffold haplotype construction from a mapping population.\n"
-						+ " gembler  			Run PolyGembler pipeline to construct genetic linakge maps/pseudomolecules.\n\n");
+						+ " popsimulation        Simulate a full-sib mapping population. \n"
+						+ " gbssimulation       Simulate GBS data. \n"
+						+ " gbspileup           Variant calling from GBS data. \n"
+						+ " datapreparation     Prepare data for haplotype phasing. \n"
+						+ " haplotyper          Contig/scaffold haplotype construction from a mapping population.\n"
+						+ " gembler             Run PolyGembler pipeline to construct genetic linakge maps/pseudomolecules.\n\n");
 	}
 }

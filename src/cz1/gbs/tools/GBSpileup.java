@@ -44,7 +44,7 @@ public class GBSpileup extends Executor {
 				"\n\nUsage is as follows:\n"
 						+ " -i/--input-fastq        Input directory containing FASTQ files in text or gzipped text.\n"
 						+ "                         NOTE: Directory will be searched recursively and should\n"
-						+ "                         be written WITHOUT a slash after its name.\n\n"
+						+ "                         be written WITHOUT a slash after its name.\n"
 						+ " -k/--key-file           Key file listing barcodes distinguishing the samples\n"
 						+ " -e/--enzyme             Enzyme used to create the GBS library, if it differs from the one listed in the key file.\n"
 						+ " -q/--min-qualS          Minimum quality score (default is 10).\n"
