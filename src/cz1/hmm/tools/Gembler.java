@@ -403,7 +403,7 @@ public class Gembler extends Executor {
 		command = "Rscript "+mklgR_path+" "
 				+ "-i "+mm_rf_prefix+".RData "
 				+ "-m "+mm_rf_prefix+".map "
-				+ "-o "+mm_rf_prefix
+				+ "-o "+mm_rf_prefix+" "
 				+ "--concorde "+new File(concorde_path).getParent()
 				+ (RLibPath==null ? "" : " --include "+RLibPath);
 		this.consume(this.bash(command));
