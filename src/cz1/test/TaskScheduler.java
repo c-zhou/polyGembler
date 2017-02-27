@@ -1,6 +1,7 @@
 package cz1.test;
 
 import java.util.Arrays;
+import java.util.Random;
 
 import cz1.util.Executor;
 
@@ -49,7 +50,7 @@ public class TaskScheduler extends Executor {
 		public void run() {
 			// TODO Auto-generated method stub
 			try {
-				Thread.sleep(10);
+				Thread.sleep((long) (new Random().nextDouble()*10000));
 				
 				myLogger.info(task_type+" "
 						+ task_round+" "

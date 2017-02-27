@@ -447,7 +447,7 @@ public class Gembler extends Executor {
 			final String out_refine_i = out_refine+"lg"+StringUtils.leftPad(""+i, 2, '0')+"/";
 			final String out_refine_ij = out_refine_i+0+"/";
 			final String out_refine_ij_haps = out_refine_ij+"haplotypes/";
-			for(int j=0; j<repeat[2]; i++) {
+			for(int j=0; j<repeat[2]; j++) {
 				executor.submit(new Runnable(){
 					private int i;
 					private int j;
