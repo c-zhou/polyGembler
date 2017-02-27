@@ -32,13 +32,12 @@ public class SynchedIO extends Executor {
 	private final List<Integer> synchedBlock = 
 			Collections.synchronizedList(new LinkedList<Integer>());
 	
-	public void write(final int i, final int[] Q, final int t) 
+	public void write(final int i, final int[] Q) 
 			throws InterruptedException {
 		synchronized (synchedBlock) {
 			while (synchedBlock.get(0)!=i)
 				synchedBlock.wait();
-			//IO.print("Thread "+t+" - ");
-			Utils.print(Q);
+			myLogger.info(Utils.cat(Q, ","));
 			synchedBlock.remove(0);
 			synchedBlock.notifyAll();
 		}
@@ -63,8 +62,7 @@ public class SynchedIO extends Executor {
 				public void run() {
 					// TODO Auto-generated method stub
 					try {
-						write(this.i, this.Q, 
-								(int)Thread.currentThread().getId()%THREADS);
+						write(this.i, this.Q);
 					} catch (Exception e) {
 						// TODO Auto-generated catch block
 						Thread t = Thread.currentThread();

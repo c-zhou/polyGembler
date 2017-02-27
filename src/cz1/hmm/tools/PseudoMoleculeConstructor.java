@@ -319,4 +319,47 @@ public class PseudoMoleculeConstructor extends Executor {
 	public double genomeSize() {
 		return this.genome_size;
 	}
+
+	public void setAssemblyError(Map<String, int[][]> errs) {
+		// TODO Auto-generated method stub
+		for(String errScaff : errs.keySet()) {
+			int[][] err = errs.get(errScaff);
+			String dnaSEQ = this.scaffolds.get(errScaff).sequence;
+			int[][] chunk = findBPS(dnaSEQ, err);
+			for(int i=0; i<chunk.length; i++)
+				this.scaffolds.put(errScaff+"_"+(i+1),
+						new Scaffold(errScaff+"_"+(i+1),
+								dnaSEQ.substring(chunk[i][0], 
+										chunk[i][1])));
+		}
+	}
+
+	private int[][] findBPS(String errScaff, int[][] err) {
+		// TODO Auto-generated method stub
+		int[][] chunk = new int[err.length+1][2];
+		for(int i=0; i<err.length; i++) {
+			String seq = errScaff.substring(err[i][0], 
+					err[i][1]);
+			String[] gap = seq.split("[CAGT]+");
+			if(gap.length==0) {
+				// no gap found, chunk in between is discarded
+				chunk[i][1] = err[i][0];
+				chunk[i+1][0] = err[i][1];
+			} else {
+				// gaps found, select the longest one as break point
+				String longest_gap = "";
+				for(int j=0; j<gap.length; j++)
+					if(longest_gap.length()<gap[j].length())
+						longest_gap = gap[j];
+				int star = seq.indexOf(longest_gap);
+				chunk[i][1] = err[i][0]+star;
+				chunk[i+1][0] = err[i][0]+longest_gap.length();
+			}
+		}
+		chunk[err.length][1] = errScaff.length();
+		return chunk;
+	}
 }
+
+
+

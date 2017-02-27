@@ -17,11 +17,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.StringUtils;
 
-import cern.colt.matrix.doublealgo.Formatter;
 import cz1.hmm.data.DataCollection;
 import cz1.util.Algebra;
 import cz1.util.ArgsEngine;
@@ -301,8 +299,8 @@ public class Gembler extends Executor {
 		.run();
 		
 		//#### STEP 02 single-point haplotype inferring
-		final String in_zip = out_prefix+"/data/"+prefix_vcf+".recode.zip";
 		final String out = out_prefix+"/single_hap_infer";
+		String in_zip = out_prefix+"/data/"+prefix_vcf+".recode.zip";
 		final Map<String, Integer> scaffs = DataCollection.readScaff(in_zip);
 		final String expr_id = new File(in_zip).getName().
 				replaceAll(".zip$", "").
@@ -338,10 +336,9 @@ public class Gembler extends Executor {
 					prefix_vcf_assError,
 					metafile_prefix)
 			.run();
-			String in_zip_assError = metafile_prefix+prefix_vcf_assError+".zip";
-			final Map<String, Integer> scaffs_assError = DataCollection.readScaff(
-					in_zip_assError);
-			this.runHaplotyper(scaffs_assError, expr_id, in_zip_assError, repeat[0], out);
+			in_zip = metafile_prefix+prefix_vcf_assError+".zip";
+			final Map<String, Integer> scaffs_assError = DataCollection.readScaff(in_zip);
+			this.runHaplotyper(scaffs_assError, expr_id, in_zip, repeat[0], out);
 		}
 	
 		//#### STEP 04 recombination frequency estimation
@@ -411,8 +408,19 @@ public class Gembler extends Executor {
 		//#### STEP 09 genetic map refinement
 		final String out_refine = out_prefix+"/refine_hap_infer/";
 		Utils.makeOutputDir(out_refine);
-		this.readSS(mm_rf_prefix+".par", mm_scaffs, mm_seperation, mm_reverse);
 		final int lgN = mm_scaffs.size();
+		for(int i=0; i<lgN; i++) {
+			final String out_refine_i = out_refine+"lg"+StringUtils.leftPad(""+i, 2, '0')+"/";
+			Utils.makeOutputDir(out_refine_i);
+			for(int j=0; j<this.refine_round; j++) {
+				final String out_refine_ij = out_refine_i+j+"/";
+				final String out_refine_ij_haps = out_refine_ij+"haplotypes/";
+				Utils.makeOutputDir(out_refine_ij);
+				Utils.makeOutputDir(out_refine_ij_haps);
+			}
+		}
+		
+		this.readSS(mm_rf_prefix+".par", mm_scaffs, mm_seperation, mm_reverse);
 		final List<String> scaff_list = new ArrayList<String>(mm_scaffs);
 		Collections.sort(scaff_list, new Comparator<String>() {
 			@Override
@@ -423,52 +431,159 @@ public class Gembler extends Executor {
 			}
 		});
 		
-		final String[] selected = new String[lgN];
-		for(int i=0; i<lgN; i++) {
-			final String out_refine_i = out_refine+"lg"+StringUtils.leftPad(""+i, 2, '0')+"/";
-			Utils.makeOutputDir(out_refine_i);
-			final Set<String> mm_scaffs_i = new HashSet<String>();
-			final Map<String, String> mm_seperation_i = new HashMap<String, String>();
-			final Map<String, String> mm_reverse_i = new HashMap<String, String>();
+		final int[][] task_table = new int[refine_round][lgN];
+		final int[] task_progress = new int[lgN];
+		final double[][] lgCM = new double[lgN][refine_round];
+		
+		for (int[] i : task_table)
+		    Arrays.fill(i, repeat[2]);
+		final String final_zip = in_zip;
+		
+		this.initial_thread_pool();
+		
+		for(int i=0; i<lgN; i++) { 
 			final String scaff_i = scaff_list.get(i);
-			mm_scaffs_i.add(scaff_i);
-			mm_seperation_i.put(scaff_i, mm_seperation.get(scaff_i));
-			mm_reverse_i.put(scaff_i, mm_reverse.get(scaff_i));
-			
-			double[] lgCM = new double[this.refine_round];
-			
-			for(int j=0; j<this.refine_round; j++) {
-				final String out_refine_ij = out_refine_i+j+"/";
-				final String out_refine_ij_haps = out_refine_ij+"haplotypes/";
-				Utils.makeOutputDir(out_refine_ij);
-				Utils.makeOutputDir(out_refine_ij_haps);
-				this.runHaplotyper(mm_scaffs_i, mm_seperation_i, mm_reverse_i,
-						expr_id, in_zip, repeat[2], out_refine_ij_haps);
-				final String mm_rf_prefix_ij = out_refine_ij+"1";
-				new RecombinationFreqEstimator (out_refine_ij_haps, 
-						mm_rf_prefix_ij,
-						expr_id, 
-						Constants._ploidy_H,
-						founder_haps,
-						THREADS,
-						Double.POSITIVE_INFINITY,
-						drop,
-						nB).run();
-				RFUtils.makeRMatrix(mm_rf_prefix_ij+".txt", mm_rf_prefix_ij+".RData");
-				command = "Rscript "+mklgR_path+" "
-						+ "-i "+mm_rf_prefix_ij+".RData "
-						+ "-m "+mm_rf_prefix_ij+".map "
-						+ "-o "+mm_rf_prefix_ij+" "
-						+ "-1 "
-						+ "--concorde "+new File(concorde_path).getParent()
-						+ (RLibPath==null ? "" : " --include "+RLibPath);
-				this.consume(this.bash(command));
-				lgCM[j] = this.lgCM(mm_rf_prefix_ij+".log");
-				this.readSS(mm_rf_prefix_ij+".par", 
-						mm_scaffs_i, mm_seperation_i, mm_reverse_i);
+			final String out_refine_i = out_refine+"lg"+StringUtils.leftPad(""+i, 2, '0')+"/";
+			final String out_refine_ij = out_refine_i+0+"/";
+			final String out_refine_ij_haps = out_refine_ij+"haplotypes/";
+			for(int j=0; j<repeat[2]; i++) {
+				executor.submit(new Runnable(){
+					private int i;
+					private int j;
+					@Override
+					public void run() {
+						// TODO Auto-generated method stub
+						try {
+							new Haplotyper(final_zip,
+									out_refine_ij_haps,
+									scaff_i,
+									mm_seperation.get(scaff_i),
+									mm_reverse.get(scaff_i),
+									Constants._ploidy_H,
+									field,
+									expr_id,
+									max_iter,
+									vbt).run();
+							synchronized (task_table) {
+								task_table[i][j]--;
+								task_table.notify();
+							}
+						} catch (Exception e) {
+							Thread t = Thread.currentThread();
+							t.getUncaughtExceptionHandler().uncaughtException(t, e);
+							e.printStackTrace();
+							executor.shutdown();
+							System.exit(1);
+						}
+					}
+
+					public Runnable init(final int i, final int j) {
+						// TODO Auto-generated method stub
+						this.i = i;
+						this.j = j;
+						return (this);
+					}
+				}.init(0, i));
 			}
-			selected[i] = out_refine_i+Algebra.minIndex(lgCM)+"/";
 		}
+		
+		while(true) {
+			for(int i=0; i<lgN; i++) {
+				
+				if(task_progress[i]<refine_round &&
+						task_table[task_progress[i]][i]==0) {
+					
+					final String out_refine_i = out_refine+"lg"+StringUtils.leftPad(""+i, 2, '0')+"/";
+					final String out_refine_ij = out_refine_i+task_progress[i]+"/";
+					final String out_refine_ij_haps = out_refine_ij+"haplotypes/";
+					final String mm_rf_prefix_ij = out_refine_ij+"1";
+					
+					new RecombinationFreqEstimator (out_refine_ij_haps, 
+							mm_rf_prefix_ij,
+							expr_id, 
+							Constants._ploidy_H,
+							founder_haps,
+							THREADS,
+							Double.POSITIVE_INFINITY,
+							drop,
+							nB).run();
+					RFUtils.makeRMatrix(mm_rf_prefix_ij+".txt", mm_rf_prefix_ij+".RData");
+					command = "Rscript "+mklgR_path+" "
+							+ "-i "+mm_rf_prefix_ij+".RData "
+							+ "-m "+mm_rf_prefix_ij+".map "
+							+ "-o "+mm_rf_prefix_ij+" "
+							+ "-1 "
+							+ "--concorde "+new File(concorde_path).getParent()
+							+ (RLibPath==null ? "" : " --include "+RLibPath);
+					this.consume(this.bash(command));
+					lgCM[i][task_progress[i]] = this.lgCM(mm_rf_prefix_ij+".log");
+					
+					task_progress[i]++;
+					
+					if(task_progress[i]<refine_round) {
+						
+						final String out_refine_ijx_haps = out_refine_i+task_progress[i]+"/"+"haplotypes/";
+						
+						final Set<String> mm_scaffs_i = new HashSet<String>();
+						final Map<String, String> mm_seperation_i = new HashMap<String, String>();
+						final Map<String, String> mm_reverse_i = new HashMap<String, String>();
+						this.readSS(mm_rf_prefix_ij+".par", 
+								mm_scaffs_i, mm_seperation_i, mm_reverse_i);
+						final String scaff_i = mm_scaffs_i.iterator().next();
+
+						for(int j=0; j<repeat[2]; j++) {
+							executor.submit(new Runnable(){
+								private int i;
+								private int j;
+								@Override
+								public void run() {
+									// TODO Auto-generated method stub
+									try {
+										new Haplotyper(final_zip,
+												out_refine_ijx_haps,
+												scaff_i,
+												mm_seperation.get(scaff_i),
+												mm_reverse.get(scaff_i),
+												Constants._ploidy_H,
+												field,
+												expr_id,
+												max_iter,
+												vbt).run();
+										synchronized (task_table) {
+											task_table[i][j]--;
+											task_table.notify();
+										}
+									} catch (Exception e) {
+										Thread t = Thread.currentThread();
+										t.getUncaughtExceptionHandler().uncaughtException(t, e);
+										e.printStackTrace();
+										executor.shutdown();
+										System.exit(1);
+									}
+								}
+
+								public Runnable init(final int i, final int j) {
+									// TODO Auto-generated method stub
+									this.i = i;
+									this.j = j;
+									return (this);
+								}
+							}.init(task_progress[i], i));
+						}
+					}
+				}
+			}
+			boolean done = true;
+			for(int i=0; i<lgN; i++)
+				if(task_progress[i]<refine_round)
+					done = false;
+			if(done) break;
+		}
+		this.waitFor();
+		final String[] selected = new String[lgN];
+		for(int i=0; i<lgN; i++)
+			selected[i] = out_refine+"lg"+StringUtils.leftPad(""+i, 2, '0')+
+				"/"+Algebra.minIndex(lgCM[i])+"/";
 		this.makeSelectedLG(selected, metafile_prefix);
 		
 		//#### STEP 10 pseudo molecules construction
@@ -477,6 +592,7 @@ public class Gembler extends Executor {
 						metafile_prefix+"genetic_linkage_map.mct",
 						this.assembly_file,
 						metafile_prefix+"pseudomolecules.fa");
+		pseudoMoleculeConstructor.setAssemblyError(assemblyError.errs());
 		double coverage = 0.0;
 		if( (coverage=pseudoMoleculeConstructor.coverage())>=.8) 
 			pseudoMoleculeConstructor.run();

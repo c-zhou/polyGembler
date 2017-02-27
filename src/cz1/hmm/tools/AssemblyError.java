@@ -186,7 +186,7 @@ public class AssemblyError extends RFUtils {
 		myLogger.info("["+Utils.getSystemTime()+"] DONE.");
 	}
 	
-	final private Map<String, double[]> errs = new HashMap<String, double[]>();
+	final private Map<String, int[][]> errs = new HashMap<String, int[][]>();
 	
 	private void render() {
 		// TODO Auto-generated method stub
@@ -202,26 +202,26 @@ public class AssemblyError extends RFUtils {
 				for(int k=0; k<bound; k++)
 					rf[j] += rfs[k][j];
 			String[] markers = dc[i][0].markers;
-			final List<Double> breakage_pos = new ArrayList<Double>();
+			final List<int[]> breakage_pos = new ArrayList<int[]>();
 			for(int j=0; j<rf.length; j++) {
  				rf[j] /= bound;
  				if(rf[j]>=breakage_thres) {
  					String[] s = markers[j].split("_");
- 					double x = Double.parseDouble(s[s.length-1]);
+ 					int x = Integer.parseInt(s[s.length-1]);
  					s = markers[j+1].split("_");
- 					x += Double.parseDouble(s[s.length-1]);
- 					breakage_pos.add(x/2); 
+ 					int x2 = Integer.parseInt(s[s.length-1]);
+ 					breakage_pos.add(new int[]{x, x2}); 
  				}
  			}
 			if(breakage_pos.size()==0) continue;
-			Double[] ls = new Double[breakage_pos.size()];
-			breakage_pos.toArray(ls);
-			errs.put(scaff, ArrayUtils.toPrimitive(ls));
+			int[][] ls = new int[breakage_pos.size()][2];
+			for(int j=0; j<ls.length; j++) ls[j] = breakage_pos.get(j);
+			errs.put(scaff, ls);
 		}
 		return;
 	}
 	
-	public Map<String, double[]> errs() {
+	public Map<String, int[][]> errs() {
 		return this.errs;
 	}
 
@@ -242,13 +242,15 @@ public class AssemblyError extends RFUtils {
 				}
 				s = line.split("\\s+");
 				if(!this.errs.containsKey(s[0])) {
+					bw.write(line+"\n");
 					line = br.readLine();
 				} else {
 					String scaff = s[0];
 					scaff_breakge.add(scaff);
-					double[] tmp = this.errs.get(scaff);
+					int[][] tmp = this.errs.get(scaff);
 					double[] breakage_pos = new double[tmp.length+1];
-					System.arraycopy(tmp, 0, breakage_pos, 0, tmp.length);
+					for(int i=0; i<tmp.length; i++) 
+						breakage_pos[i] = (tmp[i][0]+tmp[i][1])/2.0;
 					breakage_pos[tmp.length] = Double.POSITIVE_INFINITY;
 					int sub = 1;
 					while( line!=null ) {
