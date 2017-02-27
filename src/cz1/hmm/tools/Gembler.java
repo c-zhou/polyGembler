@@ -159,9 +159,6 @@ public class Gembler extends Executor {
 		
 		if(myArgsEngine.getBoolean("-a")) {
 			assembly_file = myArgsEngine.getString("-a");
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify your assembly fasta file.");
 		}
 
 		if(myArgsEngine.getBoolean("-o")) {
@@ -589,6 +586,8 @@ public class Gembler extends Executor {
 		this.makeSelectedLG(selected, metafile_prefix);
 		
 		//#### STEP 10 pseudo molecules construction
+		if(assembly_file==null) myLogger.info("No assembly file provided, "
+				+ "pseudomolecule construction module skipped.");
 		PseudoMoleculeConstructor pseudoMoleculeConstructor = 
 				new PseudoMoleculeConstructor(
 						metafile_prefix+"genetic_linkage_map.mct",
@@ -680,8 +679,13 @@ public class Gembler extends Executor {
 				if(!line.startsWith("-c")) continue;
 				s = line.split("\\s+");
 				mm_scaffs.add(s[1]);
-				mm_seperation.put(s[1], s[3]);
-				mm_reverse.put(s[1], s[5]);
+				if(s.length>2) {
+					mm_seperation.put(s[1], s[3]);
+					mm_reverse.put(s[1], s[5]);
+				} else {
+					mm_seperation.put(s[1], "0");
+					mm_reverse.put(s[1], "false");
+				}
 			}
 			mm_br.close();
 		} catch (IOException e) {

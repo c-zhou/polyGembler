@@ -7,6 +7,8 @@ parser$add_argument("-i", "--input", required = T,
                     help="Input RData file.")
 parser$add_argument("-n", "--nn", type="double", default=2,
                     help="Number of nearest neighbours [default %(default)s].")
+parser$add_argument("-r", "--rf", default = 0.38, type="double",
+                    help="Recombination frequency threshold for grouping [default %(default)s].")
 parser$add_argument("-o", "--output", required = T, 
                     help="Output file name.")
 parser$add_argument("-c", "--concorde", required = T,
@@ -18,6 +20,7 @@ args <- parser$parse_args()
 
 in_RData = args$input
 nn = args$nn
+rf_thresh=args$rf
 out_file = args$output
 concorde_path = args$concorde
 external_lib = args$include
@@ -37,5 +40,5 @@ file.name <- "--file="
 script.name <- sub(file.name, "", initial.options[grep(file.name, initial.options)])
 source(paste(sep="/", dirname(script.name), "include.R"))
 
-nearest_neighbour_joining(in_RData, out_file, nn-1)
+nearest_neighbour_joining(in_RData, out_file, nn-1, rf_thresh)
 

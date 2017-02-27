@@ -170,10 +170,9 @@ fm <- function(cA, cB, beta=1) {
     (1+beta^2)*p*r/(beta^2*p+r)
 }
 
-nearest_neighbour_joining <- function(in_RData, out_file, nn=1) {
+nearest_neighbour_joining <- function(in_RData, out_file, nn=1, rf_thresh=.kosambi_r(.5)) {
 	
     load(in_RData)
-    thres = .kosambi_r(.5)
     diag(distanceMat) = Inf
     clus=matrix(NA, ncol=nn+1, nrow=0)
     for(i in 1:n) {
@@ -197,13 +196,26 @@ nearest_neighbour_joining <- function(in_RData, out_file, nn=1) {
         }
         lp = length(p)
         cp = combs(ix[ss[[length(ss)]]],nn+1-lp)
-        for(j in 1:dim(cp)[1])
-            clus=rbind(clus,sort(c(p,cp[j,])))
+        n = 0
+        for(j in 1:dim(cp)[1]) {
+            ng=sort(c(p,cp[j,]))
+            if(any(distanceMat[combs(ng,2)]>rf_thresh))
+                next
+            clus=rbind(clus,ng)
+            n = n+1
+        }
+        if(n==0) clus=rbind(clus,c(p,rep(NA,nn)))
     }
     clus=unique(clus)
 
     sink(out_file)
     for(i in 1:dim(clus)[1]) {
+        if(is.na(clus[i,2])) {
+            cat("-c ")
+            cat(scaffs[clus[i,1]])
+            cat("\n")
+            next
+        }
         sink("/dev/null")
         o = ordering(clus[i,], distanceAll, indexMat)
         sink()		
