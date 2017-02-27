@@ -612,13 +612,13 @@ public class Gembler extends Executor {
 			String line = null;
 			for(int i=0; i<br_logs.length; i++) 
 				while( (line=br_logs[i].readLine())!=null &&
-				!line.startsWith("\\$") ) {}
+				!line.startsWith("$") ) {}
 			while( line!=null ) {
-				if(line.startsWith("\\$")) {
+				if(line.startsWith("$")) {
 					bw_log.write(line+"\n");
 					for(int i=0; i<br_logs.length; i++) 
 						while( (line=br_logs[i].readLine())!=null &&
-						!line.startsWith("\\$") )
+						!line.startsWith("$") )
 							if(line.length()>0) bw_log.write(line+"\n");
 					bw_log.write("\n");
 				}
