@@ -385,7 +385,7 @@ public class ParseBarcodeRead {
         if(processedSeqS.length()>=32)
         	return new ReadBarcodeResult(BaseEncoder.getBitSetFromSeq(
         			processedSeqS), 
-        			bestBarcode.getTaxaId()/2);
+        			bestBarcode.getTaxaId());
         return null;
     }
     
