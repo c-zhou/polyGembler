@@ -43,7 +43,7 @@ public abstract class Executor {
 	public abstract void run();
 	
 	protected int THREADS = 1;
-	protected static ExecutorService executor;
+	protected ExecutorService executor;
 	protected BlockingQueue<Runnable> tasks = null;
 
 	protected void initial_thread_pool() {

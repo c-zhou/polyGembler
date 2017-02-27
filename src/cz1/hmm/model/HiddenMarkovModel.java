@@ -338,7 +338,7 @@ public abstract class HiddenMarkovModel {
 		return array;
 	}
 
-	protected static double[][] transpose(double[][] mat) {
+	protected double[][] transpose(double[][] mat) {
 		// TODO Auto-generated method stub
 		double[][] tMat = new double[mat[0].length][mat.length];
 		for (int i = 0; i < mat.length; i++)
