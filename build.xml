@@ -16,7 +16,7 @@
     <property name="build" location="build"/>
     <property name="lib" location="lib"/>
     
-    <property name="polyGembler" location="${dist}\polyGembler-0.0.1-SNAPSHOT-jar-with-dependencies.jar"/>
+    <property name="polyGembler" location="${dist}\polyGembler-0.0.1-jar-with-dependencies.jar"/>
     
     <path id="build.class.path">
         <fileset dir="${lib}">
