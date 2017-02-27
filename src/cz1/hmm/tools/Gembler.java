@@ -408,6 +408,8 @@ public class Gembler extends Executor {
 		//#### STEP 09 genetic map refinement
 		final String out_refine = out_prefix+"/refine_hap_infer/";
 		Utils.makeOutputDir(out_refine);
+		this.readSS(mm_rf_prefix+".par", mm_scaffs, mm_seperation, mm_reverse);
+		
 		final int lgN = mm_scaffs.size();
 		for(int i=0; i<lgN; i++) {
 			final String out_refine_i = out_refine+"lg"+StringUtils.leftPad(""+i, 2, '0')+"/";
@@ -420,7 +422,6 @@ public class Gembler extends Executor {
 			}
 		}
 		
-		this.readSS(mm_rf_prefix+".par", mm_scaffs, mm_seperation, mm_reverse);
 		final List<String> scaff_list = new ArrayList<String>(mm_scaffs);
 		Collections.sort(scaff_list, new Comparator<String>() {
 			@Override
@@ -580,6 +581,7 @@ public class Gembler extends Executor {
 			if(done) break;
 		}
 		this.waitFor();
+		
 		final String[] selected = new String[lgN];
 		for(int i=0; i<lgN; i++)
 			selected[i] = out_refine+"lg"+StringUtils.leftPad(""+i, 2, '0')+
