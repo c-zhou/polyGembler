@@ -30,4 +30,60 @@ Quick installation guide:
     or
     $ mvn clean package
 
-Both of them will generate a executable jar file *polyGembler-${version}-jar-with-dependencies.jar*. For [Apache Ant](http://ant.apache.org/), the jar file is under *polyGembler/dist* directory. For [Apache Maven](https://maven.apache.org/), the jar file is under *polyGembler/target* directory.
+Both of them will generate an executable jar file *polyGembler-${version}-jar-with-dependencies.jar*. For [Apache Ant](http://ant.apache.org/), the jar file is under *polyGembler/dist* directory. For [Apache Maven](https://maven.apache.org/), the jar file is under *polyGembler/target* directory.
+
+The code has been tested with Java 7 and 8. The default version is Java 8. The [Apache Maven](https://maven.apache.org/) will fail if the system default Java version is not 8. This could be solved by either changing the system Java version or modifying the *pom.xml* file at line 22-23.
+
+## Quick Start
+A quick start to run the software. Modules listed below are independent from each other.
+
+#### Simulate GBS data for an outcrossed F1 mapping population
+*Input*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;a reference fasta file with all chromosomes
+
+*Output*&nbsp;&nbsp;&nbsp;a zipped fastq file with all GBS reads
+
+*Command*
+    
+    $ java cz1.appl.PolyGembler popsimulation -r reference/reference.fa -t 32 -p 4 -c 200 -o pop_sim/tetraploid -n 192
+
+This could also be done in two seperate steps
+
+
+#### Run variant detection module for GBS data
+
+*Input*
+
+*Output*
+
+*Command*
+
+#### Run genetic linkage map or pseudomolecule construnction pipeline
+
+###### Input
+
+###### Output
+
+###### Command
+
+
+#### Run haplotype phasing algorithm
+
+###### Input
+
+###### Output
+
+###### Command
+
+## More parameter options
+#### Simulate GBS data for an outcrossed F1 mapping population
+#### Run variant detection module for GBS data
+#### Run genetic linkage map or pseudomolecule construnction pipeline
+#### Run haplotype phasing algorithm
+
+## More details about the output files
+#### Simulate GBS data for an outcrossed F1 mapping population
+#### Run variant detection module for GBS data
+#### Run genetic linkage map or pseudomolecule construnction pipeline
+#### Run haplotype phasing algorithm
+
+## Citing polyGembler
