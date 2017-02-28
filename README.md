@@ -67,7 +67,7 @@ To run this command, the following tools should be installed and added to system
 * [bwa](http://bio-bwa.sourceforge.net/)
 * [freebayes](https://github.com/ekg/freebayes)
 
-This command runs the whole variant detection pipeline 
+This command runs the whole variant detection pipeline from the GBS reads demultiplexing to variant calling with [freebayes](https://github.com/ekg/freebayes). The GBS FASTQ file(s) should be found by the program in directory ${gbs_fastq_dir} (-i option). The GBS key file is provided with -k option. [Here](https://bytebucket.org/tasseladmin/tassel-5-source/wiki/Tassel5GBSv2Pipeline/Pipeline_Testing_key.txt?rev=19fcce52374296f80ed568fbdd752f8cffabb2ae) is a sample key file from [Buckler Lab](http://www.maizegenetics.net/tassel).
 
 #### Run genetic linkage map or pseudomolecule construnction pipeline
 
