@@ -30,9 +30,10 @@ public class GBSpileup extends Executor {
 	private int[] myLeadingTrim = new int[]{0};
 	private String myReference = null;
 	private int myPloidy = 2;
+	private boolean skipFB = false;
 	
 	public GBSpileup() {
-		this.require("freebayes");
+		//this.require("freebayes");
 		this.require("samtools");
 		this.require("bwa");
 	}
@@ -52,6 +53,7 @@ public class GBSpileup extends Executor {
 						+ " -t/--threads            Threads (default is 1).\n"
 						+ " -T/--trim-leading       The length of leading fragments to trim off.\n"
 						+ " -f/--reference          The reference genome (in fasta format).\n"
+						+ " -z/--skip-freebayes     Skip the variant calling with freebayes (default not)."
 						+ " -o/--prefix             Output directory to contain .cnt files (one per FASTQ file, defaults to input directory).\n\n");
 	}
 
@@ -74,6 +76,7 @@ public class GBSpileup extends Executor {
 			myArgsEngine.add("-T", "--trim-leading", true);
 			myArgsEngine.add("-b", "--unassgined-reads", true);
 			myArgsEngine.add("-f", "--reference", true);
+			myArgsEngine.add("-z", "--skip-freebayes", false);
 			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.parse(args);
 		}
@@ -90,6 +93,12 @@ public class GBSpileup extends Executor {
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify a barcode key file.");
+		}
+		
+		if (myArgsEngine.getBoolean("-z")) {
+			this.skipFB = true;
+		} else {
+			this.require("freebayes");
 		}
 		
 		if (myArgsEngine.getBoolean("-f")) {
@@ -216,6 +225,13 @@ public class GBSpileup extends Executor {
 					myOutputDir+"/bam/"+bam+" && rm "+myOutputDir+"/bam/"+bam;
 		}
 		this.bash(commands);
+		
+		if(this.skipFB) {
+			myLogger.info("Skip variant calling with freebayes. FYI, if you want to "
+					+ "call variant with customer scripts, then the BAM files could "
+					+ "be found in "+myOutputDir+"/bam directory.");
+			return;
+		}
 		
 		this.generateSplitReference();
 		
