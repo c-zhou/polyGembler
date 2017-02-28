@@ -12,6 +12,7 @@ import java.util.Map;
 
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
+import cz1.util.Utils;
 
 public class PseudoMoleculeConstructor extends Executor {
 	
@@ -23,13 +24,25 @@ public class PseudoMoleculeConstructor extends Executor {
 	private final Map<String, List<Scaffold>> pseudo_molecule = 
 			new HashMap<String, List<Scaffold>>();
 	
-	public PseudoMoleculeConstructor(String assembly_file, 
-			String mct_file,
+	public PseudoMoleculeConstructor(String mct_file,
+			String assembly_file, 
 			String out_file) {
 		this.assembly_file = assembly_file;
 		this.mct_file = mct_file;
 		this.out_file = out_file;
 		this.assemblyReader();
+		this.geneticMapReader();
+	}
+	
+	public PseudoMoleculeConstructor(String mct_file,
+			String assembly_file, 
+			String out_file,
+			Map<String, int[][]> errs) {
+		this.assembly_file = assembly_file;
+		this.mct_file = mct_file;
+		this.out_file = out_file;
+		this.assemblyReader();
+		this.setAssemblyError(errs);
 		this.geneticMapReader();
 	}
 	
@@ -132,7 +145,7 @@ public class PseudoMoleculeConstructor extends Executor {
 					else oos.append(scaffold.sequence);
 				}
 				bw.write(">"+lgid+"\n");
-				bw.write(wrap(oos.toString(),50));
+				bw.write(wrap(oos.toString(),50)+"\n");
 			}
 			bw.close();
 		} catch (IOException e) {
@@ -220,7 +233,7 @@ public class PseudoMoleculeConstructor extends Executor {
 	
 	public void assemblyReader() {
 		try {
-			BufferedReader br = new BufferedReader(new FileReader(assembly_file));
+			BufferedReader br = Utils.getBufferedReader(assembly_file);
 			String line=br.readLine();
 			String name;
 			
@@ -246,7 +259,7 @@ public class PseudoMoleculeConstructor extends Executor {
 	
 	public void geneticMapReader() {
 		try {
-			BufferedReader br = new BufferedReader(new FileReader(mct_file));
+			BufferedReader br = Utils.getBufferedReader(mct_file);
 			String line = br.readLine();
 			int lg = 0;
 			String[] s;

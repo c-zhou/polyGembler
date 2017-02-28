@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
@@ -547,6 +548,30 @@ public class DataCollection {
 			while( (line=br.readLine())!=null ) {
 				s = line.split("\\s+");
 				scaffs.put(s[0], Integer.parseInt(s[1]));
+			}
+			in.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return scaffs;
+	}
+
+	public static Map<String, Integer> readScaff(String zipFilePath, 
+			Set<String> targets) {
+		// TODO Auto-generated method stub
+		final Map<String, Integer> scaffs = new HashMap<String, Integer>();
+		try {
+			final ZipFile in = new ZipFile(zipFilePath);
+
+			final InputStream is = in.getInputStream(in.getEntry("contig"));
+			BufferedReader br = new BufferedReader(new InputStreamReader(is));
+			String line;
+			String[] s;
+			while( (line=br.readLine())!=null ) {
+				s = line.split("\\s+");
+				if(targets.contains(s[0]))
+					scaffs.put(s[0], Integer.parseInt(s[1]));
 			}
 			in.close();
 		} catch (IOException e) {

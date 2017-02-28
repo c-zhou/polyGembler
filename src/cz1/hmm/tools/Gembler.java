@@ -332,7 +332,8 @@ public class Gembler extends Executor {
 					metafile_prefix)
 			.run();
 			in_zip = metafile_prefix+prefix_vcf_assError+".zip";
-			final Map<String, Integer> scaffs_assError = DataCollection.readScaff(in_zip);
+			final Map<String, Integer> scaffs_assError = DataCollection.readScaff(
+					in_zip, assemblyError.errs().keySet());
 			this.runHaplotyper(scaffs_assError, expr_id, in_zip, repeat[0], out);
 		}
 	
@@ -590,8 +591,8 @@ public class Gembler extends Executor {
 				new PseudoMoleculeConstructor(
 						metafile_prefix+"genetic_linkage_map.mct",
 						this.assembly_file,
-						metafile_prefix+"pseudomolecules.fa");
-		pseudoMoleculeConstructor.setAssemblyError(assemblyError.errs());
+						metafile_prefix+"pseudomolecules.fa",
+						assemblyError.errs());
 		double coverage = 0.0;
 		if( (coverage=pseudoMoleculeConstructor.coverage())>=.8) 
 			pseudoMoleculeConstructor.run();
@@ -703,7 +704,7 @@ public class Gembler extends Executor {
 					new FilenameFilter() {
 						@Override
 						public boolean accept(File dir, String name) {
-							return name.matches("^"+expr_id+"."+scaff+".*");    
+							return name.matches("^"+expr_id+"\\."+scaff+"\\..*");    
 						}
 					});
 			for(File f : files)

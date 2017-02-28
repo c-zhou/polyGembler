@@ -7,7 +7,7 @@ import cz1.util.Executor;
 
 public class DataPreparation extends Executor {
 
-	private int ploidy = -1;
+	private int ploidy = 2;
 	private int min_depth = 0;
 	private int max_depth = Integer.MAX_VALUE;
 	private int min_qual = 0;
@@ -46,10 +46,10 @@ public class DataPreparation extends Executor {
 				"\n\nUsage is as follows:\n"
 						+ " -i/--vcf			Input VCF file.\n"
 						+ " -s/--id             Unique id of this run (default: input VCF file name prefix).\n"
-						+ " -p/--ploidy			Real ploidy of genome. "
-						+ "						NOTE: You may call variant as diploid and the program will "
-						+ "							  fit a binomial model to call genotypes and genotype "
-						+ "							  qualities from allele depth.\n"
+						+ " -p/--ploidy			Ploidy of genome (default 2). \n"
+						+ "                     NOTE: If you called variant as diploid, then the program will \n"
+						+ "                     fit a binomial model to call genotypes and genotype qualities \n"
+						+ "                     from allele depth with the ploidy specified here.\n"
 						+ " -l/--min-depth		Minimum depth to keep a SNP (DP).\n"
 						+ " -u/--max-depth		Maximum depth to keep a SNP (DP).\n"
 						+ " -q/--min-qual  		Minimum quality to keep a SNP (QUAL).\n"
@@ -92,7 +92,7 @@ public class DataPreparation extends Executor {
 			id = myArgsEngine.getString("-s");
 		} else {
 			id = new File(vcf_in).getName().replaceAll(".vcf.gz$", "").
-					replaceAll(".vcf$", "");
+					replaceAll(".vcf$", "")+".recode";
 		}
 		
 		if (myArgsEngine.getBoolean("-p")) {
