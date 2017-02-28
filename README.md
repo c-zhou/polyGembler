@@ -37,7 +37,7 @@ The code has been tested with Java 7 and 8. The default version is Java 8. The [
 ## Quick Start
 A quick start to run the software. Modules listed below are independent from each other.
 
-#### Simulate GBS data for an outcrossed F1 mapping population
+#### 1. Simulate GBS data for an outcrossed F1 mapping population
 *Input*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;a reference fasta file with all chromosomes
 
 *Output*&nbsp;&nbsp;&nbsp;a zipped fastq file with all GBS reads
@@ -51,7 +51,7 @@ The first step simulates a tetraploid (-p option) F1 mapping population with 192
 
     $ cat ${gbs_out_dir}/*.gz > ${merged_gbs_file}.gz
 
-#### Run variant detection module for GBS data
+#### 2. Run variant detection module for GBS data
 
 *Input*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;GBS FASTQ files, GBS key file, reference genome/assembly
 
@@ -67,32 +67,53 @@ To run this command, the following tools should be installed and added to system
 * [bwa](http://bio-bwa.sourceforge.net/)
 * [freebayes](https://github.com/ekg/freebayes)
 
-This command runs the whole variant detection pipeline from the GBS reads demultiplexing to variant calling with [freebayes](https://github.com/ekg/freebayes). The GBS FASTQ file(s) should be found by the program in directory ${gbs_fastq_dir} (-i option). The GBS key file is provided with -k option. [Here](https://bytebucket.org/tasseladmin/tassel-5-source/wiki/Tassel5GBSv2Pipeline/Pipeline_Testing_key.txt?rev=19fcce52374296f80ed568fbdd752f8cffabb2ae) is a sample key file from [Buckler Lab](http://www.maizegenetics.net/tassel).
+This command runs the whole variant detection pipeline from the GBS reads demultiplexing to variant calling with [freebayes](https://github.com/ekg/freebayes). The GBS FASTQ file(s) should be found by the program in directory ${gbs_fastq_dir} (-i option). The GBS key file is provided with -k option. [Here](https://bytebucket.org/tasseladmin/tassel-5-source/wiki/Tassel5GBSv2Pipeline/Pipeline_Testing_key.txt?rev=19fcce52374296f80ed568fbdd752f8cffabb2ae) is a sample key file from [Buckler Lab](http://www.maizegenetics.net/tassel). The ploidy of the genome is specified with -p option. The reference genome assembly is provided with -f option. The output will be in ${vd_out_dir} directory. It should noted that the program will create ${vd_out_dir} if it is not existed. 
 
-#### Run genetic linkage map or pseudomolecule construnction pipeline
+You may skip the freebayes variant calling step with -z option, and instead use other variant detection pipeline such as [samtools mpileup](http://samtools.sourceforge.net/mpileup.shtml) and [GATK](https://software.broadinstitute.org/gatk/). The BAM files for each sample can be found under the ${vd_out_dir}/bam directory. Running with -z option will not require [freebayes](https://github.com/ekg/freebayes) installed.
+    
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar gbspileup -i ${gbs_fastq_dir} -k ${gbs_key_file} -p 2 -t 32 -f ${assembly.fa} -o ${vd_out_dir} -z
 
-###### Input
+#### 3. Run genetic linkage map or pseudomolecule construnction pipeline
 
-###### Output
+*Input*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;VCF file, reference genome assembly
 
-###### Command
+*Output*&nbsp;&nbsp;&nbsp;genetic linkage maps or pseudomolecules
 
+*Command*
 
-#### Run haplotype phasing algorithm
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar gbspileup -i ${in_vcf_file} -a ${assembly_fasta_file} -f ${parent_sample_1}:${parent_sample_2} -p 2 -t 32 -o ${map_out_dir}
+    
+The command takes the VCF file (-i option) and the assembly fasta file (-a option) as input. Two parental samples of the full-sib family should be specified with -f option and use ":" as delimiter. This is a diploid genome so set -p option as default 2. It uses 32 CPUs. The output files will be found under ${map_out_dir} directory (-o option).
 
-###### Input
+#### 4. Run haplotype phasing algorithm
 
-###### Output
+*Input*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;preprocessed file
 
-###### Command
+*Output*&nbsp;&nbsp;&nbsp;inferred haplotypes for each sample
 
-## More parameter options
+*Command*
+
+Prepare a VCF file for haplotype phasing.
+
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar datapreparation -i ${in_vcf_file} -p 2 -q 10 -f 0.1 -m 0.5 -u 3000 -o ${out_zip_dir}
+    
+The VCF file is provided with -i option. The program will filter the variants according to the parameters specified by user. Here the program is told that it is dealing with a diploid genome (-p option). The minimum quality score of a base is set 10 (-q option). Bases with quility scores lower than 10 will be treated as missing. The lower bound of minor allele frequency is set to 0.1. The rare variants called from a F1 full-sib family is very likely caused by sequencing errors. The maximum missing data rate across a locus is set to 0.5. Loci with more than 50% missing genotypes will be filtered out. The upper bound of total allele depth (DP field in VCF files) for a position is set to 3000 (-u option). If the DP field exceeds 3000, the variant will be filtered out. This is used to remove ambiguous variants caused by copy number variantion. It should be noted here that the program only deals with bi-allelic SNPs currently.
+    
+Run the haplotype phasing algorithm.
+
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar haplotyper -i ${in_zip_file} -p 2 -c ${contig_str_id} -f ${parent_sample_1}:${parent_sample_2} -L -o ${out_file_dir}
+
+You can run multiple contigs simultaneously. 
+
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar haplotyper -i ${in_zip_file} -p 2 -c ${contig_str_id}:${contig_str_id2}:${contig_str_id3} -r true:false:false -s 0.05:0.1 -f ${parent_sample_1}:${parent_sample_2} -L -o ${out_file_dir}
+
+## Parameter options
 #### Simulate GBS data for an outcrossed F1 mapping population
 #### Run variant detection module for GBS data
 #### Run genetic linkage map or pseudomolecule construnction pipeline
 #### Run haplotype phasing algorithm
 
-## More details about the output files
+## Details about the output files
 #### Simulate GBS data for an outcrossed F1 mapping population
 #### Run variant detection module for GBS data
 #### Run genetic linkage map or pseudomolecule construnction pipeline
