@@ -25,7 +25,8 @@ public class DataPreparation extends Executor {
 			int max_depth, 
 			int min_qual, 
 			double min_maf, 
-			double max_missing, 
+			double max_missing,
+			String id,
 			String out_file) {
 		this.vcf_in = vcf_in;
 		this.ploidy = ploidy;
@@ -34,6 +35,7 @@ public class DataPreparation extends Executor {
 		this.min_qual = min_qual;
 		this.min_maf = min_maf;
 		this.max_missing = max_missing;
+		this.id = id;
 		this.out_file = out_file;
 	}
 	

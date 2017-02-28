@@ -282,7 +282,6 @@ public class Gembler extends Executor {
 		
 		//#### STEP 01 filter SNPs and create ZIP file
 		Utils.makeOutputDir(out_prefix+"/data");
-		
 		new DataPreparation(in_vcf,
 				Constants._ploidy_H, 
 				min_depth, 
@@ -290,6 +289,9 @@ public class Gembler extends Executor {
 				min_qual, 
 				min_maf, 
 				max_missing, 
+				new File(in_vcf).getName().
+				replaceAll(".vcf.gz$", "").
+				replace(".vcf", ""),
 				out_prefix+"/data/")
 		.run();
 		
