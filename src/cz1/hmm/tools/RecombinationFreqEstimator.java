@@ -165,6 +165,18 @@ public class RecombinationFreqEstimator extends RFUtils {
 		
 		this.initial_thread_pool();
 		rfMinimumWriter = Utils.getBufferedWriter(out_prefix+".txt");
+		
+		try {
+			for(int i=0; i<this.dc.length; i++) {
+				if(this.dc[i][0]!=null)
+					rfMinimumWriter.write("##"+new File(this.dc[i][0].file).
+							getName().split("\\.")[1]+"\n");
+			}
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
 		long start = System.nanoTime();
 		for(int i=0; i<dc.length; i++) 
 			for(int j=i+1; j<dc.length; j++) 

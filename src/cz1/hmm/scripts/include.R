@@ -279,11 +279,71 @@ traverse <- function(adj_matrix) {
     clans
 }
 
+.simply_write_files <- function(in_RData, in_map, out_file) {
+	load(in_RData)
+	
+	dC = .read_map_file(in_map)
+	
+	sink(paste0(out_file,".mct"))
+	cat("group\tLG"); cat(1); cat("\n")
+	cat(scaffs); cat("(+)\t0");cat("\n")
+	cat(scaffs); cat("(-)\t");cat(dC);cat("\n")
+	sink()
+	
+	sink(paste0(out_file,".par"))
+	cat("-c ");cat(scaffs);cat("\n")
+	sink()
+	
+	sink(paste0(out_file,".log"))
+	cat("$contigs/scaffolds\n")
+	cat(scaffs[1]); cat("\n");
+	
+	cat("\n$groups\n")
+	cat("1\n")
+	
+	cat("\n$cm\n")
+	cat(dC); cat("\n")
+	
+	cat("\n$order\n")
+	cat("LG");cat(1);cat("\t\t")
+	cat(scaffs);cat("\n")
+	
+	cat("\n$orientation\n")
+	cat(scaffs); cat("(+)-")
+	cat(scaffs); cat("(-)\n")
+	sink()
+}
+
+.read_map_file <- function(in_map) {
+	cDx = readLines(in_map)
+	w = grep("\\*",cDx)
+	tC = gsub("\\*","",cDx[w])
+	w = c(w,length(cDx)+1)
+	dC = rep(NA, length(w)-1)
+	for(i in 1:length(dC)) {
+		rf = as.numeric(strsplit(cDx[w[i]+1],",")[[1]])
+		j = w[i]+2
+		while( j<w[i+1] ) {
+			rf = rbind(rf, as.numeric(strsplit(cDx[j],",")[[1]]))
+			j = j+1
+		}
+		means = rf
+		if(!is.null(dim(rf))) means = apply(rf,2,mean)
+		dC[i] = sum(.cm_d(means))
+	}
+	dC
+}
+
 genetic_linkage_map <- function(in_RData, in_map, out_file, 
                                 rf_thresh=.kosambi_r(.5), make_group=TRUE) {
 
     load(in_RData)
     
+	if(length(scaffs)==1) {
+		.simply_write_files(in_RData, in_map, out_file);
+		return()
+	}
+	
     diag(distanceMat) = Inf
 
 	if(make_group) {
@@ -338,22 +398,7 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
         o[[i]] = ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
     }
    
-    cDx = readLines(in_map)
-    w = grep("\\*",cDx)
-    tC = gsub("\\*","",cDx[w])
-    w = c(w,length(cDx)+1)
-    dC = rep(NA, length(w)-1)
-    for(i in 1:length(dC)) {
-        rf = as.numeric(strsplit(cDx[w[i]+1],",")[[1]])
-        j = w[i]+2
-        while( j<w[i+1] ) {
-            rf = rbind(rf, as.numeric(strsplit(cDx[j],",")[[1]]))
-            j = j+1
-        }
-		means = rf
-        if(!is.null(dim(rf))) means = apply(rf,2,mean)
-        dC[i] = sum(.cm_d(means))
-    }
+	dC = .read_map_file(in_map);
 
 	lgCM = rep(NA,length(o))
     sink(paste0(out_file,".mct"))

@@ -918,23 +918,19 @@ public abstract class RFUtils extends Executor {
 			String s[];
 			int w = 0;
 			int A = 0;
-			while( (line=br.readLine())!=null ) {
-				s = line.split("\\s+");
-				if(!scaffs.containsValue(s[5])) 
-					scaffs.put(w++, s[5]);
-				if(!scaffs.containsValue(s[6])) 
-					scaffs.put(w++, s[6]);
+			while( (line=br.readLine())!=null &&
+					line.startsWith("##")) {
+				scaffs.put(w++, line.replaceAll("^##", ""));
 				A++;
 			}
-			br.close();
 			
 			int n = scaffs.size();
 			DoubleMatrixBuilder dMat = new DoubleMatrixBuilder(n,n);
 			DoubleMatrixBuilder iMat = new DoubleMatrixBuilder(n,n);
 			DoubleMatrixBuilder dAllMat = new DoubleMatrixBuilder(A*2,4);
-			br = Utils.getBufferedReader(in_rf);
+			
 			w = 0;
-			while( (line=br.readLine())!=null ) {
+			while( line!=null ) {
 				s = line.split("\\s+");
 				int i=scaffs.getKey(s[5]),
 						j=scaffs.getKey(s[6]);
@@ -949,6 +945,7 @@ public abstract class RFUtils extends Executor {
 					dAllMat.set(w+A, (k==0||k==3)?k:(3-k), d);
 				}
 				w++;
+				line = br.readLine();
 			}
 			br.close();
 			StringVector scf = new StringArrayVector(scaffs.values());
