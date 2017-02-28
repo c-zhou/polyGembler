@@ -917,14 +917,13 @@ public abstract class RFUtils extends Executor {
 			String line;
 			String s[];
 			int w = 0;
-			int A = 0;
 			while( (line=br.readLine())!=null &&
 					line.startsWith("##")) {
 				scaffs.put(w++, line.replaceAll("^##", ""));
-				A++;
 			}
 			
 			int n = scaffs.size();
+			int A = w*(w-1)/2;
 			DoubleMatrixBuilder dMat = new DoubleMatrixBuilder(n,n);
 			DoubleMatrixBuilder iMat = new DoubleMatrixBuilder(n,n);
 			DoubleMatrixBuilder dAllMat = new DoubleMatrixBuilder(A*2,4);
