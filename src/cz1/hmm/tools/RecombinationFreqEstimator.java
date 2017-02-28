@@ -166,12 +166,15 @@ public class RecombinationFreqEstimator extends RFUtils {
 		this.initial_thread_pool();
 		rfMinimumWriter = Utils.getBufferedWriter(out_prefix+".txt");
 		
+		Set<String> kept_scaffs = new HashSet<String>();
+		for(int i=0; i<this.dc.length; i++) {
+			if(this.dc[i][0]!=null)
+				kept_scaffs.add(this.dc[i][0].markers[0].
+						replaceAll("_[0-9]{1,}$", ""));
+		}
 		try {
-			for(int i=0; i<this.dc.length; i++) {
-				if(this.dc[i][0]!=null)
-					rfMinimumWriter.write("##"+new File(this.dc[i][0].file).
-							getName().split("\\.")[1]+"\n");
-			}
+			for(String scaff : kept_scaffs)
+					rfMinimumWriter.write("##"+scaff+"\n");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

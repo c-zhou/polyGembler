@@ -161,6 +161,8 @@ public class VCFtools extends Executor {
 						+header_field+" columns should be,\n";
 							for(int j=0; j<header_field; j++)
 								err_msg += Constants._vcf_header[j]+"\n";
+							br.close();
+							bw.close();
 							throw new RuntimeException(err_msg);
 						}
 					}
