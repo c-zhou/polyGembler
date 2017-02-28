@@ -1,37 +1,39 @@
 package cz1.hmm.tools;
 
-import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 import cz1.util.ArgsEngine;
-import cz1.util.Constants;
 import cz1.util.Executor;
-import cz1.util.Utils;
 
 public class DataPreparation extends Executor {
 
-	String vcf_in = null;
+	private int ploidy = -1;
+	private int min_depth = 0;
+	private int max_depth = Integer.MAX_VALUE;
+	private int min_qual = 0;
+	private double min_maf = 0.1;
+	private double max_missing = 0.5;
+	private String vcf_in = null;
 	String id = null;
 	String out_file = null;
 	
 	public DataPreparation() {}
 	
-	public DataPreparation(String vcf_in, 
-			String id, 
+	public DataPreparation(String vcf_in,
+			int ploidy, 
+			int min_depth, 
+			int max_depth, 
+			int min_qual, 
+			double min_maf, 
+			double max_missing, 
 			String out_file) {
 		this.vcf_in = vcf_in;
-		this.id = id;
+		this.ploidy = ploidy;
+		this.min_depth = min_depth;
+		this.max_depth = max_depth;
+		this.min_qual = min_qual;
+		this.min_maf = min_maf;
+		this.max_missing = max_missing;
 		this.out_file = out_file;
 	}
 	
@@ -40,14 +42,24 @@ public class DataPreparation extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " -i/--vcf            Input VCF file.\n"
+						+ " -i/--vcf			Input VCF file.\n"
 						+ " -s/--id             Unique id of this run (default: input VCF file name prefix).\n"
-						+ " -o/--prefix         Prefix for output (default: input VCF file folder).\n\n");
+						+ " -p/--ploidy			Real ploidy of genome. "
+						+ "						NOTE: You may call variant as diploid and the program will "
+						+ "							  fit a binomial model to call genotypes and genotype "
+						+ "							  qualities from allele depth.\n"
+						+ " -l/--min-depth		Minimum depth to keep a SNP (DP).\n"
+						+ " -u/--max-depth		Maximum depth to keep a SNP (DP).\n"
+						+ " -q/--min-qual  		Minimum quality to keep a SNP (QUAL).\n"
+						+ " -f/--min-maf		Minimum minor allele frequency to keep a SNP (default 0.1).\n"
+						+ " -m/--max-missing	Maximum proportion of missing data to keep a SNP (default 0.5).\n"
+						+ " -o/--prefix			Prefix for output VCF file.\n\n");
 	}
 
 	@Override
 	public void setParameters(String[] args) {
 		// TODO Auto-generated method stub
+
 		if (args.length == 0) {
 			printUsage();
 			throw new IllegalArgumentException("\n\nPlease use the above arguments/options.\n\n");
@@ -57,160 +69,69 @@ public class DataPreparation extends Executor {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-i", "--vcf", true);
 			myArgsEngine.add("-s", "--id", true);
+			myArgsEngine.add("-l", "--min-depth", true);
+			myArgsEngine.add("-p", "--ploidy", true);
+			myArgsEngine.add("-u", "--max-depth", true);
+			myArgsEngine.add("-q", "--min-qual", true);
+			myArgsEngine.add("-f", "--min-maf", true);
+			myArgsEngine.add("-m", "--max-missing", true);
 			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.parse(args);
 		}
-
+		
 		if (myArgsEngine.getBoolean("-i")) {
 			vcf_in = myArgsEngine.getString("-i");
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your VCF file.");
 		}
-		
+	
 		if (myArgsEngine.getBoolean("-s")) {
 			id = myArgsEngine.getString("-s");
 		} else {
-			id = new File(vcf_in).getName().replaceAll("vcf.gz$", "").
-					replaceAll("vcf$", "");
+			id = new File(vcf_in).getName().replaceAll(".vcf.gz$", "").
+					replaceAll(".vcf$", "");
 		}
 		
-		if (myArgsEngine.getBoolean("-o")) {
-			out_file = myArgsEngine.getString("-o");
-		} else {
-			out_file = new File(vcf_in).getParent();
+		if (myArgsEngine.getBoolean("-p")) {
+			ploidy = Integer.parseInt(myArgsEngine.getString("-p"));
 		}
+		
+		if (myArgsEngine.getBoolean("-l")) {
+			min_depth = Integer.parseInt(myArgsEngine.getString("-l"));
+		}
+		
+		if (myArgsEngine.getBoolean("-u")) {
+			max_depth = Integer.parseInt(myArgsEngine.getString("-u"));
+		}
+		
+		if (myArgsEngine.getBoolean("-q")) {
+			min_qual = Integer.parseInt(myArgsEngine.getString("-q"));
+		}
+		
+		if (myArgsEngine.getBoolean("-f")) {
+			min_maf = Double.parseDouble(myArgsEngine.getString("-f"));
+		}
+		
+		if (myArgsEngine.getBoolean("-m")) {
+			max_missing = Double.parseDouble(myArgsEngine.getString("-m"));
+		}
+
 	}
 
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		String zipFilePath = out_file+Constants.file_sep+id+".zip";
-		List<String> info = Arrays.asList(Constants.
-				_vcf_format_str.split(":"));
-		int _idx_gt = info.indexOf("GT"),
-				_idx_pl = info.indexOf("PL"),
-				_idx_ad = info.indexOf("AD");
-		try {
-			
-			ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(new 
-					FileOutputStream(zipFilePath), 65536));
-			
-			BufferedReader br = Utils.getBufferedReader(vcf_in);
-			String line;
-			while( (line=br.readLine()).startsWith("##") ) {}
-			String[] s = line.split("\\s+");
-			List<String> sList = Arrays.asList(s);
-			int _idx_start = sList.indexOf("FORMAT")+1,
-					_idx_pos = sList.indexOf("POS"),
-					_idx_ref = sList.indexOf("REF"),
-					_idx_alt = sList.indexOf("ALT"),
-					_idx_format = sList.indexOf("FORMAT");
-			out.putNextEntry(new ZipEntry("samples"));
-			for(int i=_idx_start; i<s.length; i++) out.write((s[i]+
-					Constants.line_sep).getBytes());
-			List<Contig> contigs = new ArrayList<Contig>();
-			line = br.readLine();
-			s = line.split("\\s+");
-			final Set<String> fields = new HashSet<String>();
-			String[] fs = s[_idx_format].split(":");
-			for(String f : fs) fields.add(f);
-			while(line != null) {
-				int i=1;
-				String contig = line.split("\\s+")[0];
-				List<String[]> snps = new ArrayList<String[]>();
-				snps.add(line.split("\\s+"));
-				while( (line=br.readLine())!=null && 
-						line.split("\\s+")[0].equals(contig)) {
-					i++;
-					snps.add(line.split("\\s+"));
-				}
-				contigs.add(new Contig(contig,i));
-				
-				out.putNextEntry(new ZipEntry(contig+
-						Constants.file_sep));
-				
-				out.putNextEntry(new ZipEntry(contig+
-						Constants.file_sep+"position"));
-				for(int j=0; j<snps.size(); j++)
-					out.write((snps.get(j)[_idx_pos]+Constants.line_sep).
-							getBytes());
-				out.putNextEntry(new ZipEntry(contig+
-						Constants.file_sep+"allele"));
-				for(int j=0; j<snps.size(); j++)
-					out.write((snps.get(j)[_idx_ref]+
-							"\t"+snps.get(j)[_idx_alt]+
-							Constants.line_sep).
-							getBytes());
-				if(fields.contains("GT")) {
-					out.putNextEntry(new ZipEntry(contig+
-							Constants.file_sep+"GT"));
-					for(int j=0; j<snps.size(); j++) {
-						for(int k=_idx_start; k<snps.get(j).length; k++)
-							out.write((snps.get(j)[k].split(":")[_idx_gt]+"\t")
-									.getBytes());
-						out.write("\n".getBytes());
-					}
-				}
-				if(fields.contains("AD")) {
-					out.putNextEntry(new ZipEntry(contig+
-							Constants.file_sep+"AD"));
-					for(int j=0; j<snps.size(); j++) {
-						for(int k=_idx_start; k<snps.get(j).length; k++)
-							try {
-								out.write((snps.get(j)[k].split(":")[_idx_ad]+"\t")
-										.getBytes());
-							} catch (ArrayIndexOutOfBoundsException e) {
-								out.write(".\t".getBytes());
-							}
-						out.write("\n".getBytes());
-					}
-				}
-				if(fields.contains("PL")) {
-					out.putNextEntry(new ZipEntry(contig+
-							Constants.file_sep+"PL"));
-					for(int j=0; j<snps.size(); j++) {
-						for(int k=_idx_start; k<snps.get(j).length; k++)
-							try {
-								out.write((snps.get(j)[k].split(":")[_idx_pl]+"\t")
-										.getBytes());
-							} catch (ArrayIndexOutOfBoundsException e) {
-								out.write(".\t".getBytes());
-							}
-						out.write("\n".getBytes());
-					}
-				}
-			}
-			br.close();
-			
-			Collections.sort(contigs);
-			Collections.reverse(contigs);
-			
-			out.putNextEntry(new ZipEntry("contig"));
-			for(Contig contig : contigs)
-				out.write((contig.id+"\t"+contig.markers+
-						Constants.line_sep).getBytes());
-			out.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
-
-	private class Contig implements Comparable<Contig> {
-		private String id;
-		private int markers;
+		new VCFtools(ploidy, min_depth, 
+				max_depth, min_qual, 
+				min_maf, max_missing, 
+				vcf_in, out_file+"/"+id+".vcf")
+		.run();
 		
-		public Contig(String id,
-				int markers) {
-			this.id = id;
-			this.markers = markers;
-		}
-		
-		@Override
-		public int compareTo(Contig contig) {
-			// TODO Auto-generated method stub
-			return this.markers-contig.markers;
-		}
+		new ZipDataCollection(
+				out_file+"/"+id+".vcf",
+				id,
+				out_file)
+		.run();
 	}
 }

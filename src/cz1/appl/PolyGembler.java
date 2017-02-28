@@ -7,6 +7,7 @@ import org.apache.log4j.Logger;
 
 import cz1.gbs.tools.GBSpileup;
 import cz1.hmm.data.DataCollection;
+import cz1.hmm.tools.ZipDataCollection;
 import cz1.hmm.tools.DataPreparation;
 import cz1.hmm.tools.Gembler;
 import cz1.hmm.tools.Haplotyper;
