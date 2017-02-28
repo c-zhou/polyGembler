@@ -43,19 +43,31 @@ A quick start to run the software. Modules listed below are independent from eac
 *Output*&nbsp;&nbsp;&nbsp;a zipped fastq file with all GBS reads
 
 *Command*
-    
-    $ java cz1.appl.PolyGembler popsimulation -r reference/reference.fa -t 32 -p 4 -c 200 -o pop_sim/tetraploid -n 192
 
-This could also be done in two seperate steps
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar popsimulation -r ${reference.fa} -t 32 -p 4 -c 200 -o ${pop_out_dir} -n 192
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar gbssimulation -f ${pop_out_dir}/Sc1 -t 32 -m 5 -s 5 -o ${gbs_out_dir}
 
+The first step simulates a tetraploid (-p option) F1 mapping population with 192 samples (-n option) from the reference genome ${reference.fa} (-r option). The total genetic length of the chromosomes is 200cm (-c option). It uses 32 CPUs (-t option). The output sample genomes (FASTA files) will be in ${pop_out_dir}/Sc1 (-o option). The second step takes the simulated mapping population genomes in the first step as input (-f option). The average sequencing depth of coverage for each copy of the chromosome is 5 (-m option) and the standard deviation is 5 (-s option). It uses 32 CPUs (-t option). The output GBS data (FASTQ file) will be in ${gbs_out_dir} (-o option). The program write GBS reads for each sample seperately as a [gzipped](https://en.wikipedia.org/wiki/Gzip) file. If you need to put all GBS reads together, simply use the [cat](https://en.wikipedia.org/wiki/Cat_(Unix)) command.
+
+    $ cat ${gbs_out_dir}/*.gz > ${merged_gbs_file}.gz
 
 #### Run variant detection module for GBS data
 
-*Input*
+*Input*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;GBS FASTQ files, GBS key file, reference genome/assembly
 
-*Output*
+*Output*&nbsp;&nbsp;&nbsp;VCF file
 
 *Command*
+
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar gbspileup -i ${gbs_fastq_dir} -k ${gbs_key_file} -p 2 -t 32 -f ${assembly.fa} -o ${vd_out_dir}
+
+To run this command, the following tools should be installed and added to system path.
+
+* [samtools](http://samtools.sourceforge.net/)
+* [bwa](http://bio-bwa.sourceforge.net/)
+* [freebayes](https://github.com/ekg/freebayes)
+
+This command runs the whole variant detection pipeline 
 
 #### Run genetic linkage map or pseudomolecule construnction pipeline
 
