@@ -44,10 +44,15 @@ A quick start to run the software. Modules listed below are independent from eac
 
 *Command*
     
-    $ java cz1.appl.PolyGembler popsimulation -r reference/reference.fa -t 32 -p 4 -c 200 -o pop_sim/tetraploid -n 192
 
-This could also be done in two seperate steps
 
+This could be equally done in two seperate steps
+    
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar popsimulation -r ${reference.fa} -t 32 -p 4 -c 200 -o ${out_dir} -n 192
+
+and then
+    
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar gbssimulation -f ${out_dir}/Sc1 -t 32 -m 5 -s 5 -o ${out_dir}
 
 #### Run variant detection module for GBS data
 
