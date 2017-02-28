@@ -48,11 +48,11 @@ A quick start to run the software. Modules listed below are independent from eac
 
 This could be equally done in two seperate steps
     
-    $ java -jar polyGembler-${version}-jar-with-dependencies.jar popsimulation -r ${reference.fa} -t 32 -p 4 -c 200 -o ${out_dir} -n 192
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar popsimulation -r ${reference.fa} -t 32 -p 4 -c 200 -o ${pop_out_dir} -n 192
 
 and then
     
-    $ java -jar polyGembler-${version}-jar-with-dependencies.jar gbssimulation -f ${out_dir}/Sc1 -t 32 -m 5 -s 5 -o ${out_dir}
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar gbssimulation -f ${pop_out_dir}/Sc1 -t 32 -m 5 -s 5 -o ${gbs_out_dir}
 
 #### Run variant detection module for GBS data
 
