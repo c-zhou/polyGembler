@@ -63,11 +63,11 @@ The first step simulates a tetraploid (-p option) F1 mapping population with 192
 
 To run this command, the following tools should be installed and added to system path.
 
-* [freebayes](https://github.com/ekg/freebayes)
 * [samtools](http://samtools.sourceforge.net/)
 * [bwa](http://bio-bwa.sourceforge.net/)
+* [freebayes](https://github.com/ekg/freebayes)
 
-
+This command runs the whole variant detection pipeline 
 
 #### Run genetic linkage map or pseudomolecule construnction pipeline
 
