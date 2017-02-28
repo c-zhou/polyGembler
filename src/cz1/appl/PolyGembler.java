@@ -73,6 +73,6 @@ public class PolyGembler {
 						+ " gbspileup           Variant calling from GBS data. \n"
 						+ " datapreparation     Prepare data for haplotype phasing. \n"
 						+ " haplotyper          Contig/scaffold haplotype construction from a mapping population.\n"
-						+ " gembler             Run PolyGembler pipeline to construct genetic linakge maps/pseudomolecules.\n\n");
+						+ " gembler             Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.\n\n");
 	}
 }

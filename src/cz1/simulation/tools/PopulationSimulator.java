@@ -23,7 +23,7 @@ public class PopulationSimulator extends Executor {
 						+ "                     from the reference, 1cM per 1Mbp).\n"
 						+ " -t/--threads        Number of threads (default 1).\n"
 						+ " -s/--run-id         Unique run id (default Sc1).\n" 
-						+ " -o/--prefix         Output directory (defult current directory).\n\n");
+						+ " -o/--prefix         Output directory (default current directory).\n\n");
 	}
 
 	@Override

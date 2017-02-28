@@ -8,7 +8,7 @@
 
 <img src="https://github.com/c-zhou/polyGembler/raw/master/pipeline_flowchart.png" width=600/>
 
-*polyGembler* also provides a tool for simulating outcrossed F1 mapping population GBS data. It uses the software [PedigreeSim V2.0](https://www.wur.nl/en/show/Software-PedigreeSim.htm) to simulate the full-sib family genomes and imitates the [GBS protocal](http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0019379) to generate GBS reads.
+*polyGembler* also provides a tool for simulating outcrossed F1 mapping population GBS data. It uses the software [PedigreeSim V2.0](https://www.wur.nl/en/show/Software-PedigreeSim.htm) to simulate the full-sib family genomes and imitates the [GBS protocol](http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0019379) to generate GBS reads.
 
 *polyGembler* is written in Java. It has a user friendly design. All the tasks could be done with an one-liner command require no further user interactions. It has been multithreaded where possible.
 
@@ -38,16 +38,16 @@ The code has been tested with Java 7 and 8. The default version is Java 8. The [
 A quick start to run the software. Modules listed below are independent from each other.
 
 #### 1. Simulate GBS data for an outcrossed F1 mapping population
-*Input*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;a reference fasta file with all chromosomes
+*Input*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;a reference FASTA file with all chromosomes
 
-*Output*&nbsp;&nbsp;&nbsp;a zipped fastq file with all GBS reads
+*Output*&nbsp;&nbsp;&nbsp;a zipped FASTQ file with all GBS reads
 
 *Command*
 
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar popsimulation -r ${reference.fa} -t 32 -p 4 -c 200 -o ${pop_out_dir} -n 192
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar gbssimulation -f ${pop_out_dir}/Sc1 -t 32 -m 5 -s 5 -o ${gbs_out_dir}
 
-The first step simulates a tetraploid (-p option) F1 mapping population with 192 samples (-n option) from the reference genome ${reference.fa} (-r option). The total genetic length of the chromosomes is 200cm (-c option). It uses 32 CPUs (-t option). The output sample genomes (FASTA files) will be in ${pop_out_dir}/Sc1 (-o option). The second step takes the simulated mapping population genomes in the first step as input (-f option). The average sequencing depth of coverage for each copy of the chromosome is 5 (-m option) and the standard deviation is 5 (-s option). It uses 32 CPUs (-t option). The output GBS data (FASTQ file) will be in ${gbs_out_dir} (-o option). The program write GBS reads for each sample seperately as a [gzipped](https://en.wikipedia.org/wiki/Gzip) file. If you need to put all GBS reads together, simply use the [cat](https://en.wikipedia.org/wiki/Cat_(Unix)) command.
+The first step simulates a tetraploid (-p option) F1 mapping population with 192 samples (-n option) from the reference genome ${reference.fa} (-r option). The total genetic length of the chromosomes is 200cm (-c option). It uses 32 CPUs (-t option). The output sample genomes (FASTA files) will be in ${pop_out_dir}/Sc1 (-o option). The second step takes the simulated mapping population genomes in the first step as input (-f option). The average sequencing depth of coverage for each copy of the chromosome is 5 (-m option) and the standard deviation is 5 (-s option). It uses 32 CPUs (-t option). The output GBS data (FASTQ file) will be in ${gbs_out_dir} (-o option). The program write GBS reads for each sample separately as a [gzipped](https://en.wikipedia.org/wiki/Gzip) file. If you need to put all GBS reads together, simply use the [cat](https://en.wikipedia.org/wiki/Cat_(Unix)) command.
 
     $ cat ${gbs_out_dir}/*.gz > ${merged_gbs_file}.gz
 
@@ -83,7 +83,7 @@ You may skip the freebayes variant calling step with -z option, and instead use 
 
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar gbspileup -i ${in_vcf_file} -a ${assembly_fasta_file} -f ${parent_sample_1}:${parent_sample_2} -p 2 -t 32 -o ${map_out_dir}
     
-The command takes the VCF file (-i option) and the assembly fasta file (-a option) as input. Two parental samples of the full-sib family should be specified with -f option and use ":" as delimiter. This is a diploid genome so set -p option as default 2. It uses 32 CPUs. The output files will be found under ${map_out_dir} directory (-o option).
+The command takes the VCF file (-i option) and the assembly FASTA file (-a option) as input. Two parental samples of the full-sib family should be specified with -f option and use ":" as delimiter. This is a diploid genome so set -p option as default 2. It uses 32 CPUs. The output files will be found under ${map_out_dir} directory (-o option).
 
 #### 4. Run haplotype phasing algorithm
 
@@ -97,7 +97,7 @@ Prepare a VCF file for haplotype phasing.
 
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar datapreparation -i ${in_vcf_file} -p 2 -q 10 -f 0.1 -m 0.5 -u 3000 -o ${out_zip_dir}
     
-The VCF file is provided with -i option. The program will filter the variants according to the parameters specified by user. Here the program is told that it is dealing with a diploid genome (-p option). The minimum quality score of a base is set 10 (-q option). Bases with quility scores lower than 10 will be treated as missing. The lower bound of minor allele frequency is set to 0.1. The rare variants called from a F1 full-sib family is very likely caused by sequencing errors. The maximum missing data rate across a locus is set to 0.5. Loci with more than 50% missing genotypes will be filtered out. The upper bound of total allele depth (DP field in VCF files) for a position is set to 3000 (-u option). If the DP field exceeds 3000, the variant will be filtered out. This is used to remove ambiguous variants caused by copy number variantion. It should be noted here that the program only deals with bi-allelic SNPs currently. The output is a zipped file with the same prefix as the input VCF file. The location of the output file is specified with -o option.
+The VCF file is provided with -i option. The program will filter the variants according to the parameters specified by user. Here the program is told that it is dealing with a diploid genome (-p option). The minimum quality score of a base is set 10 (-q option). Bases with quality scores lower than 10 will be treated as missing. The lower bound of minor allele frequency is set to 0.1. The rare variants called from a F1 full-sib family is very likely caused by sequencing errors. The maximum missing data rate across a locus is set to 0.5. Loci with more than 50% missing genotypes will be filtered out. The upper bound of total allele depth (DP field in VCF files) for a position is set to 3000 (-u option). If the DP field exceeds 3000, the variant will be filtered out. This is used to remove ambiguous variants caused by copy number variation. It should be noted here that the program only deals with biallelic SNPs currently. The output is a zipped file with the same prefix as the input VCF file. The location of the output file is specified with -o option.
     
 Run the haplotype phasing algorithm.
 
@@ -109,7 +109,7 @@ You can run multiple contigs/scaffolds simultaneously.
 
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar haplotyper -i ${in_zip_file} -c ${contig_str_id}:${contig_str_id2}:${contig_str_id3} -r true:false:false -s 0.05:0.1 -p 2 -f ${parent_sample_1}:${parent_sample_2} -L -o ${out_file_dir}
 
-This is very simular to running with the single contig/scaffold. Mutiple contigs/scaffolds are provided with string ids seperated by ":". As there could be different concatenation directions, -r option specifies if each contig/scaffold is reversed or not. The default is not. The distances between the adjacent contigs/scaffolds are initialised with -s option, otherwise the program will generate them randomly. The distances could either be the recombination frequencies or the physical distances. The program will check these numbers. If all of them are smaller than 0.5, then they will be taken as recombination frequencies.
+This is very similar to running with the single contig/scaffold. Multiple contigs/scaffolds are provided with string ids separated by ":". As there could be different concatenation directions, -r option specifies if each contig/scaffold is reversed or not. The default is not. The distances between the adjacent contigs/scaffolds are initialised with -s option, otherwise the program will generate them randomly. The distances could either be the recombination frequencies or the physical distances. The program will check these numbers. If all of them are smaller than 0.5, then they will be taken as recombination frequencies.
 
 ## More parameter options
 #### 1. First option for the executable jar file
@@ -119,7 +119,7 @@ gbssimulation                Simulate GBS data.
 gbspileup                    Variant calling from GBS data.
 datapreparation              Prepare data for haplotype phasing.
 haplotyper                   Contig/scaffold haplotype construction from a mapping population.
-gembler                      Run PolyGembler pipeline to construct genetic linakge maps/pseudomolecules.
+gembler                      Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.
 </pre>
 
 #### 2. Simulate an outcrossed F1 mapping population (popsimulation)
@@ -132,7 +132,7 @@ gembler                      Run PolyGembler pipeline to construct genetic linak
                              from the reference, 1cM per 1Mbp).
 -t/--threads                 Number of threads (default 1).
 -s/--run-id                  Unique run id (default Sc1).
--o/--prefix                  Output directory (defult current directory).
+-o/--prefix                  Output directory (default current directory).
 </pre>
 
 #### 3. Simualte GBS data from the F1 mapping population (gbssimulation)
@@ -146,7 +146,7 @@ gembler                      Run PolyGembler pipeline to construct genetic linak
 -s/--sdev                    Standard deviation of depth of coverage (default 5).
 -S/--random-seed             Random seed (default system nano time).
 -q/--quality-file            Markov chain parameter file for quality scores (default null). 
--o/--output-prefix           Output directory (defult current directory).
+-o/--output-prefix           Output directory (default current directory).
 </pre>
 
 #### 4. Run variant detection module for GBS data (gbspileup)
@@ -194,16 +194,16 @@ gembler                      Run PolyGembler pipeline to construct genetic linak
 -c/--scaffold                The scaffold/contig/chromosome id will run.
 -x/--max-iter                Maxmium rounds for EM optimization (default 100).
 -p/--ploidy                  Ploidy of genome (default 2).
--f/--parent                  Parent samples (seperated by a \":\").
+-f/--parent                  Parent samples (separated by a \":\").
 -s/--initial-seperation      Initialisations of distances between the adjacent scaffolds 
                              if multiple scaffolds will be jointly inferred. The seperation
                              could be either physical distances or recombination frequencies, 
                              i.e., if all values provided is below 0.5, the
                              program will take them as recombination frequencies.
-                             Distances should be seperated by \":\".
+                             Distances should be separated by \":\".
 -r/--reverse                 Take either 'true' or 'false', indicating whetherr the
                              scaffold is reversed before inferring haplotypes. Multiple
-                             scaffolds are seperated by \":\".
+                             scaffolds are separated by \":\".
 -G/--genotype                Use genotypes to infer haplotypes. Mutually exclusive with
                              option -D/--allele-depth and -L/--genetype likelihood.
 -D/--allele-depth            Use allele depth to infer haplotypes. Mutually exclusive
@@ -211,7 +211,7 @@ gembler                      Run PolyGembler pipeline to construct genetic linak
 -L/--genotype-likelihood     Use genotype likelihoods to infer haplotypes. Mutually
                              exclusive with option -G/--genotype and -L/--allele-depth 
                              (default).
--b/--segmental-kmeans        Use Vitering training instead of Baum-Welch algorithm.
+-b/--segmental-kmeans        Use Viterbi training instead of Baum-Welch algorithm.
 -e/--train-exp               Re-estimate transition probabilities between founder/parental
                              haplotypes at each step.
 -S/--random-seed             Random seed for this run.
@@ -219,7 +219,7 @@ gembler                      Run PolyGembler pipeline to construct genetic linak
 -sp/--save-plot              Save the plot as a pdf file. The file name should be provided here.
 </pre>
 
-#### 7. Run genetic linkage map or pseudomolecule construnction pipeline (gembler)
+#### 7. Run genetic linkage map or pseudomolecule construction pipeline (gembler)
 <pre>
 Common:
     -i/--input-vcf           Input VCF file.
@@ -231,7 +231,7 @@ Common:
     -rlib/--R-external-libs  External library paths that you want R to search for packages.
                              This could be useful if you are root users and install R
                              packages in directories other than default.
-                             Multiple paths seperated by ':' could be provided.
+                             Multiple paths separated by ':' could be provided.
 
 Data preparation:
 	-l/--min-depth           Minimum depth to keep a SNP (DP).
@@ -242,7 +242,7 @@ Data preparation:
 
 Haplotype inferring:
 	-x/--max-iter            Maxmium rounds for EM optimization (default 100).
-	-f/--parent              Parent samples (seperated by a \":\").
+	-f/--parent              Parent samples (separated by a \":\").
 	-G/--genotype            Use genotypes to infer haplotypes. Mutually exclusive with 
 	                         option -D/--allele-depth and -L/--genetype likelihood.
 	-D/--allele-depth        Use allele depth to infer haplotypes. Mutually exclusive 
@@ -254,7 +254,7 @@ Haplotype inferring:
 	-r/--repeat              Repeat haplotype inferring for multiple times as EM algorithm 
 	                         could be trapped in local optima. The program takes three values 
 	                         from here, i.e., for scaffold, for superscaffold and for genetic 
-	                         linkage map refinement. Three values should be seperated by ',' 
+	                         linkage map refinement. Three values should be separated by ',' 
 	                         (default 30,30,10).
 	-rr/--refinement-round   Number of rounds to refine pseudomelecules (default 10.)
     
@@ -262,7 +262,7 @@ Recombination frequency estimation:
 	-nb/--best               The most likely nb haplotypes will be used (default 10).
 	-phi/--skew-phi          For a haplotype inference, the frequencies of parental 
 	                         haplotypes need to be in the interval [1/phi, phi], 
-	                         otherwise will be discared (default 2).
+	                         otherwise will be discarded (default 2).
 	-nd/--drop               At least nd haplotype inferences are required for calculation.		
 </pre>
 
@@ -289,14 +289,14 @@ e. ${out_dir}/bam                Tag BAM file is distributed to generate BAM fil
 f. ${out_dir}/bed                Reference is split for multithreading variant calling.
 g. ${out_dir}/ref                Split reference files according to BED files.
 h. ${out_dir}/splitBam           BAM file for each sample is split according to the BED files.
-i. ${out_dir}/freebayes          Multitheading variant calling with freebayes.
+i. ${out_dir}/freebayes          Multithreading variant calling with freebayes.
     > out.vcf                    The resulted VCF file.
 </pre>
 
 #### 4. Run data preparation for haplotype phasing algorithm (datapreparation)
 <pre>
 a. ${out_dir}/*.recode.vcf       A preprocessed VCF files. Variants are filtered.
-b. ${out_dir}/*.recode.zip       A zipped file can be recognised by the haplptype phasing algorithm.
+b. ${out_dir}/*.recode.zip       A zipped file can be recognised by the haplotype phasing algorithm.
 </pre>
 
 #### 5. Run haplotype phasing algorithm (haplotyper)
@@ -314,9 +314,9 @@ a. ${out_dir}/*.zip              A zipped file contains all related results for 
 
 #### 6. Run genetic linkage map or pseudomolecule construnction pipeline (gembler)
 <pre>
-a. ${out_dir}/results            Result files including genetic linakge map (.mct), pseudomolecules (may 
+a. ${out_dir}/results            Result files including genetic linkage map (.mct), pseudomolecules (may 
                                  not generated) (.fa), and a log file for the genetic linkage map (.log).
-b. ${out_dir}/data               Preprocess data.
+b. ${out_dir}/data               Preprocessed data.
 c. ${out_dir}/meta               Meta files generated by the program.
 d. ${out_dir}/single_hap_infer   Haplotype phasing results for each single contig/scaffold.
 e. ${out_dir}/2nn_hap_infer      Haplotype phasing results for superscaffolds.

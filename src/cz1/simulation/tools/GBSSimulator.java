@@ -24,7 +24,7 @@ public class GBSSimulator extends Executor {
 						+ " -s/--sdev           Standard deviation of depth of coverage (default 5).\n"
 						+ " -S/--random-seed    Random seed (default system nano time). \n"
 						+ " -q/--quality-file   Markov chain parameter file for quality scores (default null). \n"
-						+ " -o/--output-prefix  Output directory (defult current directory).\n\n");
+						+ " -o/--output-prefix  Output directory (default current directory).\n\n");
 	}
 	
 	@Override
