@@ -289,9 +289,7 @@ public class Gembler extends Executor {
 				min_qual, 
 				min_maf, 
 				max_missing, 
-				new File(in_vcf).getName().
-				replaceAll(".vcf.gz$", "").
-				replace(".vcf", ""),
+				prefix_vcf+".recode",
 				out_prefix+"/data/")
 		.run();
 		
