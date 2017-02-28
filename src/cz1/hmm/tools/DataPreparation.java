@@ -53,7 +53,7 @@ public class DataPreparation extends Executor {
 						+ " -q/--min-qual  		Minimum quality to keep a SNP (QUAL).\n"
 						+ " -f/--min-maf		Minimum minor allele frequency to keep a SNP (default 0.1).\n"
 						+ " -m/--max-missing	Maximum proportion of missing data to keep a SNP (default 0.5).\n"
-						+ " -o/--prefix			Prefix for output VCF file.\n\n");
+						+ " -o/--prefix			Prefix for output files (default: input VCF file folder).\n\n");
 	}
 
 	@Override
@@ -116,7 +116,12 @@ public class DataPreparation extends Executor {
 		if (myArgsEngine.getBoolean("-m")) {
 			max_missing = Double.parseDouble(myArgsEngine.getString("-m"));
 		}
-
+		
+		if (myArgsEngine.getBoolean("-o")) {
+			out_file = myArgsEngine.getString("-o");
+		} else {
+			out_file = new File(vcf_in).getParent();
+		}
 	}
 
 	@Override
