@@ -97,26 +97,30 @@ Prepare a VCF file for haplotype phasing.
 
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar datapreparation -i ${in_vcf_file} -p 2 -q 10 -f 0.1 -m 0.5 -u 3000 -o ${out_zip_dir}
     
-The VCF file is provided with -i option. The program will filter the variants according to the parameters specified by user. Here the program is told that it is dealing with a diploid genome (-p option). The minimum quality score of a base is set 10 (-q option). Bases with quility scores lower than 10 will be treated as missing. The lower bound of minor allele frequency is set to 0.1. The rare variants called from a F1 full-sib family is very likely caused by sequencing errors. The maximum missing data rate across a locus is set to 0.5. Loci with more than 50% missing genotypes will be filtered out. The upper bound of total allele depth (DP field in VCF files) for a position is set to 3000 (-u option). If the DP field exceeds 3000, the variant will be filtered out. This is used to remove ambiguous variants caused by copy number variantion. It should be noted here that the program only deals with bi-allelic SNPs currently.
+The VCF file is provided with -i option. The program will filter the variants according to the parameters specified by user. Here the program is told that it is dealing with a diploid genome (-p option). The minimum quality score of a base is set 10 (-q option). Bases with quility scores lower than 10 will be treated as missing. The lower bound of minor allele frequency is set to 0.1. The rare variants called from a F1 full-sib family is very likely caused by sequencing errors. The maximum missing data rate across a locus is set to 0.5. Loci with more than 50% missing genotypes will be filtered out. The upper bound of total allele depth (DP field in VCF files) for a position is set to 3000 (-u option). If the DP field exceeds 3000, the variant will be filtered out. This is used to remove ambiguous variants caused by copy number variantion. It should be noted here that the program only deals with bi-allelic SNPs currently. The output is a zipped file with the same prefix as the input VCF file. The location of the output file is specified with -o option.
     
 Run the haplotype phasing algorithm.
 
-    $ java -jar polyGembler-${version}-jar-with-dependencies.jar haplotyper -i ${in_zip_file} -p 2 -c ${contig_str_id} -f ${parent_sample_1}:${parent_sample_2} -L -o ${out_file_dir}
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar haplotyper -i ${in_zip_file} -c ${contig_str_id} -p 2 -f ${parent_sample_1}:${parent_sample_2} -L -o ${out_file_dir}
+    
+The program takes the zipped file generated in the preprocess step and a contig/scaffold string id as input. User also need to specify the ploidy, the two parental sample names. -L option tells the program to use the phred-scaled likelihood scores, which is default. Otherwise user could run with -D option which utilises allele depth or -G option which utilises genotype information. The output file directory is specified with -o option.
 
-You can run multiple contigs simultaneously. 
+You can run multiple contigs/scaffolds simultaneously. 
 
-    $ java -jar polyGembler-${version}-jar-with-dependencies.jar haplotyper -i ${in_zip_file} -p 2 -c ${contig_str_id}:${contig_str_id2}:${contig_str_id3} -r true:false:false -s 0.05:0.1 -f ${parent_sample_1}:${parent_sample_2} -L -o ${out_file_dir}
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar haplotyper -i ${in_zip_file} -c ${contig_str_id}:${contig_str_id2}:${contig_str_id3} -r true:false:false -s 0.05:0.1 -p 2 -f ${parent_sample_1}:${parent_sample_2} -L -o ${out_file_dir}
+
+This is very simular to running with the single contig/scaffold. Mutiple contigs/scaffolds are provided with string ids seperated by ":". As there could be different concatenation directions, -r option specifies if each contig/scaffold is reversed or not. The default is not. The distances between the adjacent contigs/scaffolds are initialised with -s option, otherwise the program will generate them randomly. The distances could either be the recombination frequencies or the physical distances. The program will check these numbers. If all of them are smaller than 0.5, then they will be taken as recombination frequencies.
 
 ## Parameter options
-#### Simulate GBS data for an outcrossed F1 mapping population
-#### Run variant detection module for GBS data
-#### Run genetic linkage map or pseudomolecule construnction pipeline
-#### Run haplotype phasing algorithm
+#### 1. Simulate GBS data for an outcrossed F1 mapping population
+#### 2. Run variant detection module for GBS data
+#### 3. Run genetic linkage map or pseudomolecule construnction pipeline
+#### 4. Run haplotype phasing algorithm
 
 ## Details about the output files
-#### Simulate GBS data for an outcrossed F1 mapping population
-#### Run variant detection module for GBS data
-#### Run genetic linkage map or pseudomolecule construnction pipeline
-#### Run haplotype phasing algorithm
+#### 1. Simulate GBS data for an outcrossed F1 mapping population
+#### 2. Run variant detection module for GBS data
+#### 3. Run genetic linkage map or pseudomolecule construnction pipeline
+#### 4. Run haplotype phasing algorithm
 
 ## Citing polyGembler
