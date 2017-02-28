@@ -195,8 +195,8 @@ gembler                      Run PolyGembler pipeline to construct genetic linka
 -x/--max-iter                Maxmium rounds for EM optimization (default 100).
 -p/--ploidy                  Ploidy of genome (default 2).
 -f/--parent                  Parent samples (separated by a \":\").
--s/--initial-seperation      Initialisations of distances between the adjacent scaffolds 
-                             if multiple scaffolds will be jointly inferred. The seperation
+-s/--initial-separation      Initialisations of distances between the adjacent scaffolds 
+                             if multiple scaffolds will be jointly inferred. The separation
                              could be either physical distances or recombination frequencies, 
                              i.e., if all values provided is below 0.5, the
                              program will take them as recombination frequencies.
