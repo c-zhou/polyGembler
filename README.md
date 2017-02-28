@@ -43,13 +43,11 @@ A quick start to run the software. Modules listed below are independent from eac
 *Output*&nbsp;&nbsp;&nbsp;a zipped fastq file with all GBS reads
 
 *Command*
-    
 
-
-This could be equally done in two seperate steps
-    
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar popsimulation -r ${reference.fa} -t 32 -p 4 -c 200 -o ${pop_out_dir} -n 192
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar gbssimulation -f ${pop_out_dir}/Sc1 -t 32 -m 5 -s 5 -o ${gbs_out_dir}
+
+The first step simulates a **tetraploid** (-p option) F1 mapping population with **192 samples** (-n option) from the **reference genome** ${reference.fa} (-r option). The **total genetic length** of the chromosomes is 200cm (-c option). It uses **32 CPUs** (-t option). The **output sample genomes (FASTA files)** will be in ${pop_out_dir}/Sc1 (-o option). The second step takes the simulated mapping population genomes in the first step as **input** (-f option). The **average sequencing depth** of coverage for each copy of the chromosome is 5 (-m option) and the standard deviation is 5 (-s option). It uses **32 CPUs** (-t option). The **output GBS data (FASTQ file)** will be in ${gbs_out_dir} (-o option).
 
 #### Run variant detection module for GBS data
 
