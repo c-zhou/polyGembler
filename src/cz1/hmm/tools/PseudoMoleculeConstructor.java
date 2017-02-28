@@ -226,7 +226,8 @@ public class PseudoMoleculeConstructor extends Executor {
 			
 			while( line!=null ) {
 				if(line.startsWith(">")) {
-					name = line.split("\\s+")[0].substring(1);
+					name = line.split("\\s+")[0].substring(1).
+							replace('|', '_').replace('.', '_');
 					StringBuilder sequence = new StringBuilder();
 					while( (line=br.readLine())!=null &&
 							!line.startsWith(">"))

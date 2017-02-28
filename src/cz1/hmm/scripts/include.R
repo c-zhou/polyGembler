@@ -282,7 +282,7 @@ traverse <- function(adj_matrix) {
 .simply_write_files <- function(in_RData, in_map, out_file) {
 	load(in_RData)
 	
-	dC = .read_map_file(in_map)
+	dC = .read_map_file(in_map)$dC
 	
 	sink(paste0(out_file,".mct"))
 	cat("group\tLG"); cat(1); cat("\n")
@@ -331,7 +331,7 @@ traverse <- function(adj_matrix) {
 		if(!is.null(dim(rf))) means = apply(rf,2,mean)
 		dC[i] = sum(.cm_d(means))
 	}
-	dC
+	list(dC=dC, tC=tC)
 }
 
 genetic_linkage_map <- function(in_RData, in_map, out_file, 
@@ -398,8 +398,10 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
         o[[i]] = ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
     }
    
-	dC = .read_map_file(in_map);
-
+	mm = .read_map_file(in_map);
+	dC = mm$dC
+	tC = mm$tC
+	
 	lgCM = rep(NA,length(o))
     sink(paste0(out_file,".mct"))
     for(i in 1:length(o)) {
