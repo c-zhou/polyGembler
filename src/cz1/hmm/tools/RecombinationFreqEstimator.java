@@ -35,6 +35,7 @@ import java.text.DecimalFormat;
 import java.lang.StringBuilder;
 
 import cz1.util.Algebra;
+import cz1.util.ArgsEngine;
 import cz1.util.Combination;
 import cz1.util.Constants;
 import cz1.util.Utils;
@@ -87,13 +88,14 @@ public class RecombinationFreqEstimator extends RFUtils {
 		}
 
 		if (myArgsEngine == null) {
+			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add( "-ex", "--experiment-id", true);
 			myArgsEngine.add( "-i", "--hap-file", true);
 			myArgsEngine.add( "-o", "--prefix", true);
 			myArgsEngine.add( "-f", "--parent", true);
 			myArgsEngine.add( "-p", "--ploidy", true);
 			myArgsEngine.add( "-nb", "--best", true);
-			myArgsEngine.add( "-t", "--thread", true);
+			myArgsEngine.add( "-t", "--threads", true);
 			myArgsEngine.add( "-phi", "--skew-phi", true);
 			myArgsEngine.add( "-nd", "--drop", true);
 			myArgsEngine.parse(args);

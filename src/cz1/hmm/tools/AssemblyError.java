@@ -101,13 +101,14 @@ public class AssemblyError extends RFUtils {
 		}
 
 		if (myArgsEngine == null) {
+			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add( "-ex", "--experiment-id", true);
 			myArgsEngine.add( "-i", "--hap-file", true);
 			myArgsEngine.add( "-o", "--prefix", true);
 			myArgsEngine.add( "-f", "--parent", true);
 			myArgsEngine.add( "-p", "--ploidy", true);
 			myArgsEngine.add( "-nb", "--best", true);
-			myArgsEngine.add( "-t", "--thread", true);
+			myArgsEngine.add( "-t", "--threads", true);
 			myArgsEngine.add( "-phi", "--skew-phi", true);
 			myArgsEngine.add( "-nd", "--drop", true);
 			myArgsEngine.parse(args);
