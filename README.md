@@ -112,7 +112,7 @@ You can run multiple contigs/scaffolds simultaneously.
 This is very similar to running with the single contig/scaffold. Multiple contigs/scaffolds are provided with string ids separated by ":". As there could be different concatenation directions, -r option specifies if each contig/scaffold is reversed or not. The default is not. The distances between the adjacent contigs/scaffolds are initialised with -s option, otherwise the program will generate them randomly. The distances could either be the recombination frequencies or the physical distances. The program will check these numbers. If all of them are smaller than 0.5, then they will be taken as recombination frequencies.
 
 ## More parameter options
-#### 1. First option for the executable jar file
+#### 1. Six main pipelines, each triggered by the executable jar file
 <pre>
 popsimulation                Simulate a full-sib mapping population.
 gbssimulation                Simulate GBS data.
