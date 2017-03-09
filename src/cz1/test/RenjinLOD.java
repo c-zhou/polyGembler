@@ -18,9 +18,11 @@ import org.renjin.eval.Context;
 import org.renjin.primitives.io.serialization.RDataWriter;
 import org.renjin.primitives.matrix.DoubleMatrixBuilder;
 import org.renjin.sexp.DoubleArrayVector;
+import org.renjin.sexp.DoubleVector;
 import org.renjin.sexp.ListVector;
 import org.renjin.sexp.StringArrayVector;
 import org.renjin.sexp.StringVector;
+import org.renjin.sexp.Vector;
 
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
@@ -241,8 +243,9 @@ public class RenjinLOD extends Executor {
 			e.printStackTrace();
 		}
 		
-		DoubleMatrixBuilder recomf = new DoubleMatrixBuilder(scaffs.size(),scaffs.size());
-		DoubleMatrixBuilder lodscr = new DoubleMatrixBuilder(scaffs.size(),scaffs.size());
+		int n = scaffs.size();
+		double[][] recomfJ = new double[n][n];
+		double[][] lodscrJ = new double[n][n];
 		final double constr = Math.log10(.5);
 		try {
 			String line;
@@ -258,8 +261,8 @@ public class RenjinLOD extends Executor {
 					if(scf_i1==null || scf_i2==null)
 						continue;
 					f = Double.parseDouble(s[1]);
-					recomf.set(scf_i1, scf_i2, f);
-					recomf.set(scf_i2, scf_i1, f);
+					recomfJ[scf_i1][scf_i2] = f;
+					recomfJ[scf_i2][scf_i1] = f;
 					if(f==0) {
 						l = 100.0;
 					} else {
@@ -268,8 +271,8 @@ public class RenjinLOD extends Executor {
 						l = Math.min(100.0, 
 								n_hap*(Math.log10(NR)*NR+Math.log10(R)*R-constr));
 					}
-					lodscr.set(scf_i1, scf_i2, l);
-					lodscr.set(scf_i2, scf_i1, l);
+					lodscrJ[scf_i1][scf_i2] = l;
+					lodscrJ[scf_i2][scf_i1] = l;
 				}
 				br.close();
 			}
@@ -278,12 +281,41 @@ public class RenjinLOD extends Executor {
 			e.printStackTrace();
 		}
 		
+		DoubleMatrixBuilder reccoo = new DoubleMatrixBuilder(n*(n-1), 5);
+		int w = 0;
+		for(int i=1; i<n; i++) {
+			for(int j=0; j<i; j++) {
+				reccoo.set(w, 0, j);
+				reccoo.set(w, 1, i);
+				reccoo.set(w, 2, j+1);
+				reccoo.set(w, 3, i+1);
+				reccoo.set(w, 4, lodscrJ[i][j]);
+				w++;
+				reccoo.set(w, 0, i);
+				reccoo.set(w, 1, j);
+				reccoo.set(w, 2, i+1);
+				reccoo.set(w, 3, j+1);
+				reccoo.set(w, 4, recomfJ[i][j]);
+				w++;
+			}
+		}
+		
+		DoubleMatrixBuilder recomf = new DoubleMatrixBuilder(n,n);
+		DoubleMatrixBuilder lodscr = new DoubleMatrixBuilder(n,n);
+		for(int i=0; i<n; i++) {
+			for(int j=0; j<n; j++) {
+				recomf.set(i, j, recomfJ[i][j]);
+				lodscr.set(i, j, lodscrJ[i][j]);
+			}
+		}
+		
 		ScriptEngineManager manager = new ScriptEngineManager();
 		ScriptEngine engine = manager.getEngineByName("Renjin"); 
 		if(engine == null) { 
 			throw new RuntimeException("Renjin not found!!!"); 
 		}
 		StringVector scf = new StringArrayVector(scaffs.values());
+		
 		recomf.setRowNames(scf);
 		recomf.setColNames(scf);
 		lodscr.setRowNames(scf);
@@ -300,6 +332,7 @@ public class RenjinLOD extends Executor {
 			dat.add("boundary_lg", new DoubleArrayVector(boundary_lg));
 			dat.add("recomf", recomf.build());
 			dat.add("lodscr", lodscr.build());
+			dat.add("reccoo", reccoo.build());
 			
 			writer.save(dat.build());
 			writer.close();

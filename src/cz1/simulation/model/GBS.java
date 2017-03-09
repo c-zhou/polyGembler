@@ -323,7 +323,7 @@ public class GBS {
 		this.flowcell = RandomStringUtils.randomAlphanumeric(8).toUpperCase();
 		this.lane = ""+1;
 		this.libraryPlate = "Simulation";
-		this.libraryPrepID = "Random";
+		this.libraryPrepID = ""+System.nanoTime();
 		this.libraryPlateID = "Random";
 		this.dnaPlate = "Simulation";
 		this.genus = "G";

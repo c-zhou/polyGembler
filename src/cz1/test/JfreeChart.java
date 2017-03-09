@@ -776,7 +776,7 @@ public class JfreeChart extends Executor {
 		this.jframe.setVisible(true);
 	}
 	
-	public static void main(String[] args) {
+	public static void main2(String[] args) {
 		JfreeChart jf = new JfreeChart(new Dimension(1170,600));
 		jf.plotLineChart("C:\\Users\\chenxi.zhou\\Desktop\\"
 				+ "genetic mapping writing-up\\meta_final\\itr_misass\\"
@@ -797,9 +797,9 @@ public class JfreeChart extends Executor {
 		jf.print("C:\\Users\\chenxi.zhou\\Desktop\\test.pdf");
 	}
 	
-	public static void main2(String[] args) {
-		JfreeChart jf = new JfreeChart(new Dimension(600, 2000), 
-				new GridLayout(6,1));
+	public static void main(String[] args) {
+		JfreeChart jf = new JfreeChart(new Dimension(1200, 700), 
+				new GridLayout(3,2));
 		jf.plotLineChart("C:\\Users\\chenxi.zhou\\Desktop\\"
 				+ "genetic mapping writing-up\\meta_final\\itr_misass\\"
 				+ "91.txt"
