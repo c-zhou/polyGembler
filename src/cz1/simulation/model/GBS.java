@@ -121,7 +121,7 @@ public class GBS {
         }
 		 **/
 		this.random = new Random(RANDOM_SEED);
-		setLibarayPreparation(libPrepFilePath);
+		this.setLibarayPreparation(libPrepFilePath);
 		this.GBSOutputDir = outputDir;
 		this.GBSFastqFilePath = outputDir+SEP+flowcell+"_"+lane+"_fastq";
 		this.probabilityBaseMissingInitialization = new double[readLength];
@@ -323,7 +323,7 @@ public class GBS {
 		this.flowcell = RandomStringUtils.randomAlphanumeric(8).toUpperCase();
 		this.lane = ""+1;
 		this.libraryPlate = "Simulation";
-		this.libraryPrepID = ""+System.nanoTime();
+		this.libraryPrepID = "R";
 		this.libraryPlateID = "Random";
 		this.dnaPlate = "Simulation";
 		this.genus = "G";
@@ -395,7 +395,7 @@ public class GBS {
 				bw.write(libraryPlate+"\t");
 				bw.write(row+"\t");
 				bw.write(col+"\t");
-				bw.write(libraryPrepID+paddedcol+"\t");
+				bw.write(libraryPrepID+System.nanoTime()+paddedcol+"\t");
 				bw.write(libraryPlateID+"\t");
 				bw.write(enzymeName+"\t");
 				bw.write(row+paddedcol+"\t");
