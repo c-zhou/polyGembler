@@ -44,18 +44,18 @@ public class DataPreparation extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " -i/--vcf			Input VCF file.\n"
+						+ " -i/--vcf            Input VCF file.\n"
 						+ " -s/--id             Unique id of this run (default: input VCF file name prefix).\n"
-						+ " -p/--ploidy			Ploidy of genome (default 2). \n"
+						+ " -p/--ploidy         Ploidy of genome (default 2). \n"
 						+ "                     NOTE: If you called variant as diploid, then the program will \n"
 						+ "                     fit a binomial model to call genotypes and genotype qualities \n"
 						+ "                     from allele depth with the ploidy specified here.\n"
-						+ " -l/--min-depth		Minimum depth to keep a SNP (DP).\n"
-						+ " -u/--max-depth		Maximum depth to keep a SNP (DP).\n"
-						+ " -q/--min-qual  		Minimum quality to keep a SNP (QUAL).\n"
-						+ " -f/--min-maf		Minimum minor allele frequency to keep a SNP (default 0.1).\n"
-						+ " -m/--max-missing	Maximum proportion of missing data to keep a SNP (default 0.5).\n"
-						+ " -o/--prefix			Prefix for output files (default: input VCF file folder).\n\n");
+						+ " -l/--min-depth      Minimum depth to keep a SNP (DP).\n"
+						+ " -u/--max-depth      Maximum depth to keep a SNP (DP).\n"
+						+ " -q/--min-qual       Minimum quality to keep a SNP (QUAL).\n"
+						+ " -f/--min-maf        Minimum minor allele frequency to keep a SNP (default 0.1).\n"
+						+ " -m/--max-missing    Maximum proportion of missing data to keep a SNP (default 0.5).\n"
+						+ " -o/--prefix         Prefix for output files (default: input VCF file folder).\n\n");
 	}
 
 	@Override

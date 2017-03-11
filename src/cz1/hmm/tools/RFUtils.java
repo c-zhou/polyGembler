@@ -72,11 +72,11 @@ public abstract class RFUtils extends Executor {
 	protected final Object lock = new Object();
 
 	protected class FileObject {
-		protected final File file;
+		protected final String file;
 		protected final String[] markers; 
 		protected final int[] start_end_position;
 
-		public FileObject(File file, 
+		public FileObject(String file, 
 				String[] markers,
 				int[] start_end_position) {
 			this.file = file;
@@ -86,11 +86,12 @@ public abstract class RFUtils extends Executor {
 	}
 
 	protected class FileExtraction implements Runnable {
-		private final File[] files;
+		private final String[] files;
 
-		public FileExtraction(File[] files) {
+		public FileExtraction(String[] files) {
 			this.files = files;
 		}
+		
 		@Override
 		public void run() {
 			// TODO Auto-generated method stub
@@ -101,7 +102,7 @@ public abstract class RFUtils extends Executor {
 				int[][] start_end_position = null;
 				int scaff_n = 0;
 
-				InputStream is = getInputStream(this.files[0].getAbsolutePath(), "SNP");
+				InputStream is = getInputStream(this.files[0], "SNP");
 				BufferedReader br = Utils.getBufferedReader(is);
 				List<List<String>> markers_all = new ArrayList<List<String>>();
 
@@ -202,12 +203,10 @@ public abstract class RFUtils extends Executor {
 
 				InputStream is;
 				for(int k=0; k<this.files.length; k++) {
-					File file = this.files[k].file;
+					String file = this.files[k].file;
 					try {
-						if( (is = getInputStream(file.getAbsolutePath(), 
-								"PHASEDSTATES"))==null ) {
-							myLogger.warn("warning: "+
-									file.getName()+
+						if( (is = getInputStream(file, "PHASEDSTATES"))==null ) {
+							myLogger.warn("warning: "+file+
 									" exsits, but phased states do not.");
 							continue;
 						} 
@@ -219,16 +218,14 @@ public abstract class RFUtils extends Executor {
 						is.close();
 
 						if( marker_str==null ) {
-							myLogger.warn("warning: "+
-									file.getName()+
+							myLogger.warn("warning: "+file+
 									" exists, but phased states are NULL.");
 							continue;
 						}
 						double frac = marker_n/Double.parseDouble(marker_str);
 
 						String line;
-						if( (is = getInputStream(file.getAbsolutePath(), 
-								"STDERR"))!=null ) {
+						if( (is = getInputStream(file, "STDERR"))!=null ) {
 							BufferedReader br2 = Utils.getBufferedReader(is);
 							String lprob=null;
 							while( (line=br2.readLine()) !=null) {
@@ -242,7 +239,7 @@ public abstract class RFUtils extends Executor {
 								ll[k] = Double.parseDouble(s0[3])*frac;
 							}
 						} else {
-							is = getInputStream(file.getAbsolutePath(), "PHASEDSTATES");
+							is = getInputStream(file, "PHASEDSTATES");
 							BufferedReader br2 = Utils.getBufferedReader(is);
 							String lprob = br2.readLine();
 							br2.close();
@@ -276,7 +273,7 @@ public abstract class RFUtils extends Executor {
 						double maf = StatUtils.max(phases)/expected, 
 								mif = StatUtils.min(phases)/expected;
 						if( maf>skew_phi || mif<1/skew_phi) {
-							myLogger.info(this.files[maxN[k]].file.getName()+
+							myLogger.info(this.files[maxN[k]].file+
 									" was dropped due to large haploptype frequency variance. (" +
 									cat(phases, ",") +")");
 							drop[k] = true;
@@ -284,7 +281,7 @@ public abstract class RFUtils extends Executor {
 						if(drop[k]) dropped++;
 						oos.append("["+(drop[k]?"drop](maf,":"keep](maf,")+maf+";mif,"+mif+") "+
 								cat(haps_observed,",")+"\t"+
-								this.files[maxN[k]].file.getName()+"\n");
+								this.files[maxN[k]].file+"\n");
 						break;
 					case "chisq":
 						observed = new long[Constants._haplotype_z];
@@ -295,7 +292,7 @@ public abstract class RFUtils extends Executor {
 						if(drop[k]) dropped++;
 						oos.append("["+(drop[k]?"drop](p,":"keep](p,")+formatter.format(p)+") "+
 								cat(haps_observed,",")+"\t"+
-								this.files[maxN[k]].file.getName()+"\n");
+								this.files[maxN[k]].file+"\n");
 						break;
 					case "gtest":
 						observed = new long[Constants._haplotype_z];
@@ -306,7 +303,7 @@ public abstract class RFUtils extends Executor {
 						if(drop[k]) dropped++;
 						oos.append("["+(drop[k]?"drop](p,":"keep](p,")+formatter.format(p)+") "+
 								cat(haps_observed,",")+"\t"+
-								this.files[maxN[k]].file.getName()+"\n");
+								this.files[maxN[k]].file+"\n");
 						break;
 					default:
 						throw new RuntimeException("Goodness-of-fit test should be fraction, "
@@ -323,7 +320,7 @@ public abstract class RFUtils extends Executor {
 						if(!drop[k]) {
 							FileObject fobj = this.files[maxN[k]];
 							dc[i][kk] = new PhasedDataCollection(
-									fobj.file.getName(),
+									fobj.file,
 									fobj.markers,
 									fobj.start_end_position);
 							kk++;
@@ -345,7 +342,7 @@ public abstract class RFUtils extends Executor {
 		private int[] readHaplotypes(final int i) {
 			// TODO Auto-generated method stub
 			try {
-				InputStream is = getInputStream(this.files[i].file.getAbsolutePath(), 
+				InputStream is = getInputStream(this.files[i].file, 
 						"PHASEDSTATES");
 				BufferedReader br = Utils.getBufferedReader(is);
 				String line, stateStr;
@@ -434,7 +431,7 @@ public abstract class RFUtils extends Executor {
 					myLogger.info(dc_ik.file);
 					if(dc_ik !=null ) {
 						rfs[k] = calcGDs(
-								in_haps+"/"+dc_ik.file,
+								dc_ik.file,
 								Constants._ploidy_H,
 								founder_haps,
 								nF1,
@@ -585,7 +582,7 @@ public abstract class RFUtils extends Executor {
 			boolean[][][][] data = new boolean[2][2][Constants._ploidy_H][nF1];
 
 			try {
-				InputStream is = getInputStream(in_haps+"/"+this.file, 
+				InputStream is = getInputStream(this.file, 
 						"PHASEDSTATES");
 				BufferedReader br = Utils.getBufferedReader(is);
 				
@@ -851,8 +848,8 @@ public abstract class RFUtils extends Executor {
 			if(nF1>0) break;
 		}
 
-		Map<String, List<File>> map = new HashMap<String, List<File>>();
-		List<File> list;
+		Map<String, List<String>> map = new HashMap<String, List<String>>();
+		List<String> list;
 		String[] s;
 		for(File file:listFiles) {
 			String name = file.getName();
@@ -861,11 +858,12 @@ public abstract class RFUtils extends Executor {
 				s = name.split("\\.");
 
 				if(map.get(s[1])==null) {
-					list = new ArrayList<File>();
-					list.add(file);
+					list = new ArrayList<String>();
+					list.add(file.getAbsolutePath());
 					map.put(s[1], list);
 				} else{
-					map.get(s[1]).add(file);
+					map.get(s[1]).add(
+							file.getAbsolutePath());
 				}
 			}
 		}
@@ -875,9 +873,9 @@ public abstract class RFUtils extends Executor {
 
 		this.initial_thread_pool();
 		for(int i=0; i<keys.length; i++) {
-			List<File> files = map.get(keys[i]);
+			List<String> files = map.get(keys[i]);
 			executor.submit(new FileExtraction(
-					files.toArray(new File[files.size()])));
+					files.toArray(new String[files.size()])));
 		}
 		this.waitFor();
 
