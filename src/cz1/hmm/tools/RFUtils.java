@@ -102,8 +102,9 @@ public abstract class RFUtils extends Executor {
 				int[][] start_end_position = null;
 				int scaff_n = 0;
 
-				InputStream is = getInputStream(this.files[0], "SNP");
-				BufferedReader br = Utils.getBufferedReader(is);
+				InputStreamObj isObj = new InputStreamObj(this.files[0]);
+				isObj.getInputStream("SNP");
+				BufferedReader br = Utils.getBufferedReader(isObj.is);
 				List<List<String>> markers_all = new ArrayList<List<String>>();
 
 				String marker = br.readLine().split("\\s+")[3];
@@ -128,7 +129,7 @@ public abstract class RFUtils extends Executor {
 					}
 				}
 				br.close();
-				is.close();
+				isObj.close();
 				int cuv = 0;
 				scaff_n = scaff_all.size();
 				markers = new String[scaff_n][];
@@ -201,21 +202,22 @@ public abstract class RFUtils extends Executor {
 					return;
 				}
 
-				InputStream is;
+				InputStreamObj isObj = null;
 				for(int k=0; k<this.files.length; k++) {
 					String file = this.files[k].file;
 					try {
-						if( (is = getInputStream(file, "PHASEDSTATES"))==null ) {
+						isObj = new InputStreamObj(file);
+						if( !isObj.getInputStream("PHASEDSTATES") ) {
 							myLogger.warn("warning: "+file+
 									" exsits, but phased states do not.");
 							continue;
 						} 
 
-						BufferedReader br = Utils.getBufferedReader(is);
+						BufferedReader br = Utils.getBufferedReader(isObj.is);
 						br.readLine();
 						String marker_str = br.readLine();
 						br.close();
-						is.close();
+						isObj.closeIs();
 
 						if( marker_str==null ) {
 							myLogger.warn("warning: "+file+
@@ -225,25 +227,25 @@ public abstract class RFUtils extends Executor {
 						double frac = marker_n/Double.parseDouble(marker_str);
 
 						String line;
-						if( (is = getInputStream(file, "STDERR"))!=null ) {
-							BufferedReader br2 = Utils.getBufferedReader(is);
+						if( isObj.getInputStream("STDERR") ) {
+							BufferedReader br2 = Utils.getBufferedReader(isObj.is);
 							String lprob=null;
 							while( (line=br2.readLine()) !=null) {
 								if(line.startsWith("log"))
 									lprob = line;
 							}
 							br2.close();
-							is.close();
+							isObj.closeIs();
 							if( lprob!=null ) {
 								String[] s0 = lprob.split("\\s+");
 								ll[k] = Double.parseDouble(s0[3])*frac;
 							}
 						} else {
-							is = getInputStream(file, "PHASEDSTATES");
-							BufferedReader br2 = Utils.getBufferedReader(is);
+							isObj.getInputStream("PHASEDSTATES");
+							BufferedReader br2 = Utils.getBufferedReader(isObj.is);
 							String lprob = br2.readLine();
 							br2.close();
-							is.close();
+							isObj.closeIs();
 							if( lprob!=null ) 
 								ll[k] = Double.parseDouble(lprob)*frac;
 							myLogger.info(ll[k]);
@@ -253,6 +255,7 @@ public abstract class RFUtils extends Executor {
 						System.exit(1);
 					}
 				}
+				if(isObj!=null) isObj.closeIn();
 
 				int[] maxN = maxN(ll);
 				StringBuilder oos = new StringBuilder();
@@ -342,9 +345,9 @@ public abstract class RFUtils extends Executor {
 		private int[] readHaplotypes(final int i) {
 			// TODO Auto-generated method stub
 			try {
-				InputStream is = getInputStream(this.files[i].file, 
-						"PHASEDSTATES");
-				BufferedReader br = Utils.getBufferedReader(is);
+				InputStreamObj isObj = new InputStreamObj(this.files[i].file);
+				isObj.getInputStream("PHASEDSTATES");
+				BufferedReader br = Utils.getBufferedReader(isObj.is);
 				String line, stateStr;
 				String[] s;
 				int[] haps_observed = new int[Constants._haplotype_z];
@@ -356,7 +359,7 @@ public abstract class RFUtils extends Executor {
 						haps_observed[h>'9'?(h-'a'+9):(h-'1')]++;
 				}
 				br.close();
-				is.close();
+				isObj.close();
 				return haps_observed;
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
@@ -582,9 +585,9 @@ public abstract class RFUtils extends Executor {
 			boolean[][][][] data = new boolean[2][2][Constants._ploidy_H][nF1];
 
 			try {
-				InputStream is = getInputStream(this.file, 
-						"PHASEDSTATES");
-				BufferedReader br = Utils.getBufferedReader(is);
+				InputStreamObj isObj = new InputStreamObj(this.file);
+				isObj.getInputStream("PHASEDSTATES");
+				BufferedReader br = Utils.getBufferedReader(isObj.is);
 				
 				String line;
 				String[] s;
@@ -619,7 +622,7 @@ public abstract class RFUtils extends Executor {
 					n++;
 				}
 				br.close();
-				is.close();
+				isObj.close();
 			} catch (IOException e) {
 				e.printStackTrace();
 				System.exit(1);
@@ -698,8 +701,9 @@ public abstract class RFUtils extends Executor {
 			String[] parents, int nF1) {
 		// TODO Auto-generated method stub
 		try {
-			InputStream is = this.getInputStream(phasedStates, "PHASEDSTATES");
-			BufferedReader br = Utils.getBufferedReader(is);
+			InputStreamObj isObj = new InputStreamObj(phasedStates);
+			isObj.getInputStream("PHASEDSTATES");
+			BufferedReader br = Utils.getBufferedReader(isObj.is);
 			br.readLine();
 			int m = Integer.parseInt(br.readLine());
 			char[][] h = new char[nF1*ploidy][m];
@@ -715,7 +719,7 @@ public abstract class RFUtils extends Executor {
 				h[c++] = stateStr.toCharArray();
 			}
 			br.close();
-			is.close();
+			isObj.close();
 			return h;
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -738,42 +742,80 @@ public abstract class RFUtils extends Executor {
 		}
 	}
 
-	public InputStream getInputStream(
-			String root,
-			String file) {
-		// TODO Auto-generated method stub
-		ZipFile in;
-		try {
-			in = new ZipFile(root);
-			String target = null;
-			switch(file.toUpperCase()) {
-			case "PHASEDSTATES":
-				target = "phasedStates/"+expr_id+".txt";
-				break;
-			case "STDERR":
-				target = "stderr_true";
-				break;
-			case "EMISS":
-				target = "results_hmm/emissionModel.txt";
-				break;
-			case "TRANS":
-				target = "results_hmm/transitionModel.txt";
-				break;
-			case "SNP":
-				target = "snp_"+expr_id+".txt";
-				break;
+	protected class InputStreamObj { 
+		private ZipFile in = null;
+		private InputStream is = null;
+		
+		public InputStreamObj(String root) {
+			try {
+				this.in = new ZipFile(root);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
 			}
-			if(in.getEntry(target)==null) {
-				in.close();
-				return null;
-			}
-			final InputStream is = in.getInputStream(in.getEntry(target));
-			return is;
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
 		}
-		return null;
+		
+		public void closeIn() {
+			// TODO Auto-generated method stub
+			try {
+				if(this.in != null)
+					this.in.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+
+		public void closeIs() {
+			// TODO Auto-generated method stub
+			try {
+				if(this.is != null)
+					this.is.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+
+		public void close() {
+			// TODO Auto-generated method stub
+			this.closeIs();
+			this.closeIn();
+		}
+		
+		public boolean getInputStream(String file) {
+			// TODO Auto-generated method stub
+			try {
+				String target = null;
+				switch(file.toUpperCase()) {
+				case "PHASEDSTATES":
+					target = "phasedStates/"+expr_id+".txt";
+					break;
+				case "STDERR":
+					target = "stderr_true";
+					break;
+				case "EMISS":
+					target = "results_hmm/emissionModel.txt";
+					break;
+				case "TRANS":
+					target = "results_hmm/transitionModel.txt";
+					break;
+				case "SNP":
+					target = "snp_"+expr_id+".txt";
+					break;
+				}
+				if(in.getEntry(target)==null) {
+					in.close();
+					return false;
+				}
+				this.is = in.getInputStream(in.getEntry(target));
+				return true;
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			return false;
+		}
 	}
 
 	protected static String cat(double[] array, String sep) {
@@ -823,11 +865,11 @@ public abstract class RFUtils extends Executor {
 			if( name.startsWith(expr_id) ) {
 				if(nF1<1) {
 					try {
-						InputStream is = this.getInputStream(
-								file.getAbsolutePath(),
-								"phasedStates");
-						if( is!=null ) {
-							BufferedReader br = Utils.getBufferedReader(is);
+						
+						InputStreamObj isObj = new InputStreamObj(
+								file.getAbsolutePath());
+						if( isObj.getInputStream("phasedStates") ) {
+							BufferedReader br = Utils.getBufferedReader(isObj.is);
 							int n = 0;
 							String l;
 
@@ -838,7 +880,7 @@ public abstract class RFUtils extends Executor {
 							myLogger.info(nF1+" F1 samples in the experiment.");
 							br.close();
 						}
-						is.close();
+						isObj.close();
 					} catch (IOException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
