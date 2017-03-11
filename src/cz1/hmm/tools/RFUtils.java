@@ -202,11 +202,10 @@ public abstract class RFUtils extends Executor {
 					return;
 				}
 
-				InputStreamObj isObj = null;
 				for(int k=0; k<this.files.length; k++) {
 					String file = this.files[k].file;
 					try {
-						isObj = new InputStreamObj(file);
+						InputStreamObj isObj = new InputStreamObj(file);
 						if( !isObj.getInputStream("PHASEDSTATES") ) {
 							myLogger.warn("warning: "+file+
 									" exsits, but phased states do not.");
@@ -250,12 +249,12 @@ public abstract class RFUtils extends Executor {
 								ll[k] = Double.parseDouble(lprob)*frac;
 							myLogger.info(ll[k]);
 						}
+						isObj.closeIn();
 					} catch (IOException e) {
 						e.printStackTrace();
 						System.exit(1);
 					}
 				}
-				if(isObj!=null) isObj.closeIn();
 
 				int[] maxN = maxN(ll);
 				StringBuilder oos = new StringBuilder();
