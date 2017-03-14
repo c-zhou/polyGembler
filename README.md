@@ -10,7 +10,7 @@
 
 *polyGembler* also provides a tool for simulating outcrossed F1 mapping population GBS data. It uses the software [PedigreeSim V2.0](https://www.wur.nl/en/show/Software-PedigreeSim.htm) to simulate the full-sib family genomes and imitates the [GBS protocol](http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0019379) to generate GBS reads.
 
-*polyGembler* is written in Java. It has a user friendly design. All the tasks could be done with an one-liner command require no further user interactions. It has been multithreaded where possible.
+*polyGembler* is written in Java. It has a user friendly design. All the tasks could be done with an one-liner command require no further manual intervention. It has been multithreaded where possible.
 
 
 ## Installation
