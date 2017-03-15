@@ -247,18 +247,18 @@ public class AssemblyError extends RFUtils {
 					line = br.readLine();
 				} else {
 					String scaff = s[0];
-					scaff_breakge.add(scaff);
 					int[][] tmp = this.errs.get(scaff);
 					double[] breakage_pos = new double[tmp.length+1];
 					for(int i=0; i<tmp.length; i++) 
 						breakage_pos[i] = (tmp[i][0]+tmp[i][1])/2.0;
 					breakage_pos[tmp.length] = Double.POSITIVE_INFINITY;
 					int sub = 1;
+					scaff_breakge.add(scaff+"_"+1);
 					while( line!=null ) {
 						s = line.split("\\s+");
 						if( !scaff.equals(s[0]) ) break;
 						if( Double.parseDouble(s[1])>breakage_pos[sub-1] )
-							sub++;
+							scaff_breakge.add(scaff+"_"+(++sub));
 						bw.write(line.replaceAll("^"+scaff, scaff+"_"+sub)+"\n");
 						line = br.readLine();
 					}

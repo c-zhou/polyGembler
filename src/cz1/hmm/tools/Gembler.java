@@ -324,7 +324,7 @@ public class Gembler extends Executor {
 				assemblyError.split(out_prefix+"/data/"+prefix_vcf+".recode.vcf",
 						metafile_prefix+prefix_vcf_assError+".vcf");
 		if(!scaff_breakage.isEmpty()) {
-			this.move(scaff_breakage, out, expr_id);
+			this.move(assemblyError.errs().keySet(), out, expr_id);
 
 			new ZipDataCollection(
 					metafile_prefix+prefix_vcf_assError+".vcf",
@@ -333,7 +333,7 @@ public class Gembler extends Executor {
 			.run();
 			in_zip = metafile_prefix+prefix_vcf_assError+".zip";
 			final Map<String, Integer> scaffs_assError = DataCollection.readScaff(
-					in_zip, assemblyError.errs().keySet());
+					in_zip, scaff_breakage);
 			this.runHaplotyper(scaffs_assError, expr_id, in_zip, repeat[0], out);
 		}
 	
