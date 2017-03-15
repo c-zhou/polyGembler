@@ -246,7 +246,7 @@ Haplotype inferring:
 	-G/--genotype            Use genotypes to infer haplotypes. Mutually exclusive with 
 	                         option -D/--allele-depth and -L/--genetype likelihood.
 	-D/--allele-depth        Use allele depth to infer haplotypes. Mutually exclusive 
-                             with option -G/--genotype and -L/--genetype likelihood.
+                                 with option -G/--genotype and -L/--genetype likelihood.
 	-L/--genotype-likelihood Use genotype likelihoods to infer haplotypes. Mutually 
 	                         exclusive with option -G/--genotype and -L/--allele-depth 
 	                         (default).
