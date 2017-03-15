@@ -81,7 +81,7 @@ You may skip the freebayes variant calling step with -z option, and instead use 
 
 *Command*
 
-    $ java -jar polyGembler-${version}-jar-with-dependencies.jar gbspileup -i ${in_vcf_file} -a ${assembly_fasta_file} -f ${parent_sample_1}:${parent_sample_2} -p 2 -t 32 -o ${map_out_dir}
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar gembler -i ${in_vcf_file} -a ${assembly_fasta_file} -f ${parent_sample_1}:${parent_sample_2} -p 2 -t 32 -o ${map_out_dir}
     
 The command takes the VCF file (-i option) and the assembly FASTA file (-a option) as input. Two parental samples of the full-sib family should be specified with -f option and use ":" as delimiter. This is a diploid genome so set -p option as default 2. It uses 32 CPUs. The output files will be found under ${map_out_dir} directory (-o option).
 
@@ -114,124 +114,124 @@ This is very similar to running with the single contig/scaffold. Multiple contig
 ## More parameter options
 #### 1. Six main pipelines, each triggered by the executable jar file
 <pre>
-popsimulation                Simulate a full-sib mapping population.
-gbssimulation                Simulate GBS data.
-gbspileup                    Variant calling from GBS data.
-datapreparation              Prepare data for haplotype phasing.
-haplotyper                   Contig/scaffold haplotype construction from a mapping population.
-gembler                      Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.
+popsimulation                    Simulate a full-sib mapping population.
+gbssimulation                    Simulate GBS data.
+gbspileup                        Variant calling from GBS data.
+datapreparation                  Prepare data for haplotype phasing.
+haplotyper                       Contig/scaffold haplotype construction from a mapping population.
+gembler                          Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.
 </pre>
 
 #### 2. Simulate an outcrossed F1 mapping population (popsimulation)
 <pre>
--r/--reference               Reference (fasta file format).
--n/--pop-size                Population size including parents (default 96).
--p/--ploidy                  Copy number of chromosomes (default 2).
--c/--centimorgan             Total genetic length to simulate. Assume the physical length
-                             and genetic length has linear correlation (default calculated
-                             from the reference, 1cM per 1Mbp).
--t/--threads                 Number of threads (default 1).
--s/--run-id                  Unique run id (default Sc1).
--o/--prefix                  Output directory (default current directory).
+-r/--reference                   Reference (fasta file format).
+-n/--pop-size                    Population size including parents (default 96).
+-p/--ploidy                      Copy number of chromosomes (default 2).
+-c/--centimorgan                 Total genetic length to simulate. Assume the physical length
+                                 and genetic length has linear correlation (default calculated
+                                 from the reference, 1cM per 1Mbp).
+-t/--threads                     Number of threads (default 1).
+-s/--run-id                      Unique run id (default Sc1).
+-o/--prefix                      Output directory (default current directory).
 </pre>
 
 #### 3. Simualte GBS data from the F1 mapping population (gbssimulation)
 <pre>
--f/--fasta-file              Directory contains genome fasta files to be sequenced. 
--e/--enzyme                  Enzyme(default PstI). 
--l/--library                 GBS protocol library preparation file (default null). 
--t/--threads                 Number of threads (default 1).
--b/--barcode-file            GBS protocol barcode file (default null).
--m/--avg-depth               Depth of coverage (default 5).
--s/--sdev                    Standard deviation of depth of coverage (default 5).
--S/--random-seed             Random seed (default system nano time).
--q/--quality-file            Markov chain parameter file for quality scores (default null). 
--o/--output-prefix           Output directory (default current directory).
+-f/--fasta-file                  Directory contains genome fasta files to be sequenced. 
+-e/--enzyme                      Enzyme(default PstI). 
+-l/--library                     GBS protocol library preparation file (default null). 
+-t/--threads                     Number of threads (default 1).
+-b/--barcode-file                GBS protocol barcode file (default null).
+-m/--avg-depth                   Depth of coverage (default 5).
+-s/--sdev                        Standard deviation of depth of coverage (default 5).
+-S/--random-seed                 Random seed (default system nano time).
+-q/--quality-file                Markov chain parameter file for quality scores (default null). 
+-o/--output-prefix               Output directory (default current directory).
 </pre>
 
 #### 4. Run variant detection module for GBS data (gbspileup)
 <pre>
--i/--input-fastq             Input directory containing FASTQ files in text or gzipped text.
-                             NOTE: Directory will be searched recursively and should
-                             be written WITHOUT a slash after its name.
--k/--key-file                Key file listing barcodes distinguishing the samples.
--e/--enzyme                  Enzyme used to create the GBS library, if it differs from the one 
-                             listed in the key file.
--q/--min-qualS               Minimum quality score (default is 10).
--p/--ploidy                  Ploidy for variant calling (default is 2).
-                             NOTE: You may call variant as diploid and the program will
-                             fit a binomial model to call genotypes and genotype
-                             qualities from allele depth.
--t/--threads                 Threads (default is 1).
--T/--trim-leading            The length of leading fragments to trim off.
--f/--reference               The reference genome (in fasta format).
--z/--skip-freebayes          Skip the variant calling with freebayes (default not).
--o/--prefix                  Output directory to contain .cnt files (one per FASTQ file, defaults 
-                             to input directory).
+-i/--input-fastq                 Input directory containing FASTQ files in text or gzipped text.
+                                 NOTE: Directory will be searched recursively and should
+                                 be written WITHOUT a slash after its name.
+-k/--key-file                    Key file listing barcodes distinguishing the samples.
+-e/--enzyme                      Enzyme used to create the GBS library, if it differs from the one 
+                                 listed in the key file.
+-q/--min-qualS                   Minimum quality score (default is 10).
+-p/--ploidy                      Ploidy for variant calling (default is 2).
+                                 NOTE: You may call variant as diploid and the program will
+                                 fit a binomial model to call genotypes and genotype
+                                 qualities from allele depth.
+-t/--threads                     Threads (default is 1).
+-T/--trim-leading                The length of leading fragments to trim off.
+-f/--reference                   The reference genome (in fasta format).
+-z/--skip-freebayes              Skip the variant calling with freebayes (default not).
+-o/--prefix                      Output directory to contain .cnt files (one per FASTQ file, defaults 
+                                 to input directory).
 </pre>
 
 #### 5. Run data preparation for haplotype phasing algorithm (datapreparation)
 <pre>
--i/--vcf		             Input VCF file.
--s/--id                      Unique id of this run (default: input VCF file name prefix).
--p/--ploidy			         Ploidy of genome (default 2).
-                             NOTE: If you called variant as diploid, then the program will
-                             fit a binomial model to call genotypes and genotype qualities
-                             from allele depth with the ploidy specified here.
+-i/--vcf		         Input VCF file.
+-s/--id                          Unique id of this run (default: input VCF file name prefix).
+-p/--ploidy			 Ploidy of genome (default 2).
+                                 NOTE: If you called variant as diploid, then the program will
+                                 fit a binomial model to call genotypes and genotype qualities
+                                 from allele depth with the ploidy specified here.
 -l/--min-depth		         Minimum depth to keep a SNP (DP).
 -u/--max-depth		         Maximum depth to keep a SNP (DP).
 -q/--min-qual  		         Minimum quality to keep a SNP (QUAL).
 -f/--min-maf		         Minimum minor allele frequency to keep a SNP (default 0.1).
 -m/--max-missing	         Maximum proportion of missing data to keep a SNP (default 0.5).
--o/--prefix			         Prefix for output files (default: input VCF file folder).
+-o/--prefix			 Prefix for output files (default: input VCF file folder).
 </pre>
 
 #### 6. Run haplotype phasing algorithm (haplotyper)
 <pre>
--i/--input                   Input zipped file.
--o/--prefix                  Output file location.
--ex/--experiment-id          Common prefix of haplotype files for this experiment.
--c/--scaffold                The scaffold/contig/chromosome id will run.
--x/--max-iter                Maxmium rounds for EM optimization (default 100).
--p/--ploidy                  Ploidy of genome (default 2).
--f/--parent                  Parent samples (separated by a \":\").
--s/--initial-separation      Initialisations of distances between the adjacent scaffolds 
-                             if multiple scaffolds will be jointly inferred. The separation
-                             could be either physical distances or recombination frequencies, 
-                             i.e., if all values provided is below 0.5, the
-                             program will take them as recombination frequencies.
-                             Distances should be separated by \":\".
--r/--reverse                 Take either 'true' or 'false', indicating whetherr the
-                             scaffold is reversed before inferring haplotypes. Multiple
-                             scaffolds are separated by \":\".
--G/--genotype                Use genotypes to infer haplotypes. Mutually exclusive with
-                             option -D/--allele-depth and -L/--genetype likelihood.
--D/--allele-depth            Use allele depth to infer haplotypes. Mutually exclusive
-                              with option -G/--genotype and -L/--genetype likelihood.
--L/--genotype-likelihood     Use genotype likelihoods to infer haplotypes. Mutually
-                             exclusive with option -G/--genotype and -L/--allele-depth 
-                             (default).
--b/--segmental-kmeans        Use Viterbi training instead of Baum-Welch algorithm.
--e/--train-exp               Re-estimate transition probabilities between founder/parental
-                             haplotypes at each step.
--S/--random-seed             Random seed for this run.
--pp/--print-plot             Plot the hidden Markov model.
--sp/--save-plot              Save the plot as a pdf file. The file name should be provided here.
+-i/--input                       Input zipped file.
+-o/--prefix                      Output file location.
+-ex/--experiment-id              Common prefix of haplotype files for this experiment.
+-c/--scaffold                    The scaffold/contig/chromosome id will run.
+-x/--max-iter                    Maxmium rounds for EM optimization (default 100).
+-p/--ploidy                      Ploidy of genome (default 2).
+-f/--parent                      Parent samples (separated by a \":\").
+-s/--initial-separation          Initialisations of distances between the adjacent scaffolds 
+                                 if multiple scaffolds will be jointly inferred. The separation
+                                 could be either physical distances or recombination frequencies, 
+                                 i.e., if all values provided is below 0.5, the
+                                 program will take them as recombination frequencies.
+                                 Distances should be separated by \":\".
+-r/--reverse                     Take either 'true' or 'false', indicating whetherr the
+                                 scaffold is reversed before inferring haplotypes. Multiple
+                                 scaffolds are separated by \":\".
+-G/--genotype                    Use genotypes to infer haplotypes. Mutually exclusive with
+                                 option -D/--allele-depth and -L/--genetype likelihood.
+-D/--allele-depth                Use allele depth to infer haplotypes. Mutually exclusive
+                                 with option -G/--genotype and -L/--genetype likelihood.
+-L/--genotype-likelihood         Use genotype likelihoods to infer haplotypes. Mutually
+                                 exclusive with option -G/--genotype and -L/--allele-depth 
+                                 (default).
+-b/--segmental-kmeans            Use Viterbi training instead of Baum-Welch algorithm.
+-e/--train-exp                   Re-estimate transition probabilities between founder/parental
+                                 haplotypes at each step.
+-S/--random-seed                 Random seed for this run.
+-pp/--print-plot                 Plot the hidden Markov model.
+-sp/--save-plot                  Save the plot as a pdf file. The file name should be provided here.
 </pre>
 
 #### 7. Run genetic linkage map or pseudomolecule construction pipeline (gembler)
 <pre>
 Common:
-    -i/--input-vcf           Input VCF file.
-    -a/--input-assembly      Input assembly fasta file.
-    -o/--prefix              Output file location, create the directory if not exist.
-    -p/--ploidy              Ploidy of genome (default 2).
-    -S/--random-seed         Random seed for this run.
-    -t/--threads             Threads (default 1).
-    -rlib/--R-external-libs  External library paths that you want R to search for packages.
-                             This could be useful if you are root users and install R
-                             packages in directories other than default.
-                             Multiple paths separated by ':' could be provided.
+    -i/--input-vcf               Input VCF file.
+    -a/--input-assembly          Input assembly fasta file.
+    -o/--prefix                  Output file location, create the directory if not exist.
+    -p/--ploidy                  Ploidy of genome (default 2).
+    -S/--random-seed             Random seed for this run.
+    -t/--threads                 Threads (default 1).
+    -rlib/--R-external-libs      External library paths that you want R to search for packages.
+                                 This could be useful if you are root users and install R
+                                 packages in directories other than default.
+                                 Multiple paths separated by ':' could be provided.
 
 Data preparation:
 	-l/--min-depth           Minimum depth to keep a SNP (DP).
