@@ -137,7 +137,7 @@ public class AssemblyError extends RFUtils {
 		}
 
 		if(myArgsEngine.getBoolean("-f")) {
-			Constants._founder_haps = myArgsEngine.getString("-f");
+			founder_haps = myArgsEngine.getString("-f").split(":");
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify the parent samples (seperated by a \":\").");

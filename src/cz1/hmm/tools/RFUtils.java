@@ -541,7 +541,18 @@ public abstract class RFUtils extends Executor {
 				throw new RuntimeException("!!!");
 			this.start_end_position = start_end;
 		}
-
+		
+		protected PhasedDataCollection(String file,
+				String[] markers, 
+				int[] start_end,
+				boolean[][][][] data) {
+			// TODO Auto-generated constructor stub
+			this.file = file;
+			this.markers = markers;
+			this.start_end_position = start_end;
+			this.data = data;
+		}
+		
 		protected void hash() {
 			// TODO Auto-generated method stub
 			this.hashcode = new int[2][2][nF1];
@@ -572,11 +583,20 @@ public abstract class RFUtils extends Executor {
 				for(int j=0; j<2; j++)
 					for(int k=0; k<Constants._ploidy_H; k++)
 						data[i][j][k] = this.data[i][j][k].clone();
-			PhasedDataCollection dc = new PhasedDataCollection(this.file, 
+			return new PhasedDataCollection(this.file, 
 					this.markers, 
-					this.start_end_position);
-			dc.data();
-			return dc;
+					this.start_end_position,
+					data);
+		}
+		
+		protected boolean[][][][] cloneData() {
+			final boolean[][][][] data = 
+					new boolean[2][2][Constants._ploidy_H][nF1];
+			for(int i=0; i<2; i++) 
+				for(int j=0; j<2; j++)
+					for(int k=0; k<Constants._ploidy_H; k++)
+						data[i][j][k] = this.data[i][j][k].clone();
+			return data;
 		}
 
 		private boolean[][][][] data(int start, int end) {
@@ -837,7 +857,7 @@ public abstract class RFUtils extends Executor {
 		File[] haps = in_dir.listFiles();
 		Map<String, Integer> stats = new HashMap<String, Integer>();
 		for(File hap : haps) {
-			String h = hap.getName().split(".")[0];
+			String h = hap.getName().split("\\.")[0];
 			if(!stats.keySet().contains(h))
 				stats.put(h, 0);
 			stats.put(h, stats.get(h)+1);

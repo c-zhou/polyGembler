@@ -64,18 +64,18 @@ public class RecombinationFreqEstimator extends RFUtils {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " -i/--hap-file				Directory with input haplotype files.\n"
-						+ " -o/--prefix					Output file prefix.\n"
-						+ " -ex/--experiment-id			Common prefix of haplotype files for this experiment.\n"
-						+ " -f/--parent					Parent samples (seperated by a \":\").\n"
-						+ " -p/--ploidy					Ploidy of genome (default 2).\n"
-						+ " -nb/--best					The most likely nb haplotypes will be used (default 10).\n"
-						+ " -phi/--skew-phi				For a haplotype inference, the frequencies of parental \n"
-						+ "								haplotypes need to be in the interval [1/phi, phi], \n"
-						+ "								otherwise will be discared (default 2).\n"
-						+ " -nd/--drop					At least nd haplotype inferences are required for \n"
-						+ "								a contig/scaffold to be analysed (default 1).\n"
-						+ " -t/--threads				Threads (default 1).\n"	
+						+ " -i/--hap-file               Directory with input haplotype files.\n"
+						+ " -o/--prefix                 Output file prefix.\n"
+						+ " -ex/--experiment-id         Common prefix of haplotype files for this experiment.\n"
+						+ " -f/--parent                 Parent samples (seperated by a \":\").\n"
+						+ " -p/--ploidy                 Ploidy of genome (default 2).\n"
+						+ " -nb/--best                  The most likely nb haplotypes will be used (default 10).\n"
+						+ " -phi/--skew-phi             For a haplotype inference, the frequencies of parental \n"
+						+ "                             haplotypes need to be in the interval [1/phi, phi], \n"
+						+ "                             otherwise will be discared (default 2).\n"
+						+ " -nd/--drop                  At least nd haplotype inferences are required for \n"
+						+ "                             a contig/scaffold to be analysed (default 1).\n"
+						+ " -t/--threads                Threads (default 1).\n"	
 				);
 	}
 
@@ -124,7 +124,7 @@ public class RecombinationFreqEstimator extends RFUtils {
 		}
 
 		if(myArgsEngine.getBoolean("-f")) {
-			Constants._founder_haps = myArgsEngine.getString("-f");
+			founder_haps = myArgsEngine.getString("-f").split(":");
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify the parent samples (seperated by a \":\").");
@@ -136,6 +136,8 @@ public class RecombinationFreqEstimator extends RFUtils {
 			Constants._haplotype_z = ploidy*2;
 			probs_uniform = new double[ploidy*2];
 			Arrays.fill(probs_uniform, .5/ploidy);
+			ploidy2 = ploidy/2;
+			shift_bits2 = mask_length*ploidy;
 		}
 		
 		if(myArgsEngine.getBoolean("-nb")) {
@@ -153,6 +155,8 @@ public class RecombinationFreqEstimator extends RFUtils {
 		if(myArgsEngine.getBoolean("-nd")) {
 			drop_thres = Integer.parseInt(myArgsEngine.getString("-nd"));
 		}
+		
+		setHaps();
 	}
 
 	private BufferedWriter rfMinimumWriter;
@@ -246,11 +250,12 @@ public class RecombinationFreqEstimator extends RFUtils {
 		this.waitFor();
 	}
 
-	private int ploidy2;
-	private int shift_bits2;
-	private double[] probs_uniform;
+	private int ploidy2 = 1;
+	private int shift_bits2 = mask_length*2;
 	private final Set<String> scaff_only = new HashSet<String>();	
 
+	public RecombinationFreqEstimator() {}
+			
 	public RecombinationFreqEstimator (String in_haps, 
 				String out_prefix,
 				String expr_id, 
@@ -446,8 +451,7 @@ public class RecombinationFreqEstimator extends RFUtils {
 					hash_j = new int[2][nF1];
 
 			double[] rf = new double[4];
-			PhasedDataCollection dc_j = dc[j][phase2].clone();
-			boolean[][][][] data_j = dc_j.data;
+			boolean[][][][] data_j = dc[j][phase2].cloneData();
 
 			for(int p=0; p<2; p++) {
 
