@@ -132,6 +132,7 @@ public abstract class Executor {
 						System.exit(1);
 					}
 				}
+				
 				public Runnable init(final int i) {
 			        this.i = i;
 			        return(this);
@@ -141,22 +142,45 @@ public abstract class Executor {
 		
 		this.waitFor();
 	}
+
+	private class BashStream implements Runnable {
+		private final InputStream in;
+		
+		public BashStream(InputStream in) {
+			this.in = in;
+		}
+		
+		@Override
+		public void run() {
+			// TODO Auto-generated method stub
+			try {
+				BufferedReader reader = new BufferedReader(new InputStreamReader(in));
+				String line;
+				while( (line=reader.readLine())!=null )
+					myLogger.info(line);
+				in.close();
+				reader.close();
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				Thread t = Thread.currentThread();
+				t.getUncaughtExceptionHandler().uncaughtException(t, e);
+				e.printStackTrace();
+				executor.shutdown();
+				System.exit(1);
+			}
+		}
+		
+	}
 	
 	protected void consume(Process process) {
 		// TODO Auto-generated method stub
 		try {
-			BufferedReader in =
-					new BufferedReader(new InputStreamReader(process.getInputStream()));
-			String line;
-			while( (line=in.readLine())!=null )
-				myLogger.info(line);
-			in.close();
-			in = new BufferedReader(new InputStreamReader(process.getErrorStream()));
-			while( (line=in.readLine())!=null )
-				myLogger.error(line);
-			in.close();
+			this.initial_thread_pool();
+			executor.submit(new BashStream(process.getInputStream()));
+			executor.submit(new BashStream(process.getErrorStream()));
+			this.waitFor();
 			process.waitFor();
-		} catch (IOException | InterruptedException e) {
+		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
@@ -165,14 +189,11 @@ public abstract class Executor {
 	protected void consumeErr(Process process) {
 		// TODO Auto-generated method stub
 		try {
-			BufferedReader in = 
-					new BufferedReader(new InputStreamReader(process.getErrorStream()));
-			String line;
-			while( (line=in.readLine())!=null )
-				myLogger.error(line);
-			in.close();
+			this.initial_thread_pool();
+			executor.submit(new BashStream(process.getErrorStream()));
+			this.waitFor();
 			process.waitFor();
-		} catch (IOException | InterruptedException e) {
+		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
@@ -181,14 +202,11 @@ public abstract class Executor {
 	protected void consumeOut(Process process) {
 		// TODO Auto-generated method stub
 		try {
-			BufferedReader in = 
-					new BufferedReader(new InputStreamReader(process.getInputStream()));
-			String line;
-			while( (line=in.readLine())!=null )
-				myLogger.info(line);
-			in.close();
+			this.initial_thread_pool();
+			executor.submit(new BashStream(process.getInputStream()));
+			this.waitFor();
 			process.waitFor();
-		} catch (IOException | InterruptedException e) {
+		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
