@@ -14,6 +14,7 @@ import java.security.CodeSource;
 import java.security.ProtectionDomain;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -47,6 +48,13 @@ public abstract class Executor {
 	protected BlockingQueue<Runnable> tasks = null;
 
 	protected void initial_thread_pool() {
+		if(this.tasks!=null&&tasks.size()>0)
+			throw new RuntimeException("Thread pool initialisation "
+					+ "exception!!! Task queue is not emputy!!!");
+		if(this.executor!=null&&!executor.isShutdown())
+			throw new RuntimeException("Thread pool initialisation "
+					+ "exception!!! Executor is on the fly!!!");
+		
 		tasks = new ArrayBlockingQueue<Runnable>(THREADS);
 		executor = new ThreadPoolExecutor(THREADS, 
 				THREADS, 
@@ -170,6 +178,18 @@ public abstract class Executor {
 			}
 		}
 		
+	}
+	
+	protected void consumeOnTheFly(Process process) {
+		// TODO Auto-generated method stub
+		try {
+			executor.submit(new BashStream(process.getInputStream())).get();
+			executor.submit(new BashStream(process.getErrorStream())).get();
+			process.waitFor();
+		} catch (InterruptedException | ExecutionException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 	
 	protected void consume(Process process) {
