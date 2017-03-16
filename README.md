@@ -222,53 +222,53 @@ gembler                          Run PolyGembler pipeline to construct genetic l
 #### 7. Run genetic linkage map or pseudomolecule construction pipeline (gembler)
 <pre>
 Common:
-    -i/--input-vcf               Input VCF file.
-    -o/--prefix                  Output file location, create the directory if not exist.
-    -p/--ploidy                  Ploidy of genome (default 2).
-    -S/--random-seed             Random seed for this run.
-    -t/--threads                 Threads (default 1).
-    -rlib/--R-external-libs      External library paths that you want R to search for packages.
+-i/--input-vcf                   Input VCF file.
+-o/--prefix                      Output file location, create the directory if not exist.
+-p/--ploidy                      Ploidy of genome (default 2).
+-S/--random-seed                 Random seed for this run.
+-t/--threads                     Threads (default 1).
+-rlib/--R-external-libs          External library paths that you want R to search for packages.
                                  This could be useful if you are root users and install R
                                  packages in directories other than default.
                                  Multiple paths separated by ':' could be provided.
 
 Data preparation:
-	-l/--min-depth           Minimum depth to keep a SNP (DP).
-	-u/--max-depth           Maximum depth to keep a SNP (DP).
-	-q/--min-qual            Minimum quality to keep a SNP (QUAL).
-	-mf/--min-maf            Minimum minor allele frequency to keep a SNP (default 0.1).
-	-mm/--max-missing        Maximum proportion of missing data to keep a SNP (default 0.5).
+-l/--min-depth                   Minimum depth to keep a SNP (DP).
+-u/--max-depth                   Maximum depth to keep a SNP (DP).
+-q/--min-qual                    Minimum quality to keep a SNP (QUAL).
+-mf/--min-maf                    Minimum minor allele frequency to keep a SNP (default 0.1).
+-mm/--max-missing                Maximum proportion of missing data to keep a SNP (default 0.5).
 
 Haplotype inferring:
-	-x/--max-iter            Maxmium rounds for EM optimization (default 100).
-	-f/--parent              Parent samples (separated by a \":\").
-	-G/--genotype            Use genotypes to infer haplotypes. Mutually exclusive with 
-	                         option -D/--allele-depth and -L/--genetype likelihood.
-	-D/--allele-depth        Use allele depth to infer haplotypes. Mutually exclusive 
+-x/--max-iter                    Maxmium rounds for EM optimization (default 100).
+-f/--parent                      Parent samples (separated by a \":\").
+-G/--genotype                    Use genotypes to infer haplotypes. Mutually exclusive with 
+                                 option -D/--allele-depth and -L/--genetype likelihood.
+-D/--allele-depth                Use allele depth to infer haplotypes. Mutually exclusive 
                                  with option -G/--genotype and -L/--genetype likelihood.
-	-L/--genotype-likelihood Use genotype likelihoods to infer haplotypes. Mutually 
-	                         exclusive with option -G/--genotype and -L/--allele-depth 
-	                         (default).
-	-c/--min-snp-count       Minimum number of SNPs on a scaffold to run.
-	-r/--repeat              Repeat haplotype inferring for multiple times as EM algorithm 
-	                         could be trapped in local optima. The program takes three values 
-	                         from here, i.e., for scaffold, for superscaffold and for genetic 
-	                         linkage map refinement. Three values should be separated by ',' 
-	                         (default 30,30,10).
-	-rr/--refinement-round   Number of rounds to refine pseudomelecules (default 10.)
-    
+-L/--genotype-likelihood         Use genotype likelihoods to infer haplotypes. Mutually 
+                                 exclusive with option -G/--genotype and -L/--allele-depth 
+                                 (default).
+-c/--min-snp-count               Minimum number of SNPs on a scaffold to run.
+-r/--repeat                      Repeat haplotype inferring for multiple times as EM algorithm 
+                                 could be trapped in local optima. The program takes three values 
+                                 from here, i.e., for scaffold, for superscaffold and for genetic 
+                                 linkage map refinement. Three values should be separated by ',' 
+                                 (default 30,30,10).
+-rr/--refinement-round           Number of rounds to refine pseudomelecules (default 10.)
+   
 Recombination frequency estimation:
-	-nb/--best               The most likely nb haplotypes will be used (default 10).
-	-phi/--skew-phi          For a haplotype inference, the frequencies of parental 
-	                         haplotypes need to be in the interval [1/phi, phi], 
-	                         otherwise will be discarded (default 2).
-	-nd/--drop               At least nd haplotype inferences are required for calculation.		
+-nb/--best                       The most likely nb haplotypes will be used (default 10).
+-phi/--skew-phi                  For a haplotype inference, the frequencies of parental 
+                                 haplotypes need to be in the interval [1/phi, phi], 
+                                 otherwise will be discarded (default 2).
+-nd/--drop                       At least nd haplotype inferences are required for calculation.		
 
 Pseudomolecule construction:
-        -a/--input-assembly      Input assembly fasta file.
-        -frac/--frac-thresold    Lower threshold the genetic linkage map covers to construct
+-a/--input-assembly              Input assembly fasta file.
+-frac/--frac-thresold            Lower threshold the genetic linkage map covers to construct
                                  pseudomolecules (default 0.8).
-        -gz/--genome-size        The estimated genome size (default size of the reference assembly).
+-gz/--genome-size                The estimated genome size (default size of the reference assembly).
 </pre>
 
 ## Details about the output files
