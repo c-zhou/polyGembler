@@ -52,6 +52,9 @@ public class Gembler extends Executor {
 	private double phi = 2;
 	private int nB = 10;
 	
+	private double genome_size = -1;
+	private double frac_thresh = .8;
+	
 	private String RLibPath = null;
 	
 	public Gembler() {
@@ -65,7 +68,6 @@ public class Gembler extends Executor {
 				"\n\nUsage is as follows:\n"
 						+ " Common:\n"
 						+ "     -i/--input-vcf              Input VCF file.\n"
-						+ "     -a/--input-assembly         Input assembly fasta file.\n"
 						+ "     -o/--prefix                 Output file location, create the directory if not exist.\n"
 						+ "     -p/--ploidy                 Ploidy of genome (default 2).\n"
 						+ "     -S/--random-seed            Random seed for this run.\n"
@@ -107,6 +109,11 @@ public class Gembler extends Executor {
 						+ "                                 haplotypes need to be in the interval [1/phi, phi], \n"
 						+ "                                 otherwise will be discarded (default 2).\n"
 						+ "     -nd/--drop                  At least nd haplotype inferences are required for calculation.\n"
+						+ " Pseudomolecule construction:\n"
+						+ "     -a/--input-assembly         Input assembly fasta file.\n"
+						+ "     -frac/--frac-thresold       Lower threshold the genetic linkage map covers to construct \n"
+						+ "                                 pseudomolecules (default 0.8).\n"
+						+ "     -gz/--genome-size           The estimated genome size (default size of the reference assembly). \n"
 						+"\n"
 				);
 	}
@@ -147,6 +154,8 @@ public class Gembler extends Executor {
 			myArgsEngine.add("-phi", "--skew-phi", true);
 			myArgsEngine.add("-nd", "--drop", true);
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
+			myArgsEngine.add("-frac", "--frac-thresold", true);
+			myArgsEngine.add("-gz", "--genome-size", true);
 			myArgsEngine.parse(args);
 		}
 		
@@ -268,6 +277,14 @@ public class Gembler extends Executor {
 		
 		if (myArgsEngine.getBoolean("-rlib")) {
 			RLibPath = myArgsEngine.getString("-rlib");
+		}
+		
+		if(myArgsEngine.getBoolean("-frac")) {
+			frac_thresh = Double.parseDouble(myArgsEngine.getString("-frac"));
+		}
+		
+		if(myArgsEngine.getBoolean("-gz")) {
+			genome_size = Double.parseDouble(myArgsEngine.getString("-gz"));
 		}
 	}
 
@@ -587,17 +604,14 @@ public class Gembler extends Executor {
 		//#### STEP 10 pseudo molecules construction
 		if(assembly_file==null) myLogger.info("No assembly file provided, "
 				+ "pseudomolecule construction module skipped.");
-		PseudoMoleculeConstructor pseudoMoleculeConstructor = 
-				new PseudoMoleculeConstructor(
-						metafile_prefix+"genetic_linkage_map.mct",
-						this.assembly_file,
-						metafile_prefix+"pseudomolecules.fa",
-						assemblyError.errs());
-		double coverage = 0.0;
-		if( (coverage=pseudoMoleculeConstructor.coverage())>=.8) 
-			pseudoMoleculeConstructor.run();
-		else myLogger.info("The coverage of genetic linkage maps is too small "
-				+ "for pseudomolecules construction: "+coverage);
+		new PseudoMoleculeConstructor(
+				metafile_prefix+"genetic_linkage_map.mct",
+				this.assembly_file,
+				this.genome_size,
+				this.frac_thresh,
+				metafile_prefix+"pseudomolecules.fa",
+				assemblyError.errs()).run();
+		
 	}
 
 	private void makeSelectedLG(String[] selected, String out) {

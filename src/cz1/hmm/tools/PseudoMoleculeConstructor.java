@@ -19,7 +19,9 @@ public class PseudoMoleculeConstructor extends Executor {
 	private String assembly_file = null;
 	private String out_file = null;
 	private String mct_file = null;
-	private double genome_size;
+	private double genome_size = -1;
+	private double frac_thresh = .8;
+	
 	private final Map<String, Scaffold> scaffolds = new HashMap<String, Scaffold>();
 	private final Map<String, List<Scaffold>> pseudo_molecule = 
 			new HashMap<String, List<Scaffold>>();
@@ -36,10 +38,14 @@ public class PseudoMoleculeConstructor extends Executor {
 	
 	public PseudoMoleculeConstructor(String mct_file,
 			String assembly_file, 
+			double genome_size,
+			double frac_thresh,
 			String out_file,
 			Map<String, int[][]> errs) {
 		this.assembly_file = assembly_file;
 		this.mct_file = mct_file;
+		this.genome_size = genome_size;
+		this.frac_thresh = frac_thresh;
 		this.out_file = out_file;
 		this.assemblyReader();
 		this.setAssemblyError(errs);
@@ -53,6 +59,9 @@ public class PseudoMoleculeConstructor extends Executor {
 				"\n\nUsage is as follows:\n"
 						+ " Common:\n"
 						+ "		-i/--input-mct				Input genetic linkage map file.\n"
+						+ "     -frac/--frac-thresold       Lower threshold the genetic linkage map covers to construct \n"
+						+ "                                 pseudomolecules (default 0.8).\n"
+						+ "     -gz/--genome-size           The estimated genome size (default size of the reference assembly). \n"
 						+ "		-a/--input-assembly			Input assembly fasta file.\n"
 						+ "		-o/--prefix					Output pseudomolecule file.\n"
 						);
@@ -70,6 +79,8 @@ public class PseudoMoleculeConstructor extends Executor {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-i", "--input-mct", true);
 			myArgsEngine.add("-a", "--input-assembly", true);
+			myArgsEngine.add("-frac", "--frac-thresold", true);
+			myArgsEngine.add("-gz", "--genome-size", true);
 			myArgsEngine.add("-o", "--prefix", true);
 		}
 		
@@ -94,6 +105,14 @@ public class PseudoMoleculeConstructor extends Executor {
 		}  else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your output file name.");
+		}
+		
+		if(myArgsEngine.getBoolean("-frac")) {
+			frac_thresh = Double.parseDouble(myArgsEngine.getString("-frac"));
+		}
+		
+		if(myArgsEngine.getBoolean("-gz")) {
+			genome_size = Double.parseDouble(myArgsEngine.getString("-gz"));
 		}
 	}
 
@@ -127,6 +146,11 @@ public class PseudoMoleculeConstructor extends Executor {
 		double unitsD = Math.sqrt(rms/(unit_all.length-1));
 		myLogger.info(units2+" "+unitsD);
 		**/
+		if( this.coverage()<this.frac_thresh) {
+			myLogger.info("The coverage of genetic linkage maps is too small "
+				+ "for pseudomolecules construction: "+this.coverage());
+			return;
+		}
 		
 		double units = (genome_size-pseudoPhysicalSize())/pseudoGapSize();
 		myLogger.info(units);
@@ -237,6 +261,7 @@ public class PseudoMoleculeConstructor extends Executor {
 			String line=br.readLine();
 			String name;
 			
+			double genome_size = 0.0;
 			while( line!=null ) {
 				if(line.startsWith(">")) {
 					name = line.split("\\s+")[0].substring(1).
@@ -251,6 +276,7 @@ public class PseudoMoleculeConstructor extends Executor {
 				} else line=br.readLine();
 			}
 			br.close();
+			if(this.genome_size<0) this.genome_size = genome_size;
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
