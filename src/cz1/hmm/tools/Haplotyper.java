@@ -155,6 +155,7 @@ public class Haplotyper extends Executor {
 			Field field,
 			String expr_id,
 			int max_iter,
+			boolean trainExp,
 			boolean vbt) {
 		// TODO Auto-generated constructor stub
 		this.in_zip = in_zip;
@@ -172,6 +173,7 @@ public class Haplotyper extends Executor {
 		this.field = field;
 		this.expr_id = expr_id;
 		this.max_iter = max_iter;
+		this.trainExp = trainExp;
 		this.vbt = vbt;
 	}
 

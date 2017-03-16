@@ -477,6 +477,7 @@ public class Gembler extends Executor {
 									field,
 									expr_id,
 									max_iter,
+									true,
 									vbt).run();
 							synchronized (task_table) {
 								task_table[i][j]--;
@@ -562,6 +563,7 @@ public class Gembler extends Executor {
 												field,
 												expr_id,
 												max_iter,
+												true,
 												vbt).run();
 										synchronized (task_table) {
 											task_table[i][j]--;
@@ -800,6 +802,7 @@ public class Gembler extends Executor {
 									field,
 									expr_id,
 									max_iter,
+									true,
 									vbt).run();
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();

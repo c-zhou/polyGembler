@@ -153,6 +153,7 @@ public class PseudoMoleculeConstructor extends Executor {
 		}
 		
 		double units = (genome_size-pseudoPhysicalSize())/pseudoGapSize();
+		if(units<0 || Double.isInfinite(units)) units = 0;
 		myLogger.info(units);
 		Scaffold scaffold;
 		try {
