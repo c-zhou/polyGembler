@@ -263,6 +263,7 @@ Recombination frequency estimation:
 	                         haplotypes need to be in the interval [1/phi, phi], 
 	                         otherwise will be discarded (default 2).
 	-nd/--drop               At least nd haplotype inferences are required for calculation.		
+
 Pseudomolecule construction:
         -a/--input-assembly      Input assembly fasta file.
         -frac/--frac-thresold    Lower threshold the genetic linkage map covers to construct
