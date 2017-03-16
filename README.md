@@ -223,7 +223,6 @@ gembler                          Run PolyGembler pipeline to construct genetic l
 <pre>
 Common:
     -i/--input-vcf               Input VCF file.
-    -a/--input-assembly          Input assembly fasta file.
     -o/--prefix                  Output file location, create the directory if not exist.
     -p/--ploidy                  Ploidy of genome (default 2).
     -S/--random-seed             Random seed for this run.
@@ -264,6 +263,12 @@ Recombination frequency estimation:
 	                         haplotypes need to be in the interval [1/phi, phi], 
 	                         otherwise will be discarded (default 2).
 	-nd/--drop               At least nd haplotype inferences are required for calculation.		
+
+Pseudomolecule construction:
+        -a/--input-assembly      Input assembly fasta file.
+        -frac/--frac-thresold    Lower threshold the genetic linkage map covers to construct
+                                 pseudomolecules (default 0.8).
+        -gz/--genome-size        The estimated genome size (default size of the reference assembly).
 </pre>
 
 ## Details about the output files
