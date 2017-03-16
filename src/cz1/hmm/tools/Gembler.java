@@ -614,6 +614,26 @@ public class Gembler extends Executor {
 				metafile_prefix+"pseudomolecules.fa",
 				assemblyError.errs()).run();
 		
+		//#### STEP 11 result files
+		final String results_dir = out_prefix+"/results";
+		Utils.makeOutputDir(results_dir);
+		try {
+			Files.move(Paths.get(metafile_prefix+"/genetic_linkage_map.mct"), 
+					Paths.get(results_dir+"/genetic_linkage_map.mct"),
+					StandardCopyOption.REPLACE_EXISTING,
+					StandardCopyOption.ATOMIC_MOVE);
+			Files.move(Paths.get(metafile_prefix+"/genetic_linkage_map.log"), 
+					Paths.get(results_dir+"/genetic_linkage_map.log"),
+					StandardCopyOption.REPLACE_EXISTING,
+					StandardCopyOption.ATOMIC_MOVE);
+			Files.move(Paths.get(metafile_prefix+"/pseudomolecules.fa"), 
+					Paths.get(results_dir+"/pseudomolecules.fa"),
+					StandardCopyOption.REPLACE_EXISTING,
+					StandardCopyOption.ATOMIC_MOVE);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
 	private void makeSelectedLG(String[] selected, String out) {
