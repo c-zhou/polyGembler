@@ -35,6 +35,9 @@ import org.renjin.sexp.ListVector;
 import org.renjin.sexp.StringArrayVector;
 import org.renjin.sexp.StringVector;
 
+import com.sun.media.jfxmedia.logging.Logger;
+
+import cz1.hmm.tools.RFUtils.InputStreamObj;
 import cz1.util.Constants;
 import cz1.util.Executor;
 import cz1.util.Utils;
@@ -59,6 +62,8 @@ public abstract class RFUtils extends Executor {
 	protected NumberFormat formatter = new DecimalFormat("#0.000");
 	protected int nF1;
 
+	protected final Map<String, double[]> conjPairRFs = 
+			new HashMap<String, double[]>();
 
 	protected final Map<String, Set<FileObject>> fileObj = 
 			new HashMap<String, Set<FileObject>>();
@@ -144,6 +149,35 @@ public abstract class RFUtils extends Executor {
 						start_end_position[i][0] = cuv-1;
 					}
 				}
+				
+				// conjugate pairs
+				if(scaff_n>1) {
+					char[][][] haps = this.readConjHaps(start_end_position);
+					int n = this.files.length;
+					for(int i=0; i<scaff_n; i++) {
+						String scaff_i = scaff_all.get(i);
+						for(int j=i+1; j<scaff_n; j++) {
+							String scaff_j = scaff_all.get(j);
+							double[][] stats = new double[n][4];
+							try {
+							for(int k=0; k<n; k++) {
+								char[][] haps_k = haps[k];
+								stats[k][0] = calcRFs(haps_k, i*2,   j*2  );
+								stats[k][1] = calcRFs(haps_k, i*2,   j*2+1);
+								stats[k][2] = calcRFs(haps_k, i*2+1, j*2  );
+								stats[k][3] = calcRFs(haps_k, i*2+1, j*2+1);
+							} 
+							}catch(java.lang.ArrayIndexOutOfBoundsException e) {
+								e.printStackTrace();
+							}
+							double[] rf = max(stats);
+							mininus(1, divide(rf, nF1*Constants._ploidy_H));
+							conjPairRFs.put(scaff_i+Constants.scaff_collapsed_str+scaff_j, rf);
+							
+							myLogger.info("conjugate pair: "+scaff_i+" "+scaff_j);
+						}
+					}
+				}
 
 				for(int i=0; i<this.files.length; i++) {
 					for(int j=0; j<scaff_n; j++) {
@@ -166,6 +200,85 @@ public abstract class RFUtils extends Executor {
 				executor.shutdown();
 				System.exit(1);
 			}
+		}
+
+		private double[] max(double[][] ds) {
+			// TODO Auto-generated method stub
+			double tot=Double.NEGATIVE_INFINITY, 
+					rf=Double.NEGATIVE_INFINITY;
+			double f;
+			int r = -1;
+			for(int i=0; i<ds.length; i++) 
+				if( (f=StatUtils.max(ds[i]))>rf ||
+						f==rf && StatUtils.sum(ds[i])>tot ) {
+					rf = f;
+					tot = StatUtils.sum(ds[i]);
+					r = i;
+				}
+			return ds[r];
+		}
+		
+		private double[] divide(double[] ds, double deno) {
+			// TODO Auto-generated method stub
+			for(int i=0; i<4; i++) ds[i] /= deno;
+			return ds;
+		}
+		
+		private double[] mininus(double d, double[] minus) {
+			// TODO Auto-generated method stub
+			for(int i=0; i<4; i++) minus[i] = d-minus[i];
+			return minus;
+		}
+	
+		private double calcRFs(final char[][] haps, 
+				final int i, 
+				final int j) {
+			// TODO Auto-generated method stub
+			int n = nF1*Constants._ploidy_H;
+			int z = 0;
+			for(int k=0; k<n; k++)
+				if(haps[k][i]==haps[k][j])
+					z++;
+			return z;
+		}
+
+		private char[][][] readConjHaps(int[][] start_end_position) {
+			// TODO Auto-generated method stub
+			int n1 = this.files.length;
+			int n2 = nF1*Constants._ploidy_H;
+			int n3 = start_end_position.length;
+			char[][][] haps = new char[n1][n2][n3*2];
+			
+			for(int i=0; i<n1; i++) {
+				try {
+					InputStreamObj isObj = new InputStreamObj(this.files[i]);
+					isObj.getInputStream("PHASEDSTATES");
+					BufferedReader br = Utils.getBufferedReader(isObj.is);
+					
+					String line, stateStr;
+					String[] s;
+					int j = 0;
+					while( (line=br.readLine())!=null ) {
+						if(!line.startsWith("#")) continue;
+						s = line.split("\\s+|:");
+						if(Arrays.asList(founder_haps).contains(s[2])) continue;
+						stateStr = s[s.length-1];
+						for(int k=0; k<n3; k++) {
+							haps[i][j][k*2]   = stateStr.charAt(start_end_position[k][0]);
+							haps[i][j][k*2+1] = stateStr.charAt(start_end_position[k][1]);
+						}
+						j++;
+					}
+					br.close();
+					isObj.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+			
+			
+			return haps;
 		}
 	}
 

@@ -186,7 +186,16 @@ public class RFEstimatorML extends RFUtils {
 		}
 		try {
 			for(String scaff : kept_scaffs)
-					rfMinimumWriter.write("##"+scaff+"\n");
+				rfMinimumWriter.write("##"+scaff+"\n");
+			for(Map.Entry<String, double[]> entry : this.conjPairRFs.entrySet()) {
+				String key = entry.getKey();
+				String[] s = key.split(Constants.scaff_collapsed_str);
+				double[] rf = entry.getValue();
+				String w = StatUtils.min(rf)+"\t";
+				for(int k=0; k<rf.length; k++) w += rf[k]+"\t";
+				w += s[0]+"\t"+s[1]+"\n";
+				rfMinimumWriter.write(w);
+			}
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -577,23 +586,25 @@ public class RFEstimatorML extends RFUtils {
 				MyPhasedDataCollection[] dc_j = dc[this.j];
 				String contig=null, contig2=null;
 				int ii = 0;
-				String fi = null;
+				//String fi = null;
 				while(ii<dc_i.length && contig==null) {
 					contig = dc_i[ii]==null ? null : 
 						dc_i[ii].markers[0].replaceAll("_[0-9]{1,}$", "");
-					fi = new File(dc_i[ii].file).getName().split("\\.")[1];
+					//fi = new File(dc_i[ii].file).getName().split("\\.")[1];
 					ii++;
 				}
 				int jj = 0;
-				String fj = null;
+				//String fj = null;
 				while(jj<dc_j.length && contig2==null) {
 					contig2 = dc_j[jj]==null ? null : 
 						dc_j[jj].markers[0].replaceAll("_[0-9]{1,}$", "");
-					fj = new File(dc_j[jj].file).getName().split("\\.")[1];
+					//fj = new File(dc_j[jj].file).getName().split("\\.")[1];
 					jj++;
 				}
 				if(contig==null || contig2==null) return;
-				boolean conj = fi.equals(fj);
+				if(conjPairRFs.containsKey(contig+Constants.scaff_collapsed_str+contig2) || 
+						conjPairRFs.containsKey(contig2+Constants.scaff_collapsed_str+contig) )
+					return;
 				
 				if(!scaff_only.isEmpty() && 
 						!scaff_only.contains(contig) && 
@@ -604,13 +615,13 @@ public class RFEstimatorML extends RFUtils {
 				for(int k=0; k<rf_all.length; k++)
 					Arrays.fill(rf_all[k], -1);
 				
-				boolean executed = conj ? calcConjRFs(rf_all) : false;
-				if(!executed) {
-					for(int k=0; k<m; k++) 
-						for(int s=0; s<n; s++) 
-							if(dc_i[k]!=null && dc_j[s]!=null)
-								rf_all[k*m+s] = calcRFs(k, s);
-				}
+				// boolean executed = conj ? calcConjRFs(rf_all) : false;
+				// if(!executed) {
+				for(int k=0; k<m; k++) 
+					for(int s=0; s<n; s++) 
+						if(dc_i[k]!=null && dc_j[s]!=null)
+							rf_all[k*m+s] = calcRFs(k, s);
+				//}
 				
 				rf_all = Algebra.transpose(rf_all);
 				StringBuilder os = new StringBuilder();
@@ -652,6 +663,7 @@ public class RFEstimatorML extends RFUtils {
 			}
 		}
 	
+		/***
 		private boolean calcConjRFs(final double[][] rf) {
 			// TODO Auto-generated method stub
 			MyPhasedDataCollection[] dc_i = dc[this.i];
@@ -704,7 +716,8 @@ public class RFEstimatorML extends RFUtils {
 			}
 			return z>0;
 		}
-
+		**/
+		
 		private double[] calcRFs(int phase, int phase2) {
 			// TODO Auto-generated method stub
 			MyPhasedDataCollection dc_i = dc[i][phase];
