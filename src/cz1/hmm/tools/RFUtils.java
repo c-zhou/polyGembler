@@ -35,9 +35,6 @@ import org.renjin.sexp.ListVector;
 import org.renjin.sexp.StringArrayVector;
 import org.renjin.sexp.StringVector;
 
-import com.sun.media.jfxmedia.logging.Logger;
-
-import cz1.hmm.tools.RFUtils.InputStreamObj;
 import cz1.util.Constants;
 import cz1.util.Executor;
 import cz1.util.Utils;
