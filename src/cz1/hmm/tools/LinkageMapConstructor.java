@@ -67,7 +67,7 @@ public class LinkageMapConstructor extends Executor {
 			one = true;
 		}
 		
-		if(myArgsEngine.getBoolean("-1")) {
+		if(myArgsEngine.getBoolean("-2")) {
 			two = true;
 		}
 		
