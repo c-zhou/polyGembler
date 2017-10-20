@@ -13,8 +13,8 @@ parser$add_argument("-o", "--output", required = T,
                     help="Output files name prefix.")
 parser$add_argument("-1", "--group", action='store_false', 
                     help="Build linkage groups, otherwise all contigs into one group.")
-parser$add_argument("-2", "--check", action='store_false', 
-					help="Check and break linkage groups after ordering if distance greater than the predefined threshold")			
+parser$add_argument("-2", "--check", action='store_true', 
+					help="Check and break linkage groups after ordering if distance greater than the predefined threshold.")			
 parser$add_argument("-c", "--concorde", required = T,
                     help="Concorde executable file path.")
 parser$add_argument("-l", "--include",
