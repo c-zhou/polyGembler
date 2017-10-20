@@ -13,6 +13,7 @@ public class LinkageMapConstructor extends Executor {
 	private String out_prefix = null;
 	private String RLibPath = null;
 	private boolean one = false;
+	private boolean two = false;
 	
 	@Override
 	public void printUsage() {
@@ -23,6 +24,7 @@ public class LinkageMapConstructor extends Executor {
 						+ "     -i/--rf                     Recombination frequency file.\n"
 						+ "     -m/--map                    Recombination map file.\n"
 						+ "     -1/--one-group              One group. \n"
+						+ "     -2/--check-group            Re-check linkage groups. \n"
 						+ "     -o/--prefix                 Output file prefix.\n"
 						+ "     -rlib/--R-external-libs     R external library path.\n\n"
 				);
@@ -41,6 +43,7 @@ public class LinkageMapConstructor extends Executor {
 			myArgsEngine.add("-i", "--rf", true);
 			myArgsEngine.add("-m", "--map", true);
 			myArgsEngine.add("-1", "--one-group", false);
+			myArgsEngine.add("-2", "--check-group", false);
 			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
 			myArgsEngine.parse(args);
@@ -62,6 +65,10 @@ public class LinkageMapConstructor extends Executor {
 		
 		if(myArgsEngine.getBoolean("-1")) {
 			one = true;
+		}
+		
+		if(myArgsEngine.getBoolean("-1")) {
+			two = true;
 		}
 		
 		if(myArgsEngine.getBoolean("-o")) {
@@ -88,21 +95,15 @@ public class LinkageMapConstructor extends Executor {
 				RFUtils.makeExecutable("cz1/hmm/scripts/make_geneticmap.R", temfile_prefix);
 		RFUtils.makeExecutable("cz1/hmm/scripts/include.R", temfile_prefix);
 		RFUtils.makeRMatrix(rf_file, out_prefix+".RData");
-		final String command = one ?
+		final String command = 
 				"Rscript "+mklgR_path+" "
 				+ "-i "+out_prefix+".RData "
 				+ "-m "+map_file+" "
-				+ "-1 "
+				+ (one?"-1 ":" ")
+				+ (two?"-2 ":" ")
 				+ "-o "+out_prefix+" "
 				+ "--concorde "+new File(concorde_path).getParent()
-				+ (RLibPath==null ? "" : " --include "+RLibPath) 
-				:
-					"Rscript "+mklgR_path+" "
-					+ "-i "+out_prefix+".RData "
-					+ "-m "+map_file+" "
-					+ "-o "+out_prefix+" "
-					+ "--concorde "+new File(concorde_path).getParent()
-					+ (RLibPath==null ? "" : " --include "+RLibPath);
+				+ (RLibPath==null ? "" : " --include "+RLibPath);
 		this.consume(this.bash(command));
 		
 		new File(temfile_prefix).delete();

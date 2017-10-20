@@ -399,6 +399,7 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
     }
 	
 	if(check) {
+		print("checking linkage groups...")
 		while(TRUE) {
 			sepeAll = list()
 			
