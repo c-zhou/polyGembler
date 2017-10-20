@@ -30,6 +30,7 @@ public class GBSpileup extends Executor {
 	private int[] myLeadingTrim = new int[]{0};
 	private String myReference = null;
 	private int myPloidy = 2;
+	private long maxCov = Long.MAX_VALUE;
 	private boolean skipFB = false;
 	
 	public GBSpileup() {
@@ -56,7 +57,8 @@ public class GBSpileup extends Executor {
 						+ " -t/--threads            Threads (default is 1).\n"
 						+ " -T/--trim-leading       The length of leading fragments to trim off.\n"
 						+ " -f/--reference          The reference genome (in fasta format).\n"
-						+ " -z/--skip-freebayes     Skip the variant calling with freebayes (default not)."
+						+ " -z/--skip-freebayes     Skip the variant calling with freebayes (default not).\n"
+						+ " -x/--max-coverage       A read is omitted from output if the coverage is greater than this number (default no limit).\n"
 						+ " -o/--prefix             Output directory to contain .cnt files (one per FASTQ file, defaults to input directory).\n\n");
 	}
 
@@ -80,6 +82,7 @@ public class GBSpileup extends Executor {
 			myArgsEngine.add("-b", "--unassgined-reads", true);
 			myArgsEngine.add("-f", "--reference", true);
 			myArgsEngine.add("-z", "--skip-freebayes", false);
+			myArgsEngine.add("-x", "--max-coverage", true);
 			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.parse(args);
 		}
@@ -153,6 +156,10 @@ public class GBSpileup extends Executor {
 			THREADS = Integer.parseInt(myArgsEngine.getString("-t"));
 		}
 		
+		if (myArgsEngine.getBoolean("-x")) {
+			maxCov = Long.parseLong(myArgsEngine.getString("-x"));
+		}
+		
 		if (myArgsEngine.getBoolean("-T")) {
 			int leading = Integer.parseInt(myArgsEngine.getString("-T"));
 			
@@ -216,7 +223,7 @@ public class GBSpileup extends Executor {
 		
 		SamToTaxa sam2Taxa = new SamToTaxa(myOutputDir+"/tagBam/master.sorted.bam", 
 				myOutputDir+"/tagFastq/master.index.gz",
-				true, myOutputDir+"/bam", THREADS);
+				true, myOutputDir+"/bam", maxCov, THREADS);
 		sam2Taxa.run();
 		
 		File[] bams = new File(myOutputDir+"/bam").listFiles();

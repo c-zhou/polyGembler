@@ -34,7 +34,10 @@ import cz1.util.Dirichlet;
 
 public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 	private final static Logger logger = LogManager.getLogger(HiddenMarkovModelVBT.class.getName());
-
+	
+	// ----founder haplotypes coefficients----
+	private double founder_hap_coeff = 0.5;
+	
 	public HiddenMarkovModelVBT(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse,
@@ -43,7 +46,20 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 		super(de, seperation, reverse, trainExp, field);
 		
 		this.trainAllExp();
+		this.makeVBT();
+		this.makeViterbi();
+	}
+	
+	public HiddenMarkovModelVBT(DataEntry[] de, 
+			double[] seperation, 
+			boolean[] reverse,
+			boolean trainExp,
+			Field field,
+			double founder_hap_coeff) {
+		super(de, seperation, reverse, trainExp, field);
 		
+		this.founder_hap_coeff = founder_hap_coeff;
+		this.trainAllExp();
 		this.makeVBT();
 		this.makeViterbi();
 	}
@@ -100,52 +116,50 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 			Map<String, Integer> alMap = new HashMap<String, Integer>();
 			for(int j=0; j<allele.length; j++) alMap.put(allele[j], j);
 			
-			if(i==0 || this.exp_b.contains(i)) {
-				double[][] trans_count = this.transProbs[i].pseudo();
-				//clear(trans_count);
-				for(int j=0;j<this.N; j++) {
-					Viterbi vb1 = this.vb[j];
-					final int a = i==0 ? 0 : vb1.path[i-1],
-							b = vb1.path[i];
-					double[] prior = this.transProbs[i].prior[a][b];
-					s_a = this.statespace[a].state;
-					st_b = this.statespace[b].stateperm;
-					_t_ = st_b.length;
-					for(int l=0; l<_t_; l++) {
-						tmp = prior[l];
-						s_b = st_b[l].state;
-						for(int m=0; m<_p_; m++)
-							trans_count[s_a[m]][s_b[m]] += tmp;
-					}
-				}
-				this.transProbs[i].posterior();
-			}
-			
+			double[][] trans_count = this.transProbs[i].pseudo();
 			EP ep1 = this.compoundEmissProbs[i];
 			double[][] emiss_count = this.emissProbs[i].pseudo();
-			//clear(emiss_count);
 			double[] emissG = new double[_g_];
+			
 			for(int j=0;j<this.N; j++) {
+				
 				DP dp1 = this.dp[i][j];
+				double coeff = dp1.isparent ? ((N-2)*founder_hap_coeff) : 1.0;
 				Viterbi vb1 = this.vb[j];
-				final int a = vb1.path[i];
+				
+				final int a = i==0 ? 0 : vb1.path[i-1],
+						b = vb1.path[i];
+				double[] prior = this.transProbs[i].prior[a][b];
+				s_a = this.statespace[a].state;
+				st_b = this.statespace[b].stateperm;
+				_t_ = st_b.length;
+				for(int l=0; l<_t_; l++) {
+					tmp = coeff*prior[l];
+					s_b = st_b[l].state;
+					for(int m=0; m<_p_; m++)
+						trans_count[s_a[m]][s_b[m]] += tmp;
+				}
+			
+				
 				Arrays.fill(emissG, 0);
 				for(int k=0; k<_d_; k++) {
 					Integer[] idx = dgMap.get(dosaS[k]);
 					for(int c : idx)
 						emissG[c] = dp1.likelihood[k]*
-							ep1.probsMat[a][c]/dp1.emiss[a];
+							ep1.probsMat[b][c]/dp1.emiss[b];
 				}
 				
-				s_a = this.statespace[a].state;
+				s_a = this.statespace[b].state;
 				
 				for(int c=0; c<_g_; c++) {
-					A = emissG[c];
+					A = coeff*emissG[c];
 					s_l = genotype[c];
 					for(int l=0; l<_p_; l++)
 						emiss_count[s_a[l]][alMap.get(s_l[l])] += A;
 				}
 			}
+			
+			this.transProbs[i].posterior();
 			this.emissProbs[i].posterior();
 		}
 	}
@@ -214,6 +228,12 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 		}
 	}
 	
+	public int[][][] resample(final int n){
+		// TODO Auto-generated method stub
+		return null;
+	}
+	
+	
 	public void print(boolean detail) {
 		// TODO Auto-generated method stub
 		double probability = 0;
@@ -271,6 +291,14 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 	public void write(String output, 
 			String experiment, 
 			String scaff) {
+		// TODO Auto-generated method stub
+		write(output, experiment, scaff, 100);
+	}
+	
+	public void write(String output, 
+			String experiment, 
+			String scaff,
+			int resampling) {
 		// TODO Auto-generated method stub
 		String root = experiment+"."+
 				scaff+"."+

@@ -94,6 +94,15 @@ public class Algebra {
 		return array;
 	}
 	
+	public static double[] normalize(double[] array, 
+			double pseudo_count) {
+		// TODO Auto-generated method stub
+		double[] array_copy = new double[array.length];
+		for(int i=0; i!=array.length; i++)
+			array_copy[i] = array[i]+pseudo_count;
+		return normalize(array_copy);
+	}
+	
 	public static double[] normalizedLog(double[] array) {
 		// TODO Auto-generated method stub
 		double s = StatUtils.sum(array);
@@ -166,6 +175,16 @@ public class Algebra {
 	public static double[][] transpose(double[][] mat) {
 		int a = mat.length, b = mat[0].length;
 		double[][] t = new double[b][a];
+		for(int i=0; i<a; i++)
+			for(int j=0; j<b; j++)
+				t[j][i] = mat[i][j];
+		return t;
+	}
+	
+	public static boolean[][] transpose(boolean[][] mat) {
+		// TODO Auto-generated method stub
+		int a = mat.length, b = mat[0].length;
+		boolean[][] t = new boolean[b][a];
 		for(int i=0; i<a; i++)
 			for(int j=0; j<b; j++)
 				t[j][i] = mat[i][j];

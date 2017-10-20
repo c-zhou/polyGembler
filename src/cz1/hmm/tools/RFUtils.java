@@ -3,7 +3,6 @@ package cz1.hmm.tools;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,26 +21,20 @@ import java.util.zip.ZipFile;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
 
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.TreeBidiMap;
 import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.math3.exception.MathIllegalArgumentException;
 import org.apache.commons.math3.stat.StatUtils;
 import org.apache.commons.math3.stat.inference.ChiSquareTest;
 import org.apache.commons.math3.stat.inference.GTest;
 import org.renjin.eval.Context;
-import org.renjin.parser.ParseException;
 import org.renjin.primitives.io.serialization.RDataWriter;
 import org.renjin.primitives.matrix.DoubleMatrixBuilder;
-import org.renjin.sexp.AttributeMap;
 import org.renjin.sexp.ListVector;
 import org.renjin.sexp.StringArrayVector;
 import org.renjin.sexp.StringVector;
-import org.renjin.sexp.Vector;
 
-import cz1.util.Algebra;
 import cz1.util.Constants;
 import cz1.util.Executor;
 import cz1.util.Utils;
@@ -57,7 +50,7 @@ public abstract class RFUtils extends Executor {
 	protected String[] founder_haps;
 	protected String expr_id = null;
 	protected int drop_thres = 1;
-	protected double skew_phi = 2;
+	protected double skew_phi = 2.0;
 	protected int best_n = 10;
 	protected final String goodness_of_fit = "fraction";
 
@@ -152,7 +145,7 @@ public abstract class RFUtils extends Executor {
 					}
 				}
 
-				for(int i=0; i<this.files.length; i++) 
+				for(int i=0; i<this.files.length; i++) {
 					for(int j=0; j<scaff_n; j++) {
 						scaff = scaff_all.get(j); 
 						synchronized(lock) {
@@ -164,6 +157,7 @@ public abstract class RFUtils extends Executor {
 									start_end_position[j]));
 						}
 					}
+				}
 			} catch (Exception e) {
 				// TODO Auto-generated catch block
 				Thread t = Thread.currentThread();
@@ -175,7 +169,7 @@ public abstract class RFUtils extends Executor {
 		}
 	}
 
-	protected class FileLoader implements Runnable {
+	protected abstract class FileLoader implements Runnable {
 		protected final String id;
 		protected final FileObject[] files;
 		protected final int i;
@@ -185,7 +179,7 @@ public abstract class RFUtils extends Executor {
 			this.files = files;
 			this.i = i;
 		}
-
+		
 		@Override
 		public void run() {
 			// TODO Auto-generated method stub
@@ -317,17 +311,14 @@ public abstract class RFUtils extends Executor {
 				if( drop.length-dropped<drop_thres ) {
 					myLogger.info("Scaffold "+this.id+" dropped.");
 				} else {
-					int kk=0;
+					int z=0;
 					for(int k=0; k<drop.length; k++) {
 						if(!drop[k]) {
 							FileObject fobj = this.files[maxN[k]];
-							dc[i][kk] = new PhasedDataCollection(
-									fobj.file,
-									fobj.markers,
-									fobj.start_end_position);
-							kk++;
+							this.collectData(i, z, fobj);
+							z++;
 						}
-						if(kk>=best_n) break;
+						if(z>=best_n) break;
 					}
 				}
 
@@ -340,12 +331,14 @@ public abstract class RFUtils extends Executor {
 				System.exit(1);
 			}
 		}
-
-		private int[] readHaplotypes(final int i) {
+		
+		abstract protected void collectData(final int i, final int z, final FileObject fobj);
+		
+		protected int[] readHaplotypes(final int i) {
 			// TODO Auto-generated method stub
 			try {
 				InputStreamObj isObj = new InputStreamObj(this.files[i].file);
-				isObj.getInputStream("PHASEDSTATES");
+				isObj.getInputStream(getPhaseFile());
 				BufferedReader br = Utils.getBufferedReader(isObj.is);
 				String line, stateStr;
 				String[] s;
@@ -368,7 +361,9 @@ public abstract class RFUtils extends Executor {
 			return null;
 		}
 
-		private int[] maxN(double[] ll) {
+		protected abstract String getPhaseFile();
+
+		protected int[] maxN(double[] ll) {
 			double[] ll0 = Arrays.copyOf(ll, ll.length);
 			int n = ll.length;//best_n_phases[0].length;
 			int[] maxN = new int[n];
@@ -388,7 +383,7 @@ public abstract class RFUtils extends Executor {
 			return maxN;
 		}
 
-		private int[] maxN(double[] ll, int N) {
+		protected int[] maxN(double[] ll, int N) {
 			double[] ll0 = Arrays.copyOf(ll, ll.length);
 			int[] maxN = new int[N];
 			Arrays.fill(maxN, -1);
@@ -411,58 +406,77 @@ public abstract class RFUtils extends Executor {
 	protected final Map<String, double[][]> mapCalc = 
 			new ConcurrentHashMap<String, double[][]>();
 
-	protected class mapCalculator implements Runnable {
+	abstract protected class MapCalculator implements Runnable {
 
-		private final int i;
+		protected final int i;
 
-		public mapCalculator(int i) {
+		public MapCalculator(int i) {
 			this.i = i;
 		}
-
-		@Override
-		public void run() {
+		
+		protected void calcGDsAll(String phasedStates, int ploidy, 
+				String[] parents, int nF1, int[] start_end,  
+				double[][] rfAll, int s) {
 			// TODO Auto-generated method stub
-
-			try {
-				if(dc[i][0]==null) return;
-				double[][] rfs = new double[dc[i].length][];
-
-				for(int k=0; k<dc[this.i].length; k++) {
-					PhasedDataCollection dc_ik = dc[i][k];
-					if(dc_ik==null) break;
-					myLogger.info(dc_ik.file);
-					if(dc_ik !=null ) {
-						rfs[k] = calcGDs(
-								dc_ik.file,
-								Constants._ploidy_H,
-								founder_haps,
-								nF1,
-								dc_ik.start_end_position);
+			char[][] h = readHaplotypes(phasedStates, 
+					ploidy, parents, nF1);
+			int c = 0;
+			if(start_end[0]<=start_end[1]) {
+				for(int i=start_end[0]; i<=start_end[1]; i++) { 
+					for(int j=i+1; j<=start_end[1]; j++) {
+						double r = 0;
+						for(int k=0; k<h.length; k++) 
+							r += h[k][i]==h[k][j] ? 0 : 1;
+						rfAll[c++][s] = r/h.length;
 					}
 				}
-
-				mapCalc.put(dc[i][0].markers[0].replaceAll("_[0-9]{1,}$", ""), rfs);
-			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				Thread t = Thread.currentThread();
-				t.getUncaughtExceptionHandler().uncaughtException(t, e);
-				e.printStackTrace();
-				executor.shutdown();
-				System.exit(1);
+			} else {
+				for(int i=start_end[0]; i>=start_end[1]; i--) { 
+					for(int j=i-1; j>=start_end[1]; j--) {
+						double r = 0;
+						for(int k=0; k<h.length; k++) 
+							r += h[k][i]==h[k][j] ? 0 : 1;
+						rfAll[c++][s] = r/h.length;
+					}
+				}
 			}
+		}
 
-			/**
-			String contig = dc[i][0].markers[0].replaceAll("_[0-9]{1,}$", "");
-			try {
-				mapWriter.write("*"+contig+"\t"+
-						median(kd_all)+"\t"+
-						StatUtils.sum(kosambi)+"\t"+
-						cat(kosambi, ",")+"\n");
-			} catch (MathIllegalArgumentException | IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+		protected double[] calcGDs(String phasedStates, int ploidy, 
+				String[] parents, int nF1, int[] start_end) {
+			// TODO Auto-generated method stub
+			char[][] h = readHaplotypes(phasedStates, ploidy, parents, nF1);
+			if(start_end[0]<=start_end[1]) {
+				double[] d = new double[start_end[1]-start_end[0]+1];
+				for(int i=start_end[0]; i<start_end[1]; i++) {
+					double c = 0;
+					for(int j=0; j<h.length; j++) 
+						c += h[j][i]==h[j][i+1] ? 0 : 1;
+					//d[i] = geneticDistance( c/h.length, mapFunc);
+					d[i-start_end[0]] = c/h.length;
+				}
+				return d;
+			} else {
+				double[] d = new double[start_end[0]-start_end[1]+1];
+				for(int i=start_end[0]; i>start_end[1]; i--) {
+					double c = 0;
+					for(int j=0; j<h.length; j++) 
+						c += h[j][i]==h[j][i-1] ? 0 : 1;
+					//d[i] = geneticDistance( c/h.length, mapFunc);
+					d[start_end[0]-i] = c/h.length;
+				}
+				return d;
 			}
-			 **/
+		}
+
+		protected double calcGD(String phasedStates, int ploidy,
+				String[] parents, int nF1, int[] start_end) {
+			char[][] h = readHaplotypes(phasedStates, ploidy, parents, nF1);
+			double c = 0;
+			for(int i=0; i<h.length; i++)
+				c += h[i][start_end[0]]==h[i][start_end[1]] ? 0 : 1;
+			//return geneticDistance( c/h.length, mapFunc);
+			return c/h.length;	
 		}
 
 	}
@@ -512,210 +526,13 @@ public abstract class RFUtils extends Executor {
 
 	}
 
-	private void fill(double[][] dss, 
+	protected void fill(double[][] dss, 
 			double d) {
 		// TODO Auto-generated method stub
 		for(double[] ds : dss) 
 			Arrays.fill(ds, d);
 	}
-
-	protected PhasedDataCollection[][] dc;
-	protected final int[] hap_index = new int[256];
-	protected final int mask_length = 1;
 	
-	protected class PhasedDataCollection {
-		protected final String file;
-		protected final String[] markers;
-		protected final int[] start_end_position;
-		protected boolean[][][][] data;
-		protected int[][][] hashcode;
-		
-		protected PhasedDataCollection(String file,
-				String[] markers, 
-				int[] start_end) {
-			// TODO Auto-generated constructor stub
-			this.file = file;
-			this.markers = markers;
-			if(markers.length!=
-					Math.abs(start_end[0]-start_end[1])+1)
-				throw new RuntimeException("!!!");
-			this.start_end_position = start_end;
-		}
-		
-		protected PhasedDataCollection(String file,
-				String[] markers, 
-				int[] start_end,
-				boolean[][][][] data) {
-			// TODO Auto-generated constructor stub
-			this.file = file;
-			this.markers = markers;
-			this.start_end_position = start_end;
-			this.data = data;
-		}
-		
-		protected void hash() {
-			// TODO Auto-generated method stub
-			this.hashcode = new int[2][2][nF1];
-			for(int i=0; i<2; i++)
-				for(int j=0; j<2; j++) {
-					boolean[][] d = this.data[i][j];
-					int[] code = this.hashcode[i][j];
-					for(int k=0; k<nF1; k++) {
-						int key = 0;
-						for(int p=0; p<Constants._ploidy_H; p++)
-							key = (key<<mask_length)+(d[p][k] ? 1 : 0);
-						code[k] = key;
-					}
-				}
-		}
-		
-		protected void data() {
-			// TODO Auto-generated method stub
-			this.data = this.data(
-					this.start_end_position[0],
-					this.start_end_position[1]);
-		}
-
-		protected PhasedDataCollection clone() {
-			final boolean[][][][] data = 
-					new boolean[2][2][Constants._ploidy_H][nF1];
-			for(int i=0; i<2; i++) 
-				for(int j=0; j<2; j++)
-					for(int k=0; k<Constants._ploidy_H; k++)
-						data[i][j][k] = this.data[i][j][k].clone();
-			return new PhasedDataCollection(this.file, 
-					this.markers, 
-					this.start_end_position,
-					data);
-		}
-		
-		protected boolean[][][][] cloneData() {
-			final boolean[][][][] data = 
-					new boolean[2][2][Constants._ploidy_H][nF1];
-			for(int i=0; i<2; i++) 
-				for(int j=0; j<2; j++)
-					for(int k=0; k<Constants._ploidy_H; k++)
-						data[i][j][k] = this.data[i][j][k].clone();
-			return data;
-		}
-
-		private boolean[][][][] data(int start, int end) {
-			// TODO Auto-generated method stub
-			boolean[][][][] data = new boolean[2][2][Constants._ploidy_H][nF1];
-
-			try {
-				InputStreamObj isObj = new InputStreamObj(this.file);
-				isObj.getInputStream("PHASEDSTATES");
-				BufferedReader br = Utils.getBufferedReader(isObj.is);
-				
-				String line;
-				String[] s;
-				String stateStr;
-				int n=0;
-
-				while( (line=br.readLine())!=null ) {
-
-					if(!line.startsWith("#")) continue;
-					s = line.split("\\s+|:");
-					if(Arrays.asList(founder_haps).contains(s[2])) continue;
-
-					stateStr = s[s.length-1];
-					data[0][0][hap_index[stateStr.charAt(start)]][n] = true;
-					data[0][1][hap_index[stateStr.charAt(end)]][n] = true;
-
-					for(byte i=1; i<Constants._ploidy_H/2; i++) {
-						line = br.readLine();
-						s = line.split("\\s+");
-						stateStr = s[s.length-1];
-						data[0][0][hap_index[stateStr.charAt(start)]][n] = true;
-						data[0][1][hap_index[stateStr.charAt(end)]][n] = true;
-					}
-					for(byte i=0; i<Constants._ploidy_H/2; i++) {
-						line = br.readLine();
-						s = line.split("\\s+");
-						stateStr = s[s.length-1];
-						data[1][0][hap_index[stateStr.charAt(start)]][n] = true;
-						data[1][1][hap_index[stateStr.charAt(end)]][n] = true;
-					}
-
-					n++;
-				}
-				br.close();
-				isObj.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-				System.exit(1);
-			}
-
-			return data;
-		}
-	}
-
-	public void calcGDsAll(String phasedStates, int ploidy, 
-			String[] parents, int nF1, int[] start_end,  
-			double[][] rfAll, int s) {
-		// TODO Auto-generated method stub
-		char[][] h = readHaplotypes(phasedStates, 
-				ploidy, parents, nF1);
-		int c = 0;
-		if(start_end[0]<=start_end[1]) {
-			for(int i=start_end[0]; i<=start_end[1]; i++) { 
-				for(int j=i+1; j<=start_end[1]; j++) {
-					double r = 0;
-					for(int k=0; k<h.length; k++) 
-						r += h[k][i]==h[k][j] ? 0 : 1;
-					rfAll[c++][s] = r/h.length;
-				}
-			}
-		} else {
-			for(int i=start_end[0]; i>=start_end[1]; i--) { 
-				for(int j=i-1; j>=start_end[1]; j--) {
-					double r = 0;
-					for(int k=0; k<h.length; k++) 
-						r += h[k][i]==h[k][j] ? 0 : 1;
-					rfAll[c++][s] = r/h.length;
-				}
-			}
-		}
-	}
-
-	public double[] calcGDs(String phasedStates, int ploidy, 
-			String[] parents, int nF1, int[] start_end) {
-		// TODO Auto-generated method stub
-		char[][] h = readHaplotypes(phasedStates, ploidy, parents, nF1);
-		if(start_end[0]<=start_end[1]) {
-			double[] d = new double[start_end[1]-start_end[0]+1];
-			for(int i=start_end[0]; i<start_end[1]; i++) {
-				double c = 0;
-				for(int j=0; j<h.length; j++) 
-					c += h[j][i]==h[j][i+1] ? 0 : 1;
-				//d[i] = geneticDistance( c/h.length, mapFunc);
-				d[i-start_end[0]] = c/h.length;
-			}
-			return d;
-		} else {
-			double[] d = new double[start_end[0]-start_end[1]+1];
-			for(int i=start_end[0]; i>start_end[1]; i--) {
-				double c = 0;
-				for(int j=0; j<h.length; j++) 
-					c += h[j][i]==h[j][i-1] ? 0 : 1;
-				//d[i] = geneticDistance( c/h.length, mapFunc);
-				d[start_end[0]-i] = c/h.length;
-			}
-			return d;
-		}
-	}
-
-	public double calcGD(String phasedStates, int ploidy,
-			String[] parents, int nF1, int[] start_end) {
-		char[][] h = readHaplotypes(phasedStates, ploidy, parents, nF1);
-		double c = 0;
-		for(int i=0; i<h.length; i++)
-			c += h[i][start_end[0]]==h[i][start_end[1]] ? 0 : 1;
-		//return geneticDistance( c/h.length, mapFunc);
-		return c/h.length;	
-	}
-
 	protected char[][] readHaplotypes(String phasedStates, int ploidy,
 			String[] parents, int nF1) {
 		// TODO Auto-generated method stub
@@ -761,9 +578,38 @@ public abstract class RFUtils extends Executor {
 		}
 	}
 
+	abstract protected class RfCalculator implements Runnable {
+		protected final int i;
+		protected final int j;
+
+		public RfCalculator(int i, int j) {
+			this.i = i;
+			this.j = j;
+		}
+		
+	}
+	
+	abstract protected class PhasedDataCollection {
+		protected final String file;
+		protected final String[] markers;
+		protected final int[] start_end_position;
+		
+		protected PhasedDataCollection(String file,
+				String[] markers, 
+				int[] start_end) {
+			// TODO Auto-generated constructor stub
+			this.file = file;
+			this.markers = markers;
+			if(markers.length!=
+					Math.abs(start_end[0]-start_end[1])+1)
+				throw new RuntimeException("!!!");
+			this.start_end_position = start_end;
+		}
+	}
+	
 	protected class InputStreamObj { 
-		private ZipFile in = null;
-		private InputStream is = null;
+		protected ZipFile in = null;
+		protected InputStream is = null;
 		
 		public InputStreamObj(String root) {
 			try {
@@ -822,6 +668,8 @@ public abstract class RFUtils extends Executor {
 				case "SNP":
 					target = "snp_"+expr_id+".txt";
 					break;
+				case "RESAMPLING":
+					target = "resampling/"+expr_id+".txt";
 				}
 				if(in.getEntry(target)==null) {
 					in.close();
@@ -838,6 +686,14 @@ public abstract class RFUtils extends Executor {
 	}
 
 	protected static String cat(double[] array, String sep) {
+		String s = ""+array[0];
+		for(int i=1; i<array.length; i++)
+			s += sep+array[i];
+		return s;
+	}
+	
+	protected String cat(long[] array, String sep) {
+		// TODO Auto-generated method stub
 		String s = ""+array[0];
 		for(int i=1; i<array.length; i++)
 			s += sep+array[i];
@@ -875,6 +731,7 @@ public abstract class RFUtils extends Executor {
 	
 	protected void initialise() {
 		// TODO Auto-generated catch block
+		
 		File folder = new File(in_haps);
 		File[] listFiles = folder.listFiles();
 		nF1 = 0;
@@ -884,7 +741,6 @@ public abstract class RFUtils extends Executor {
 			if( name.startsWith(expr_id) ) {
 				if(nF1<1) {
 					try {
-						
 						InputStreamObj isObj = new InputStreamObj(
 								file.getAbsolutePath());
 						if( isObj.getInputStream("phasedStates") ) {
@@ -939,22 +795,8 @@ public abstract class RFUtils extends Executor {
 					files.toArray(new String[files.size()])));
 		}
 		this.waitFor();
-
-		this.initial_thread_pool();
-		String[] scaff_all = new String[fileObj.keySet().size()];
-		fileObj.keySet().toArray(scaff_all);
-		this.dc = new PhasedDataCollection[scaff_all.length][best_n];
-		for(int i=0; i<scaff_all.length; i++) {
-			Set<FileObject> files = fileObj.get(scaff_all[i]);
-			executor.submit(new FileLoader(scaff_all[i],
-					files.toArray(new FileObject[files.size()]),
-					i));
-		}
-		this.waitFor();
-
+		
 		myLogger.info(map.keySet().size());
-		myLogger.info("["+Utils.getSystemTime()+"] LOADING FILES DONE.");
-		myLogger.info("["+Utils.getSystemTime()+"] READING LOG LIKELIHOOD DONE.");
 	}
 
 	/** 

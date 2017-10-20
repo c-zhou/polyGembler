@@ -20,6 +20,7 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
+import org.renjin.invoke.codegen.scalars.IntegerType;
 
 import com.itextpdf.awt.PdfGraphics2D;
 import com.itextpdf.text.Document;
@@ -33,7 +34,6 @@ import cz1.hmm.data.DataCollection;
 import cz1.hmm.data.DataEntry;
 import cz1.hmm.model.HiddenMarkovModel;
 import cz1.hmm.model.HiddenMarkovModelBWT;
-import cz1.hmm.model.HiddenMarkovModelRST;
 import cz1.hmm.model.HiddenMarkovModelVBT;
 import cz1.hmm.swing.HMMFrame;
 import cz1.hmm.swing.HMMPanel;
@@ -42,8 +42,9 @@ import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Constants.Field;
 import cz1.util.Executor;
+import cz1.util.Utils;
 
-public class Haplotyper extends Executor {
+public class Resampler extends Executor {
 
 	private HMMFrame hmmf = null;
 	private HMMPanel hmmp = null;
@@ -62,127 +63,7 @@ public class Haplotyper extends Executor {
 	private int[] end_pos = null;
 	private String hmm_file = null;
 	private int resampling = 100;
-	private double founder_hap_coeff = 0.5;
 	
-	public Haplotyper() {}
-	
-	public Haplotyper(String in_zip,
-			String out_prefix,
-			String[] scaff,
-			double[] seperation,
-			boolean trainExp,
-			boolean vbt,
-			boolean[] reverse,
-			int max_iter,
-			int ploidy,
-			Field field) {
-		this.in_zip = in_zip;
-		this.out_prefix = out_prefix;
-		this.scaff = scaff;
-		this.seperation = seperation;
-		this.trainExp = trainExp;
-		this.vbt = vbt;
-		this.reverse = reverse;
-		this.max_iter = max_iter;
-		Constants.ploidy(ploidy);
-		this.field = field;
-		this.expr_id = new File(in_zip).getName().
-				replaceAll(".zip$", "").
-				replace(".", "").
-				replace("_", "");
-	}
-	
-	public Haplotyper(String in_zip,
-			String out_prefix,
-			String[] scaff,
-			double[] seperation,
-			boolean trainExp,
-			boolean vbt,
-			boolean[] reverse,
-			int max_iter,
-			int ploidy,
-			Field field,
-			String expr_id) {
-		this.in_zip = in_zip;
-		this.out_prefix = out_prefix;
-		this.scaff = scaff;
-		this.seperation = seperation;
-		this.trainExp = trainExp;
-		this.vbt = vbt;
-		this.reverse = reverse;
-		this.max_iter = max_iter;
-		Constants.ploidy(ploidy);
-		this.field = field;
-		this.expr_id = expr_id;
-	}
-	
-	public Haplotyper(String in_zip,
-			String out_prefix, 
-			String[] scaff,
-			int ploidy, 
-			Field field) {
-		// TODO Auto-generated constructor stub
-		this.in_zip = in_zip;
-		this.out_prefix = out_prefix;
-		this.scaff = scaff;
-		Constants.ploidy(ploidy);
-		this.field = field;
-		this.expr_id = new File(in_zip).getName().
-				replaceAll(".zip$", "").
-				replace(".", "").
-				replace("_", "");
-	}
-	
-	public Haplotyper(String in_zip,
-			String out_prefix, 
-			String[] scaff,
-			int ploidy, 
-			Field field,
-			String expr_id,
-			int max_iter,
-			boolean vbt) {
-		// TODO Auto-generated constructor stub
-		this.in_zip = in_zip;
-		this.out_prefix = out_prefix;
-		this.scaff = scaff;
-		Constants.ploidy(ploidy);
-		this.field = field;
-		this.expr_id = expr_id;
-		this.max_iter = max_iter;
-		this.vbt = vbt;
-	}
-	
-	public Haplotyper(String in_zip,
-			String out_prefix, 
-			String scaff,
-			String seperation,
-			String reverse,
-			int ploidy, 
-			Field field,
-			String expr_id,
-			int max_iter,
-			boolean trainExp,
-			boolean vbt) {
-		// TODO Auto-generated constructor stub
-		this.in_zip = in_zip;
-		this.out_prefix = out_prefix;
-		this.scaff = scaff.split(":");
-		String[] s = seperation.split(":");
-		this.seperation = new double[s.length];
-		for(int i=0; i<s.length; i++) 
-			this.seperation[i] = Double.parseDouble(s[i]);
-		s = reverse.split(":");
-		this.reverse = new boolean[s.length];
-		for(int i=0; i<s.length; i++) 
-			this.reverse[i] = Boolean.parseBoolean(s[i]);
-		Constants.ploidy(ploidy);
-		this.field = field;
-		this.expr_id = expr_id;
-		this.max_iter = max_iter;
-		this.trainExp = trainExp;
-		this.vbt = vbt;
-	}
-
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub
@@ -200,7 +81,6 @@ public class Haplotyper extends Executor {
 							+" -x/--max-iter                Maxmium rounds for EM optimization (default 100).\n"
 							+" -p/--ploidy                  Ploidy of genome (default 2).\n"
 							+" -f/--parent                  Parent samples (separated by a \":\").\n"
-							+" -fc/--founder-hap-coeff      Founder haplotypes weight coefficient.\n"
 							+" -s/--initial-seperation      Initialisations of distances between the adjacent scaffolds \n"
 							+"                              if multiple scaffolds will be jointly inferred. The separation \n"
 							+"                              could be either physical distances or recombination frequencies, \n"
@@ -249,7 +129,6 @@ public class Haplotyper extends Executor {
 			myArgsEngine.add("-x", "--max-iter", true);
 			myArgsEngine.add("-p", "--ploidy", true);
 			myArgsEngine.add("-f", "--parent", true);
-			myArgsEngine.add("-fc", "--founder-hap-coeff", true);
 			myArgsEngine.add("-s", "--initial-seperation", true);
 			myArgsEngine.add("-r", "--reverse", true);
 			myArgsEngine.add("-G", "--genotype", false);
@@ -339,10 +218,6 @@ public class Haplotyper extends Executor {
 			throw new IllegalArgumentException("Please specify the parent samples (seperated by a \":\").");
 		}
 		
-		if(myArgsEngine.getBoolean("-fc")) {
-			founder_hap_coeff = Double.parseDouble(myArgsEngine.getString("-fc"));
-		}
-		
 		if(myArgsEngine.getBoolean("-s")) {
 			String[] ss = myArgsEngine.getString("-s").split(":");
 			if(ss.length<scaff.length-1)
@@ -396,7 +271,7 @@ public class Haplotyper extends Executor {
 		
 		if(myArgsEngine.getBoolean("-b")) {
 			vbt = true;
-			// throw new RuntimeException("Viterbi training not supported yet!!!");
+			throw new RuntimeException("Viterbi training not supported yet!!!");
 		}
 		
 		if(myArgsEngine.getBoolean("-S")) {
@@ -405,7 +280,7 @@ public class Haplotyper extends Executor {
 		}
 		
 		if(myArgsEngine.getBoolean("-rs")) {
-			resampling = Integer.parseInt(myArgsEngine.getString("-rs"));;
+			resampling = Integer.parseInt(myArgsEngine.getString("-rs"));
 		}
 		
 		if(myArgsEngine.getBoolean("-e")) {
@@ -435,78 +310,13 @@ public class Haplotyper extends Executor {
 
 				// DataEntry[] de = DataCollection.readDataEntry(in_zip, Constants._ploidy_H);
 		final HiddenMarkovModel hmm = vbt ? 
-			new HiddenMarkovModelVBT(de, seperation, reverse, trainExp, field, founder_hap_coeff):
-			//new HiddenMarkovModelRST(de, seperation, reverse, trainExp, field, resampling):
+			new HiddenMarkovModelVBT(de, seperation, reverse, trainExp, field):
 			(hmm_file==null ?
-			new HiddenMarkovModelBWT(de, seperation, reverse, trainExp, field, founder_hap_coeff):
-			new HiddenMarkovModelBWT(de, seperation, reverse, trainExp, field, founder_hap_coeff, hmm_file));
+			new HiddenMarkovModelBWT(de, seperation, reverse, trainExp, field):
+			new HiddenMarkovModelBWT(de, seperation, reverse, trainExp, field, hmm_file));
 		
-		if(Constants.plot()){
-			Runnable run = new Runnable(){
-				public void run(){
-					try {
-						hmmf = new HMMFrame();
-						hmmf.clearTabs();
-						if(Constants.showHMM) 
-							hmmp = hmmf.addHMMTab(hmm, hmm.de(), 
-									new File(out_prefix));
-					} catch (Exception e) {
-						Thread t = Thread.currentThread();
-						t.getUncaughtExceptionHandler().uncaughtException(t, e);
-						e.printStackTrace();
-					}
-				}
-			};
-			Thread th = new Thread(run);
-			th.run();
-		}
-
-		if(Constants.plot()){
-			hmmf.pack();
-			hmmf.setVisible(true);
-		}
-
 		double ll, ll0 = hmm.loglik();
 		
-		for(int i=0; i<max_iter; i++) {
-			hmm.train();
-			
-			if(Constants.plot()) hmmp.update();
-			ll = hmm.loglik();
-			myLogger.info("----------loglik "+ll);
-			if(ll<ll0) {
-				//throw new RuntimeException("Fatal error!!!");
-				myLogger.info("LOGLIK DECREASED!!!");
-				//break;
-                ll0=ll;
-                continue;
-			}
-			if( ll0!=Double.NEGATIVE_INFINITY && 
-					Math.abs((ll-ll0)/ll0) < Constants.minImprov)
-				break;
-			ll0 = ll;
-		}
-
-		if(Constants.printPlots()){
-			try {
-				float width = hmmf.jframe.getSize().width,
-						height = hmmf.jframe.getSize().height;
-				Document document = new Document(new Rectangle(width, height));
-				PdfWriter writer = PdfWriter.getInstance(document, new FileOutputStream(plot_pdf));
-				document.open();
-				PdfContentByte canvas = writer.getDirectContent();
-				PdfTemplate template = canvas.createTemplate(width, height);
-				Graphics2D g2d = new PdfGraphics2D(template, width, height);
-				hmmf.jframe.paint(g2d);
-				g2d.dispose();
-				canvas.addTemplate(template, 0, 0);
-				document.close();
-			} catch (FileNotFoundException | DocumentException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-
 		String scaff_str = scaff[0]+
 				(start_pos==null||start_pos[0]==Integer.MIN_VALUE?"":"_"+start_pos[0])+
 				(end_pos==null||end_pos[0]==Integer.MAX_VALUE?"":"_"+end_pos[0]);
@@ -520,8 +330,6 @@ public class Haplotyper extends Executor {
 				break;
 			}
 		}
-		
-		
 		
 		hmm.write(out_prefix, expr_id, scaff_str, resampling);
 	}

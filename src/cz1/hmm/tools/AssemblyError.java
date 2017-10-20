@@ -47,7 +47,7 @@ import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Utils;
 
-public class AssemblyError extends RFUtils {
+public class AssemblyError extends RFEstimatorML {
 	private final static double breakage_thres = 0.05;
 	
 	public AssemblyError (String in_haps, 
@@ -177,7 +177,7 @@ public class AssemblyError extends RFUtils {
 		this.initial_thread_pool();
 		
 		for(int i=0; i<dc.length; i++) 
-			executor.submit(new mapCalculator(i));
+			executor.submit(new MyMapCalculator(i));
 		this.waitFor();
 
 		writeMap();

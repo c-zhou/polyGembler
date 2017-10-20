@@ -19,14 +19,16 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.math3.stat.StatUtils;
 
+import cz1.hmm.tools.VCFtools;
 import cz1.util.Algebra;
 import cz1.util.Combination;
 import cz1.util.Constants;
 import cz1.util.Utils;
 
 public class DataCollection {
-	
+
 	public static DataEntry[] readDataEntry(String zipFilePath,
 			String[] contig) {
 		DataEntry[] de = new DataEntry[contig.length];
@@ -35,12 +37,48 @@ public class DataCollection {
 			List<String[]> allele = readAllele(zipFilePath, contig[i]);
 			List<List<int[]>> ad = readAlleleDepth(zipFilePath, 
 					contig[i], allele);
-			List<List<double[]>> pl = readPhredScaledLikelihood(
+			List<List<double[]>> gl = readGenotypeLikelihood(
 					zipFilePath, contig[i], allele);
-			List<List<char[]>> gt = readGenotype(zipFilePath, contig[i],
+			List<List<String[]>> gt = readGenotype(zipFilePath, contig[i],
 					allele);
 			List<String> sample = getSampleList(zipFilePath);
-			de[i] = new DataEntry(contig[i], position, allele, ad, pl, gt, sample);
+			de[i] = new DataEntry(contig[i], position, allele, ad, gl, gt, sample);
+		}
+		return de;
+	}
+
+	public static DataEntry[] readDataEntry(String zipFilePath,
+			String[] contig, int[] startPos, int[] endPos) {
+		
+		DataEntry[] de = new DataEntry[contig.length];
+		for(int i=0; i<de.length; i++) {
+			double[] position = readPosition(zipFilePath, contig[i]);
+			
+			List<String[]> allele = readAllele(zipFilePath, contig[i]);
+			List<List<int[]>> ad = readAlleleDepth(zipFilePath, 
+					contig[i], allele);
+			List<List<double[]>> gl = readGenotypeLikelihood(
+					zipFilePath, contig[i], allele);
+			List<List<String[]>> gt = readGenotype(zipFilePath, contig[i],
+					allele);
+			List<String> sample = getSampleList(zipFilePath);
+			
+			int is=0, ie=0;
+			for(int j=0; j!=position.length; j++) {
+				if(position[j]<startPos[i]) is++; 
+				if(position[j]<=endPos[i])  ie++;
+			}
+			
+			double[] position2 = new double[ie-is];
+			System.arraycopy(position, is, position2, 0, ie-is);
+			
+			de[i] = new DataEntry(contig[i], 
+					position2, 
+					allele.subList(is, ie), 
+					ad.subList(is, ie), 
+					gl.subList(is, ie), 
+					gt.subList(is, ie), 
+					sample);
 		}
 		return de;
 	}
@@ -51,7 +89,7 @@ public class DataCollection {
 				getContigIDFromIndex(zipFilePath, contigIndex),
 				output);
 	}
-	
+
 	public static void writeSOAPInputFile(String zipFilePath,
 			String contigId, String output) {
 		writeSOAPInputFileMeta(zipFilePath, contigId, output, false);
@@ -64,7 +102,7 @@ public class DataCollection {
 		for(String contig:contigs) writeSOAPInputFileMeta(zipFilePath, 
 				contig, output, true);
 	}
-	
+
 	public static void writeSOAPInputFileMeta(String zipFilePath,
 			String contigId, String output, boolean append) {
 		double[] position = readPosition(zipFilePath, contigId);
@@ -93,10 +131,10 @@ public class DataCollection {
 			e.printStackTrace();
 		}
 	}
-	
+
 	public static void reformatSOAPOutputFile(String template, String adFile,
 			String SOAPoutput, String output) {
-		
+
 		Map<String, String> gpMap = new HashMap<String, String>();
 		gpMap.put("0/0/0/0", "0,255,255,255,255");
 		gpMap.put("0/0/0/1", "255,0,255,255,255");
@@ -148,8 +186,8 @@ public class DataCollection {
 			System.exit(1);
 		}
 	}
-	
-	private static List<List<char[]>> readGenotype(String zipFilePath,
+
+	private static List<List<String[]>> readGenotype(String zipFilePath,
 			String contigId, List<String[]> allele) {
 		// TODO Auto-generated method stub
 		try {
@@ -161,26 +199,25 @@ public class DataCollection {
 			final InputStream is = in.getInputStream(
 					in.getEntry(contigId+Constants.file_sep+"GT"));
 			BufferedReader br = new BufferedReader(new InputStreamReader(is));
-			List<char[]> entry;
-			char[] genotype;
+			List<String[]> entry;
+			String[] genotype;
 			String line;
 			String[] s, s2;
-			List<List<char[]>> gt = new ArrayList<List<char[]>>();
+			List<List<String[]>> gt = new ArrayList<List<String[]>>();
 			int l=0;
 			while( (line=br.readLine())!=null ) {
-				Map<Integer, Character> gtMap = getUniversalAlleleMap(
-						allele.get(l++).length);
+				String[] allele_l = allele.get(l++);
 				s = line.split("\\s+");
-				entry = new ArrayList<char[]>();
+				entry = new ArrayList<String[]>();
 				for(int i=0; i<s.length; i++) {
-                    genotype = new char[Constants._ploidy_H];
-                    s2 = s[i].split("/");
-                    for(int j=0; j<s2.length; j++) 
-                        if(s2[j].equals("."))
-                            genotype[j] = 'N';
-                        else
-                            genotype[j] = gtMap.get(Integer.parseInt(s2[j]));
-                    entry.add(genotype);
+					genotype = new String[Constants._ploidy_H];
+					s2 = s[i].split("/");
+					for(int j=0; j<s2.length; j++) 
+						if(s2[j].equals("."))
+							genotype[j] = ".";
+						else
+							genotype[j] = allele_l[Integer.parseInt(s2[j])];
+					entry.add(genotype);
 				}
 				gt.add(entry);
 			}
@@ -195,17 +232,7 @@ public class DataCollection {
 		return null;
 	}
 
-	private static Map<Integer, Character> getUniversalAlleleMap(int n) {
-		// TODO Auto-generated method stub
-		Map<Integer, Character> alleleMap = 
-				new HashMap<Integer, Character>();
-		for(int i=0; i<n; i++) {
-			alleleMap.put(i, (char)(Constants._universal_A_allele+i));
-		}
-		return alleleMap;
-	}
-
-	private static List<List<double[]>> readPhredScaledLikelihood(
+	private static List<List<double[]>> readGenotypeLikelihood(
 			String zipFilePath, String contigId, List<String[]> allele) {
 		// TODO Auto-generated method stub
 		try {
@@ -221,47 +248,47 @@ public class DataCollection {
 			double[] ll;
 			String line;
 			String[] s, s2;
-			List<List<double[]>> pl = new ArrayList<List<double[]>>();
+			List<List<double[]>> gl = new ArrayList<List<double[]>>();
 			int l = 0;
 			while( (line=br.readLine())!=null ) {
 				int n = allele.get(l++).length;
 				s = line.split("\\s+");
 				entry = new ArrayList<double[]>();
 				for(int i=0; i<s.length; i++) {
-                    
+
 					ll = new double[Combination.nmultichoosek(n, 
-                            Constants._ploidy_H)];
-                    boolean miss = true;
-                    if(!s[i].equals(".")) {
-                        s2 = s[i].split(",");
-                        /**
+							Constants._ploidy_H)];
+					boolean miss = true;
+					if(!s[i].equals(".")) {
+						s2 = s[i].split(",");
+						/**
                         for(int j=0; j<s2.length; j++) 
                             ll[j] = Math.pow(10,-
                                     Double.parseDouble(s2[j])/10);
-                        **/
-                        for(int j=0; j<s2.length; j++) {
-                            ll[j] = Math.pow(10,-
-                                    Double.parseDouble(s2[j])/10);
-                            miss = miss&&ll[j]==1.0;
-                        }
-                    }
-                    
-                    if(miss) 
-                    	Arrays.fill(ll, -1);
-                    else
-                    	ll = Algebra.normalize(ll);
-                    
-                    entry.add(ll);
-                    
-                    //int a = Algebra.maxIndex(ll);
-                    //Arrays.fill(ll, 0);
-                    //ll[a] = 1;
-                    //entry.add(ll);
+						 **/
+						for(int j=0; j<s2.length; j++) {
+							ll[j] = Math.pow(10,-
+									Double.parseDouble(s2[j])/10);
+							miss = miss&&ll[j]==1.0;
+						}
+					}
+
+					if(miss) 
+						Arrays.fill(ll, -1);
+					else
+						ll = Algebra.normalize(ll);
+
+					entry.add(ll);
+
+					//int a = Algebra.maxIndex(ll);
+					//Arrays.fill(ll, 0);
+					//ll[a] = 1;
+					//entry.add(ll);
 				}
-				pl.add(entry);
+				gl.add(entry);
 			}
 			in.close();
-			return pl;
+			return gl;
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -294,17 +321,17 @@ public class DataCollection {
 				s = line.split("\\s+");
 				entry = new ArrayList<int[]>();
 				for(int i=0; i<s.length; i++) {
-                    depth = new int[n];
-                    if(s[i].equals("."))
-                        for(int j=0; j<depth.length; j++)
-                            depth[j] = 0;
-                    else {
-                        s2 = s[i].split(",");
-                        // should be s2.length!!!
-                        for(int j=0; j<depth.length; j++)
-                            depth[j] = Integer.parseInt(s2[j]);
-                    }
-                    entry.add(depth);
+					depth = new int[n];
+					if(s[i].equals("."))
+						for(int j=0; j<depth.length; j++)
+							depth[j] = 0;
+					else {
+						s2 = s[i].split(",");
+						// should be s2.length!!!
+						for(int j=0; j<depth.length; j++)
+							depth[j] = Integer.parseInt(s2[j]);
+					}
+					entry.add(depth);
 				}
 				ad.add(entry);
 			}
@@ -354,9 +381,9 @@ public class DataCollection {
 		// TODO Auto-generated method stub
 		try {
 			final ZipFile in = new ZipFile(zipFilePath);
-            
-            System.out.println(zipFilePath);
-            //System.out.println(contigId+Constants.file_sep+"position");
+
+			System.out.println(zipFilePath);
+			//System.out.println(contigId+Constants.file_sep+"position");
 
 			final InputStream is = in.getInputStream(
 					in.getEntry(contigId+Constants.file_sep+"position"));
@@ -404,30 +431,30 @@ public class DataCollection {
 		return contig.split("\\s+")[0];
 	}
 
-    public static int getSampleIndexFromId(String zipFilePath,
-            String sampleId) {
-        // TODO Auto-generated method stub
-        int index = 0;
-        try {
-            final ZipFile in = new ZipFile(zipFilePath);
-            final InputStream is = in.getInputStream(
-                    in.getEntry("samples"));
-            BufferedReader br = new BufferedReader(new InputStreamReader(is));
-            String sample;
-            while( (sample=br.readLine())!=null ) 
-                if( sample.equals(sampleId) ) { 
-                    br.close();
-                    in.close();
-                    return index;
-                } else
-                    index++;
-            br.close();
-            in.close();
-        } catch (IOException e) {
-             e.printStackTrace();
-        }
-        return -1;
-    }
+	public static int getSampleIndexFromId(String zipFilePath,
+			String sampleId) {
+		// TODO Auto-generated method stub
+		int index = 0;
+		try {
+			final ZipFile in = new ZipFile(zipFilePath);
+			final InputStream is = in.getInputStream(
+					in.getEntry("samples"));
+			BufferedReader br = new BufferedReader(new InputStreamReader(is));
+			String sample;
+			while( (sample=br.readLine())!=null ) 
+				if( sample.equals(sampleId) ) { 
+					br.close();
+					in.close();
+					return index;
+				} else
+					index++;
+			br.close();
+			in.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return -1;
+	}
 
 	public static Map<String, Integer> getContigSizeMap(
 			String zipFilePath) {
@@ -452,7 +479,7 @@ public class DataCollection {
 		System.exit(1);
 		return null;
 	}
-	
+
 	public static List<String> getContigList(
 			String zipFilePath) {
 		try {
@@ -476,7 +503,7 @@ public class DataCollection {
 		System.exit(1);
 		return null;
 	}
-	
+
 	public static Map<Integer, String> getContigIndexMap(
 			String zipFilePath) {
 		try {
@@ -501,7 +528,7 @@ public class DataCollection {
 		System.exit(1);
 		return null;
 	}
-	
+
 	public static List<String> getSampleList(String zipFilePath) {
 		try {
 			final ZipFile in = new ZipFile(zipFilePath);
@@ -521,20 +548,20 @@ public class DataCollection {
 		System.exit(1);
 		return null;
 	}
-	
+
 	public static int[] getParentIndex(String zipFilePath) {
 		List<String> samples = getSampleList(zipFilePath);
 		String[] parents = Constants._founder_haps.split(":");
 		List<Integer> list = new ArrayList<Integer>();
 		for(String parent : parents) list.add(samples.indexOf(parent));
-	    return ArrayUtils.toPrimitive(
-                list.toArray(new Integer[list.size()]));
-    }
-	
+		return ArrayUtils.toPrimitive(
+				list.toArray(new Integer[list.size()]));
+	}
+
 	public static int getSampleNumber(String zipFilePath) {
 		return getSampleList(zipFilePath).size();
 	}
-	
+
 	public static Map<String, Integer> readScaff(String zipFilePath) {
 		// TODO Auto-generated method stub
 		final Map<String, Integer> scaffs = new HashMap<String, Integer>();
@@ -579,5 +606,58 @@ public class DataCollection {
 			e.printStackTrace();
 		}
 		return scaffs;
+	}
+
+	public static DataEntry[] readDataEntry(String in_dp_file, int ploidy) {
+		// TODO Auto-generated method stub
+		DataEntry[] de = new DataEntry[1];
+
+		try {		
+			BufferedReader br = Utils.getBufferedReader(in_dp_file);
+
+			int N = Integer.parseInt(br.readLine());
+			int M = Integer.parseInt(br.readLine());
+			double[] position = new double[M];
+			List<String> sample = new ArrayList<String>();
+			String[] s = br.readLine().split("\\s+");
+			for(int i=0; i!=N; i++) sample.add(s[i]);
+			List<String[]> allele = new ArrayList<String[]>();
+			List<List<int[]>> ad = new ArrayList<List<int[]>>();
+			List<List<double[]>> gl = new ArrayList<List<double[]>>();
+			br.readLine();
+			br.readLine();
+			String[] s0;
+			for(int i=0; i!=M; i++) {
+				s = br.readLine().split("\\s+");
+				position[i] = Double.parseDouble(s[1]);
+				String[] allele_i = s[2].split(",");
+				allele.add(allele_i);
+				List<int[]> ad_i = new ArrayList<int[]>();
+				List<double[]> gl_i = new ArrayList<double[]>();
+				for(int j=0; j!=N; j++) {
+					s0 = s[j+3].split(",");
+					int[] ad_ij = new int[2];
+					if(s[j+3].equals(".")) {
+						ad_ij[0] = 0;
+						ad_ij[1] = 0;
+					} else {
+						ad_ij[0] = Integer.parseInt(s0[0]);
+						ad_ij[1] = Integer.parseInt(s0[1]);
+					}
+					double[] pl_ij  = VCFtools.fit(ad_ij, ploidy);
+					ad_i.add(ad_ij);
+					gl_i.add(VCFtools.PL2GL(pl_ij));
+				}
+				ad.add(ad_i);
+				gl.add(gl_i);
+			}
+			br.close();
+			de[0] = new DataEntry(in_dp_file.split("\\.")[0]+"_"+N+"_"+M,
+					position, allele, ad, gl, null, sample);
+		} catch (IOException e) {
+			e.printStackTrace();
+			throw new RuntimeException("!!!");
+		}
+		return de;	
 	}
 }

@@ -11,6 +11,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.ArrayUtils;
@@ -91,11 +93,32 @@ public abstract class HiddenMarkovModel {
 	public abstract void write(String output, 
 			String experiment, 
 			String contig);
+	public abstract void write(String output, 
+			String experiment, 
+			String contig,
+			int resampling);
 	public abstract void print(boolean details);
 	protected abstract void EM();
-	
+	public abstract int[][][] resample(final int n);
+	public void resample() {
+		this.resample(1);
+	}
 	public void print() {this.print(false);}
 	
+	protected void printViterbiPath() {
+		for(int i=0; i<this.sample.length; i++) {
+			String[] path = this.vb[i].path_str;
+			List<String[]> path_s = new ArrayList<String[]>();
+			for(int j=0; j<path.length; j++)
+				path_s.add(path[j].split("_"));
+			for(int j=0; j<Constants._ploidy_H; j++) {
+				System.out.print(("# id "+this.sample[i]+":"+(j+1)+"\t\t\t"));
+				for(int k=0; k<path_s.size(); k++)
+					System.out.print(path_s.get(k)[j]);
+				System.out.print("\n");
+			}
+		}
+	}
 	
 	protected DataEntry catDE(DataEntry[] de2, 
 			double[] seperation, 
@@ -122,16 +145,16 @@ public abstract class HiddenMarkovModel {
 		
 		switch(this.field) {
 		case GT:
-			List<List<char[]>> gt = this.de.getGenotype();
-			
+			List<List<String[]>> gt = this.de.getGenotype();
+			if(gt==null) throw new RuntimeException("GT field not available!!! Try PL/GL (-L/--genotype-likelihood) or AD (-D/--allele-depth) option.");
 			for(int i=0; i<this.M; i++) {
 				double acnt = 0, bcnt = 0;
 				String[] allele = this.de.getAllele().get(i);
 				for(int j : p) {
-					char[] g = gt.get(i).get(j);
+					String[] g = gt.get(i).get(j);
 					for(int k=0; k<g.length; k++) {
-						acnt += ((""+g[k]).equals(allele[0]) ? 1 : 0);
-						bcnt += ((""+g[k]).equals(allele[1]) ? 1 : 0);
+						acnt += (g[k].equals(allele[0]) ? 1 : 0);
+						bcnt += (g[k].equals(allele[1]) ? 1 : 0);
 					}
 				}
 				if(acnt+bcnt==0) baf[i] = .5;
@@ -141,13 +164,14 @@ public abstract class HiddenMarkovModel {
 			break;
 		case PL:
 		case GL:
-			List<List<double[]>> pl = this.de.getPhredScaledLikelihood();
-			int cp = pl.get(0).get(0).length-1;
+			List<List<double[]>> gl = this.de.getGenotypeLikelihood();
+			if(gl==null) throw new RuntimeException("PL/GL feild not available!!! Try GT (-G/--genotype) or AD (-D/--allele-depth) option.");
+			int cp = gl.get(0).get(0).length-1;
 			for(int i=0; i<this.M; i++) {
 				double acnt = 0;
 				double bcnt = 0;
 				for(int j : p) {
-					double[] ll = pl.get(i).get(j);
+					double[] ll = gl.get(i).get(j);
 					if(ll[0]<0) continue;
 					for(int k=0; k<ll.length; k++) {
 						acnt += ll[k]*(cp-k);
@@ -162,6 +186,7 @@ public abstract class HiddenMarkovModel {
 
 		case AD:
 			List<List<int[]>> ad = this.de.getAlleleDepth();
+			if(ad==null) throw new RuntimeException("AD feild not available!!! Try PL/GL (-L/--genotype-likelihood) or GT (-G/--genotype) options.");
 			for(int i=0; i<this.M; i++) {
 				double acnt = 0, bcnt = 0;
 				for(int j : p) {
@@ -607,11 +632,12 @@ public abstract class HiddenMarkovModel {
 		
 		case GT:
 			//TO-DO: calculate genotype likelihoods from genotype
-			List<List<char[]>> gt = this.de.getGenotype();
-			if(gt==null) throw new RuntimeException("need to convert GT field!!!");
+			List<List<String[]>> gt = this.de.getGenotype();
+			List<String[]> allele = this.de.getAllele();
+			if(gt==null) throw new RuntimeException("GT field not available!!! Try PL/GL (-L/--genotype-likelihood) or AD (-D/--allele-depth) option.");
 			for(int i=0; i<this.M; i++) {
 				for(int j=0; j<this.N; j++) {
-					dp[i][j] = new DP(VCFtools.fit(gt.get(i).get(j)),
+					dp[i][j] = new DP(VCFtools.fitGL(gt.get(i).get(j), allele.get(i)[0]),
 							this.statespace.length,
 							this.obspace[i].genotype.length,
 							isParent(this.sample[j]),
@@ -622,11 +648,11 @@ public abstract class HiddenMarkovModel {
 			
 		case PL:
 		case GL:
-			List<List<double[]>> pl = this.de.getPhredScaledLikelihood();
-			if(pl==null) throw new RuntimeException("PL/GL feild not available!!!");
+			List<List<double[]>> gl = this.de.getGenotypeLikelihood();
+			if(gl==null) throw new RuntimeException("PL/GL feild not available!!! Try GT (-G/--genotype) or AD (-D/--allele-depth) option.");
 			for(int i=0; i<this.M; i++) {
 				for(int j=0; j<this.N; j++) {
-					dp[i][j] = new DP(pl.get(i).get(j),
+					dp[i][j] = new DP(gl.get(i).get(j),
 							this.statespace.length,
 							this.obspace[i].genotype.length,
 							isParent(this.sample[j]),
@@ -638,10 +664,10 @@ public abstract class HiddenMarkovModel {
 		case AD:
 			//TO-DO: calculate genotype likelihoods from allele depth
 			List<List<int[]>> ad = this.de.getAlleleDepth();
-			if(ad==null) throw new RuntimeException("AD feild not available!!!");
+			if(ad==null) throw new RuntimeException("AD feild not available!!! Try PL/GL (-L/--genotype-likelihood) or GT (-G/--genotype) options.");
 			for(int i=0; i<this.M; i++) {
 				for(int j=0; j<this.N; j++) {
-					dp[i][j] = new DP(VCFtools.fit(ad.get(i).get(j), Constants._ploidy_H),
+					dp[i][j] = new DP(VCFtools.fitGL(ad.get(i).get(j), Constants._ploidy_H),
 							this.statespace.length,
 							this.obspace[i].genotype.length,
 							isParent(this.sample[j]),
@@ -931,6 +957,28 @@ public abstract class HiddenMarkovModel {
 			this.update();
 		}
 
+		public TP(ST[] statespace, 
+				String[] str_statespace, 
+				double distance, 
+				boolean isDotState, 
+				boolean trainExp, 
+				String tranProbs) {
+			// TODO Auto-generated constructor stub
+			this.statespace = statespace;
+			this.str_statespace = str_statespace;
+			this.distance = distance;
+			this.isDotState = isDotState;
+			this.prior();
+			this.trainExp = trainExp;
+			int _n_=this.str_statespace.length;
+			this.probsMat = new double[_n_][_n_];
+			this.count = new double[_n_][_n_];
+			this.logspace = false;
+			int _m_=this.statespace.length;
+			this.prior = new double[_m_][_m_][];
+			this.update(tranProbs);
+		}
+		
 		protected void update() {
 			// TODO Auto-generated method stub
 			int z = Constants._haplotype_z/2;
@@ -954,6 +1002,32 @@ public abstract class HiddenMarkovModel {
 				}
 			}
 
+			int _a_ = this.statespace.length;
+			for(int a=0; a<_a_; a++) {
+				int[] s_a = this.statespace[a].state;
+				for(int b=0; b<_a_; b++) { 
+					ST[] st_b = this.statespace[b].stateperm();
+					prior[a][b] = prior(s_a, st_b);
+				}
+			}
+		}
+		
+		private void update(String tranProbs) {
+			// TODO Auto-generated method stub
+			Pattern p = Pattern.compile("\\{(.*?)\\}");
+			Matcher m = p.matcher(tranProbs);
+			
+			int _n_ = this.str_statespace.length;
+			String[] prob_str;
+			double[] probs;
+			for(int a=0; a<_n_; a++) {
+				probs = this.probsMat[a];
+				m.find();
+				prob_str = m.group(1).split(",|;");
+				for(int b=0; b<_n_; b++) 
+					probs[b] = Double.parseDouble(prob_str[b*2+1]);
+			}
+			
 			int _a_ = this.statespace.length;
 			for(int a=0; a<_a_; a++) {
 				int[] s_a = this.statespace[a].state;
@@ -1153,6 +1227,46 @@ public abstract class HiddenMarkovModel {
 			this.probsDosaMat = null;
 			this.logspace = false;
 			this.count = new double[this.statespace.length][this.allele.length];
+		}
+
+		public EP(String[] statespace,
+				OB obspace, 
+				double bfrac, 
+				String emissProbs) {
+			// TODO Auto-generated constructor stub
+			this.statespace = statespace;
+			this.allele = obspace.allele;
+			this.bfrac = bfrac;
+			this.prior(emissProbs);
+			this.ssMap = new HashMap<String, Integer>();
+			for(int i=0; i<statespace.length; i++)
+				this.ssMap.put(statespace[i], i);
+			this.esMap = new HashMap<String, Integer>();
+			for(int i=0; i<allele.length; i++)
+				this.esMap.put(allele[i], i);
+			this.probsDosaMat = null;
+			this.logspace = false;
+			this.count = new double[this.statespace.length][this.allele.length];
+		}
+
+		private void prior(String emissProbs) {
+			// TODO Auto-generated method stub
+			Pattern p = Pattern.compile("\\{(.*?)\\}");
+			Matcher m = p.matcher(emissProbs);
+			
+			int _a_ = this.statespace.length;
+			int _b_ = this.allele.length;
+			this.probsMat = new double[_a_][_b_];
+			String[] prob_str;
+			double[] probs;
+			
+			for(int a=0; a<_a_; a++) {
+				probs = this.probsMat[a];
+				m.find();
+				prob_str = m.group(1).split(",|;");
+				for(int b=0; b<_b_; b++) 
+					probs[b] = Double.parseDouble(prob_str[b*2+1]);
+			}
 		}
 
 		protected void prior() {
@@ -1407,5 +1521,10 @@ public abstract class HiddenMarkovModel {
 	public DataEntry de() {
 		// TODO Auto-generated method stub
 		return this.de;
+	}
+	
+	public String[] state_str() {
+		// TODO Auto-generated method stub
+		return this.str_statespace;
 	}
 }

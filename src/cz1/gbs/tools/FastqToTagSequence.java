@@ -58,6 +58,8 @@ public class FastqToTagSequence extends Executor {
 		this.makeOutputDir();
 	}
 	
+	public FastqToTagSequence() {}
+	
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub

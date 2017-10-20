@@ -7,6 +7,7 @@ import cz1.util.Utils;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,6 +43,8 @@ public class SamFileSplit extends Executor {
 		this.bam_out = bam_out;
 		this.THREADS = threads;
 	}
+	
+	public SamFileSplit() {}
 	
 	@Override
 	public void printUsage() {
@@ -112,7 +115,12 @@ public class SamFileSplit extends Executor {
 			Utils.makeOutputDir(out_prefix[i]);
 		}
 		
-		final File[] bams = new File(bam_in).listFiles();
+		final File[] bams = new File(bam_in).listFiles(new FilenameFilter() {
+		    @Override
+		    public boolean accept(File dir, String name) {
+		        return name.endsWith(".bam");
+		    }
+		});
 		this.initial_thread_pool();
 		for(File bam : bams) {
 			executor.submit(new Runnable(){

@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -16,35 +18,35 @@ import cz1.util.Constants;
 import cz1.util.Utils;
 
 public class DataEntry {
-	private String id;	// contig name
-	private String[] marker_id;
-	private double[] position; // positions along contig
-	private List<String[]> allele; // alleles
-	private List<List<int[]>> ad; // allele depth
-	private List<List<double[]>> pl; // phred-scaled likelihood
-	private List<List<char[]>> gt; //genotypes
-	private String[] sample; //samples
-	private double[][] configuration;
-	private double[][] baf;
+	private String id = null;	// contig name
+	private String[] marker_id = null;
+	private double[] position = null; // positions along contig
+	private List<String[]> allele = null; // alleles
+	private List<List<int[]>> ad = null; // allele depth
+	private List<List<double[]>> gl = null; // genotype likelihood
+	private List<List<String[]>> gt = null; //genotypes
+	private String[] sample = null; //samples
+	private double[][] configuration = null;
+	// private double[][] baf;
 	
 	public DataEntry(String id, 
 			double[] position,
 			List<String[]> allele,
 			List<List<int[]>> ad,
-			List<List<double[]>> pl,
-			List<List<char[]>> gt,
+			List<List<double[]>> gl,
+			List<List<String[]>> gt,
 			List<String> sample) {
 		this.id = id;
 		this.position = position;
 		this.markers();
 		this.allele = allele;
 		this.ad = ad;
-		this.pl = pl;
+		this.gl = gl;
 		this.gt = gt;
 		this.sample = sample.toArray(new String[sample.size()]);
 		this.configuration = this.configuration();
-		this.baf();
-		this.filter();
+		// this.baf();
+		// this.filter();
 	}
 	
 	private void markers() {
@@ -54,6 +56,7 @@ public class DataEntry {
 			marker_id[i] = this.id+"_"+(int) this.position[i];
 	}
 
+	/**
 	private void baf() {
 		// TODO Auto-generated method stub
 		//if(this.pl.get(0).get(0).length>3)
@@ -81,6 +84,7 @@ public class DataEntry {
 			this.baf[i][1] = f1/n/(cp-1);
 		}
 	}
+	**/
 
 	private void filter() {
 		// TODO Auto-generated method stub
@@ -93,8 +97,8 @@ public class DataEntry {
 				continue;
 			}
 			double[] ds = new double[2];
-			for(int j=0; j<this.pl.get(i).size(); j++) {
-				double[] d = this.pl.get(i).get(j);
+			for(int j=0; j<this.gl.get(i).size(); j++) {
+				double[] d = this.gl.get(i).get(j);
 				for(int k=0; k<d.length; k++) 
 					if(d[k]>0) {
 						ds[0] += (h-k)*d[k];
@@ -118,8 +122,8 @@ public class DataEntry {
 				continue;
 			}
 			double[] ds = new double[Constants._ploidy_H+1];
-			for(int j=0; j<this.pl.get(i).size(); j++) {
-				double[] d = this.pl.get(i).get(j);
+			for(int j=0; j<this.gl.get(i).size(); j++) {
+				double[] d = this.gl.get(i).get(j);
 				for(int k=0; k<d.length; k++)
 					ds[k] += d[k];
 			}
@@ -140,8 +144,8 @@ public class DataEntry {
 				continue;
 			}
 			double[] ds = new double[this.configuration[0].length];
-			for(int j=0; j<this.pl.get(i).size(); j++) {
-				double[] d = this.pl.get(i).get(j);
+			for(int j=0; j<this.gl.get(i).size(); j++) {
+				double[] d = this.gl.get(i).get(j);
 				for(int k=0; k<d.length; k++)
 					ds[k] += d[k]>0 ? d[k] : 0;
 			}
@@ -270,11 +274,11 @@ public class DataEntry {
 		return this.ad;
 	}
 	
-	public List<List<double[]>> getPhredScaledLikelihood() {
-		return this.pl;
+	public List<List<double[]>> getGenotypeLikelihood() {
+		return this.gl;
 	}
 	
-	public List<List<char[]>> getGenotype() {
+	public List<List<String[]>> getGenotype() {
 		return this.gt;
 	}
 	
@@ -287,7 +291,7 @@ public class DataEntry {
 		this.printPosition();
 		this.printAllele();
 		this.printAlleleDepth();
-		this.printPhredScaledLikelihood();
+		this.printGenotypeLikelihood();
 		this.printGenotype();
 	}
 
@@ -299,19 +303,19 @@ public class DataEntry {
 		for(int i=1; i<=this.sample.length; i++)
 			Utils.print(String.format("%04d", i)+"\t");
 		Utils.print("\n");
-		for(List<char[]> list : this.gt) {
+		for(List<String[]> list : this.gt) {
 			Utils.print("Marker "+m+++"\t|\t");
-			for(char[] chars : list) 
+			for(String[] chars : list) 
 				Utils.print(StringUtils.join(chars, ',')+";\t");
 			Utils.println();
 		}
 	}
 
-	private void printPhredScaledLikelihood() {
+	private void printGenotypeLikelihood() {
 		// TODO Auto-generated method stub
 		Utils.println("---Likelihood---");
 		int m = 1;
-		for(List<double[]> list : this.pl) {
+		for(List<double[]> list : this.gl) {
 			Utils.print("Marker "+m+++"\t|\t");
 			for(double[] doubles : list) 
 				Utils.print(StringUtils.join(doubles, ',')+"; ");
@@ -361,7 +365,7 @@ public class DataEntry {
 		int n = this.sample.length;
 		for(int i=0; i<this.allele.size(); i++) {
 			this.ad.get(i).subList(from, n).clear();
-			this.pl.get(i).subList(from, n).clear();
+			this.gl.get(i).subList(from, n).clear();
 			this.gt.get(i).subList(from, n).clear();
 		}
 		this.sample = Arrays.copyOfRange(this.sample, 0, from);
@@ -371,7 +375,7 @@ public class DataEntry {
 		// TODO Auto-generated method stub
 		for(int i=0; i<this.allele.size(); i++) {
 			this.ad.get(i).remove(index);
-			this.pl.get(i).remove(index);
+			this.gl.get(i).remove(index);
 			this.gt.get(i).remove(index);
 		}
 		this.sample = ArrayUtils.remove(this.sample, index);
@@ -386,7 +390,7 @@ public class DataEntry {
 					remove(this.marker_id,is[i]-i);
 			this.allele.remove(is[i]-i);
 			this.ad.remove(is[i]-i);
-			this.pl.remove(is[i]-i);
+			this.gl.remove(is[i]-i);
 			this.gt.remove(is[i]-i);
 		}
 	}
@@ -396,10 +400,10 @@ public class DataEntry {
 		this.id = this.id+"#R";
 		reverse(this.position);
 		reverse(this.marker_id);
-		reverse(this.baf);
+		// reverse(this.baf);
 		Collections.reverse(this.allele);
 		Collections.reverse(this.ad);
-		Collections.reverse(this.pl);
+		Collections.reverse(this.gl);
 		Collections.reverse(this.gt);
 		rescale();
 	}
@@ -467,13 +471,14 @@ public class DataEntry {
 		this.id = this.id+":"+dataEntry.id;
 		add(dataEntry.position, distance);
 		add(dataEntry.marker_id);
-		add(dataEntry.baf);
+		// add(dataEntry.baf);
 		this.allele.addAll(dataEntry.allele);
-		this.ad.addAll(dataEntry.ad);
-		this.pl.addAll(dataEntry.pl);
-		this.gt.addAll(dataEntry.gt);
+		if(this.ad!=null) this.ad.addAll(dataEntry.ad);
+		if(this.gl!=null) this.gl.addAll(dataEntry.gl);
+		if(this.gt!=null) this.gt.addAll(dataEntry.gt);
 	}
 
+	/**
 	private void add(double[][] baf2) {
 		// TODO Auto-generated method stub
 		int n = this.baf.length, m = baf2.length;
@@ -484,6 +489,7 @@ public class DataEntry {
 			baf[i+n] = baf2[i].clone();
 		this.baf = baf;
 	}
+	**/
 
 	private void add(double[] position2, double distance) {
 		// TODO Auto-generated method stub

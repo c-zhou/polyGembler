@@ -135,6 +135,7 @@ public class ZipDataCollection extends Executor {
 				for(int j=0; j<snps.size(); j++)
 					out.write((snps.get(j)[_idx_pos]+Constants.line_sep).
 							getBytes());
+				
 				out.putNextEntry(new ZipEntry(contig+
 						Constants.file_sep+"allele"));
 				for(int j=0; j<snps.size(); j++)
@@ -142,6 +143,7 @@ public class ZipDataCollection extends Executor {
 							"\t"+snps.get(j)[_idx_alt]+
 							Constants.line_sep).
 							getBytes());
+				
 				if(fields.contains("GT")) {
 					out.putNextEntry(new ZipEntry(contig+
 							Constants.file_sep+"GT"));

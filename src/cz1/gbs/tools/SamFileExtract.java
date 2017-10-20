@@ -91,7 +91,6 @@ public class SamFileExtract extends Executor {
 		final SAMFileHeader header_out = new SAMFileHeader();
 		final SAMSequenceDictionary seqdic_out = new SAMSequenceDictionary();
 		
-		inputSam.setValidationStringency(ValidationStringency.SILENT);
 		SAMRecordIterator iter=inputSam.iterator();
 
 		File bed_file = new File(bed_in);

@@ -38,17 +38,22 @@ public class SamToTaxa extends Executor {
 	private String mySamFileName = null;
 	private String myIndexFileName = null;
 	private boolean mySamIsSorted = false;
+	private long maxCov = Long.MAX_VALUE;
 	private String myOutputDir = "./";
 
 	public SamToTaxa(String mySamFileName, String myIndexFileName,
-			boolean mySamIsSorted, String myOutputDir, int threads) {
+			boolean mySamIsSorted, String myOutputDir, 
+			long maxCov, int threads) {
 		this.mySamFileName = mySamFileName;
 		this.myIndexFileName = myIndexFileName;
 		this.mySamIsSorted = mySamIsSorted;
 		this.myOutputDir = myOutputDir;
+		this.maxCov = maxCov;
 		this.THREADS = threads;
 		this.makeOutputDir();
 	}
+	
+	public SamToTaxa() {}
 	
 	@Override
 	public void printUsage() {
@@ -59,6 +64,8 @@ public class SamToTaxa extends Executor {
 						+ " -t/--threads  		Threads (default is 1).\n"
 						+ " -S/--is-sorted		The sam/bam file is sorted by name.\n" 
 						+ " -i/--index-file		Tag index file.\n"
+						+ " -x/--max-coverage   A read is omitted from output if the coverage is "
+						+ "                     greater than this number (default no limit).\n"
 						+ " -o/--prefix			Output directory. \n\n");
 	}
 
@@ -85,6 +92,7 @@ public class SamToTaxa extends Executor {
 			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.add("-s", "--sam-file", true);
 			myArgsEngine.add("-S", "--sorted", false);
+			myArgsEngine.add("-x", "--max-coverage", true);
 			myArgsEngine.parse(args);
 		}
 
@@ -112,6 +120,10 @@ public class SamToTaxa extends Executor {
 
 		if (myArgsEngine.getBoolean("-o")) {
 			myOutputDir = myArgsEngine.getString("-o");
+		}
+		
+		if (myArgsEngine.getBoolean("-x")) {
+			maxCov = Long.parseLong(myArgsEngine.getString("-x"));
 		}
 		
 		this.makeOutputDir();
@@ -296,6 +308,15 @@ public class SamToTaxa extends Executor {
 									tag = Long.parseLong(sam[i].getReadName());
 									tagObj = indexMap.get(tag);
 									int l = tagObj.taxa.length;
+									long cov = 0;
+									for(int t=0; t<l; t++) cov += tagObj.count[t];
+									if(cov>maxCov) {
+										myLogger.info("?tag id, "+tag+"::tag sequence, "+sam[i].getReadString()+
+												"::aligned to "+sam[i].getReferenceName()+":"+
+												sam[i].getAlignmentStart()+"-"+sam[i].getAlignmentEnd()+
+												"::omitted due to abnormal high coverage, "+cov);
+										continue;
+									}
 									for(int t=0; t<l; t++) {
 										taxa = tagObj.taxa[t];
 										sam[i].setAttribute("RG", taxa);

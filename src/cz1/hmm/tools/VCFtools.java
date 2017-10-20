@@ -51,17 +51,17 @@ public class VCFtools extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " -i/--vcf			Input VCF file.\n"
-						+ " -p/--ploidy			Real ploidy of genome. "
-						+ "						NOTE: You may call variant as diploid and the program will "
-						+ "							  fit a binomial model to call genotypes and genotype "
-						+ "							  qualities from allele depth.\n"
-						+ " -l/--min-depth		Minimum depth to keep a SNP (DP).\n"
-						+ " -u/--max-depth		Maximum depth to keep a SNP (DP).\n"
-						+ " -q/--min-qual  		Minimum quality to keep a SNP (QUAL).\n"
-						+ " -f/--min-maf		Minimum minor allele frequency to keep a SNP (default 0.1).\n"
-						+ " -m/--max-missing	Maximum proportion of missing data to keep a SNP (default 0.5).\n"
-						+ " -o/--prefix			Prefix for output VCF file.\n\n");
+						+ " -i/--vcf            Input VCF file.\n"
+						+ " -p/--ploidy	        Real ploidy of genome. \n"
+						+ "                     NOTE: You may call variant as diploid and the program will \n"
+						+ "                           fit a binomial model to call genotypes and genotype \n"
+						+ "                           qualities from allele depth.\n"
+						+ " -l/--min-depth      Minimum depth to keep a SNP (DP).\n"
+						+ " -u/--max-depth      Maximum depth to keep a SNP (DP).\n"
+						+ " -q/--min-qual       Minimum quality to keep a SNP (QUAL).\n"
+						+ " -f/--min-maf        Minimum minor allele frequency to keep a SNP (default 0.1).\n"
+						+ " -m/--max-missing    Maximum proportion of missing data to keep a SNP (default 0.5).\n"
+						+ " -o/--prefix         Prefix for output VCF file.\n\n");
 	}
 
 	@Override
@@ -254,7 +254,8 @@ public class VCFtools extends Executor {
 					}
 				}
 				
-				if(Double.parseDouble(s[Constants._vcf_header_i[5]])<min_qual) {
+				if(!s[Constants._vcf_header_i[5]].equals(".") &&
+					Double.parseDouble(s[Constants._vcf_header_i[5]])<min_qual) {
                     continue;
                 }
 				
@@ -281,13 +282,22 @@ public class VCFtools extends Executor {
 				os.append(s[Constants._vcf_header_i[1]]);
 				os.append("\t");
 				os.append(s[Constants._vcf_header_i[2]]);
-				os.append("\t");
-				os.append('A');
-				os.append("\t");
-				os.append('B');
 				info = s[Constants._vcf_header_i[4]].split(",");
 				if(info.length>2) continue;
 				boolean MNP = info.length>1, MN = false;
+				
+				if(MNP) {
+					os.append("\t");
+					os.append(info[0]);
+					os.append("\t");
+					os.append(info[1]);
+				} else {
+					os.append("\t");
+					os.append(s[Constants._vcf_header_i[3]]);
+					os.append("\t");
+					os.append(s[Constants._vcf_header_i[4]]);
+				}
+				
 				for(int i=5; i<header_field-1; i++) {
 					os.append("\t");
 					os.append(s[Constants._vcf_header_i[i]]);
@@ -446,7 +456,9 @@ public class VCFtools extends Executor {
 		for(String target_str : format_arr) {
 			switch(target_str) {
 			case "GT":
-				os.append("./.");
+				os.append(".");
+				for(int i=1; i<ploidy; i++)
+					os.append("/.");
 				break;
 			case "AD":
 				os.append(":0,0");
@@ -476,7 +488,8 @@ public class VCFtools extends Executor {
     	double maxLL = Double.NEGATIVE_INFINITY;
         for(int i=0; i<ll.length; i++) {
     		double pa = ((ploidy-i)*(1-err)+i*err)/ploidy;
-    		double nk = Math.log10(nchoosek(d, depth[0]));
+    		//double nk = Math.log10(nchoosek(d, depth[0]));
+    		double nk = nchoosekL(d, depth[0]);
     		ll[i] = nk+depth[0]*Math.log10(pa)+
     				depth[1]*Math.log10(1-pa);
     		if(ll[i]>maxLL) maxLL = ll[i];
@@ -501,20 +514,34 @@ public class VCFtools extends Executor {
         return ll;
     }
     
-    public static void fit(double[] ll, char[] genotype) {
+	public static double[] fitGL(int[] depth, int ploidy) {
+		// TODO Auto-generated method stub
+		return PL2GL(fit(depth, ploidy));
+	}
+    
+    public static void fit(double[] ll, String[] genotype, String ref_allele) {
     	Arrays.fill(ll, 255);
+    	if(genotype[0].equals(".")) {
+    		Arrays.fill(ll, 0);
+    		return;
+    	}
     	int k = ll.length-1;
-    	for(char g : genotype)
-    		if(g==Constants._universal_A_allele)
+    	for(String g : genotype)
+    		if(g.equals(ref_allele))
     			k--;
     	ll[k] = 0;
     }
     
-    public static double[] fit(char[] genotype) {
+    public static double[] fit(String[] genotype, String ref_allele) {
     	double[] ll = new double[genotype.length+1];
-    	fit(ll, genotype);
+    	fit(ll, genotype, ref_allele);
     	return ll;
     }
+    
+    public static double[] fitGL(String[] genotype, String ref_allele) {
+		// TODO Auto-generated method stub
+		return PL2GL(fit(genotype, ref_allele));
+	}
     
     private static double nchoosek(int n, int k) {
         if (k<0||k>n) return 0;
@@ -527,6 +554,18 @@ public class VCFtools extends Executor {
         return choose;
     }
 	
+    private static double nchoosekL(int n, int k) {
+		// TODO Auto-generated method stub
+    	if (k<0||k>n) throw new RuntimeException("!!!");
+        if (k>n/2) k=n-k;
+        double choose = 0;
+        for (int i=1; i<=k; i++) {
+            choose += Math.log10(n+1-i);
+            choose -= Math.log10(i);
+        }
+        return choose;
+	}
+    
 	private static String cat(double[] ds, String delimeter) {
 		// TODO Auto-generated method stub
 		StringBuilder os = new StringBuilder();
@@ -560,7 +599,7 @@ public class VCFtools extends Executor {
         return cat(g, "/");
     }
     
-    private Object uniPL(String gt_str) {
+    private String uniPL(String gt_str) {
 		// TODO Auto-generated method stub
     	int[] g = new int[ploidy+1];
     	Arrays.fill(g, 255);
@@ -571,4 +610,13 @@ public class VCFtools extends Executor {
     	g[k] = 0;
 		return cat(g, ",");
 	}
+
+    public static double[] PL2GL(double[] pl) {
+    	// TODO Auto-generated method stub
+    	double[] ll = new double[pl.length];
+    	for(int i=0; i!=ll.length; i++)
+    		ll[i] = Math.pow(10,-pl[i]/10);
+    	return ll;
+    }
+
 }

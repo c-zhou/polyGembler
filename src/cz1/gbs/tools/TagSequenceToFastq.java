@@ -36,6 +36,8 @@ public class TagSequenceToFastq extends Executor {
 		Utils.makeOutputDir(this.myOutputDir);
 	}
 	
+	public TagSequenceToFastq() {}
+	
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub

@@ -31,6 +31,8 @@ import org.apache.logging.log4j.Logger;
 
 import cz1.hmm.data.DataEntry;
 import cz1.hmm.model.HiddenMarkovModel.DP;
+import cz1.hmm.model.HiddenMarkovModel.EP;
+import cz1.hmm.model.HiddenMarkovModel.Viterbi;
 import cz1.util.Algebra;
 import cz1.util.Combination;
 import cz1.util.Constants;
@@ -39,21 +41,24 @@ import cz1.util.Permutation;
 import cz1.util.Dirichlet;
 import cz1.util.Constants.Field;
 
-public class HiddenMarkovModelBWT extends HiddenMarkovModel {
-	private final static Logger logger = LogManager.getLogger(HiddenMarkovModelBWT.class.getName());
-	private FB[] forward, backward;
+public class HiddenMarkovModelRST extends HiddenMarkovModel {
+	private final static Logger logger = LogManager.getLogger(HiddenMarkovModelRST.class.getName());
+	private FB[] backward;
+	private int resample_no = 100;
 	
 	// ----founder haplotypes coefficients----
 	private double founder_hap_coeff = 0.5;
 	
-	public HiddenMarkovModelBWT(DataEntry[] de, 
+	public HiddenMarkovModelRST(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse,
 			boolean trainExp,
 			Field field,
-			double fh_coeff) {
+			double fh_coeff,
+			int resample_no) {
 		super(de, seperation, reverse, trainExp, field);
 		this.founder_hap_coeff = fh_coeff;
+		this.resample_no = resample_no;
 		//this.trainAllExp();
 		this.makeBWT();
 		//this.makeViterbi();
@@ -61,13 +66,14 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 		//this.train();
 	}
 	
-	public HiddenMarkovModelBWT(DataEntry[] de, 
+	public HiddenMarkovModelRST(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse,
 			boolean trainExp,
-			Field field) {
+			Field field,
+			int resample_no) {
 		super(de, seperation, reverse, trainExp, field);
-		
+		this.resample_no = resample_no;
 		//this.trainAllExp();
 		this.makeBWT();
 		//this.makeViterbi();
@@ -75,7 +81,7 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 		//this.train();
 	}
 	
-	public HiddenMarkovModelBWT(DataEntry[] de, 
+	public HiddenMarkovModelRST(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse,
 			boolean trainExp,
@@ -87,7 +93,7 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 		this.makeBWT(hmmFile);
 	}
 	
-	public HiddenMarkovModelBWT(DataEntry[] de, 
+	public HiddenMarkovModelRST(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse,
 			boolean trainExp,
@@ -97,6 +103,8 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 		this.makeBWT(hmmFile);
 	}
 
+	private int[][][] rs_path = null;
+			
 	public void train() {
 		iteration++;
 		logger.info("###################");
@@ -104,14 +112,17 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 		long[] tic = new long[10];
 		int k=0;
 		tic[k++] = System.nanoTime();
-		this.makeForward();
-		tic[k++] = System.nanoTime();
-		logger.info("forward done "+(tic[k-1]-tic[k-2])+"ns");
+		// this.makeForward();
+		// tic[k++] = System.nanoTime();
+		// logger.info("forward done "+(tic[k-1]-tic[k-2])+"ns");
 		this.makeBackward();
 		tic[k++] = System.nanoTime();
 		logger.info("backward done "+(tic[k-1]-tic[k-2])+"ns");
-		this.checkFW();
+		// this.checkFW();
+		// tic[k++] = System.nanoTime();
+		rs_path = this.resample(this.resample_no);
 		tic[k++] = System.nanoTime();
+		logger.info("Resampling "+(tic[k-1]-tic[k-2])+"ns");
 		this.EM();
 		tic[k++] = System.nanoTime();
 		logger.info("EM algorithm "+(tic[k-1]-tic[k-2])+"ns");
@@ -131,20 +142,15 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 
 	protected void EM() {
 		// TODO Auto-generated method stub
-		int _n_ = this.forward.length;
-		int _m_ = this.dp.length;
+		
 		int[] s_a, s_b; 
 		String[] s_l;
 		ST[] st_b;
 		double tmp, A;
-		int _k_ = this.statespace.length;
 		int _p_ = Constants._ploidy_H;
 		int _g_, _d_, _t_;
-		//long elapsed_emiss = 0, 
-		//		elapsed_trans = 0, 
-		//		tic, toc;
 
-		for(int i=0; i<_m_; i++) {
+		for(int i=0; i<M; i++) {
 			_g_ = this.obspace[i].genotype.length;
 			OB ob = this.obspace[i];
 			Map<String, Integer[]> dgMap = ob.dgMap;
@@ -155,169 +161,53 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 			Map<String, Integer> alMap = new HashMap<String, Integer>();
 			for(int j=0; j<allele.length; j++) alMap.put(allele[j], j);
 			
-			//tic = System.nanoTime();
-			if(i==0 || this.exp_b.contains(i)) {
-				double[][] trans_count = this.transProbs[i].pseudo();
-				TP tp1 = this.compoundTransProbs[i];
-				for(int j=0;j<_n_; j++) {
-					Integer[] vst = this.validStateSpace.get(j);
-					
-					DP dp1 = this.dp[i][j];
-					FB fw1 = this.forward[j];
-					FB bw1 = this.backward[j];
-					double exp_c = fw1.logscale[i]+
-							bw1.logscale[i]-
-							fw1.probability;
-					Integer[] vst2 = (i==0 ? 
-							new Integer[]{0} : 
-								this.validStateSpace.get(j));
-					if(exp_c>Constants.MAX_EXP_DOUBLE) { 
-						// cannot calculate exponential directly
-						// logarithm and then exponential 
-						// time consuming
-						for(int a : vst2) {
-							s_a = this.statespace[a].state;
-							for(int b : vst) { 
-								st_b = this.statespace[b].stateperm();
-								_t_ = st_b.length;
-								double[] prior = this.transProbs[i].prior[a][b];
-								A = Math.exp(Math.log(
-										fw1.probsMat[i][a]*
-										tp1.probsMat[a][b]*
-										dp1.emiss[b]*
-										bw1.probsMat[i][b])+
-										exp_c);
-								for(int l=0; l<_t_; l++) {
-									tmp = prior[l]*A;
-									s_b = st_b[l].state;
-									for(int m=0; m<_p_; m++) {
-										trans_count[s_a[m]][s_b[m]] += tmp;
-									}
-								}
-							}
-						}
-					} else { // exponential is safe
-						// ideal way but dangerous!!!
-						double exp = Math.exp(exp_c);
-						for(int a : vst2) {
-							s_a = this.statespace[a].state;
-							for(int b : vst) { 
-								st_b = this.statespace[b].stateperm();
-								_t_ = st_b.length;
-								double[] prior = this.transProbs[i].prior[a][b];
-								A = fw1.probsMat[i][a]*
-										tp1.probsMat[a][b]*
-										dp1.emiss[b]*
-										bw1.probsMat[i][b]*
-										exp;
-								for(int l=0; l<_t_; l++) {
-									tmp = prior[l]*A;
-									s_b = st_b[l].state;
-									for(int m=0; m<_p_; m++) {
-										trans_count[s_a[m]][s_b[m]] += tmp;
-									}
-								}
-							}
-						}
-					}
-				}
-				this.transProbs[i].posterior();
-			}
-			//toc = System.nanoTime();
-			//elapsed_trans += toc-tic;
-
-			//tic = System.nanoTime();
 			EP ep1 = this.compoundEmissProbs[i];
 			double[][] emiss_count = this.emissProbs[i].pseudo();
-			double[][] emissG = new double[_k_][_g_];
-			for(int j=0;j<_n_; j++) {
-				
-				Integer[] vst = this.validStateSpace.get(j);
+			//clear(emiss_count);
+			double[] emissG = new double[_g_];
+			
+			double[][] trans_count = this.transProbs[i].pseudo();
+			for(int j=0;j<N; j++) {
 				DP dp1 = this.dp[i][j];
-				FB fw1 = this.forward[j];
-				FB bw1 = this.backward[j];
-				
-				// ----founder haplotypes coefficients----
 				double coeff = dp1.isparent ? ((N-2)*founder_hap_coeff) : 1.0;
 				
-				double exp_c = fw1.logscale[i+1]+
-						bw1.logscale[i]-
-						fw1.probability;
-
-				for(int k : vst) {
-					Arrays.fill(emissG[k], 0);
-					for(int a=0; a<_d_; a++) {
-						Integer[] idx = dgMap.get(dosaS[a]);
+				for(int k=0;k<resample_no; k++) {
+					// transfer from stats_fr(om) to stats_to
+					int stats_fr = i==0 ? 0 : rs_path[j][i-1][k];
+					int stats_to = rs_path[j][i][k];
+					
+					double[] prior = this.transProbs[i].prior[stats_fr][stats_to];
+					s_a = this.statespace[stats_fr].state;
+					st_b = this.statespace[stats_to].stateperm;
+					_t_ = st_b.length;
+					for(int l=0; l<_t_; l++) {
+						tmp = coeff*prior[l];
+						s_b = st_b[l].state;
+						for(int m=0; m<_p_; m++)
+							trans_count[s_a[m]][s_b[m]] += tmp;
+					}
+					
+					Arrays.fill(emissG, 0);
+					for(int l=0; l<_d_; l++) {
+						Integer[] idx = dgMap.get(dosaS[l]);
 						for(int c : idx)
-							emissG[k][c] = dp1.likelihood[a]*
-								ep1.probsMat[k][c]/dp1.emiss[k];
+							emissG[c] = dp1.likelihood[l]*
+								ep1.probsMat[stats_to][c]/dp1.emiss[stats_to];
 					}
-				}
-				
-				if(exp_c>Constants.MAX_EXP_DOUBLE) {
-					// cannot calculate exponential directly
-					// logarithm and then exponential 
-					// time consuming
-					for(int a : vst) {
-						if(a==0) continue;
-						s_a = this.statespace[a].state;
-						for(int c=0; c<_g_; c++) {
-							/***
-							A = coeff*Math.exp(Math.log(
-									emissG[a][c]*
-									fw1.probsMat[i+1][a]*
-									bw1.probsMat[i][a])+
-									exp_c);
-							**/
-							// ----founder haplotypes coefficients----
-							A = coeff*Math.exp(Math.log(
-									emissG[a][c]*
-									fw1.probsMat[i+1][a]*
-									bw1.probsMat[i][a])+
-									exp_c);
-							s_l = genotype[c];
-							for(int l=0; l<_p_; l++) {
-								emiss_count[s_a[l]]
-										[alMap.get(s_l[l])] += A;
-							}
-						}
-					}
-				} else { // exponential is safe
-					// ideal way but dangerous!!!
-					double exp = Math.exp(exp_c);
-					for(int a : vst) {
-						if(a==0) continue;
-						s_a = this.statespace[a].state;
-						for(int c=0; c<_g_; c++) {
-							/***
-							A = emissG[a][c]*
-									fw1.probsMat[i+1][a]*
-									bw1.probsMat[i][a]*
-									exp;
-							 **/
-							// ----founder haplotypes coefficients----
-							A = coeff*emissG[a][c]*
-									fw1.probsMat[i+1][a]*
-									bw1.probsMat[i][a]*
-									exp;
-							
-							s_l = genotype[c];
-							for(int l=0; l<_p_; l++) {
-								emiss_count[s_a[l]]
-										[alMap.get(s_l[l])] += A;
-							}
-						}
+					
+					s_a = this.statespace[stats_to].state;
+					for(int c=0; c<_g_; c++) {
+						A = coeff*emissG[c];
+						s_l = genotype[c];
+						for(int l=0; l<_p_; l++)
+							emiss_count[s_a[l]][alMap.get(s_l[l])] += A;
 					}
 				}
 			}
+			
+			this.transProbs[i].posterior();
 			this.emissProbs[i].posterior();
-
-			//toc = System.nanoTime();
-			//elapsed_emiss += toc-tic;
 		}
-		
-		//System.out.println("elapsed emiss "+elapsed_emiss);
-		//System.out.println("elapsed trans "+elapsed_trans);
 	}
 
 	private void makeBackward() {
@@ -362,52 +252,6 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 			backward[i].probability(s);
 		}
 		return;
-	}
-
-	private void makeForward() {
-		// TODO Auto-generated method stub
-		int _m_ = this.dp.length+1;
-		int _n_ = this.dp[0].length;
-		int _k_ = this.statespace.length;
-		double tmp;
-		
-		for(int i=0; i<_n_; i++) {
-			double[][] probsMat = this.forward[i].probsMat;
-			probsMat[0][0] = 1.0;
-			Arrays.fill(probsMat[0], 1, _k_, 0);
-			Integer[] vst = this.validStateSpace.get(i);
-			
-			for(int j=1; j<_m_; j++) {
-				Arrays.fill(probsMat[j], 0);
-				TP tp1 = this.compoundTransProbs[j-1];
-				for(int k : vst) {
-					tmp = 0;
-					for(int a : vst)
-						tmp += probsMat[j-1][a]
-								*tp1.probsMat[a][k];
-					probsMat[j][k] = this.dp[j-1][i].emiss[k]*tmp;
-				}
-
-				this.forward[i].scale(j);
-			}
-			this.forward[i].probability(
-					StatUtils.sum(probsMat[_m_-1]));
-		}
-		return;
-	}
-
-	private void checkFW() {
-		// TODO Auto-generated method stub
-		if(iteration==0) return;
-
-		System.out.println(this.loglik()+"---"+this.loglik1());
-		for(int i=0; i<this.forward.length; i++) {
-			double r = Math.abs(this.forward[i].probability-
-					this.backward[i].probability);
-			if(r>1e-6)
-				System.out.println(i+" | "+r+
-						" --- FORWARD-BACKWARD PRECISION NOT RIGHT!!!");
-		}
 	}
 
 	private void makeBWT(String hmmFile) {
@@ -476,9 +320,6 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 			//this.vb = new Viterbi(this);
 			int _m_ = this.dp.length;
 			int _k_ = this.dp[0].length;
-			this.forward = new FB[_k_];
-			for(int i=0; i<_k_; i++) 
-				this.forward[i] = new FB(false, _m_+1, _n_);
 			this.backward = new FB[_k_];
 			for(int i=0; i<_k_; i++) 
 				this.backward[i] = new FB(true, _m_+1, _n_);
@@ -544,9 +385,6 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 		//this.vb = new Viterbi(this);
 		int _m_ = this.dp.length;
 		int _k_ = this.dp[0].length;
-		this.forward = new FB[_k_];
-		for(int i=0; i<_k_; i++) 
-			this.forward[i] = new FB(false, _m_+1, _n_);
 		this.backward = new FB[_k_];
 		for(int i=0; i<_k_; i++) 
 			this.backward[i] = new FB(true, _m_+1, _n_);
@@ -558,13 +396,7 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 	}
 
 	public double loglik() {
-		if(iteration==0)
-			return Double.NEGATIVE_INFINITY;
-		else {
-			double probability = 0;
-			for(FB fw : this.forward) probability += fw.probability;
-			return probability;
-		}
+		return loglik1();
 	}
 
 	public double loglik1() {
@@ -585,7 +417,7 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 		if(iteration==0)
 			logger.info(" hmm initialised.");
 		else {
-			for(FB fw : this.forward) probability += fw.probability;
+			for(FB bw : this.backward) probability += bw.probability;
 			logger.info(" log-likelihood "+probability);
 		}
 

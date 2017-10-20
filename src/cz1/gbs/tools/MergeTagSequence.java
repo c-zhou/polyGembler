@@ -32,6 +32,8 @@ public class MergeTagSequence extends Executor{
 		this.makeOutputDir();
 	}
 	
+	public MergeTagSequence() {}
+	
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub
