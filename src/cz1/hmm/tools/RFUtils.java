@@ -236,7 +236,7 @@ public abstract class RFUtils extends Executor {
 			for(int k=0; k<n; k++)
 				if(haps[k][i]==haps[k][j])
 					z++;
-			return z;
+			return Math.max(n/2+0.01, z);
 		}
 
 		private char[][][] readConjHaps(int[][] start_end_position) {

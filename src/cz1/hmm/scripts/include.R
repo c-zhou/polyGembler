@@ -335,7 +335,8 @@ traverse <- function(adj_matrix) {
 }
 
 genetic_linkage_map <- function(in_RData, in_map, out_file, 
-                                rf_thresh=.kosambi_r(.5), make_group=TRUE) {
+                                rf_thresh=.kosambi_r(.5), 
+								make_group=TRUE, check=FALSE) {
 
     load(in_RData)
     
@@ -391,12 +392,83 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
 
     o = list()
     nc = rep(NA,length(all_clusters_))
-
     for(i in 1:length(nc)) nc[i] = length(all_clusters_[[i]])
     nco = order(nc,decreasing=T)
     for(i in 1:length(nco)) {
         o[[i]] = ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
     }
+	
+	if(check) {
+		while(TRUE) {
+			sepeAll = list()
+			
+			br = TRUE
+			for(i in 1:length(o)) {
+				oo = o[[i]]
+				oR = as.numeric(oo$order)
+				oO = o[[i]]$oriO
+				sepe = rep(NA, length(oR)-1)
+				for(j in 1:(length(oR)-1)) {
+					c_1 = oO[2*j]
+					c_2 = oO[2*j+1]
+					distance_j =
+							if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+								distanceAll[indexMat[oR[j],oR[j+1]],1]
+							} else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+								distanceAll[indexMat[oR[j],oR[j+1]],2]
+							} else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+								distanceAll[indexMat[oR[j],oR[j+1]],3]
+							} else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+								distanceAll[indexMat[oR[j],oR[j+1]],4]
+							}
+					sepe[j] = distance_j
+				}
+				sepeAll[[length(sepeAll)+1]] = sepe
+				br = br&all(sepe<=rf_thresh)
+			}
+			
+			if(br) break
+			
+			all_clusters_ = list()
+			for(i in 1:length(o)) {
+				k = c(1,1)
+				new_clus = list()
+				sepe = sepeAll[[i]]
+				for(j in 1:(length(oR)-1)) {
+					if(sepe[j]>rf_thresh) {
+						a = length(new_clus)+1
+						new_clus[[a]] = rep(NA,2)
+						new_clus[[a]][1] = k[1]
+						new_clus[[a]][2] = k[2]
+						k[1] = j+1
+						k[2] = j+1
+					} else {
+						k[2] = k[2]+1
+					}
+				}
+				if(k[1]<=length(oR)) {
+					a = length(new_clus)+1
+					new_clus[[a]] = rep(NA,2)
+					new_clus[[a]][1] = k[1]
+					new_clus[[a]][2] = k[2]
+				}
+				
+				oR = as.numeric(oo$order)
+				for(j in 1:length(new_clus)) {
+					all_clusters_[[length(all_clusters_)+1]] = 
+							oR[new_clus[[j]][1]:new_clus[[j]][2]]
+				}
+			}
+			
+			o = list()
+			nc = rep(NA,length(all_clusters_))
+			for(i in 1:length(nc)) nc[i] = length(all_clusters_[[i]])
+			nco = order(nc,decreasing=T)
+			for(i in 1:length(nco)) {
+				o[[i]] = ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
+			}
+		}
+	}
    
 	mm = .read_map_file(in_map);
 	dC = mm$dC
