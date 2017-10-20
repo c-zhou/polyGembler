@@ -432,6 +432,8 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
 			
 			all_clusters_ = list()
 			for(i in 1:length(o)) {
+				oo = o[[i]]
+				oR = as.numeric(oo$order)
 				k = c(1,1)
 				new_clus = list()
 				sepe = sepeAll[[i]]
@@ -457,7 +459,7 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
 				oR = as.numeric(oo$order)
 				for(j in 1:length(new_clus)) {
 					all_clusters_[[length(all_clusters_)+1]] = 
-							oR[new_clus[[j]][1]:new_clus[[j]][2]]
+							c(oR[new_clus[[j]][1]:new_clus[[j]][2]])
 				}
 			}
 			
