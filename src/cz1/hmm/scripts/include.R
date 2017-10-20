@@ -541,8 +541,8 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
             }
         }
         if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j]="true"
-        cat(" -S "); cat(paste(sepe, collapse=":"))
-        cat(" -R "); cat(paste(reverse, collapse=":"))
+        cat(" -s "); cat(paste(sepe, collapse=":"))
+        cat(" -r "); cat(paste(reverse, collapse=":"))
         # cat(" ## "); cat(paste(oO, collapse="-"))
         cat("\n")
     }
