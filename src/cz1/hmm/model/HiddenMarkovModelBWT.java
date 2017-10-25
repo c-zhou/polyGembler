@@ -29,6 +29,7 @@ import org.apache.commons.math3.stat.StatUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import cz1.breeding.data.FullSiblings;
 import cz1.hmm.data.DataEntry;
 import cz1.hmm.model.HiddenMarkovModel.DP;
 import cz1.util.Algebra;
@@ -45,6 +46,8 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 	
 	// ----founder haplotypes coefficients----
 	private double founder_hap_coeff = 0.5;
+	// higher quality data get more weights for training the model
+	private double[][] weights;
 	
 	public HiddenMarkovModelBWT(DataEntry[] de, 
 			double[] seperation, 
@@ -54,6 +57,8 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 			double fh_coeff) {
 		super(de, seperation, reverse, trainExp, field);
 		this.founder_hap_coeff = fh_coeff;
+		this.makeWeightingCoeff();
+		
 		//this.trainAllExp();
 		this.makeBWT();
 		//this.makeViterbi();
@@ -67,7 +72,7 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 			boolean trainExp,
 			Field field) {
 		super(de, seperation, reverse, trainExp, field);
-		
+		this.makeWeightingCoeff();
 		//this.trainAllExp();
 		this.makeBWT();
 		//this.makeViterbi();
@@ -84,6 +89,7 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 			String hmmFile) {
 		super(de, seperation, reverse, trainExp, field);
 		this.founder_hap_coeff = fh_coeff;
+		this.makeWeightingCoeff();
 		this.makeBWT(hmmFile);
 	}
 	
@@ -94,9 +100,10 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 			Field field,
 			String hmmFile) {
 		super(de, seperation, reverse, trainExp, field);
+		this.makeWeightingCoeff();
 		this.makeBWT(hmmFile);
 	}
-
+	
 	public void train() {
 		iteration++;
 		logger.info("###################");
@@ -127,6 +134,64 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 		logger.info("update dp "+(tic[k-1]-tic[k-2])+"ns");
 		this.printExpTrain();
 		return;
+	}
+
+	private void makeWeightingCoeff() {
+		// TODO Auto-generated method stub
+		this.weights = new double[M][N];
+		
+		FullSiblings fullSib = new FullSiblings();
+		double[][] pvals = fullSib.calcDosaConfig(this.de, this.parent_i);
+		for(int i=0; i<M; i++) {
+			if(StatUtils.max(pvals[i])==0) {
+				Arrays.fill(weights[i], 1.0);
+				continue;
+			}
+			
+			final int p_i = Algebra.maxIndex(pvals[i]);
+			double[] weights_i = weights[i];
+			
+			// parental samples
+			if(!miss[i][this.parent_i[0]] && !miss[i][this.parent_i[1]]) {
+				int[] parentalDosa = fullSib.getParentalDosaByIndex(p_i);
+				double[] ll0 = this.dp[i][this.parent_i[0]].likelihood,
+						ll1 = this.dp[i][this.parent_i[1]].likelihood;
+				if( ll0[parentalDosa[0]]+ll1[parentalDosa[1]] < 
+						ll0[parentalDosa[1]]+ll1[parentalDosa[0]]) {
+					int tmp_i = parentalDosa[0];
+					parentalDosa[0] = parentalDosa[1];
+					parentalDosa[1] = tmp_i;
+				}
+				weights_i[parent_i[0]] = 1.0+founder_hap_coeff*ll0[parentalDosa[0]]*(N-2);
+				weights_i[parent_i[1]] = 1.0+founder_hap_coeff*ll1[parentalDosa[1]]*(N-2);
+			} else {
+				weights_i[parent_i[0]] = miss[i][this.parent_i[0]]?0.1:1.0;
+				weights_i[parent_i[1]] = miss[i][this.parent_i[1]]?0.1:1.0;
+			}
+			
+			boolean[] f1Dosa = fullSib.getF1DosaByIndex(p_i);
+			// f1 samples
+			for(int j=0; j<N; j++) {
+				if(this.pedigree[j]!=-1) continue;
+				int dosa = this.getDosage(i, j);
+				if(miss[i][j]) weights_i[j] = 0.1;
+				weights_i[j] = f1Dosa[dosa] ? 1.0 : 0.01;
+			}
+			
+			Algebra.normalize(weights_i);
+			Algebra.multiply(weights_i, N);
+		}
+	}
+
+	private boolean isMissing(int i, int j) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	private int getDosage(final int i, final int j) {
+		// TODO Auto-generated method stub
+		double[] ll = this.dp[i][j].likelihood;
+		return Algebra.maxIndex(ll);
 	}
 
 	protected void EM() {
@@ -238,7 +303,7 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 				FB bw1 = this.backward[j];
 				
 				// ----founder haplotypes coefficients----
-				double coeff = dp1.isparent ? ((N-2)*founder_hap_coeff) : 1.0;
+				double coeff = weights[i][j];
 				
 				double exp_c = fw1.logscale[i+1]+
 						bw1.logscale[i]-
@@ -417,35 +482,58 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 		try {
 			final ZipFile in = new ZipFile(hmmFile);
 
-			final BufferedReader br_trans = Utils.getBufferedReader(
-					in.getInputStream(in.getEntry("results_hmm/transitionModel.txt")));
 			this.transProbs = new TP[this.M];
-			transProbs[0] = new TP(this.statespace,
-					this.hs, -1, true, false, br_trans.readLine());
-			for(int i=1; i<this.M; i++) {
-				transProbs[i] = exp_b.contains(i) ? 
-						new TP(this.statespace, 
-								this.hs, this.distance[i-1], 
-								false, true, br_trans.readLine()) : 
-									new TP(this.statespace, 
-											this.hs, this.distance[i-1], 
-											false, false, br_trans.readLine());	
+			ZipEntry transEntry = in.getEntry("results_hmm/transitionModel.txt");
+			if(transEntry!=null) {
+				final BufferedReader br_trans = Utils.getBufferedReader(
+						in.getInputStream(transEntry));
+				transProbs[0] = new TP(this.statespace,
+						this.hs, -1, true, false, br_trans.readLine());
+				for(int i=1; i<this.M; i++) {
+					transProbs[i] = exp_b.contains(i) ? 
+							new TP(this.statespace, 
+									this.hs, this.distance[i-1], 
+									false, true, br_trans.readLine()) : 
+										new TP(this.statespace, 
+												this.hs, this.distance[i-1], 
+												false, false, br_trans.readLine());	
+				} 
+				br_trans.close();
+			} else {
+				transProbs[0] = new TP(this.statespace,
+						this.hs, -1, true, false);
+				for(int i=1; i<this.M; i++) {
+					transProbs[i] = exp_b.contains(i) ? 
+							new TP(this.statespace, 
+									this.hs, this.distance[i-1], 
+									false, true) : 
+										new TP(this.statespace, 
+												this.hs, this.distance[i-1], 
+												false, false);
+				}
 			}
 
-			br_trans.close();
-
-			final BufferedReader br_emiss = Utils.getBufferedReader(
-					in.getInputStream(in.getEntry("results_hmm/emissionModel.txt")));
 			this.emissProbs = new EP[this.M];
-			for(int i=0; i<this.M; i++) {
-				emissProbs[i] = new EP(
-						this.hs, 
-						this.obspace[i], 
-						this.bfrac[i],
-						br_emiss.readLine());
+			ZipEntry emissEntry = in.getEntry("results_hmm/emissionModel.txt");
+			if(emissEntry!=null) {
+				final BufferedReader br_emiss = Utils.getBufferedReader(
+						in.getInputStream(emissEntry));
+				for(int i=0; i<this.M; i++) {
+					emissProbs[i] = new EP(
+							this.hs, 
+							this.obspace[i], 
+							this.bfrac[i],
+							br_emiss.readLine());
+				}
+				br_emiss.close();
+			} else {
+				for(int i=0; i<this.M; i++) {
+					emissProbs[i] = new EP(
+							this.hs, 
+							this.obspace[i], 
+							this.bfrac[i]);
+				}
 			}
-			br_emiss.close();
-
 			in.close();
 
 			this.compoundTransProbs = new TP[this.M];

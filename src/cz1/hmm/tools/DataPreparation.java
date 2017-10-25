@@ -123,6 +123,7 @@ public class DataPreparation extends Executor {
 			out_file = myArgsEngine.getString("-o");
 		} else {
 			out_file = new File(vcf_in).getParent();
+			if(out_file==null) out_file = "./";
 		}
 	}
 

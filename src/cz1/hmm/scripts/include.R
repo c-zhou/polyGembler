@@ -242,8 +242,8 @@ nearest_neighbour_joining <- function(in_RData, out_file, nn=1, rf_thresh=.kosam
         }
 
         if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j+1]="true"
-        cat(" -S "); cat(paste(sepe, collapse=":"))
-        cat(" -R "); cat(paste(reverse, collapse=":"))
+        cat(" -s "); cat(paste(sepe, collapse=":"))
+        cat(" -r "); cat(paste(reverse, collapse=":"))
         cat("\n")
     }
     sink()

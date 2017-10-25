@@ -302,4 +302,10 @@ public class Algebra {
 				ds[i] : maximum) : maximum;
 		return maximum;
 	}
+
+	public static void multiply(double[] arr, double multiplier) {
+		// TODO Auto-generated method stub
+		for(int i=0; i<arr.length; i++)
+			arr[i] *= multiplier;
+	}
 }

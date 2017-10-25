@@ -53,12 +53,14 @@ public abstract class HiddenMarkovModel {
 	protected double[] distance;
 	protected TP[] transProbs;
 	protected EP[] emissProbs;
-
+	
 	protected String[] sample;
 	protected String[] parent;
+	protected int[] parent_i;
 	protected int N;
 	protected int M;
 	protected Viterbi vb[];
+	protected boolean[][] miss;
 
 	protected TP[] compoundTransProbs;
 	protected EP[] compoundEmissProbs;
@@ -259,11 +261,17 @@ public abstract class HiddenMarkovModel {
 	protected int[] pedigree() {
 		// TODO Auto-generated method stub
 		int pedigree[] = new int[this.sample.length];
+		this.parent_i = new int[this.parent.length];
 		Arrays.fill(pedigree, -1);
-		for(int i=0; i<pedigree.length; i++)
-			for(int j=0; j<this.parent.length; j++)
-				if(this.sample[i].equals(this.parent[j]))
+		Arrays.fill(this.parent_i, -1);
+		for(int i=0; i<pedigree.length; i++) {
+			for(int j=0; j<this.parent.length; j++) {
+				if(this.sample[i].equals(this.parent[j])) {
 					pedigree[i] = j;
+					parent_i[j] = i;
+				}
+			}
+		}
 		return pedigree;
 	}
 
@@ -628,6 +636,7 @@ public abstract class HiddenMarkovModel {
 	protected DP[][] makeDP() {
 		// TODO Auto-generated method stub
 		DP[][] dp = new DP[this.M][this.N];
+		miss = new boolean[this.M][this.N];
 		switch(this.field) {
 		
 		case GT:
@@ -636,8 +645,17 @@ public abstract class HiddenMarkovModel {
 			List<String[]> allele = this.de.getAllele();
 			if(gt==null) throw new RuntimeException("GT field not available!!! Try PL/GL (-L/--genotype-likelihood) or AD (-D/--allele-depth) option.");
 			for(int i=0; i<this.M; i++) {
+				Arrays.fill(miss[i], true);
 				for(int j=0; j<this.N; j++) {
-					dp[i][j] = new DP(VCFtools.fitGL(gt.get(i).get(j), allele.get(i)[0]),
+					double[] ll =  VCFtools.fitGL(gt.get(i).get(j), allele.get(i)[0]);
+					double l = 0;
+					for(int k=1; k<ll.length; k++) {
+						if(ll[k]!=l) {
+							miss[i][j] = false;
+							break;
+						}
+					}
+					dp[i][j] = new DP(ll,
 							this.statespace.length,
 							this.obspace[i].genotype.length,
 							isParent(this.sample[j]),
@@ -652,7 +670,15 @@ public abstract class HiddenMarkovModel {
 			if(gl==null) throw new RuntimeException("PL/GL feild not available!!! Try GT (-G/--genotype) or AD (-D/--allele-depth) option.");
 			for(int i=0; i<this.M; i++) {
 				for(int j=0; j<this.N; j++) {
-					dp[i][j] = new DP(gl.get(i).get(j),
+					double[] ll = gl.get(i).get(j);
+					double l = 0;
+					for(int k=1; k<ll.length; k++) {
+						if(ll[k]!=l) {
+							miss[i][j] = false;
+							break;
+						}
+					}
+					dp[i][j] = new DP(ll,
 							this.statespace.length,
 							this.obspace[i].genotype.length,
 							isParent(this.sample[j]),
@@ -667,7 +693,15 @@ public abstract class HiddenMarkovModel {
 			if(ad==null) throw new RuntimeException("AD feild not available!!! Try PL/GL (-L/--genotype-likelihood) or GT (-G/--genotype) options.");
 			for(int i=0; i<this.M; i++) {
 				for(int j=0; j<this.N; j++) {
-					dp[i][j] = new DP(VCFtools.fitGL(ad.get(i).get(j), Constants._ploidy_H),
+					double[] ll = VCFtools.fitGL(ad.get(i).get(j), Constants._ploidy_H);
+					double l = 0;
+					for(int k=1; k<ll.length; k++) {
+						if(ll[k]!=l) {
+							miss[i][j] = false;
+							break;
+						}
+					}
+					dp[i][j] = new DP(ll, 
 							this.statespace.length,
 							this.obspace[i].genotype.length,
 							isParent(this.sample[j]),
@@ -1059,6 +1093,8 @@ public abstract class HiddenMarkovModel {
 			double alpha = Math.max(Constants._mu_J_e*(1-e), Constants.eps);
 			double beta = Math.max(Constants._mu_J_e*e, Constants.eps);
 			this.exp = new BetaDistribution(Constants.rg, alpha, beta).sample();
+			// TODO should be a smaller number?
+			this.exp = Math.max(this.exp, 1e-3);
 			int z = Constants._haplotype_z/2;
 			this.alpha = new double[2][z];
 			//Dirichlet diri = new Dirichlet(distz(z), Constants._mu_alpha_e);

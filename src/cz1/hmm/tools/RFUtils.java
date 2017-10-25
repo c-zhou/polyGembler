@@ -169,9 +169,9 @@ public abstract class RFUtils extends Executor {
 							}
 							double[] rf = max(stats);
 							mininus(1, divide(rf, nF1*Constants._ploidy_H));
-							conjPairRFs.put(scaff_i+Constants.scaff_collapsed_str+scaff_j, rf);
+							// conjPairRFs.put(scaff_i+Constants.scaff_collapsed_str+scaff_j, rf);
 							
-							myLogger.info("conjugate pair: "+scaff_i+" "+scaff_j);
+							// myLogger.info("conjugate pair: "+scaff_i+" "+scaff_j);
 						}
 					}
 				}

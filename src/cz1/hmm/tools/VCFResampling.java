@@ -36,6 +36,7 @@ import org.apache.commons.math3.stat.StatUtils;
 
 import java.util.Map;
 
+import cz1.breeding.data.FullSiblings;
 import cz1.hmm.data.DataCollection;
 import cz1.hmm.data.DataEntry;
 import cz1.util.Algebra;
@@ -62,7 +63,6 @@ public class VCFResampling extends Executor {
 		this.ploidy = ploidy;
 		this.data_in = data_in;
 		this.data_out = data_out;
-		this.configure();
 	}
 
 	@Override
@@ -118,7 +118,6 @@ public class VCFResampling extends Executor {
 			ploidy = Integer.parseInt(myArgsEngine.getString("-p"));
 			Constants._ploidy_H = ploidy;
 		}
-		this.configure();
 		
 		if (myArgsEngine.getBoolean("-w")) {
 			String w_str = myArgsEngine.getString("-w");
@@ -168,36 +167,13 @@ public class VCFResampling extends Executor {
 		}
 	}
 	
-    private double[][] geno_freq_conf = null;
-    private double[] geno_ad_freq = null;
-    private int[][] parental_allele_dosage = null;
-    private final static Map<Double, Double> log_d = new HashMap<Double, Double>();
-    private static int[][] static_parental_allele_dosage = null;
-    final private static List<int[]> tmp_parental_allele_dosage = new ArrayList<int[]>();
-
-	private void configure() {
-		// TODO Auto-generated method stub
-		this.geno_freq_conf = this.configuration(this.ploidy);
-		this.parental_allele_dosage = static_parental_allele_dosage;
-		this.geno_ad_freq = new double[this.geno_freq_conf.length];
-		for(int j=0; j!=this.geno_freq_conf.length; j++) {
-			double af = 0;
-			for(int z=0; z<=this.ploidy; z++) 
-				af += (this.ploidy-z)*this.geno_freq_conf[j][z];
-			this.geno_ad_freq[j] = af/this.ploidy;
-		}
-
-		for(int j=0; j!=this.geno_freq_conf.length; j++)
-			for(int k=0; k!=this.geno_freq_conf[j].length; k++)
-                    log_d.put(this.geno_freq_conf[j][k],
-                            Math.log10(this.geno_freq_conf[j][k]));
-	}
-
 	final Map<String, int[]> snp_out = new HashMap<String, int[]>();
 	
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
+		FullSiblings fullSib = new FullSiblings(this.ploidy);
+		
 		final List<String> contigs = DataCollection.getContigList(data_in);
 		final List<String> samples = DataCollection.getSampleList(data_in);
 		int[] founder_index = new int[2];
@@ -221,7 +197,7 @@ public class VCFResampling extends Executor {
 				continue;
 			}
 			
-			double[] segs = calcSegs(data);
+			double[] segs = fullSib.calcSegs(data, founder_index);
 			int l = 0;
 			
 			final Map<Integer, List<Integer>> bins = new HashMap<Integer, List<Integer>>();
@@ -281,54 +257,6 @@ public class VCFResampling extends Executor {
 			N += entry.getValue().length;
 		System.err.println(N+" SNPs reserved.");
 		write();
-	}
-
-	private double[] calcSegs(DataEntry data) {
-		// TODO Auto-generated method stub
-		int no = data.modelLength();
-		double[] segs = new double[no];
-		List<String[]> alleles = data.getAllele();
-		if(data.getGenotype()!=null) {
-			List<List<String[]>> genotypes = data.getGenotype();
-			for(int i=0; i!=no; i++) {
-				long[] observation = new long[this.ploidy+1];
-				List<String[]> genotype = genotypes.get(i);
-				String a = alleles.get(i)[1];
-				for(String[] geno : genotype) {
-					int iz = baCount(geno, a);
-					if(iz!=-1) observation[iz]++;
-				}
-				
-				double[] chisq_p = new double[geno_freq_conf.length];
-                for(int z=0; z!=geno_freq_conf.length; z++)
-                    chisq_p[z] = TestUtils.chiSquareTest(geno_freq_conf[z], observation);
-                /***
-                int iz = Algebra.maxIndex(chisq_p);
-                if(chisq_p[iz]==0) throw new RuntimeException("!!!");
-                int[] dosa = this.parental_allele_dosage[iz];
-                segs[i] = Math.abs(ploidy/2-dosa[0])+Math.abs(ploidy/2-dosa[1]);
-			    **/
-
-                segs[i] = 1-StatUtils.max(chisq_p);
-            }
-		} else if(data.getGenotypeLikelihood()!=null) {
-			throw new RuntimeException("Not implemented yet!!!");
-		} else if(data.getAlleleDepth()!=null) {
-			throw new RuntimeException("Not implemented yet!!!");
-		} else {
-			throw new RuntimeException("Truncated data entry!!!");
-		}
-		return segs;
-	}
-
-	private int baCount(String[] genotype, String allele) {
-		// TODO Auto-generated method stub
-		int ba = 0;
-		if(genotype[0].equals(".")) 
-			return -1;
-		for(String g : genotype) 
-			if(g.equals(allele)) ba++;
-		return ba;
 	}
 
 	private void write() {
@@ -399,88 +327,4 @@ public class VCFResampling extends Executor {
 			e.printStackTrace();
 		}
 	}
-
-	private double[][] configuration(int h) {
-
-        tmp_parental_allele_dosage.clear();
-        int g = h+1;
-        char[][] genotypes = new char[g][h];
-        for(int i=0; i<g; i++) {
-            Arrays.fill(genotypes[i], 0, h-i, 'A');
-            Arrays.fill(genotypes[i], h-i, h, 'B');
-        }
-        List<double[]> configs = new ArrayList<double[]>();
-        for(int i=0; i<g; i++) {
-            int[] gameteA = this.gamete(genotypes[i]);
-            for(int j=i; j<g; j++) {
-                //if( i==0&&j==0 ||
-                //  i==0&&j==(g-1)||
-                //  i==(g-1)&&j==(g-1) )
-                //  //two homozygotes
-                //  continue;
-                //else {
-                int[] gameteB = this.gamete(genotypes[j]);
-                double[] os = new double[g];
-                for(int k=0; k<gameteA.length; k++)
-                    for(int l=0; l<gameteB.length; l++)
-                        os[gameteA[k]+gameteB[l]] += 1.0;
-
-                addConf(configs, normalize(Algebra.normalize(os),
-                        Constants.seq_err), h-i, h-j);
-                //}
-            }
-        }
-        double[][] conf = new double[configs.size()][g];
-        for(int i=0; i<configs.size(); i++) conf[i] = configs.get(i);
-        static_parental_allele_dosage = new int[tmp_parental_allele_dosage.size()][2];
-        for(int i=0; i<static_parental_allele_dosage.length; i++)
-            static_parental_allele_dosage[i] = tmp_parental_allele_dosage.get(i);
-        return conf;
-    }
-    
-    private double[] normalize(double[] norm_arr, double seqErr) {
-        // TODO Auto-generated method stub
-        int a = norm_arr.length;
-        double[] arr_copy = new double[a];
-        System.arraycopy(norm_arr, 0, arr_copy, 0, a);
-        for(int i=0; i!=a; i++)
-            arr_copy[i] = arr_copy[i]*(1-seqErr)+(1-norm_arr[i])*seqErr/(a-1);
-        return arr_copy;
-    }
-
-    private double[][] configuration() {
-        return this.configuration(this.ploidy);
-    }
-
-    private void addConf(List<double[]> configs,
-            double[] norm, int p1, int p2) {
-        // TODO Auto-generated method stub
-        boolean exist = false;
-        for(int i=0; i<configs.size(); i++) {
-            double[] a = configs.get(i);
-            boolean y = true;
-            for(int j=0; j<a.length; j++) {
-                y = y && a[j]==norm[j];
-            }
-            exist = y;
-        }
-        if(!exist) {
-            configs.add(norm);
-            tmp_parental_allele_dosage.add(new int[]{p1, p2});
-        }
-    }
-
-    private int[] gamete(char[] genotype) {
-        // TODO Auto-generated method stub
-        List<List<Character>> gametes =
-                Combination.combination(
-                        ArrayUtils.toObject(genotype),
-                        genotype.length/2);
-        int[] a = new int[gametes.size()];
-        for(int j=0; j<a.length; j++)
-            for(int k=0; k<gametes.get(j).size(); k++)
-                if(gametes.get(j).get(k)=='A')
-                    a[j] += 1.0;
-        return a;
-    }
 }
