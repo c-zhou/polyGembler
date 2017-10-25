@@ -180,6 +180,8 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 			
 			Algebra.normalize(weights_i);
 			Algebra.multiply(weights_i, N);
+			
+			Utils.print(this.weights);
 		}
 	}
 
