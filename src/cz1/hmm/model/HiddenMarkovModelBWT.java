@@ -180,9 +180,8 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 			
 			Algebra.normalize(weights_i);
 			Algebra.multiply(weights_i, N);
-			
-			Utils.print(this.weights);
 		}
+		Utils.print(this.weights);
 	}
 
 	private boolean isMissing(int i, int j) {
