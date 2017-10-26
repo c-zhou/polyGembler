@@ -20,7 +20,9 @@
 package cz1.util;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A reusable solution for Command Line Arguments Parsing in Java.
@@ -61,6 +63,7 @@ public class ArgsEngine {
      * Holds all options configured.
      */
     private Map<String, Option> options = new HashMap<String, Option>();
+    private Map<String, WildOption> wildOptions = new HashMap<String, WildOption>();
     /**
      * Indicates if the parse method has been called.
      */
@@ -76,8 +79,27 @@ public class ArgsEngine {
     public void add(String shortForm, String longForm) {
         this.add(shortForm, longForm, false);
     }
+   
+    public void addWildOptions(String shortForm, boolean valued) {
+        this.addWildOptions(shortForm, null, valued);
+    }
+    
+    public void addWildOptions(String shortForm) {
+        this.addWildOptions(shortForm, null, false);
+    }
+    
+    public void addWildOptions(String shortForm, String longForm) {
+        this.addWildOptions(shortForm, longForm, false);
+    }
 
-    /**
+    private void addWildOptions(String shortForm, String longForm, boolean valued) {
+		// TODO Auto-generated method stub
+    	WildOption option = new WildOption(shortForm, longForm, valued);
+    	if(shortForm!=null) this.wildOptions.put(shortForm, option);
+        if(longForm!=null) this.wildOptions.put(longForm, option);
+	}
+
+	/**
      * Configures the engine by adding options.
      *
      * @param shortForm the short form of an option. Example: "-h".
@@ -105,29 +127,36 @@ public class ArgsEngine {
     public void parse(String[] args) {
         this.parseCalled = true;
 
-        for (int i = 0; i < args.length; i++) {
-            String arg = args[i];
+        outerloop:
+        	for (int i = 0; i < args.length; i++) {
+        		String arg = args[i];
 
-            // An option.
-            if ((arg.startsWith("--") || arg.startsWith("-"))
-                    && this.options.containsKey(arg)) {
-                Option option = this.options.get(arg);
+        		// An option.
+        		if ((arg.startsWith("--") || arg.startsWith("-"))
+        				&& this.options.containsKey(arg)) {
+        			Option option = this.options.get(arg);
 
-                if (option.isValued()) {
-                    // This is the last arg.
-                    if (i + 1 >= args.length) {
-                        throw new RuntimeException("Value required for option "
-                                + arg);
-                    }
+        			if (option.isValued()) {
+        				// This is the last arg.
+        				if (i + 1 >= args.length) {
+        					throw new RuntimeException("Value required for option "
+        							+ arg);
+        				}
 
-                    option.setValue(args[++i]);
-                } else {
-                    option.setValue("not-null");
-                }
-            } else {
-                throw new RuntimeException("Unrecognized option " + arg);
-            }
-        }
+        				option.setValue(args[++i]);
+        			} else {
+        				option.setValue("not-null");
+        			}
+        		} else {
+        			for(String key : this.wildOptions.keySet()) {
+        				if(arg.matches(key)) {
+        					if(this.wildOptions.get(key).valued) ++i;
+        					continue outerloop;
+        				}
+        			}
+        			throw new RuntimeException("Unrecognized option " + arg);
+        		}
+        	}
     }
 
     /**
@@ -168,6 +197,41 @@ public class ArgsEngine {
 
         return option != null ? option.getValue() != null : false;
     }
+    
+    private static class WildOption extends Option {
+
+        /**
+         * Constructs an instance of <tt>Option</tt> taking the short and
+         * long forms provided.
+         *
+         * @param shortForm the short form.
+         *
+         * @param longForm the long form.
+         */
+        public WildOption(String shortForm, String longForm) {
+            super(shortForm, longForm);
+        }
+
+        public WildOption(String form) {
+        	super(form, null);
+        }
+        
+        /**
+         * Constructs an instance of <tt>Option</tt> taking the short and
+         * long forms provided.
+         *
+         * @param shortForm the short form.
+         *
+         * @param longForm the long form.
+         */
+        public WildOption(String shortForm, String longForm, boolean valued) {
+        	super(shortForm, longForm, valued);
+        }
+
+        public WildOption(String shortForm, boolean valued) {
+        	super(shortForm, null, valued);
+        }
+    }
 
     /**
      * An object for representing and manipulating with the options.
@@ -183,19 +247,19 @@ public class ArgsEngine {
         /**
          * Short form of the option.
          */
-        private String shortForm;
+        protected String shortForm;
         /**
          * Long form of the option.
          */
-        private String longForm;
+        protected String longForm;
         /**
          * Indicates if the option is valued.
          */
-        private boolean valued;
+        protected boolean valued;
         /**
          * The value of a valued option.
          */
-        private String value;
+        protected String value;
 
         /**
          * Constructs an instance of <tt>Option</tt> taking the short and

@@ -14,6 +14,7 @@ import cz1.hmm.tools.Resampler;
 import cz1.hmm.tools.SuperScaffoldConstructor;
 import cz1.hmm.tools.VCFResampling;
 import cz1.ngs.assembly.GenomeAssemblyTiling;
+import cz1.ngs.tools.HetCorr;
 import cz1.simulation.tools.GBSSimulator;
 import cz1.simulation.tools.PopulationSimulator;
 
@@ -96,6 +97,11 @@ public class PolyGembler {
 			dataResampler.setParameters(args2);
 			dataResampler.run();
 			break;
+		case "datacorrection":
+			HetCorr hetCorr = new HetCorr();
+			hetCorr.setParameters(args2);
+			hetCorr.run();
+			break;
 		default:
 			printUsage();
 			throw new RuntimeException("Undefined tool!!!");
@@ -118,6 +124,7 @@ public class PolyGembler {
 						+ " nnss                Make 1-nearest neighbour superscaffolds.\n"
 						+ " map                 Contruct linkage maps.\n"
 						+ " dataresampling      Resample from ZIP data.\n"
+						+ " datacorrection      Heterozygosity and sequencing errors correction.\n"
 						+ " gembler             Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.\n\n");
 	}
 }

@@ -28,5 +28,6 @@
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/git/polyGembler/lib/junit-4.12.jar"/>
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/git/polyGembler/lib/xmlunit-1.6.jar"/>
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/git/polyGembler/lib/jgraph-5.13.0.0.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/git/polyGembler/lib/htsjdk-2.12.0.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
