@@ -230,7 +230,7 @@ public class Population {
 					for(int l=0; l<loci.size(); l++) {
 						pos = SNPs2PosMap.get(loci.get(l).getLocusName());
 						str2write = indall[h][l];
-						while(j0+CHUNK_SIZE <= pos) {
+						while(j0+CHUNK_SIZE < pos) {
 							bw.write(chr.getDnaSEQ().substring(j0,j0+CHUNK_SIZE)+NLS);
 							j0 += CHUNK_SIZE;
 						}
