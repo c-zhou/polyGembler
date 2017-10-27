@@ -1631,8 +1631,8 @@ public class HetCorr extends Executor {
 
 		public SECorrecter(String sortedFastqIn, String sortedCorrIn, String faOutPrefix) {
 			// TODO Auto-generated constructor stub
-			this.sorted_corrIn = sortedFastqIn;
 			this.sorted_fastqIn = sortedFastqIn;
+			this.sorted_corrIn = sortedCorrIn;
 			this.out_prefix = faOutPrefix;
 		}
 
