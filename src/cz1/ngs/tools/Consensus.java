@@ -68,7 +68,7 @@ public class Consensus extends Executor {
 						+ " --w<#>                  Inverse weight of the links from this library (<#> = 1,2,...).\n"
 						+ "                         This parameter defines the minimum number of links in this library are required \n"
 						+ "                         to confirm a consensus. Generally larger insert size libraries are less realiable \n"
-						+ "                         thus a larger number should be assigned. "
+						+ "                         thus a larger number should be assigned. \n"
 						+ "                         NOTE: if multiple libraries (BAM files) are provided, the weights are summed. \n"
 						+ "                               If the total weight is no less than 1, the consensus is confirmed.\n"
 						+ "                         FOR EXAMPLE: --w1 3 --w2 5 --w3 10. To confirm a consensus, \n"
@@ -83,7 +83,7 @@ public class Consensus extends Executor {
 						+ "                         Reduce this number if run out of memory.\n"
 						+ " -t/--threads            Threads to use (default 1). \n"
 						+ "                         The maximum number of threads to use will be the number of BAM files.\n"
-						+ " -l/--min-size           Minimum size of scaffolds to output (default 0)."
+						+ " -l/--min-size           Minimum size of scaffolds to output (default 0). \n"
 						+ " -o/--out                Prefix of the output FASTQ file.\n"
 						+ "\n");
 	}
