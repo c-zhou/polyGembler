@@ -14,6 +14,7 @@ import cz1.hmm.tools.Resampler;
 import cz1.hmm.tools.SuperScaffoldConstructor;
 import cz1.hmm.tools.VCFResampling;
 import cz1.ngs.assembly.GenomeAssemblyTiling;
+import cz1.ngs.tools.Consensus;
 import cz1.ngs.tools.HetCorr;
 import cz1.simulation.tools.GBSSimulator;
 import cz1.simulation.tools.PopulationSimulator;
@@ -102,6 +103,11 @@ public class PolyGembler {
 			hetCorr.setParameters(args2);
 			hetCorr.run();
 			break;
+		case "consensus":
+			Consensus consensus = new Consensus();
+			consensus.setParameters(args2);
+			consensus.run();
+			break;
 		default:
 			printUsage();
 			throw new RuntimeException("Undefined tool!!!");
@@ -125,6 +131,7 @@ public class PolyGembler {
 						+ " map                 Contruct linkage maps.\n"
 						+ " dataresampling      Resample from ZIP data.\n"
 						+ " datacorrection      Heterozygosity and sequencing errors correction.\n"
+						+ " consensus           Consensus with paired reads link analysis.\n"
 						+ " gembler             Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.\n\n");
 	}
 }

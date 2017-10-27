@@ -124,7 +124,7 @@ public class HetCorr extends Executor {
 							+ " --s<#>                  Input single-end FASTQ file (<#> = 1,2,...).\n"
 							+ " --c<#>                  Input CORR file.\n"
 							+ " -t/--threads            Threads to use (default: 1).\n"
-							+ " -o/--out                Prefix of the output FASTA file.\n"
+							+ " -o/--out                Prefix of the output FASTQ file.\n"
 							+ "\n");
 			break;
 		case corrp:
@@ -134,7 +134,7 @@ public class HetCorr extends Executor {
 							+ " --pe<#>-2               Input  paired-end reverse FASTQ file (<#> = 1,2,...).\n"
 							+ " --c<#>                  Input CORR file.\n"
 							+ " -t/--threads            Threads to use (default: 1).\n"
-							+ " -o/--out                Prefix of the output FASTA file.\n"
+							+ " -o/--out                Prefix of the output FASTQ file.\n"
 							+ "\n");
 			break;
 		case all:
@@ -665,7 +665,7 @@ public class HetCorr extends Executor {
 						replaceAll(".fq.gz$", "").
 						replaceAll(".fastq.gz$", "").
 						replaceAll(".fastq", "").
-						replaceAll(".fq$", "")+"_corrected.fa.gz";
+						replaceAll(".fq$", "")+"_corrected";
 				if(new File(out).exists())
 					throw new RuntimeException("Cannot write File!!! Output file "+out+"existed!!!");
 				myLogger.info("Writing to "+out);
@@ -679,7 +679,7 @@ public class HetCorr extends Executor {
 				String q1 = this.paired_fq[i][0], q2 = this.paired_fq[i][1];
 				int j = 0;
 				while(q1.charAt(j)==q2.charAt(j)) j++;
-				String out = this.out_prefix+new File(q1.substring(0, j)).getName();
+				String out = this.out_prefix+new File(q1.substring(0, j)).getName()+"_corrected";
 				if(new File(out).exists())
 					throw new RuntimeException("Cannot write File!!! Output file "+out+"existed!!!");
 				myLogger.info("Writing to "+out);
@@ -827,7 +827,7 @@ public class HetCorr extends Executor {
 						replaceAll(".fq.gz$", "").
 						replaceAll(".fastq.gz$", "").
 						replaceAll(".fastq", "").
-						replaceAll(".fq$", "")+"_corrected.fa.gz";
+						replaceAll(".fq$", "")+"_corrected";
 				if(new File(out).exists())
 					throw new RuntimeException("Cannot write File!!! Output file "+out+"existed!!!");
 				myLogger.info("Writing to "+out);
@@ -839,7 +839,7 @@ public class HetCorr extends Executor {
 				String q1 = this.paired_fq[i][0], q2 = this.paired_fq[i][1];
 				int j = 0;
 				while(q1.charAt(j)==q2.charAt(j)) j++;
-				String out = this.out_prefix+new File(q1.substring(0, j)).getName();
+				String out = this.out_prefix+new File(q1.substring(0, j)).getName()+"_corrected";
 				if(new File(out).exists())
 					throw new RuntimeException("Cannot write File!!! Output file "+out+"existed!!!");
 				myLogger.info("Writing to "+out);
@@ -1439,6 +1439,18 @@ public class HetCorr extends Executor {
 		}
 	}
 
+	private final static String qual5 = 
+			  "555555555555555555555555555555555555555555555555555555555555"
+			+ "555555555555555555555555555555555555555555555555555555555555"
+			+ "555555555555555555555555555555555555555555555555555555555555"
+			+ "555555555555555555555555555555555555555555555555555555555555"
+			+ "555555555555555555555555555555555555555555555555555555555555"
+			+ "555555555555555555555555555555555555555555555555555555555555"
+			+ "555555555555555555555555555555555555555555555555555555555555"
+			+ "555555555555555555555555555555555555555555555555555555555555"
+			+ "555555555555555555555555555555555555555555555555555555555555"
+			+ "555555555555555555555555555555555555555555555555555555555555";
+	
 	private final class PECorrecter implements Runnable {
 
 		private final String[] sortedFastqIn;
@@ -1463,15 +1475,15 @@ public class HetCorr extends Executor {
 				brFq[1] = Utils.getBufferedReader(sortedFastqIn[1]);
 				BufferedReader brCorr = Utils.getBufferedReader(sortedCorrIn);
 				final BufferedWriter[] bwOut = new BufferedWriter[2];
-				bwOut[0] = Utils.getBufferedWriter(faOutPrefix+".R1.fa");
-				bwOut[1] = Utils.getBufferedWriter(faOutPrefix+".R2.fa");
+				bwOut[0] = Utils.getBufferedWriter(faOutPrefix+".R1.fastq");
+				bwOut[1] = Utils.getBufferedWriter(faOutPrefix+".R2.fastq");
 
 				final List<List<CorrRecord>> buffered_corr = new ArrayList<List<CorrRecord>>();
 				List<CorrRecord> buff;
 				buffered_corr.add(new ArrayList<CorrRecord>()); // first read
 				buffered_corr.add(new ArrayList<CorrRecord>()); // second read
 				String corr_line = brCorr.readLine(), fq_line;
-				String seq_id, seq_id_plus_comma, fq_id, fa_id, seq_ori, seq_sub;
+				String seq_id, seq_id_plus_comma, fq_id, seq_ori, seq_sub;
 				final String[] seq_pair = new String[2];
 				final StringBuilder seq_sb = new StringBuilder();
 				int shift, offset, seq_pos, oriS, subS, seqS;
@@ -1488,15 +1500,14 @@ public class HetCorr extends Executor {
 					}
 
 					fq_id = "@"+seq_id;
-					fa_id = ">"+seq_id+"\n";
 					Arrays.fill(seq_pair, null);
 					int skipped_lnno = 0;
 					fq_line = brFq[0].readLine();
 					while( !fq_line.startsWith(fq_id) ) {
-						bwOut[0].write(">"+fq_line.split("\\s+")[0].substring(1)+"\n");
+						bwOut[0].write(fq_line+"\n");
 						bwOut[0].write(brFq[0].readLine()+"\n");
-						brFq[0].readLine();
-						brFq[0].readLine();
+						bwOut[0].write(brFq[0].readLine()+"\n");
+						bwOut[0].write(brFq[0].readLine()+"\n");
 						fq_line = brFq[0].readLine();
 						skipped_lnno++;
 					}
@@ -1505,10 +1516,10 @@ public class HetCorr extends Executor {
 					brFq[0].readLine();
 
 					for(int i=0; i!=skipped_lnno; i++) {
-						bwOut[1].write(">"+brFq[1].readLine().split("\\s+")[0].substring(1)+"\n");
 						bwOut[1].write(brFq[1].readLine()+"\n");
-						brFq[1].readLine();
-						brFq[1].readLine();
+						bwOut[1].write(brFq[1].readLine()+"\n");
+						bwOut[1].write(brFq[1].readLine()+"\n");
+						bwOut[1].write(brFq[1].readLine()+"\n");
 					}
 					brFq[1].readLine();
 					seq_pair[1] = brFq[1].readLine();
@@ -1521,8 +1532,10 @@ public class HetCorr extends Executor {
 					for(int i=0; i!=2; i++) {
 						buff = buffered_corr.get(i);
 						if(buff.isEmpty()) {
-							bwOut[i].write(fa_id);
+							bwOut[i].write(fq_id+"\n");
 							bwOut[i].write(seq_pair[i]+"\n");
+							bwOut[i].write("+\n");
+							bwOut[i].write(qual5.substring(0, seq_pair[i].length())+"\n");
 							continue;
 						}
 						Collections.sort(buff);
@@ -1576,19 +1589,20 @@ public class HetCorr extends Executor {
 								throw new RuntimeException("!!!");
 							}
 						}
-						seq_sb.append("\n");
-
-						bwOut[i].write(fa_id);
-						bwOut[i].write(seq_sb.toString());
+						
+						bwOut[i].write(fq_id+"\n");
+						bwOut[i].write(seq_sb.toString()+"\n");
+						bwOut[i].write("+\n");
+						bwOut[i].write(qual5.substring(0, seq_sb.length())+"\n");
 					}
 				}
 
 				for(int i=0; i!=2; i++) {
 					while( (fq_line=brFq[i].readLine())!=null ) {
-						bwOut[i].write(">"+fq_line.split("\\s+")[0].substring(1)+"\n");
+						bwOut[i].write(fq_line+"\n");
 						bwOut[i].write(brFq[i].readLine()+"\n");
-						brFq[i].readLine();
-						brFq[i].readLine();
+						bwOut[i].write(brFq[i].readLine()+"\n");
+						bwOut[i].write(brFq[i].readLine()+"\n");
 					}
 				}
 
@@ -1628,11 +1642,11 @@ public class HetCorr extends Executor {
 			try {
 				final BufferedReader brFq = Utils.getBufferedReader(sorted_fastqIn);
 				BufferedReader brCorr = Utils.getBufferedReader(sorted_corrIn);
-				final BufferedWriter bwOut = Utils.getBufferedWriter(out_prefix+".fa");
+				final BufferedWriter bwOut = Utils.getBufferedWriter(out_prefix+".fastq");
 
 				final List<CorrRecord> buffered_corr = new ArrayList<CorrRecord>();
 				String corr_line = brCorr.readLine(), fq_line;
-				String seq_id, seq_str, seq_id_plus_comma, fq_id, fa_id, seq_ori, seq_sub;
+				String seq_id, seq_str, seq_id_plus_comma, fq_id, seq_ori, seq_sub;
 				final StringBuilder seq_sb = new StringBuilder();
 				int shift, offset, seq_pos, oriS, subS, seqS;
 				while( corr_line!=null ) {
@@ -1649,14 +1663,13 @@ public class HetCorr extends Executor {
 					}
 
 					fq_id = "@"+seq_id;
-					fa_id = ">"+seq_id+"\n";
 
 					fq_line = brFq.readLine();
 					while( !fq_line.startsWith(fq_id) ) {
-						bwOut.write(">"+fq_line.split("\\s+")[0].substring(1)+"\n");
+						bwOut.write(fq_line+"\n");
 						bwOut.write(brFq.readLine()+"\n");
-						brFq.readLine();
-						brFq.readLine();
+						bwOut.write(brFq.readLine()+"\n");
+						bwOut.write(brFq.readLine()+"\n");
 						fq_line = brFq.readLine();
 					}
 					seq_str = brFq.readLine();
@@ -1664,8 +1677,10 @@ public class HetCorr extends Executor {
 					brFq.readLine();
 
 					if(buffered_corr.isEmpty()) {
-						bwOut.write(fa_id);
+						bwOut.write(fq_id+"\n");
 						bwOut.write(seq_str+"\n");
+						bwOut.write("+\n");
+						bwOut.write(qual5.substring(0, seq_str.length())+"\n");
 						continue;
 					}
 					Collections.sort(buffered_corr);
@@ -1720,17 +1735,18 @@ public class HetCorr extends Executor {
 							throw new RuntimeException("!!!");
 						}
 					}
-					seq_sb.append("\n");
 
-					bwOut.write(fa_id);
-					bwOut.write(seq_sb.toString());
+					bwOut.write(fq_id+"\n");
+					bwOut.write(seq_sb.toString()+"\n");
+					bwOut.write("+\n");
+					bwOut.write(qual5.substring(0, seq_sb.length())+"\n");
 				}
 
 				while( (fq_line=brFq.readLine())!=null ) {
-					bwOut.write(">"+fq_line.split("\\s+")[0].substring(1)+"\n");
+					bwOut.write(fq_line+"\n");
 					bwOut.write(brFq.readLine()+"\n");
-					brFq.readLine();
-					brFq.readLine();
+					bwOut.write(brFq.readLine()+"\n");
+					bwOut.write(brFq.readLine()+"\n");
 				}
 
 				brFq.close();
