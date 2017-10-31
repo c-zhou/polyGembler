@@ -27,6 +27,7 @@ import java.util.zip.GZIPOutputStream;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 
+import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
 import cz1.util.Utils;
@@ -877,15 +878,7 @@ public class HetCorr extends Executor {
 			.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
 					SamReaderFactory.Option.VALIDATE_CRC_CHECKSUMS)
 			.validationStringency(ValidationStringency.SILENT);
-	private final static char[] nucleotide = new char[]{'A','C','G','T'};
-	private final static Map<Character, Character> revcmp = new HashMap<Character, Character>();
-	static {
-		revcmp.put('A', 'T');
-		revcmp.put('C', 'G');
-		revcmp.put('G', 'C');
-		revcmp.put('T', 'A');
-		revcmp.put('N', 'N');
-	}
+	
 	private final static int max_seq_length = 300; 
 	private final static boolean check = false;
 	private final static int[] check_stats = new int[10];
@@ -964,7 +957,7 @@ public class HetCorr extends Executor {
 		// TODO Auto-generated method stub
 		StringBuilder rev = new StringBuilder();
 		for(char b : ins_seq.toCharArray())
-			rev.append(revcmp.get(b));
+			rev.append(Sequence.revcmp.get(b));
 		return rev.reverse().toString();
 	}
 
@@ -1923,7 +1916,7 @@ public class HetCorr extends Executor {
 									if(nucl!='D') {
 										if(record.getReadNegativeStrandFlag()) {
 											//System.out.println("File "+i+","+record.getReadName()+","+(len_seq-tmp_int-ht_hc[0]-1)+","+revcmp.get(nucl)+",,D");
-											corrOut[i].write(record.getReadName()+","+pair_flag+","+(len_seq-tmp_int-ht_hc[0])+","+revcmp.get(nucl)+",,D\n");
+											corrOut[i].write(record.getReadName()+","+pair_flag+","+(len_seq-tmp_int-ht_hc[0])+","+Sequence.revcmp.get(nucl)+",,D\n");
 										} else {
 											//System.out.println("File "+i+","+record.getReadName()+","+(tmp_int+ht_hc[0])+","+nucl+",,D");
 											corrOut[i].write(record.getReadName()+","+pair_flag+","+(tmp_int+ht_hc[0]-1)+","+nucl+",,D\n");
@@ -1934,7 +1927,7 @@ public class HetCorr extends Executor {
 							}
 						} else {
 							// will choose a substitution/nucleotide base
-							nucl2 = nucleotide[sel];
+							nucl2 = Sequence.nucleotide[sel];
 							int shift;
 							for(int i=0; i!=buffer.length; i++) {
 								tmp_set = record_pool.get(i);
@@ -1955,7 +1948,7 @@ public class HetCorr extends Executor {
 										}
 										if(record.getReadNegativeStrandFlag()) {
 											//System.out.println("File "+i+","+record.getReadName()+","+(len_seq-tmp_int-ht_hc[0]-2)+","+shift+","+revcmp.get(nucl2)+",I");
-											corrOut[i].write(record.getReadName()+","+pair_flag+","+(len_seq-tmp_int-ht_hc[0]-1)+",-"+shift+","+revcmp.get(nucl2)+",I\n");
+											corrOut[i].write(record.getReadName()+","+pair_flag+","+(len_seq-tmp_int-ht_hc[0]-1)+",-"+shift+","+Sequence.revcmp.get(nucl2)+",I\n");
 										} else {
 											//System.out.println("File "+i+","+record.getReadName()+","+(tmp_int+ht_hc[0])+","+shift+","+nucl2+",I");
 											corrOut[i].write(record.getReadName()+","+pair_flag+","+(tmp_int+ht_hc[0]-1)+","+shift+","+nucl2+",I\n");
@@ -1964,7 +1957,7 @@ public class HetCorr extends Executor {
 									} else if(nucl!=nucl2) {
 										if(record.getReadNegativeStrandFlag()) {
 											//System.out.println("File "+i+","+record.getReadName()+","+(len_seq-tmp_int-ht_hc[0]-1)+","+revcmp.get(nucl)+","+revcmp.get(nucl2)+",S");
-											corrOut[i].write(record.getReadName()+","+pair_flag+","+(len_seq-tmp_int-ht_hc[0])+","+revcmp.get(nucl)+","+revcmp.get(nucl2)+",S\n");
+											corrOut[i].write(record.getReadName()+","+pair_flag+","+(len_seq-tmp_int-ht_hc[0])+","+Sequence.revcmp.get(nucl)+","+Sequence.revcmp.get(nucl2)+",S\n");
 										} else {
 											//System.out.println("File "+i+","+record.getReadName()+","+(tmp_int+ht_hc[0])+","+nucl+","+nucl2+",S");
 											corrOut[i].write(record.getReadName()+","+pair_flag+","+(tmp_int+ht_hc[0]-1)+","+nucl+","+nucl2+",S\n");

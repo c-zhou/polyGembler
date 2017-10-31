@@ -38,6 +38,7 @@ import java.util.zip.GZIPOutputStream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
 import cz1.util.Utils;
@@ -630,7 +631,7 @@ public class Consensus extends Executor {
 			final String segment_in,
 			final String link_out) {
 		
-		Map<String, Contig> contig_list = parseContigFromBam();
+		Map<String, Sequence> contig_list = parseContigFromBam();
 		List<List<Segment>> segment_list = parseSegment(segment_in);
 		Map<Integer, Integer> contig_seg_map = new HashMap<Integer, Integer>();
 		int chr_index = 0, seg_index;
@@ -647,7 +648,7 @@ public class Consensus extends Executor {
 					seg_key = chr_index;
 					seg_key <<= 24;
 					seg_key += seg_index;
-					contig_seg_map.put(contig_list.get(seg.seq_sn).seq_no, seg_key);	
+					contig_seg_map.put(contig_list.get(seg.seq_sn).seq_no(), seg_key);	
 				}
 				seg_index++;
 			}
@@ -811,44 +812,18 @@ public class Consensus extends Executor {
 		}
 		return str.toString();
 	}
-	
-	private List<Contig> parseFastaFile(String ff) {
-		// TODO Auto-generated method stub
-		
-		final List<Contig> contigs = new ArrayList<Contig>();
-		try {
-	        BufferedReader br_fa = Utils.getBufferedReader(ff);
-	        StringBuilder str_buf = new StringBuilder();
-	        String line = br_fa.readLine();
-	        String seq_sn = null;
-	        while(line!=null) {
-	        	if(line.startsWith(">")) 
-	        		seq_sn = line.replace(">","").split("\\s+")[0];
-	        	
-	        	str_buf.setLength(0);
-	        	while( (line=br_fa.readLine())!=null && !line.startsWith(">") ) 
-	        		str_buf.append(line);
-	        	
-	        	contigs.add(new Contig(seq_sn, str_buf.toString()));
-	        }
-	        br_fa.close();
-		} catch (IOException e) {
-	        e.printStackTrace();
-	    }
-		return contigs;
-	}
 
-	private Map<String, Contig> parseContigFromBam() {
+	private Map<String, Sequence> parseContigFromBam() {
 		// TODO Auto-generated method stub
 		
-		final Map<String, Contig> contig_list = new HashMap<String, Contig>();
+		final Map<String, Sequence> contig_list = new HashMap<String, Sequence>();
 		final SamReader in1 = factory.open(new File(this.bam_list[0]));
 		try {
 			List<SAMSequenceRecord> seqs = 
 					in1.getFileHeader().getSequenceDictionary().getSequences();
 			for(SAMSequenceRecord seq : seqs) 
 				contig_list.put( seq.getSequenceName(), 
-						new Contig(seq.getSequenceIndex(), seq.getSequenceLength()) );
+						new Sequence(seq.getSequenceIndex(), seq.getSequenceLength()) );
 			in1.close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -858,9 +833,9 @@ public class Consensus extends Executor {
 		return contig_list;
 	}
 	
-	public Map<String, Contig> parseContig(final String contig_index) {
+	public Map<String, Sequence> parseContig(final String contig_index) {
 
-		final Map<String, Contig> contig_list = new HashMap<String, Contig>();
+		final Map<String, Sequence> contig_list = new HashMap<String, Sequence>();
 		try {
 			BufferedReader ctg_br = new BufferedReader(new FileReader(contig_index));
 			String line;
@@ -869,7 +844,7 @@ public class Consensus extends Executor {
 			while( (line=ctg_br.readLine())!=null ) {
 				s = line.split("\\s+");
 				contig_list.put( s[1].split(":")[1], 
-						new Contig(index, Integer.parseInt(s[2].split(":")[1])) );
+						new Sequence(index, Integer.parseInt(s[2].split(":")[1])) );
 				index++;
 			}
 			ctg_br.close();
@@ -927,19 +902,17 @@ public class Consensus extends Executor {
 			final String agp_map,
 			final int minL,
 			final String out_fa) {
-		List<Contig> contigs = parseFastaFile(contig_fa);
-		Map<String, Contig> contig_map = new HashMap<String, Contig>();
-		for(Contig c : contigs) contig_map.put(c.seq_sn, c);
+		final Map<String, Sequence> contig_map = Sequence.parseFastaFileAsMap(contig_fa);
 		
 		try {
 			BufferedReader br_agp = Utils.getBufferedReader(agp_map);
-			final List<Contig> scaffolds = new ArrayList<Contig>();
+			final List<Sequence> scaffolds = new ArrayList<Sequence>();
 			final List<Segment> segments = new ArrayList<Segment>();
 			final StringBuilder str_buf = new StringBuilder();
 			String line = br_agp.readLine();
 			String[] s;
 			String seq_sn;
-			Contig contig;
+			Sequence contig;
 			while(line!=null) {
 				s = line.split("\\s+");
 				seq_sn = s[3];
@@ -960,21 +933,21 @@ public class Consensus extends Executor {
             		} else{
             			contig = contig_map.get(seg.seq_sn);
             			contig_map.remove(seg.seq_sn);
-            			if(seg.seq_ln!=contig.seq_ln) {
+            			if(seg.seq_ln!=contig.seq_ln()) {
             				br_agp.close();
             				throw new RuntimeException("!!!");
             			}
-            			str_buf.append(seg.seq_ori?contig.seq_str:revCompSeq(contig.seq_str));
+            			str_buf.append(seg.seq_ori?contig.seq_str():Sequence.revCompSeq(contig.seq_str()));
             		}
             	}
-            	scaffolds.add(new Contig( str_buf.toString().replaceAll("N{1,}$", "").replaceAll("^N{1,}", "") ));
+            	scaffolds.add(new Sequence( str_buf.toString().replaceAll("N{1,}$", "").replaceAll("^N{1,}", "") ));
             }
 			br_agp.close();
 			
 			BufferedWriter bw_fa = Utils.getBufferedWriter(out_fa);
 			
 			System.err.println("Buffer contigs...");
-			for(Map.Entry<String, Contig> entry : contig_map.entrySet())
+			for(Map.Entry<String, Sequence> entry : contig_map.entrySet())
 				scaffolds.add(entry.getValue());
 			
 			System.err.println("Sort scaffolds...");
@@ -989,12 +962,12 @@ public class Consensus extends Executor {
 				if(i%10000==0) System.err.println(i+" scaffolds parsed...");
 				
 				contig = scaffolds.get(i);
-				if(contig.seq_ln<minL || contig.seq_ln==0) {
+				if(contig.seq_ln()<minL || contig.seq_ln()==0) {
 					rm = i;
 					break;
 				}
 				
-				bw_fa.write(contig.seq_str.contains("N") ? ">S" : ">C");
+				bw_fa.write(contig.seq_str().contains("N") ? ">S" : ">C");
 				bw_fa.write(String.format("%08d\n", i+1));
 				
 				/***
@@ -1013,9 +986,9 @@ public class Consensus extends Executor {
 				bw_fa.write(str_buf.toString());
 				**/
 				
-				seq_str = contig.seq_str;
+				seq_str = contig.seq_str();
 				
-				seq_ln = contig.seq_ln;
+				seq_ln = contig.seq_ln();
 				bw_fa.write(seq_str.charAt(0));
 				for(int j = 1; j!=seq_ln; j++) {
 					if(j%lineWidth==0) bw_fa.write("\n");
@@ -1031,8 +1004,8 @@ public class Consensus extends Executor {
 			int gap_ln = 0;
 			seq_ln = 0;
 			for(int i=0; i!=rm; i++) {
-				seq_ln += scaffolds.get(i).seq_ln;
-				gap_ln += StringUtils.countMatches(scaffolds.get(i).seq_str, "N");
+				seq_ln += scaffolds.get(i).seq_ln();
+				gap_ln += StringUtils.countMatches(scaffolds.get(i).seq_str(), "N");
 			}
 			System.err.println("# SEQ_LEN\t"+seq_ln);
 			System.err.println("# GAP_LEN\t"+gap_ln);
@@ -1043,43 +1016,26 @@ public class Consensus extends Executor {
         }
 	}
 	
-	private final static Map<Character, Character> cmp_base = new HashMap<Character, Character>();
-	static {
-		cmp_base.put('N', 'N');
-		cmp_base.put('A', 'T');
-		cmp_base.put('C', 'G');
-		cmp_base.put('G', 'C');
-		cmp_base.put('T', 'A');
-	}
-	
-	private String revCompSeq(String seq) {
-		StringBuilder seq_buf = new StringBuilder(seq);
-		int n = seq.length();
-		for(int i=0; i!=n; i++) 
-			seq_buf.setCharAt(i, cmp_base.get(seq_buf.charAt(i)));
-		return seq_buf.reverse().toString();
-	}
-	
-    public int calcWeightedMedianSatistic (List<Contig> contigSortedAscending, double p) {
+    public int calcWeightedMedianSatistic (List<Sequence> contigSortedAscending, double p) {
         int L = 0;
         for(int i=0; i<contigSortedAscending.size(); i++) {
-            L += contigSortedAscending.get(i).seq_ln;
+            L += contigSortedAscending.get(i).seq_ln();
         }
 
         int N = (int) Math.ceil(p*L);
         int C = 0, B = 0, R = 0;
         while(C<N) {
             R = N-C;
-            C+=contigSortedAscending.get(B++).seq_ln;
+            C+=contigSortedAscending.get(B++).seq_ln();
         }
         B--;
 
         if(L%2==0 && R==0) {
-            return (contigSortedAscending.get(B).seq_ln+contigSortedAscending.get(B-1).seq_ln)/2;
+            return (contigSortedAscending.get(B).seq_ln()+contigSortedAscending.get(B-1).seq_ln())/2;
         } else if (L%2!=0 && R==0) {
-            return contigSortedAscending.get(B-1).seq_ln;
+            return contigSortedAscending.get(B-1).seq_ln();
         } else {
-            return contigSortedAscending.get(B).seq_ln;
+            return contigSortedAscending.get(B).seq_ln();
         }
     }
 	
@@ -1115,42 +1071,6 @@ public class Consensus extends Executor {
 			this.pseudo_mol = pseudo_mol;
 			this.seq_ori = seq_ori.equals("+") ? true : false;
 			this.mol_pos = mol_pos;
-		}
-	}
-
-	private class Contig implements Comparable<Contig> {
-		final int seq_no; // sequence index 0-
-		final int seq_ln; // sequence length
-		final String seq_sn; // sequence name
-		final String seq_str; //sequence string
-		
-		public Contig (final int seq_no,
-				final int seq_ln) {
-			this.seq_no = seq_no;
-			this.seq_ln = seq_ln;
-			this.seq_sn = null;
-			this.seq_str = null;
-		}
-		
-		public Contig (final String seq_sn,
-				final String seq_str) {
-			this.seq_no = -1;
-			this.seq_ln = seq_str.length();
-			this.seq_sn = seq_sn;
-			this.seq_str = seq_str;
-		}
-		
-		public Contig (final String seq_str) {
-			this.seq_no = -1;
-			this.seq_ln = seq_str.length();
-			this.seq_sn = null;
-			this.seq_str = seq_str;
-		}
-
-		@Override
-		public int compareTo(Contig contig) {
-			// TODO Auto-generated method stub
-			return this.seq_ln-contig.seq_ln;
 		}
 	}
 	

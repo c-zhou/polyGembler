@@ -14,8 +14,10 @@ import cz1.hmm.tools.Resampler;
 import cz1.hmm.tools.SuperScaffoldConstructor;
 import cz1.hmm.tools.VCFResampling;
 import cz1.ngs.assembly.GenomeAssemblyTiling;
+import cz1.ngs.tools.Anchor;
 import cz1.ngs.tools.Consensus;
 import cz1.ngs.tools.HetCorr;
+import cz1.ngs.tools.Redundas;
 import cz1.simulation.tools.GBSSimulator;
 import cz1.simulation.tools.PopulationSimulator;
 
@@ -63,11 +65,6 @@ public class PolyGembler {
 			rfEstimator.setParameters(args2);
 			rfEstimator.run();
 			break;
-		case "rfestimator2":
-			RFEstimatorRS3 rfEstimator2 = new RFEstimatorRS3();
-			rfEstimator2.setParameters(args2);
-			rfEstimator2.run();
-			break;
 		case "resample":
 			Resampler resampler = new Resampler();
 			resampler.setParameters(args2);
@@ -98,16 +95,26 @@ public class PolyGembler {
 			dataResampler.setParameters(args2);
 			dataResampler.run();
 			break;
-		case "datacorrection":
+		case "hetcorr":
 			HetCorr hetCorr = new HetCorr();
 			hetCorr.setParameters(args2);
 			hetCorr.run();
+			break;
+		case "anchor":
+			Anchor anchor = new Anchor();
+			anchor.setParameters(args2);
+			anchor.run();
 			break;
 		case "consensus":
 			Consensus consensus = new Consensus();
 			consensus.setParameters(args2);
 			consensus.run();
 			break;
+		case "redundas":
+			Redundas redundas = new Redundas();
+			redundas.setParameters(args2);
+			redundas.run();
+			break;	
 		default:
 			printUsage();
 			throw new RuntimeException("Undefined tool!!!");
@@ -130,8 +137,10 @@ public class PolyGembler {
 						+ " nnss                Make 1-nearest neighbour superscaffolds.\n"
 						+ " map                 Contruct linkage maps.\n"
 						+ " dataresampling      Resample from ZIP data.\n"
-						+ " datacorrection      Heterozygosity and sequencing errors correction.\n"
+						+ " hetcorr             Heterozygosity and sequencing errors correction.\n"
+						+ " anchor              Anchor contigs/scaffolds against a reference.\n"
 						+ " consensus           Consensus with paired reads link analysis.\n"
+						+ " redundas            Remove redundancies in the genome assembly.\n"
 						+ " gembler             Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.\n\n");
 	}
 }
