@@ -633,8 +633,8 @@ public class Consensus extends Executor {
 		
 		Map<String, Sequence> contig_list = parseContigFromBam();
 		List<List<Segment>> segment_list = parseSegment(segment_in);
-		Map<Integer, Integer> contig_seg_map = new HashMap<Integer, Integer>();
-		int chr_index = 0, seg_index;
+		Map<Integer, Set<Integer>> contig_seg_map = new HashMap<Integer, Set<Integer>>();
+		int chr_index = 0, seg_index, seq_index;
 		int seg_key; // 8  bits pseudo molecule indices
 					 // 24 bits segment indices 
 		// List<String> pseudo_mol_sn = new ArrayList<String>();
@@ -648,7 +648,10 @@ public class Consensus extends Executor {
 					seg_key = chr_index;
 					seg_key <<= 24;
 					seg_key += seg_index;
-					contig_seg_map.put(contig_list.get(seg.seq_sn).seq_no(), seg_key);	
+					seq_index = contig_list.get(seg.seq_sn).seq_no();
+					if(!contig_seg_map.containsKey(seq_index))
+						contig_seg_map.put(seq_index, new HashSet<Integer>());
+					contig_seg_map.get(seq_index).add(seg_key);	
 				}
 				seg_index++;
 			}
@@ -678,33 +681,38 @@ public class Consensus extends Executor {
 				BufferedReader link_br = new BufferedReader(new FileReader(link_i));
 				String line;
 				String[] s;
-				int c1, c2, tmp;
+				Set<Integer> C1, C2;
+				int z1, z2, tmp;
 				while( (line=link_br.readLine())!=null ) {
 					s = line.split("\\s+");
 					val = Integer.parseInt(s[2]);
 					
-                    c1 = Integer.parseInt(s[0]);
-                    c2 = Integer.parseInt(s[1]);
-                    if( !contig_seg_map.containsKey(c1) ||
-                            !contig_seg_map.containsKey(c2) )
+                    z1 = Integer.parseInt(s[0]);
+                    z2 = Integer.parseInt(s[1]);
+                    if( !contig_seg_map.containsKey(z1) ||
+                            !contig_seg_map.containsKey(z2) )
                         continue;
-                    c1 = contig_seg_map.get(c1);
-                    c2 = contig_seg_map.get(c2);
+                    C1 = contig_seg_map.get(z1);
+                    C2 = contig_seg_map.get(z2);
 
-                    if(c1>c2) {
-                        tmp = c1;
-                        c1 = c2;
-                        c2 = tmp;
-                    }
-                    key = c1;
-                    key <<= 32;
-                    key += c2;
-                    if(links.containsKey(key)) {
-                    	link_br.close();
-                    	throw new RuntimeException("!!!");
-                    	// links.put(key, val+links.get(key));
-                    } else {
-                        links.put(key, val);
+                    for(Integer c1 : C1) {
+                    	for(Integer c2 : C2) {
+                    		if(c1>c2) {
+                                tmp = c1;
+                                c1 = c2;
+                                c2 = tmp;
+                            }
+                            key = c1;
+                            key <<= 32;
+                            key += c2;
+                            if(links.containsKey(key)) {
+                            	link_br.close();
+                            	throw new RuntimeException("!!!");
+                            	// links.put(key, val+links.get(key));
+                            } else {
+                                links.put(key, val);
+                            }
+                    	}
                     }
 				}
 
@@ -725,20 +733,20 @@ public class Consensus extends Executor {
 						key = entry.getKey();
 						n2 = (int) (key&mask_24bits);
 						key >>= 24;
-	                    c2 = (int) (key&mask_08bits);
+	                    z2 = (int) (key&mask_08bits);
 	                    key >>=  8;
 						n1 = (int) (key&mask_24bits);
 						key >>= 24;
-						c1 = (int) key;
+						z1 = (int) key;
 						val = entry.getValue();
-						link_bw.write(n1+" "+n2+" "+c1+" "+c2+" "+val+"\n");
+						link_bw.write(n1+" "+n2+" "+z1+" "+z2+" "+val+"\n");
 						
 						// if(c1!=c2 || val<link_thres) continue;
-						if(c1!=c2) continue;
+						if(z1!=z2) continue;
 						// System.out.println(n1+" "+n2+" "+c1+" "+c2+" "+val+"\n");
                         
-						seg_list = segment_list.get(c1);
-						mol_sf = pseudo_mol_sf.get(c1);
+						seg_list = segment_list.get(z1);
+						mol_sf = pseudo_mol_sf.get(z1);
 						
                         ins = 0;
 						if(n1>n2) throw new RuntimeException("!!!");
@@ -992,10 +1000,10 @@ public class Consensus extends Executor {
 				if(i%10000==0) System.err.println(i+" scaffolds parsed...");
 				
 				contig = scaffolds.get(i);
-				if(contig.seq_ln()<minL || contig.seq_ln()==0) {
-					rm = i;
+				if(contig.seq_ln()<minL || contig.seq_ln()==0) 
 					break;
-				}
+				
+				rm++;
 				
 				bw_fa.write(contig.seq_str().contains("N") ? ">S" : ">C");
 				bw_fa.write(String.format("%08d\n", i+1));
@@ -1047,7 +1055,10 @@ public class Consensus extends Executor {
 	}
 	
     public int calcWeightedMedianSatistic (List<Sequence> contigSortedAscending, double p) {
-        int L = 0;
+    	
+    	if(contigSortedAscending.isEmpty()) return -1;
+    	
+    	int L = 0;
         for(int i=0; i<contigSortedAscending.size(); i++) {
             L += contigSortedAscending.get(i).seq_ln();
         }
