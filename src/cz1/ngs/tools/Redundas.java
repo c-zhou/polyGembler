@@ -47,7 +47,7 @@ public class Redundas extends Executor {
 						+ "                         alignment record to consider (default no restriction).\n"
 						+ " -f/--min-fraction       Minimum alignment fraction of the query sequence for an \n"
 						+ "                         alignment record to consider (default 0.95).\n"
-						+ " -o/--out-prefix         Prefix of the output FASTQ file.\n"
+						+ " -o/--out-prefix         Prefix of the output FASTA file.\n"
 						+ "\n");	
 	}
 
