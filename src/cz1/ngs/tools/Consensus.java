@@ -767,10 +767,15 @@ public class Consensus extends Executor {
 					}
 					String scaff = "Scaffold"+String.format("%08d", ++scaff_i);
 					seg = seg_list.get(0);
+					
 					map_bw.write(seg.seq_sn+"\t"+
 							seg.seq_ln+"\t"+
-							(seg.seq_ori?"+":"-")+"\t"+
+							seg.seq_start+"\t"+
+							seg.seq_end+"\t"+
+							(seg.seq_rev?"-":"+")+"\t"+
 							scaff+"\t"+
+							seg.mol_start+"\t"+
+							seg.mol_end+"\t"+
 							df2.format(-1)+"\n" );
 					
 					int n = seg_list.size();
@@ -780,8 +785,12 @@ public class Consensus extends Executor {
 							scaff = "Scaffold"+String.format("%08d", ++scaff_i);
 						map_bw.write(seg.seq_sn+"\t"+
 								seg.seq_ln+"\t"+
-								(seg.seq_ori?"+":"-")+"\t"+
+								seg.seq_start+"\t"+
+								seg.seq_end+"\t"+
+								(seg.seq_rev?"-":"+")+"\t"+
 								scaff+"\t"+
+								seg.mol_start+"\t"+
+								seg.mol_end+"\t"+
 								df2.format(mol_sf[k-1])+"\n" );
 					}
 				}
@@ -868,18 +877,24 @@ public class Consensus extends Executor {
 				segment_chr.add( new Segment(
 						s[0],
 						Integer.parseInt(s[1]),
-						s[5],
+						Integer.parseInt(s[2]),
+						Integer.parseInt(s[3]),
 						s[4],
-						Integer.parseInt(s[6]) ) );
+						s[5],
+						Integer.parseInt(s[6]),
+						Integer.parseInt(s[7])) );
 				while( (line=seg_br.readLine())!=null ) {
 					s = line.split("\\s+");
 					if(chr.equals(s[5])) {
 						segment_chr.add( new Segment(
-						s[0],
-						Integer.parseInt(s[1]),
-						s[5],
-						s[4],
-						Integer.parseInt(s[6]) ) );
+								s[0],
+								Integer.parseInt(s[1]),
+								Integer.parseInt(s[2]),
+								Integer.parseInt(s[3]),
+								s[4],
+								s[5],
+								Integer.parseInt(s[6]),
+								Integer.parseInt(s[7])) );
 					} else {
 						chr = s[5];
 						break;
@@ -894,8 +909,6 @@ public class Consensus extends Executor {
 		return segment_list;
 	}
 	
-	private final static String GAP = "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN"
-			+ "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN";
 	private final static int lineWidth = 50;
 	
 	private final void parseScaffold(final String contig_fa,
@@ -913,39 +926,56 @@ public class Consensus extends Executor {
 			String[] s;
 			String seq_sn;
 			Sequence contig;
+			final Set<String> anchored_seqs = new HashSet<String>();
 			while(line!=null) {
 				s = line.split("\\s+");
-				seq_sn = s[3];
+				seq_sn = s[5];
 				segments.clear();
-				segments.add(new Segment(s[0], Integer.parseInt(s[1]), s[2]));
+				
+				segments.add( new Segment(
+						s[0],
+						Integer.parseInt(s[1]),
+						Integer.parseInt(s[2]),
+						Integer.parseInt(s[3]),
+						s[4],
+						s[5],
+						Integer.parseInt(s[6]),
+						Integer.parseInt(s[7])) );
 				
             	while( (line=br_agp.readLine())!=null ) {
             		s = line.split("\\s+");
-            		if(s[3].equals(seq_sn)) 
-            			segments.add(new Segment(s[0], Integer.parseInt(s[1]), s[2]));
+            		if(s[5].equals(seq_sn))
+            			segments.add( new Segment(
+        						s[0],
+        						Integer.parseInt(s[1]),
+        						Integer.parseInt(s[2]),
+        						Integer.parseInt(s[3]),
+        						s[4],
+        						s[5],
+        						Integer.parseInt(s[6]),
+        						Integer.parseInt(s[7])) );
             		else break;
             	}
             	
             	str_buf.setLength(0);
             	for(Segment seg : segments) {
             		if(seg.type==MAP_ENUM.GAP) {
-            			str_buf.append(GAP);
+            			str_buf.append(Sequence.polyN(seg.seq_ln));
             		} else{
             			contig = contig_map.get(seg.seq_sn);
-            			contig_map.remove(seg.seq_sn);
-            			if(seg.seq_ln!=contig.seq_ln()) {
-            				br_agp.close();
-            				throw new RuntimeException("!!!");
-            			}
-            			str_buf.append(seg.seq_ori?contig.seq_str():Sequence.revCompSeq(contig.seq_str()));
+            			str_buf.append(seg.seq_rev ? 
+            					Sequence.revCompSeq(contig.seq_str().substring(seg.seq_start, seg.seq_end)) : 
+            					contig.seq_str().substring(seg.seq_start, seg.seq_end));
+            			anchored_seqs.add(seg.seq_sn);
             		}
             	}
             	scaffolds.add(new Sequence( str_buf.toString().replaceAll("N{1,}$", "").replaceAll("^N{1,}", "") ));
             }
 			br_agp.close();
 			
-			BufferedWriter bw_fa = Utils.getBufferedWriter(out_fa);
+			for(String seq : anchored_seqs) contig_map.remove(seq);
 			
+			BufferedWriter bw_fa = Utils.getBufferedWriter(out_fa);
 			System.err.println("Buffer contigs...");
 			for(Map.Entry<String, Sequence> entry : contig_map.entrySet())
 				scaffolds.add(entry.getValue());
@@ -1043,34 +1073,34 @@ public class Consensus extends Executor {
 
 	private class Segment {
 		private final MAP_ENUM type;
+		
 		private final String seq_sn;
 		private final int seq_ln;
-		private final String pseudo_mol;
-		private final boolean seq_ori;
-		private final int mol_pos;
+		private final int seq_start;
+		private final int seq_end;
+		private final boolean seq_rev;
+		private final String mol_sn;
+		private final int mol_start;
+		private final int mol_end;
 	
-		public Segment(final String seq_sn,
-				final int seq_ln,
-				final String seq_ori) {
+		public Segment(String seq_sn, 
+				int seq_ln, 
+				int seq_start, 
+				int seq_end, 
+				String seq_rev, 
+				String mol_sn,
+				int mol_start, 
+				int mol_end) {
+			// TODO Auto-generated constructor stub
 			this.type = seq_sn.equals("GAP") ? MAP_ENUM.GAP : MAP_ENUM.CONTIG;
 			this.seq_sn = seq_sn;
 			this.seq_ln = seq_ln;
-			this.pseudo_mol = null;
-			this.seq_ori = seq_ori.equals("+") ? true : false;
-			this.mol_pos = -1;
-		}
-		
-		public Segment(final String seq_sn,
-				final int seq_ln,
-				final String pseudo_mol,
-				final String seq_ori,
-				final int mol_pos) {
-			this.type = seq_sn.equals("GAP") ? MAP_ENUM.GAP : MAP_ENUM.CONTIG;
-			this.seq_sn = seq_sn;
-			this.seq_ln = seq_ln;
-			this.pseudo_mol = pseudo_mol;
-			this.seq_ori = seq_ori.equals("+") ? true : false;
-			this.mol_pos = mol_pos;
+			this.seq_start = seq_start;
+			this.seq_end = seq_end;
+			this.seq_rev = seq_rev.equals("-");
+			this.mol_sn = mol_sn;
+			this.mol_start = mol_start;
+			this.mol_end = mol_end;
 		}
 	}
 	

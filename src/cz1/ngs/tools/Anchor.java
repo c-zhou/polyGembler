@@ -56,7 +56,9 @@ public class Anchor extends Executor {
 	private double min_frac = 0.50;
 	private double diff_ident = 0.01;
 	private double diff_frac = 0.05;
-	private double collinear_shift = 0.5;
+	// maximum shift distance for two collinear alignment segments
+	// 10% of the smaller segment size
+	private double collinear_shift = 0.1;
 	private String out_prefix = null;
 	
 	@Override
@@ -125,10 +127,10 @@ public class Anchor extends Executor {
 		}
 	}
 
-	private final static int max_clip = 10; // maximum clip of query alignment allowed
-	private final static int gap_buff = 10; // buffer size for subject/reference sequences gap clips
-	private final static int min_gap =  10; // take this if estimated gap size is smaller than this
-	private final static int max_gap = 100; // take this if estimated gap size is larger than this
+	private final static int max_clip = 30; // maximum clip of query alignment allowed
+	private final static int gap_buff = 30; // buffer size for subject/reference sequences gap clips
+	private final static int min_gap  = 10; // take this if estimated gap size is smaller than this
+	private final static int max_gap  = 100; // take this if estimated gap size is larger than this
 	
 	@Override
 	public void run() {
@@ -145,12 +147,19 @@ public class Anchor extends Executor {
 			String seq_sn = entry.getKey();
 			String seq_str = entry.getValue().seq_str();
 			
-			final RangeSet<Integer> range_set = TreeRangeSet.create();
+			final RangeSet<Integer> tmp_rangeSet = TreeRangeSet.create();
 			for(int j=0; j<seq_str.length(); j++) {
 				if(seq_str.charAt(j)=='N'||seq_str.charAt(j)=='n')
 					// blast record is 1-based closed coordination
-					range_set.add(Range.closed(j+1, j+1).
+					tmp_rangeSet.add(Range.closed(j+1, j+1).
 							canonical(DiscreteDomain.integers()));
+			}
+			int seq_ln = seq_str.length();
+			final RangeSet<Integer> range_set = TreeRangeSet.create();
+			for(Range<Integer> range : tmp_rangeSet.asRanges()) {
+				int lowerend = range.hasLowerBound() ? Math.max(0, range.lowerEndpoint()-gap_buff) : 0;
+				int upperend = range.hasUpperBound() ? Math.min(seq_ln, range.upperEndpoint()+gap_buff-1) : seq_ln;
+				range_set.add( Range.closed(lowerend, upperend).canonical(DiscreteDomain.integers()) );
 			}
 			sub_gaps.put(seq_sn, range_set);
 			// initialise an array list for each reference chromosome
@@ -164,12 +173,14 @@ public class Anchor extends Executor {
 		final List<Blast6Record> sel_recs = new ArrayList<Blast6Record>();
 		// temp list
 		final List<Blast6Record> tmp_records = new ArrayList<Blast6Record>();
+		
 		try {
 			BufferedReader br_blast = Utils.getBufferedReader(blast_out);
 			Blast6Record tmp_record = Blast6Record.blast6Record(br_blast.readLine());
 			Blast6Record primary_record, secondary_record;
 			String qry;
 			double qry_ln, aln_frac;
+			
 			while(tmp_record!=null) {
 				qry = tmp_record.qseqid();
 				qry_ln = qry_seqs.get(qry).seq_ln();
@@ -192,29 +203,67 @@ public class Anchor extends Executor {
 						if(record.sseqid().equals(sub))
 							tmp_records.add(record);
 					
+					// find alignment segments that can be deleted
+					// those that are subsets of larger alignment segments
+					// (Sstart, (sstart, send), Send) and (Qstart, (qstart, qend), Qend)
+					Collections.sort(tmp_records, new Blast6Record.SegmentSizeComparator());
+					final Set<int[][]> ranges = new HashSet<int[][]>();
+					outerloop:
+						for(int i=0; i<tmp_records.size(); i++) {
+							primary_record = tmp_records.get(i);
+							int[][] range = new int[2][2];
+							if(primary_record.sstart()<primary_record.send()) {
+								range[0][0] = primary_record.sstart();
+								range[0][1] = primary_record.send();
+							} else {
+								range[0][0] = primary_record.send();
+								range[0][1] = primary_record.sstart();
+							}
+							if(primary_record.qstart()<primary_record.qend()) {
+								range[1][0] = primary_record.qstart();
+								range[1][1] = primary_record.qend();
+							} else {
+								range[1][0] = primary_record.qend();
+								range[1][1] = primary_record.qstart();
+							}
+							for(int[][] r : ranges) {
+								if(r[0][0]<=range[0][0]&&
+										r[0][1]>=range[0][1]&&
+										r[1][0]<=range[1][0]&&
+										r[1][1]>=range[1][1]) {
+									tmp_records.remove(i--);
+									continue outerloop;
+								}
+							}
+							ranges.add(range);
+						}
+					
 					// find collinear alignment segments that can be merged
 					Collections.sort(tmp_records, new BlastRecord.SInterceptComparator());
 					
 					for(int i=0; i<tmp_records.size(); ) {
 						Blast6Record record = tmp_records.get(i);
-						double sintercept = record.sintercept();
-						int qlen = record.length();
 						double max_shift;
 						final List<Blast6Record> temp = new ArrayList<Blast6Record>();
 						temp.add(record);
 						
-						while( (++i)<tmp_records.size() ) {
-							record = tmp_records.get(i);
-							max_shift = collinear_shift*Math.min(qlen, record.length());
-							if(record.sintercept()-sintercept>max_shift) {
+						// find collinear alignment segments
+						outerloop:
+							while( (++i)<tmp_records.size() ) {
+								record = tmp_records.get(i);
+								// check if is collinear with other alignment segments
+								for(Blast6Record r : temp) {
+									max_shift = collinear_shift*
+											Math.min(r.length(), record.length());
+									if(BlastRecord.distance(r, record)<=max_shift) {
+										temp.add(record);
+										continue outerloop;
+									}
+								}
 								break;
-							} else {
-								temp.add(record);
-								sintercept = record.sintercept();
-								qlen = record.length();
 							}
-						}
 						
+						// merge collinear alignment segments
 						int qstart = Integer.MAX_VALUE;
 						int qend = Integer.MIN_VALUE;
 						int sstart = Integer.MAX_VALUE;
@@ -222,6 +271,7 @@ public class Anchor extends Executor {
 						double pident = 0;
 						int length = 0;
 						
+						// qstart is always smaller than qend
 						for(int j=0; j<temp.size(); j++) {
 							record = temp.get(j);
 							if(record.qstart()<qstart) {
@@ -239,6 +289,56 @@ public class Anchor extends Executor {
 						
 						sel_recs.add(new Blast6Record(qry,sub,pident,length,-1,-1,qstart,qend,sstart,send,-1,-1));
 					}
+					
+					// process blast records that clipped by gaps
+					// (sstart, send)---(start2, send2)
+					// (sstart  ...  ---  ...    send2)
+					RangeSet<Integer> sub_gap = sub_gaps.get(sub);
+					Collections.sort(sel_recs, new BlastRecord.SubjectCoordinationComparator());
+					
+					for(int i=0; i<sel_recs.size(); i++) {
+						primary_record = sel_recs.get(i);
+						if( sub_gap.contains(primary_record.true_send()) ) {
+							secondary_record = null;
+							int sec_j = -1;
+							for(int j=i+1; j<sel_recs.size(); j++) {
+								if( sel_recs.get(j).true_sstart()>=
+										primary_record.true_send() ) {
+									secondary_record = sel_recs.get(j);
+									sec_j = j;
+									break;
+								}
+							}
+							if(secondary_record==null || 
+									BlastRecord.reverse(primary_record, secondary_record)) {
+								// no clipping
+								// reverse alignment segments
+								continue;
+							}
+							
+							if( sub_gap.contains(secondary_record.true_sstart()) ) {
+								// clipping
+								// merge two alignment segments
+								double pident = Math.max(primary_record.pident(), secondary_record.pident());
+								int qstart = Math.min(primary_record.true_qstart(), secondary_record.true_qstart());
+								int qend = Math.max(primary_record.true_qend(), secondary_record.true_qend());
+								int sstart = Math.min(primary_record.true_sstart(), secondary_record.true_sstart());
+								int send = Math.max(primary_record.true_send(), secondary_record.true_send());
+								int length = qend-qstart+1;
+								
+								// replace primary record with merged record
+								// delete secondary record
+								Blast6Record merged_record = primary_record.forward()?
+										new Blast6Record(qry,sub,pident,length,-1,-1,qstart,qend,sstart,send,-1,-1):
+										new Blast6Record(qry,sub,pident,length,-1,-1,qstart,qend,send,sstart,-1,-1);
+								sel_recs.set(i, merged_record);
+								sel_recs.remove(sec_j);
+								
+								// the merged records need to be processed
+								--i;
+							}
+						}
+					}
 				}
 				
 				// filter by alignment fraction		
@@ -246,20 +346,10 @@ public class Anchor extends Executor {
 				buff.addAll(sel_recs);
 				sel_recs.clear();
 				for(Blast6Record record : buff) {
-					if(record.length()/qry_ln>=this.min_frac) {
+					if(record.length()/qry_ln>=this.min_frac)
 						sel_recs.add(record);
-					} else {
-						// TODO blast records that clipped by 
-						// 1. gaps: can be bridged
-						// or
-						// 2. ends: can be extended
-						// on subject sequences
-						
-					}
 				}
 				
-				sel_recs.clear();
-				sel_recs.addAll(buff);
 				if(sel_recs.isEmpty()) {
 					// unplaced query sequences
 					// continue
@@ -298,7 +388,6 @@ public class Anchor extends Executor {
 				String sub_sn = entry.getKey();
 				int posUpto = 0, send_clip = 0;
 				int sstart, send, qstart, qend, qlen, tmp_int, qstart_clip, qend_clip, gap_size, overlap;
-				int slen = sub_seqs.get(sub_sn).seq_ln();
 				int mol_len = 0;
 				
 				// will form a pseudomolecule
@@ -355,7 +444,7 @@ public class Anchor extends Executor {
 									"\t"+
 									(mol_len+max_gap)+
 									"\n");
-							sequences.add(Sequence.polyN(max_gap));
+							sequences.add(Sequence.gapSeq(max_gap));
 							mol_len += max_gap;
 							bw_map.write(record.qseqid()+
 									"\t"+
@@ -450,7 +539,7 @@ public class Anchor extends Executor {
 									"\t"+
 									(mol_len+gap_size)+
 									"\n");
-							sequences.add(Sequence.polyN(gap_size));
+							sequences.add(Sequence.gapSeq(gap_size));
 							mol_len += gap_size;
 						}
 						bw_map.write(record.qseqid()+
@@ -504,13 +593,4 @@ public class Anchor extends Executor {
 		}
 	}
 }
-
-
-
-
-
-
-
-
-
 

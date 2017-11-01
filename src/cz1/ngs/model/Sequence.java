@@ -166,11 +166,16 @@ public class Sequence implements Comparable<Sequence> {
 	    return os.toString();
 	}
 
-	public static Sequence polyN(int n) {
+	public static String polyN(int n) {
 		// TODO Auto-generated method stub
 		StringBuilder s = new StringBuilder();
 		for(int i=0; i<n; i++)
 			s.append("N");
-		return new Sequence("GAP", s.toString());
+		return s.toString();
+	}
+	
+	public static Sequence gapSeq(int n) {
+		// TODO Auto-generated method stub
+		return new Sequence("GAP", polyN(n));
 	}
 }

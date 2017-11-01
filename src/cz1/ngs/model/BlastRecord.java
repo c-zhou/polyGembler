@@ -5,7 +5,7 @@ import java.util.Comparator;
 import org.apache.commons.math3.stat.StatUtils;
 
 public class BlastRecord {
-
+	
 	protected final String qseqid;   // query (e.g., gene) sequence id
 	protected final String sseqid;   // subject (e.g., reference genome) sequence id
 	protected final int qstart;      // start of alignment in query
@@ -26,10 +26,17 @@ public class BlastRecord {
 			) {
 		this.qseqid = qseqid;
 		this.sseqid = sseqid;
-		this.qstart = qstart;
-		this.qend = qend;
-		this.sstart = sstart;
-		this.send = send;
+		if(qstart<=qend) {
+			this.qstart = qstart;
+			this.qend = qend;
+			this.sstart = sstart;
+			this.send = send;
+		} else {
+			this.qstart = qend;
+			this.qend = qstart;
+			this.sstart = send;
+			this.send = sstart;
+		}
 		this.sintercept = this.calc_sintercept();
 		this.qintercept = this.calc_qintercept();
 	}
@@ -92,7 +99,7 @@ public class BlastRecord {
 		@Override
 		public int compare(BlastRecord b1, BlastRecord b2) {
 			// TODO Auto-generated method stub
-			return b1.sstart-b2.sstart;
+			return b1.true_sstart()-b2.true_sstart();
 		}
 	}
     
@@ -106,7 +113,7 @@ public class BlastRecord {
 	}
     
     public static class QInterceptComparator 
-    implements Comparator<BlastRecord> {
+    	implements Comparator<BlastRecord> {
     	@Override
     	public int compare(BlastRecord record1, BlastRecord record2) {
     		// TODO Auto-generated method stub
@@ -119,6 +126,26 @@ public class BlastRecord {
 		return ((double)sstart*qend-(double)send*qstart)/(sstart-send);
 	}
 
+	public int true_sstart() {
+		// TODO Auto-generated method stub
+		return Math.min(this.sstart, this.send);
+	}
+
+	public int true_qstart() {
+		// TODO Auto-generated method stub
+		return Math.min(this.qstart, this.qend);
+	}
+
+	public int true_send() {
+		// TODO Auto-generated method stub
+		return Math.max(this.sstart, this.send);
+	}
+
+	public int true_qend() {
+		// TODO Auto-generated method stub
+		return Math.max(this.qstart, this.qend);
+	}
+	
 	private double calc_sintercept() {
 		// TODO Auto-generated method stub
 		return ((double)send*qstart-(double)sstart*qend)/(qstart-qend);
@@ -231,5 +258,34 @@ public class BlastRecord {
 
 	public double qintercept() {
 		return this.qintercept;
+	}
+	
+	public static boolean forward(BlastRecord record1, 
+			BlastRecord record2) {
+		return record1.forward()&&record2.forward() ||
+				record1.reverse()&&record2.reverse();
+	}
+	
+	public static boolean reverse(BlastRecord record1, 
+			BlastRecord record2) {
+		return !forward(record1, record2);
+	}
+	
+	public boolean forward(BlastRecord record) {
+		return this.forward()&&record.forward() ||
+				this.reverse()&&record.reverse();
+	}
+	
+	public boolean reverse(BlastRecord record) {
+		return !this.forward(record);
+	}
+	
+	public boolean forward() {
+		return this.sstart<=this.send&&this.qstart<=this.qend ||
+				this.sstart>=this.send&&this.qstart>=this.qend;
+	}
+	
+	public boolean reverse() {
+		return !this.forward();
 	}
 }

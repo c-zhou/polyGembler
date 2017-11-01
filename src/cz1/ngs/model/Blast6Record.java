@@ -109,4 +109,15 @@ public class Blast6Record extends BlastRecord {
 		}
 
 	}
+	
+	public static class SegmentSizeComparator 
+		implements Comparator<Blast6Record> {
+		@Override
+		public int compare(Blast6Record record1, Blast6Record record2) {
+			// TODO Auto-generated method stub
+			// large segment size ranks higher
+			return record2.length-record1.length;
+		}
+		
+	}
 }
