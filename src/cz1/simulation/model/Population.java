@@ -15,6 +15,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 import java.io.OutputStreamWriter;
 import java.util.zip.GZIPOutputStream;
@@ -226,28 +228,18 @@ public class Population {
 					//println(getSystemTime()+" >>> Done. BufferedWriter Start writing...");
 					String header = ">"+chr.getName()+"|"+(h+1)+":"+PLOIDY;
 					bw.write(header+NLS);
+					final StringBuilder oos = new StringBuilder();
 					int j0 = 0, j1 = chr.getLBasePairs();
 					for(int l=0; l<loci.size(); l++) {
 						pos = SNPs2PosMap.get(loci.get(l).getLocusName());
 						str2write = indall[h][l];
-						while(j0+CHUNK_SIZE < pos) {
-							bw.write(chr.getDnaSEQ().substring(j0,j0+CHUNK_SIZE)+NLS);
-							j0 += CHUNK_SIZE;
-						}
-						//debug
-						//println(">>>"+ref.length()+"..."+j0+"..."+pos+"..."+str2write);
-						bw.write(chr.getDnaSEQ().substring(j0,pos-str2write.length()+1));
-						bw.write(str2write+NLS);
+						oos.append( chr.getDnaSEQ().substring(j0, pos-str2write.length()+1) );
+						oos.append(str2write);
 						j0 = pos+str2write.length();
 					}
-					if(j0 < j1) {
-						while(j0+CHUNK_SIZE <= j1) {
-							bw.write(chr.getDnaSEQ().substring(j0,j0+CHUNK_SIZE)+NLS);
-							j0 += CHUNK_SIZE;
-						}
-						if(j0 < j1) bw.write(chr.getDnaSEQ().substring(j0,j1)+NLS);
-					}
-
+					if(j0 < j1) 
+						oos.append(chr.getDnaSEQ().substring(j0,j1));
+					bw.write(this.formatOutput(oos.toString()));
 					//debug
 					myLogger.info(getSystemTime()+" "+header+" >>> done.");
 				}
@@ -257,6 +249,16 @@ public class Population {
 			e.printStackTrace();
 			System.exit(1);
 		}
+	}
+
+	private String formatOutput(String dnaSEQ) {
+		// TODO Auto-generated method stub
+		Pattern p = Pattern.compile("(.{" + CHUNK_SIZE + "})", Pattern.DOTALL);
+	    Matcher m = p.matcher(dnaSEQ);
+	    StringBuilder os = new StringBuilder();
+	    os.append(m.replaceAll("$1" + "\n"));
+	    if(os.charAt(os.length()-1)!='\n') os.append("\n");
+	    return os.toString();
 	}
 
 	public void writeParameterFile() {
