@@ -170,7 +170,9 @@ public class BlastRecord {
 		return Math.abs(this.slope());
 	}
 
-	public double distance(BlastRecord record) {
+	public double pdistance(BlastRecord record) {
+		// TODO Auto-generated method stub
+		// perpendicular distance
 		if(this.intersect(record)) return 0;
 		double[] allD = new double[4];
 		allD[0] = this.distance(new double[]{record.sstart, record.qstart});
@@ -180,9 +182,9 @@ public class BlastRecord {
 		return StatUtils.min(allD);
 	}
 	
-	public static double distance(BlastRecord record1, 
+	public static double pdistance(BlastRecord record1, 
 			BlastRecord record2) {
-		return record1.distance(record2);
+		return record1.pdistance(record2);
 	}
 
 	private boolean intersect(BlastRecord record) {
@@ -287,5 +289,84 @@ public class BlastRecord {
 	
 	public boolean reverse() {
 		return !this.forward();
+	}
+	
+	@Override
+	public String toString() {
+		return this.qseqid+"\t"+
+				this.sseqid+"\t"+
+				this.qstart+"\t"+
+				this.qend+"\t"+
+				this.sstart+"\t"+
+				this.send+"\t";
+	}
+	
+	public void print() {
+		// TODO Auto-generated method stub
+		System.out.println(this.toString());
+	}
+
+	public int sdistance(BlastRecord record) {
+		// TODO Auto-generated method stub
+		if(this.soverlap(record)) return 0;
+		if(!this.sseqid.equals(record.sseqid)) return -1;
+		return Math.max(this.true_send(), record.true_send())-
+				Math.min(this.true_sstart(), record.true_sstart());
+	}
+	
+	public static int sdistance(BlastRecord record1,
+			BlastRecord record2) {
+		// TODO Auto-generated method stub
+		if(soverlap(record1, record2)) return 0;
+		if(!record1.sseqid.equals(record2.sseqid)) return -1;
+		return Math.max(record1.true_send(), record2.true_send())-
+				Math.min(record1.true_sstart(), record2.true_sstart());
+	}
+	
+	public int qdistance(BlastRecord record) {
+		// TODO Auto-generated method stub
+		if(this.qoverlap(record)) return 0;
+		if(!this.qseqid.equals(record.qseqid)) return -1;
+		return Math.max(this.true_qend(), record.true_qend())-
+				Math.min(this.true_qstart(), record.true_qstart());
+	}
+	
+	public static int qdistance(BlastRecord record1,
+			BlastRecord record2) {
+		// TODO Auto-generated method stub
+		if(qoverlap(record1, record2)) return 0;
+		if(!record1.qseqid.equals(record2.qseqid)) return -1;
+		return Math.max(record1.true_qend(), record2.true_qend())-
+				Math.min(record1.true_qstart(), record2.true_qstart());
+	}
+	
+	public boolean soverlap(BlastRecord record) {
+		// TODO Auto-generated method stub
+		if(!this.sseqid.equals(record.sseqid)) return false;
+		return (this.true_sstart()-record.true_send())*
+				(record.true_sstart()-this.true_send())>=0;
+	}
+
+	public boolean qoverlap(BlastRecord record) {
+		// TODO Auto-generated method stub
+		if(!this.qseqid.equals(record.qseqid)) return false;
+		return (this.true_qstart()-record.true_qend())*
+				(record.true_qstart()-this.true_qend())>=0;
+	}
+
+	public static boolean soverlap(BlastRecord record1,
+			BlastRecord record2) {
+		// TODO Auto-generated method stub
+		if(!record1.sseqid.equals(record2.sseqid)) return false;
+		return (record1.true_sstart()-record2.true_send())*
+				(record2.true_sstart()-record1.true_send())>=0;
+	}
+
+	public static boolean qoverlap(BlastRecord record1,
+			BlastRecord record2) {
+		// TODO Auto-generated method stub
+		if(!record1.qseqid.equals(record2.qseqid)) return false;
+		return (record1.true_qstart()-record2.true_qend())*
+				(record2.true_qstart()-record1.true_qend())>=0;
 	}
 }

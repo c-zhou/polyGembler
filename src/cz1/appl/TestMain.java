@@ -2,6 +2,7 @@ package cz1.appl;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.collect.DiscreteDomain;
@@ -9,6 +10,7 @@ import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 
+import cz1.ngs.model.Blast6Record;
 import cz1.ngs.model.Sequence;
 import cz1.ngs.tools.Anchor;
 import cz1.ngs.tools.Redundas;
@@ -41,6 +43,7 @@ public class TestMain {
 		ranges.add(Range.closed(3, 6));
 		System.out.println(ranges.encloses(Range.closed(2, 5)));
 		**/
+		/**
 		for(int i=1; i<=17; i++) {
 			Anchor anchor = new Anchor();
 			anchor.setParameters(new String[] {
@@ -55,5 +58,28 @@ public class TestMain {
 			});
 			anchor.run();
 		}
+		**/
+		/**
+		final List<Integer> list1 = new ArrayList<Integer>();
+		list1.add(1);
+		list1.add(2);
+		final List<Integer> list2 = new ArrayList<Integer>();
+		list2.add(3);
+		list2.add(4);
+		list1.addAll(list2);
+		System.out.println(list1.size());
+		System.out.println(list2.size());
+		list2.clear();
+		System.out.println(list1.size());
+		System.out.println(list2.size());
+		list2.add(5);
+		System.out.println(list1.size());
+		System.out.println(list2.size());
+		**/
 	}
 }
+
+
+
+
+

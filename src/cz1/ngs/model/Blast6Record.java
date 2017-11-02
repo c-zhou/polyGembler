@@ -120,4 +120,20 @@ public class Blast6Record extends BlastRecord {
 		}
 		
 	}
+	
+	@Override
+	public String toString() {
+		return this.qseqid+"\t"+
+				this.sseqid+"\t"+
+				this.pident+"\t"+
+				this.length+"\t"+
+				this.mismatch+"\t"+
+				this.gapopen+"\t"+
+				this.qstart+"\t"+
+				this.qend+"\t"+
+				this.sstart+"\t"+
+				this.send+"\t"+
+				this.evalue+"\t"+
+				this.bitscore+"\t";
+	}
 }

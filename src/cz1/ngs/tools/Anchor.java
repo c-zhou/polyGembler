@@ -140,14 +140,14 @@ public class Anchor extends Executor {
 		
 		// find 'N/n's in subject/reference sequences
 		// which could have impact on parsing the blast records
-		final Map<String, RangeSet<Integer>> sub_gaps = new HashMap<String, RangeSet<Integer>>();
+		final Map<String, TreeRangeSet<Integer>> sub_gaps = new HashMap<String, TreeRangeSet<Integer>>();
 		final Map<String, List<Blast6Record>> anchored_records = new HashMap<String, List<Blast6Record>>();
 		
 		for(Map.Entry<String, Sequence> entry : sub_seqs.entrySet()) {
 			String seq_sn = entry.getKey();
 			String seq_str = entry.getValue().seq_str();
 			
-			final RangeSet<Integer> tmp_rangeSet = TreeRangeSet.create();
+			final TreeRangeSet<Integer> tmp_rangeSet = TreeRangeSet.create();
 			for(int j=0; j<seq_str.length(); j++) {
 				if(seq_str.charAt(j)=='N'||seq_str.charAt(j)=='n')
 					// blast record is 1-based closed coordination
@@ -155,7 +155,7 @@ public class Anchor extends Executor {
 							canonical(DiscreteDomain.integers()));
 			}
 			int seq_ln = seq_str.length();
-			final RangeSet<Integer> range_set = TreeRangeSet.create();
+			final TreeRangeSet<Integer> range_set = TreeRangeSet.create();
 			for(Range<Integer> range : tmp_rangeSet.asRanges()) {
 				int lowerend = range.hasLowerBound() ? Math.max(0, range.lowerEndpoint()-gap_buff) : 0;
 				int upperend = range.hasUpperBound() ? Math.min(seq_ln, range.upperEndpoint()+gap_buff-1) : seq_ln;
@@ -173,6 +173,8 @@ public class Anchor extends Executor {
 		final List<Blast6Record> sel_recs = new ArrayList<Blast6Record>();
 		// temp list
 		final List<Blast6Record> tmp_records = new ArrayList<Blast6Record>();
+		// collinear merged record list
+		final List<Blast6Record> collinear_merged = new ArrayList<Blast6Record>();
 		
 		try {
 			BufferedReader br_blast = Utils.getBufferedReader(blast_out);
@@ -202,6 +204,8 @@ public class Anchor extends Executor {
 					for(Blast6Record record : buff)
 						if(record.sseqid().equals(sub))
 							tmp_records.add(record);
+					
+					if(tmp_records.isEmpty()) continue;
 					
 					// find alignment segments that can be deleted
 					// those that are subsets of larger alignment segments
@@ -241,10 +245,12 @@ public class Anchor extends Executor {
 					// find collinear alignment segments that can be merged
 					Collections.sort(tmp_records, new BlastRecord.SInterceptComparator());
 					
+					collinear_merged.clear();
+					final List<Blast6Record> temp = new ArrayList<Blast6Record>();
 					for(int i=0; i<tmp_records.size(); ) {
 						Blast6Record record = tmp_records.get(i);
 						double max_shift;
-						final List<Blast6Record> temp = new ArrayList<Blast6Record>();
+						temp.clear();
 						temp.add(record);
 						
 						// find collinear alignment segments
@@ -255,7 +261,9 @@ public class Anchor extends Executor {
 								for(Blast6Record r : temp) {
 									max_shift = collinear_shift*
 											Math.min(r.length(), record.length());
-									if(BlastRecord.distance(r, record)<=max_shift) {
+									if(BlastRecord.sdistance(r, record)<=max_shift &&
+											BlastRecord.qdistance(r, record)<=max_shift &&
+											BlastRecord.pdistance(r, record)<=max_shift) {
 										temp.add(record);
 										continue outerloop;
 									}
@@ -287,24 +295,24 @@ public class Anchor extends Executor {
 							length += record.length();
 						}
 						
-						sel_recs.add(new Blast6Record(qry,sub,pident,length,-1,-1,qstart,qend,sstart,send,-1,-1));
+						collinear_merged.add(new Blast6Record(qry,sub,pident,length,-1,-1,qstart,qend,sstart,send,-1,-1));
 					}
 					
 					// process blast records that clipped by gaps
 					// (sstart, send)---(start2, send2)
 					// (sstart  ...  ---  ...    send2)
-					RangeSet<Integer> sub_gap = sub_gaps.get(sub);
-					Collections.sort(sel_recs, new BlastRecord.SubjectCoordinationComparator());
+					TreeRangeSet<Integer> sub_gap = sub_gaps.get(sub);
+					Collections.sort(collinear_merged, new BlastRecord.SubjectCoordinationComparator());
 					
-					for(int i=0; i<sel_recs.size(); i++) {
-						primary_record = sel_recs.get(i);
+					for(int i=0; i<collinear_merged.size(); i++) {
+						primary_record = collinear_merged.get(i);
 						if( sub_gap.contains(primary_record.true_send()) ) {
 							secondary_record = null;
 							int sec_j = -1;
-							for(int j=i+1; j<sel_recs.size(); j++) {
-								if( sel_recs.get(j).true_sstart()>=
+							for(int j=i+1; j<collinear_merged.size(); j++) {
+								if( collinear_merged.get(j).true_sstart()>=
 										primary_record.true_send() ) {
-									secondary_record = sel_recs.get(j);
+									secondary_record = collinear_merged.get(j);
 									sec_j = j;
 									break;
 								}
@@ -316,7 +324,9 @@ public class Anchor extends Executor {
 								continue;
 							}
 							
-							if( sub_gap.contains(secondary_record.true_sstart()) ) {
+							if( sub_gap.contains(secondary_record.true_sstart()) &&
+									sub_gap.rangeContaining(primary_record.true_send()).
+									equals(sub_gap.rangeContaining(secondary_record.true_sstart()))) {
 								// clipping
 								// merge two alignment segments
 								double pident = Math.max(primary_record.pident(), secondary_record.pident());
@@ -331,14 +341,17 @@ public class Anchor extends Executor {
 								Blast6Record merged_record = primary_record.forward()?
 										new Blast6Record(qry,sub,pident,length,-1,-1,qstart,qend,sstart,send,-1,-1):
 										new Blast6Record(qry,sub,pident,length,-1,-1,qstart,qend,send,sstart,-1,-1);
-								sel_recs.set(i, merged_record);
-								sel_recs.remove(sec_j);
+								collinear_merged.set(i, merged_record);
+								collinear_merged.remove(sec_j);
 								
 								// the merged records need to be processed
 								--i;
 							}
 						}
 					}
+					
+					// add to sel_recs
+					sel_recs.addAll(collinear_merged);
 				}
 				
 				// filter by alignment fraction		
@@ -375,6 +388,10 @@ public class Anchor extends Executor {
 			}
 			br_blast.close();
 		
+			for(Map.Entry<String, List<Blast6Record>> entry : anchored_records.entrySet()) {
+				System.out.println(entry.getKey()+": "+entry.getValue().size());
+			}
+			
 			final BufferedWriter bw_map = Utils.getBufferedWriter(out_prefix+".map");
 			final BufferedWriter bw_fa = Utils.getBufferedWriter(out_prefix+".fa");
 			final Set<String> anchored_seqs = new HashSet<String>();
@@ -571,12 +588,14 @@ public class Anchor extends Executor {
 					send_clip = qend_clip;
 				}
 				
-				StringBuilder seq_str = new StringBuilder();
-				for(Sequence seq : sequences) {
-					seq_str.append(seq.seq_str());
-					anchored_seqs.add(seq.seq_sn());
+				if(sequences.size()>0) {
+					StringBuilder seq_str = new StringBuilder();
+					for(Sequence seq : sequences) {
+						seq_str.append(seq.seq_str());
+						anchored_seqs.add(seq.seq_sn());
+					}
+					bw_fa.write(Sequence.formatOutput(sub_sn, seq_str.toString()));
 				}
-				bw_fa.write(Sequence.formatOutput(sub_sn, seq_str.toString()));
 			}
 
 			bw_fa.close();
