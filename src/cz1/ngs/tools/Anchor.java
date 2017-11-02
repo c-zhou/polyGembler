@@ -35,7 +35,7 @@ public class Anchor extends Executor {
 						+ " -q/--query              Query sequences to anchor in FASTA format.\n"
 						+ " -b/--blast              BLAST output (-outfmt 6) of query sequences against subject sequences.\n"
 						+ " -i/--min-identity       Minimum identity between the query and subject sequences \n"
-						+ "                         for an alignment record to consider (default 0.9).\n"
+						+ "                         for an alignment record to consider (default 0.95).\n"
 						+ " -f/--min-fraction       Minimum alignment fraction of the query sequence (default 0.5).\n"
 						+ " -di/--diff-identity     Threshold of the difference of the identity between the primary and secondary \n"
 						+ "                         alignments. If the difference is smaller than this value, the query \n"
@@ -52,7 +52,7 @@ public class Anchor extends Executor {
 	private String subject_file = null;
 	private String query_file = null;
 	private String blast_out = null;
-	private double min_ident = 90;
+	private double min_ident = 95;
 	private double min_frac = 0.50;
 	private double diff_ident = 0.01;
 	private double diff_frac = 0.05;
