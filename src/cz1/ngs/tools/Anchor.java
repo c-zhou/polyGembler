@@ -57,8 +57,8 @@ public class Anchor extends Executor {
 	private double diff_ident = 0.01;
 	private double diff_frac = 0.05;
 	// maximum shift distance for two collinear alignment segments
-	// 10% of the smaller segment size
-	private double collinear_shift = 0.1;
+	// 50% of the smaller segment size
+	private double collinear_shift = 0.5;
 	private String out_prefix = null;
 	
 	@Override
@@ -174,7 +174,7 @@ public class Anchor extends Executor {
 		// temp list
 		final List<Blast6Record> tmp_records = new ArrayList<Blast6Record>();
 		// collinear merged record list
-		final List<Blast6Record> collinear_merged = new ArrayList<Blast6Record>();
+		// final List<Blast6Record> collinear_merged = new ArrayList<Blast6Record>();
 		
 		try {
 			BufferedReader br_blast = Utils.getBufferedReader(blast_out);
@@ -242,6 +242,9 @@ public class Anchor extends Executor {
 							ranges.add(range);
 						}
 					
+					
+					// TODO rewrite this part
+					/***
 					// find collinear alignment segments that can be merged
 					Collections.sort(tmp_records, new BlastRecord.SInterceptComparator());
 					
@@ -297,22 +300,43 @@ public class Anchor extends Executor {
 						
 						collinear_merged.add(new Blast6Record(qry,sub,pident,length,-1,-1,qstart,qend,sstart,send,-1,-1));
 					}
+					**/
+					
+					// find collinear alignment segments that can be merged
+					// more accurate but slower
+					Collections.sort(tmp_records, new BlastRecord.SubjectCoordinationComparator());
+					if(qry.equals("NODE_8_length_127103_cov_53.1777")&&sub.equals("ChrXIII"))
+						System.out.println();
+					
+					Blast6Record record;
+					for(int i=0; i<tmp_records.size(); i++) {
+						primary_record = tmp_records.get(i);
+						for(int j=i+1; j<tmp_records.size(); j++) {
+							secondary_record = tmp_records.get(j);
+							if( (record=collinear(primary_record, secondary_record))!=null ) {
+								tmp_records.set(i, record);
+								tmp_records.remove(j);
+								--i;
+								break;
+							}
+						}
+					}
 					
 					// process blast records that clipped by gaps
 					// (sstart, send)---(start2, send2)
 					// (sstart  ...  ---  ...    send2)
 					TreeRangeSet<Integer> sub_gap = sub_gaps.get(sub);
-					Collections.sort(collinear_merged, new BlastRecord.SubjectCoordinationComparator());
+					Collections.sort(tmp_records, new BlastRecord.SubjectCoordinationComparator());
 					
-					for(int i=0; i<collinear_merged.size(); i++) {
-						primary_record = collinear_merged.get(i);
+					for(int i=0; i<tmp_records.size(); i++) {
+						primary_record = tmp_records.get(i);
 						if( sub_gap.contains(primary_record.true_send()) ) {
 							secondary_record = null;
 							int sec_j = -1;
-							for(int j=i+1; j<collinear_merged.size(); j++) {
-								if( collinear_merged.get(j).true_sstart()>=
+							for(int j=i+1; j<tmp_records.size(); j++) {
+								if( tmp_records.get(j).true_sstart()>=
 										primary_record.true_send() ) {
-									secondary_record = collinear_merged.get(j);
+									secondary_record = tmp_records.get(j);
 									sec_j = j;
 									break;
 								}
@@ -341,8 +365,8 @@ public class Anchor extends Executor {
 								Blast6Record merged_record = primary_record.forward()?
 										new Blast6Record(qry,sub,pident,length,-1,-1,qstart,qend,sstart,send,-1,-1):
 										new Blast6Record(qry,sub,pident,length,-1,-1,qstart,qend,send,sstart,-1,-1);
-								collinear_merged.set(i, merged_record);
-								collinear_merged.remove(sec_j);
+								tmp_records.set(i, merged_record);
+								tmp_records.remove(sec_j);
 								
 								// the merged records need to be processed
 								--i;
@@ -351,7 +375,7 @@ public class Anchor extends Executor {
 					}
 					
 					// add to sel_recs
-					sel_recs.addAll(collinear_merged);
+					sel_recs.addAll(tmp_records);
 				}
 				
 				// filter by alignment fraction		
@@ -610,6 +634,35 @@ public class Anchor extends Executor {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+	}
+
+	private Blast6Record collinear(final Blast6Record record1, final Blast6Record record2) {
+		// TODO Auto-generated method stub
+		
+		double max_shift = collinear_shift*Math.min(record1.length(), record2.length());
+		
+		if(BlastRecord.reverse(record1, record2) ||
+				BlastRecord.sdistance(record1, record2)>max_shift ||
+				BlastRecord.qdistance(record1, record2)>max_shift ||
+				BlastRecord.pdistance(record1, record2)>max_shift) {
+			return null;
+		}
+
+		// merge collinear alignment segments
+		int qstart = Math.min(record1.true_qstart(), 
+				record2.true_qstart());
+		int qend = Math.max(record1.true_qend(),
+				record2.true_qend());
+		int sstart = Math.min(record1.true_sstart(), 
+				record2.true_sstart());
+		int send = Math.max(record1.true_send(),
+				record2.true_send());
+		double pident = Math.max(record1.pident(), record2.pident());
+		int length = qend-qstart;
+		
+		return record1.reverse() ? 
+				new Blast6Record(record1.qseqid(),record1.sseqid(),pident,length,-1,-1,qstart,qend,send,sstart,-1,-1):
+				new Blast6Record(record1.qseqid(),record1.sseqid(),pident,length,-1,-1,qstart,qend,sstart,send,-1,-1);
 	}
 }
 

@@ -310,8 +310,8 @@ public class BlastRecord {
 		// TODO Auto-generated method stub
 		if(this.soverlap(record)) return 0;
 		if(!this.sseqid.equals(record.sseqid)) return -1;
-		return Math.max(this.true_send(), record.true_send())-
-				Math.min(this.true_sstart(), record.true_sstart());
+		return Math.max(this.true_sstart(), record.true_sstart())-
+				Math.min(this.true_send(), record.true_send());
 	}
 	
 	public static int sdistance(BlastRecord record1,
@@ -319,16 +319,16 @@ public class BlastRecord {
 		// TODO Auto-generated method stub
 		if(soverlap(record1, record2)) return 0;
 		if(!record1.sseqid.equals(record2.sseqid)) return -1;
-		return Math.max(record1.true_send(), record2.true_send())-
-				Math.min(record1.true_sstart(), record2.true_sstart());
+		return Math.max(record1.true_sstart(), record2.true_sstart())-
+				Math.min(record1.true_send(), record2.true_send());
 	}
 	
 	public int qdistance(BlastRecord record) {
 		// TODO Auto-generated method stub
 		if(this.qoverlap(record)) return 0;
 		if(!this.qseqid.equals(record.qseqid)) return -1;
-		return Math.max(this.true_qend(), record.true_qend())-
-				Math.min(this.true_qstart(), record.true_qstart());
+		return Math.max(this.true_qstart(), record.true_qstart())-
+				Math.min(this.true_qend(), record.true_qend());
 	}
 	
 	public static int qdistance(BlastRecord record1,
@@ -336,8 +336,8 @@ public class BlastRecord {
 		// TODO Auto-generated method stub
 		if(qoverlap(record1, record2)) return 0;
 		if(!record1.qseqid.equals(record2.qseqid)) return -1;
-		return Math.max(record1.true_qend(), record2.true_qend())-
-				Math.min(record1.true_qstart(), record2.true_qstart());
+		return Math.max(record1.true_qstart(), record2.true_qstart())-
+				Math.min(record1.true_qend(), record2.true_qend());
 	}
 	
 	public boolean soverlap(BlastRecord record) {
