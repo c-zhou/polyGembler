@@ -682,7 +682,7 @@ public class Consensus extends Executor {
 				String line;
 				String[] s;
 				Set<Integer> C1, C2;
-				int z1, z2, tmp;
+				int z1, z2;
 				while( (line=link_br.readLine())!=null ) {
 					s = line.split("\\s+");
 					val = Integer.parseInt(s[2]);
@@ -697,14 +697,15 @@ public class Consensus extends Executor {
 
                     for(Integer c1 : C1) {
                     	for(Integer c2 : C2) {
-                    		if(c1>c2) {
-                                tmp = c1;
-                                c1 = c2;
-                                c2 = tmp;
+                    		if(c1<c2) {
+                                key = c1;
+                                key <<= 32;
+                                key += c2;
+                            } else {
+                            	key = c2;
+                                key <<= 32;
+                                key += c1;
                             }
-                            key = c1;
-                            key <<= 32;
-                            key += c2;
                             if(links.containsKey(key)) {
                             	link_br.close();
                             	throw new RuntimeException("!!!");
