@@ -419,14 +419,14 @@ public class Anchor extends Executor {
 			final BufferedWriter bw_map = Utils.getBufferedWriter(out_prefix+".map");
 			final BufferedWriter bw_fa = Utils.getBufferedWriter(out_prefix+".fa");
 			final Set<String> anchored_seqs = new HashSet<String>();
+			final List<String> sub_list = Sequence.parseSeqList(subject_file);
 			
-			for(Map.Entry<String, List<Blast6Record>> entry : anchored_records.entrySet()) {
-				List<Blast6Record> blast6_records = entry.getValue();
+			for(String sub_sn : sub_list) {
+				List<Blast6Record> blast6_records = anchored_records.get(sub_sn);
 				// sort blast records
 				Collections.sort(blast6_records, 
 						new Blast6Record.SubjectCoordinationComparator());
 				// consensus
-				String sub_sn = entry.getKey();
 				int posUpto = 0, send_clip = 0;
 				int sstart, send, qstart, qend, qlen, tmp_int, qstart_clip, qend_clip, gap_size, overlap;
 				int mol_len = 0;

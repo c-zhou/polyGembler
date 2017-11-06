@@ -81,6 +81,23 @@ public class Sequence implements Comparable<Sequence> {
 		return this.seq_str;
 	}
 
+	public static List<String> parseSeqList(String seq_fa) {
+		// TODO Auto-generated method stub
+		final List<String> sequences = new ArrayList<String>();
+		try {
+			BufferedReader br_fa = Utils.getBufferedReader(seq_fa);
+			String line = br_fa.readLine();
+			while( (line=br_fa.readLine())!=null ) {
+				if(line.startsWith(">")) 
+					sequences.add(line.replace(">","").split("\\s+")[0]);
+			}
+			br_fa.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return sequences;
+	}
+	
 	public static List<Sequence> parseFastaFileAsList(String seq_fa) {
 		// TODO Auto-generated method stub
 		final List<Sequence> sequences = new ArrayList<Sequence>();
