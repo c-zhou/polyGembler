@@ -1491,9 +1491,19 @@ public class Consensus extends Executor {
 					if(sub_selected==-1) continue;
 					
 					final List<Segment> sub_seq = list_segs.get(sub_selected);
-					for(int i=pos[0]; i<pos[1]; i++) {
+					for(int i=pos[0]; i<pos[1]; ) {
+						
+						if(sub_seq.get(i).type==MAP_ENUM.GAP) {
+							++i;
+							continue;
+						}
+						int j = i+1;
+						while(sub_seq.get(j).type==MAP_ENUM.GAP) j++;
+						if(j>pos[1]) break;
+						
 						sam_ref = seq_ind.get(sub_seq.get(i).seq_sn);
-						mat_ref = seq_ind.get(sub_seq.get(i+1).seq_sn);
+						mat_ref = seq_ind.get(sub_seq.get(j).seq_sn);
+						i = j;
 						
 						if( sam_ref==mat_ref ) continue;
 						
