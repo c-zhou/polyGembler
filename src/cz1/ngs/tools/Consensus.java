@@ -42,6 +42,9 @@ import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
 import cz1.util.Utils;
+import htsjdk.samtools.Cigar;
+import htsjdk.samtools.CigarElement;
+import htsjdk.samtools.CigarOperator;
 import htsjdk.samtools.SAMRecord;
 import htsjdk.samtools.SAMRecordIterator;
 import htsjdk.samtools.SAMSequenceRecord;
@@ -64,8 +67,10 @@ public class Consensus extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " --b<#>                  Input BAM file for this library (<#> = 1,2,...).\n"
+						+ " --b<#>                  Input BAM file (sorted by read name) for this library (<#> = 1,2,...).\n"
 						+ " --f<#>                  Fragment/insert size threshold of this library (<#> = 1,2,...).\n"
+						+ "                         NOTE: required for paired-end libraries,\n"
+						+ "                               and will be ignored if provided for long read libraries.\n"
 						+ " --w<#>                  Inverse weight of the links from this library (<#> = 1,2,...).\n"
 						+ "                         This parameter defines the minimum number of links in this library are required \n"
 						+ "                         to confirm a consensus. Generally larger insert size libraries are less realiable \n"
@@ -78,7 +83,11 @@ public class Consensus extends Executor {
 						+ "                               2. we need 2 links from the library 1 and 2 links from the library 2 (W=1.06). \n"
 						+ "                               Or,\n"
 						+ "                               3. we need 4 links from the library 2 and 2 links from the library 3 (W=1.0).\n"
-						+ " -c/--contig             The FASTA file contain contigs. \n"
+						+ " -as/--block-size        Minium alignment block size for PacBio/Nanopore long reads (default min(200,0.5*S), \n"
+						+ "                         where \'S\' is contig size). "
+						+ "                         Note: -as parameter only changes the constant part. i.e., if set -as 500, the minimum \n"
+						+ "                               alignment block size for a contig would be calculated as min(500,0.5*S)."
+						+ " -s/--sequence           The FASTA file contain sequences to anchor. \n"
 						+ " -m/--map                Map file indicate the order of the contigs. \n"
 						+ " -bs/--batch-size        Batch size store in memory (default 4000000). \n"
 						+ "                         Reduce this number if run out of memory.\n"
@@ -89,7 +98,7 @@ public class Consensus extends Executor {
 						+ "\n");
 	}
 
-	private String contig_file = null;
+	private String sequence_file = null;
 	private String map_file = null;
 	private int batch_size = 4000000;
 	private int min_size = 0;
@@ -97,14 +106,18 @@ public class Consensus extends Executor {
 	private String[] bam_list = null;
 	private int[] ins_thres = null;
 	private double[] link_w = null;
+	private int min_as = 200;
+	// specify the library types: short/long reads
+	private boolean[] read_paired = null;
 	
 	@Override
 	public void setParameters(String[] args) {
 		// TODO Auto-generated method stub
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
-			myArgsEngine.add("-c", "--contig", true);
+			myArgsEngine.add("-s", "--sequence", true);
 			myArgsEngine.add("-m", "--map", true);
+			myArgsEngine.add("-as", "--block-size", true);
 			myArgsEngine.add("-bs", "--batch-size", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-l", "--min-size", true);
@@ -115,8 +128,8 @@ public class Consensus extends Executor {
 			myArgsEngine.parse(args);
 		}
 		
-		if (myArgsEngine.getBoolean("-c")) {
-			this.contig_file = myArgsEngine.getString("-c");
+		if (myArgsEngine.getBoolean("-s")) {
+			this.sequence_file = myArgsEngine.getString("-s");
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify the contig file.");
@@ -127,6 +140,10 @@ public class Consensus extends Executor {
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify the map file.");
+		}
+		
+		if (myArgsEngine.getBoolean("-as")) {
+			this.min_as = Integer.parseInt(myArgsEngine.getString("-as"));
 		}
 		
 		if (myArgsEngine.getBoolean("-bs")) {
@@ -180,22 +197,43 @@ public class Consensus extends Executor {
 		}
 
 		int n = bamLib.size();
-		if(insLib.size()!=n || wLib.size()!=n) {
+		if(wLib.size()!=n) {
 			printUsage();
-			throw new IllegalArgumentException("Please library parameters do not match!!!");
+			throw new IllegalArgumentException("Library parameters do not match!!!");
 		}
 		
 		this.bam_list = new String[n];
 		this.ins_thres = new int[n];
 		this.link_w = new double[n];
+		this.read_paired = new boolean[n];
 		int i=0;
 		for(Integer key : bamLib.keySet()) {
-			if(!insLib.containsKey(key) || !wLib.containsKey(key)) {
-				printUsage();
-				throw new IllegalArgumentException("Please library parameters do not match!!!");
-			}
 			bam_list[i] = bamLib.get(key);
-			ins_thres[i] = insLib.get(key);
+			
+			final SamReader in1 = factory.open(new File(bam_list[i]));
+			SAMRecordIterator iter1 = in1.iterator();
+			SAMRecord record;
+			while( iter1.hasNext() ) {
+				record = iter1.next();
+				if( !record.getReadUnmappedFlag() ) {
+					if(record.getReadPairedFlag())
+						read_paired[i] = true;
+					break;
+				}
+			}
+			try {
+				in1.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+			if(!insLib.containsKey(key)&&read_paired[i] || !wLib.containsKey(key)) {
+				printUsage();
+				throw new IllegalArgumentException("Library parameters do not match!!!");
+			}
+			
+			ins_thres[i] = read_paired[i] ? insLib.get(key) : Integer.MAX_VALUE;
 			link_w[i] = 1.0/wLib.get(key);
 			i++;
 		}
@@ -216,7 +254,9 @@ public class Consensus extends Executor {
 					RandomStringUtils.randomAlphanumeric(20).toUpperCase()+
 					".mergedLink.txt";
 			link_file[i] = out;
-			this.executor.submit(new LinkCounter(this.bam_list[i], out));
+			this.executor.submit( this.read_paired[i] ? 
+					new PairedReadLinkCounter(this.bam_list[i], out) : 
+					new LongReadLinkCounter(this.bam_list[i], this.map_file, out));
 		}
 		this.waitFor();
 		
@@ -231,7 +271,7 @@ public class Consensus extends Executor {
 		myLogger.info("STEP 3. parse scaffolds");
 		String scaff_out = this.out_prefix+"_parsedScaffold.fa";
 		
-		this.parseScaffold(this.contig_file, 
+		this.parseScaffold(this.sequence_file, 
 				link_out+".map"+String.format("%04d", this.link_file.length), 
 				this.min_size, 
 				scaff_out);
@@ -1116,10 +1156,11 @@ public class Consensus extends Executor {
 		}
 	}
 	
-	private final class LinkCounter implements Runnable {
+	
+	private abstract class LinkCounter implements Runnable {
 
-		private final String bam_in;
-		private final String out_prefix;
+		protected final String bam_in;
+		protected final String out_prefix;
 		
 		public LinkCounter(String bam_in, 
 				String out_prefix) {
@@ -1128,24 +1169,406 @@ public class Consensus extends Executor {
 			this.out_prefix = out_prefix;
 		}
 
-		private final Set<String> tmpLinkFile = new HashSet<String>();
+		protected final Set<String> tmpLinkFile = new HashSet<String>();
 		
 		@Override
 		public void run() {
 			// TODO Auto-generated method stub
-			this.buildReadPairGraph(bam_in, out_prefix, true, batch_size);
-			this.mergeLinks(tmpLinkFile.toArray(new String[tmpLinkFile.size()]), 
-					out_prefix);
-			for(String tmpf : tmpLinkFile) new File(tmpf).delete();
+			try {
+				this.buildReadPairGraph(bam_in, out_prefix, true, batch_size);
+				this.mergeLinks(tmpLinkFile.toArray(new String[tmpLinkFile.size()]), 
+						out_prefix);
+				for(String tmpf : tmpLinkFile) new File(tmpf).delete();
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				Thread t = Thread.currentThread();
+				t.getUncaughtExceptionHandler().uncaughtException(t, e);
+				e.printStackTrace();
+				executor.shutdown();
+				System.exit(1);
+			}
 		}
 		
 		public void buildReadPairGraph(final String bam_in,
 				final String out,
 				final boolean ignore_sa, // ignore secondary alignment
 				final int batch_size) {
-			buildReadPairGraph(bam_in, out, ignore_sa, batch_size, 0, null);
+			this.buildReadPairGraph(bam_in, out, ignore_sa, batch_size, 0, null);
 		}
 		
+		public abstract void buildReadPairGraph(final String bam_in,
+				final String out,
+				final boolean ignore_sa, // ignore secondary alignment
+				final int batch_size,
+				final int batch_start,
+				final String resume_r_name);
+		
+		protected void mergeLinks(final String[] link_in,
+				final String link_out) {
+			try {
+				
+				int nBatch = link_in.length;
+				BufferedReader[] brLinkInTmp = new BufferedReader[nBatch];
+				final boolean[] reachFileEnd = new boolean[nBatch];
+				final int[] link_count = new int[nBatch];
+				for(int i=0; i!=nBatch; i++) { 
+					brLinkInTmp[i] = new BufferedReader(new FileReader(link_in[i]));
+					reachFileEnd[i] = false;
+					link_count[i] = 0;
+				}
+				
+				final TreeMap<Long, Integer> treeMap = new TreeMap<Long, Integer>();
+				String line;
+				int nReachFileEnd = 0;
+				
+				for(int i=0; i!=nBatch; i++) {
+					line = brLinkInTmp[i].readLine();
+					while( line!=null&&!fillLinkTreeMap(treeMap, link_count, line, i) ) {
+						line = brLinkInTmp[i].readLine();
+					}
+					if(line==null) {
+						reachFileEnd[i] = true;
+						nReachFileEnd++;
+					}
+				}
+				Entry<Long, Integer> firstEntry;
+				long link_key;
+				int link_val;
+				BufferedWriter bwLinkOut = new BufferedWriter(new FileWriter(link_out));
+				while( !treeMap.isEmpty() ) {
+					firstEntry = treeMap.pollFirstEntry();
+					link_key = firstEntry.getKey();
+					link_val = firstEntry.getValue();
+					bwLinkOut.write( (int)(link_key>>32)+" "+(int)link_key+" "+link_count[link_val]+"\n" );
+					
+					if(!reachFileEnd[link_val]) {
+						line = brLinkInTmp[link_val].readLine();
+						while( line!=null&&!fillLinkTreeMap(treeMap, link_count, line, link_val) ) {
+							line = brLinkInTmp[link_val].readLine();
+						}
+						if(line==null) {
+							reachFileEnd[link_val] = true;
+							nReachFileEnd++;
+						}
+					}
+					
+					if(treeMap.isEmpty()&&nReachFileEnd!=nBatch) {
+						for(int i=0; i!=nBatch; i++) {
+							if(!reachFileEnd[i]) {
+								line = brLinkInTmp[i].readLine();
+								while( line!=null&&!fillLinkTreeMap(treeMap, link_count, line, i) ) {
+									line = brLinkInTmp[i].readLine();
+								}
+								if(line==null) {
+									reachFileEnd[i] = true;
+									nReachFileEnd++;
+								}
+							}
+						}
+					}
+				}
+				bwLinkOut.close();
+				for(int i=0; i!=nBatch; i++) brLinkInTmp[i].close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		protected boolean fillLinkTreeMap(final TreeMap<Long, Integer> treeMap, 
+				final int[] link_count,
+				final String line, 
+				final int i) {
+			// TODO Auto-generated method stub
+			String[] parse_link = line.split("\\s+");
+			long link_key = Long.parseLong(parse_link[0]); 
+			int link_val = Integer.parseInt(parse_link[1]);
+			if(treeMap.containsKey(link_key)) {
+				link_count[treeMap.get(link_key)] += link_val;
+				return false;
+			} else {
+				link_count[i] = link_val;
+				treeMap.put(link_key, i);
+				return true;
+			}
+		}
+	}
+	
+	private final class LongReadLinkCounter extends LinkCounter {
+		
+		private final Map<String, Set<Long>> map_segs;
+		private final List<List<Segment>> list_segs; 
+		
+		public LongReadLinkCounter(String bam_in, 
+				String map_file, 
+				String out_prefix) {
+			// TODO Auto-generated constructor stub
+			super(bam_in, out_prefix);
+			this.list_segs = parseSegment(map_file);
+			map_segs = new HashMap<String, Set<Long>>();
+			// 32 bits chromosome id + 32 bits positions on chromosome
+			String seq_sn;
+			
+			for(int i=0; i<list_segs.size(); i++) {
+				List<Segment> segs = list_segs.get(i);
+				
+				for(int j=0; j<segs.size(); j++) {
+					seq_sn = segs.get(j).seq_sn;
+					long key = i;
+					key    <<= 32;
+					key     += j;
+					if(!map_segs.containsKey(seq_sn))
+						map_segs.put(seq_sn, new HashSet<Long>());
+					map_segs.get(seq_sn).add(key);
+				}
+			}
+		}
+		
+		@Override
+		public void buildReadPairGraph(final String bam_in, 
+				final String out, 
+				final boolean ignore_sa, // ignore secondary alignment
+				final int batch_size, 
+				final int batch_start,
+				final String resume_r_name) {
+			// TODO Auto-generated method stub
+			try {	
+				myLogger.info("Process file ... "+bam_in);
+				
+				final Map<Long, Integer> links = new HashMap<Long, Integer>();
+				final List<SAMRecord> sam_record_list = new ArrayList<SAMRecord>();
+
+				SAMRecord tmp_record, record;
+				String sam_id;
+				int sam_ref, mat_ref, batch = batch_start;
+				long key_ref;
+				
+				final SamReader in1 = factory.open(new File(bam_in));
+
+				final Map<Integer, Double> seq_sz = new HashMap<Integer, Double>();
+				final Map<String, Integer> seq_ind = new HashMap<String, Integer>();
+				List<SAMSequenceRecord> seqs = 
+						in1.getFileHeader().getSequenceDictionary().getSequences();
+				for(SAMSequenceRecord seq : seqs) {
+					seq_sz.put( seq.getSequenceIndex(), 
+						Math.min(min_as, 0.5*seq.getSequenceLength()) );
+					seq_ind.put(seq.getSequenceName(), seq.getSequenceIndex());
+				}
+				
+				SAMRecordIterator iter1 = in1.iterator();
+				long record_count = 1;
+				tmp_record = iter1.next();
+				
+				if(resume_r_name!=null) {
+					myLogger.info("Resuming...");
+					while(!tmp_record.getReadName().equals(resume_r_name)) {
+						tmp_record = iter1.next();
+						record_count++;
+					}
+					myLogger.info("Resuming... "+record_count+"th record: "+tmp_record.getSAMString());
+				}
+				
+				boolean _ignore_sa = !ignore_sa;
+				final Map<Integer, List<Integer>> int_buckets = new HashMap<Integer, List<Integer>>();
+				final Map<Integer, Map<Integer, Integer>> sz_buckets = new HashMap<Integer, Map<Integer, Integer>>();
+				int mol_seq, mol_pos;
+						
+				while( tmp_record!=null ) {
+					
+					sam_record_list.clear();
+
+					if(!tmp_record.getReadUnmappedFlag() &&
+							(tmp_record.getAlignmentEnd()-tmp_record.getAlignmentStart()+1)
+							>=seq_sz.get(tmp_record.getReferenceIndex()) && 
+							(!tmp_record.getNotPrimaryAlignmentFlag() || _ignore_sa) )
+						sam_record_list.add(tmp_record);
+
+					sam_id = tmp_record.getReadName();
+
+					while( (tmp_record = iter1.hasNext() ? iter1.next() : null) !=null &&
+							tmp_record.getReadName().equals(sam_id) ) {
+						if(++record_count%1000000==0)
+							myLogger.info(""+record_count+" ... "+bam_in);
+
+						if(!tmp_record.getReadUnmappedFlag() &&
+								(tmp_record.getAlignmentEnd()-tmp_record.getAlignmentStart()+1)
+								>=seq_sz.get(tmp_record.getReferenceIndex()) && 
+								(!tmp_record.getNotPrimaryAlignmentFlag() || _ignore_sa) )
+							sam_record_list.add(tmp_record);
+					}
+					
+					// is empty or aligned to only one sequence
+					if( sam_record_list.size()<2 ) continue;
+
+					// calculate record true length
+					record = sam_record_list.get(0);
+					int nL = record.getReadLength();
+					if(!record.getReadUnmappedFlag()) {	
+						Cigar cigar = record.getCigar();
+						CigarElement cs = cigar.getFirstCigarElement();
+						CigarElement ce = cigar.getLastCigarElement();
+						nL += (cs.getOperator()==CigarOperator.H?cs.getLength():0)+
+								(ce.getOperator()==CigarOperator.H?ce.getLength():0);
+					}
+					
+					// bucket SAM record
+					int_buckets.clear();
+					sz_buckets.clear();
+					for(SAMRecord sam_record : sam_record_list) {
+						int sz = readCoveredBase(sam_record);
+						if( !map_segs.containsKey(sam_record.getReferenceName()) ) 
+							continue;
+						final Set<Long> keys = map_segs.get(sam_record.getReferenceName());
+						for(Long key : keys) {
+							mol_pos = key.intValue();
+							mol_seq = (int)(key>>32);
+							if(!int_buckets.containsKey(mol_seq)) {
+								int_buckets.put( mol_seq, new ArrayList<Integer>() );
+								sz_buckets.put( mol_seq, new HashMap<Integer, Integer>() );
+							}
+							Map<Integer, Integer> bucket = sz_buckets.get(mol_seq);
+							if(bucket.containsKey(mol_pos)) {
+								bucket.put(mol_pos, bucket.get(mol_pos)+sz);
+							} else {
+								bucket.put(mol_pos, sz);
+								int_buckets.get(mol_seq).add(mol_pos);
+							}
+						}
+					}
+					
+					int sub_selected = -1;
+					int span = Integer.MIN_VALUE;
+					int[] pos = new int[2];
+					int pos0, pos1, tmp_pos, sa, base_covered, sub;
+				
+					// find best position aligned
+					for(Map.Entry<Integer, List<Integer>> entry : int_buckets.entrySet()) {
+						
+						List<Integer> record_list = entry.getValue();
+						if(record_list.size()<2) continue;
+						Collections.sort(record_list);
+						sub = entry.getKey();
+						final List<Segment> sub_seq = list_segs.get(sub);
+						final Map<Integer, Integer> rec_szs = sz_buckets.get(sub);
+						
+						pos0 = record_list.get(0);
+						pos1 = record_list.get(0);
+						base_covered = rec_szs.get(pos0);
+						
+						for(int i=1; i<record_list.size(); i++) {
+							tmp_pos = record_list.get(i);
+							sa = 0;
+							for(int j=pos1+1; j<tmp_pos; j++)
+								if(sub_seq.get(j).type==MAP_ENUM.CONTIG)
+									sa += sub_seq.get(j).seq_ln;
+							if( base_covered+sa>=nL ) {
+								// clipped here
+								if(base_covered>span) {
+									sub_selected = sub;
+									pos[0] = pos0;
+									pos[1] = pos1;
+									span = base_covered;
+								}
+								base_covered = rec_szs.get(tmp_pos);
+								pos0 = tmp_pos;
+							} else {
+								// extend
+								base_covered += sa+rec_szs.get(tmp_pos);
+								if(i==record_list.size()-1) {
+									// reach the end
+									if(base_covered>span) {
+										sub_selected = sub;
+										pos[0] = pos0;
+										pos[1] = pos1;
+										span = base_covered;
+									}
+								}
+							}
+							pos1 = tmp_pos;
+						}	
+					}
+					
+					if(sub_selected==-1) continue;
+					
+					final List<Segment> sub_seq = list_segs.get(sub_selected);
+					for(int i=pos[0]; i<pos[1]; i++) {
+						sam_ref = seq_ind.get(sub_seq.get(i).seq_sn);
+						mat_ref = seq_ind.get(sub_seq.get(i+1).seq_sn);
+						
+						if( sam_ref==mat_ref ) continue;
+						
+						if(sam_ref>mat_ref) {
+							key_ref = mat_ref;
+							key_ref <<= 32;
+							key_ref += sam_ref;
+						} else {
+							key_ref = sam_ref;
+							key_ref <<= 32;
+							key_ref += mat_ref;
+						}
+						
+						if(links.containsKey(key_ref))
+							links.put(key_ref, links.get(key_ref)+1);
+						else links.put(key_ref, 1);
+					}
+					
+					if(links.size()>batch_size) {
+						String outf = out+".tmp"+String.format("%016d", batch);
+						
+						BufferedWriter bw = new BufferedWriter(new FileWriter(new File(outf)));
+						SortedSet<Long> keys = new TreeSet<Long>(links.keySet());
+						for(Long key : keys) 
+							bw.write(key+"\t"+links.get(key)+"\n");
+						bw.close();
+					    myLogger.info(out+".tmp"+String.format("%016d", batch)+" written with "+record_count+"th record: "+tmp_record.getSAMString());
+	                    batch++;
+
+	                    tmpLinkFile.add(outf);
+	                    
+	                    links.clear();
+	                    System.gc ();
+	    				System.runFinalization ();
+	                }
+				}
+				iter1.close();
+				in1.close();
+
+				if(links.size()>0) {
+					String outf = out+".tmp"+String.format("%016d", batch);
+					
+					BufferedWriter bw = new BufferedWriter(new FileWriter(new File(outf)));
+					SortedSet<Long> keys = new TreeSet<Long>(links.keySet());
+					for(Long key : keys) 
+						bw.write(key+"\t"+links.get(key)+"\n");
+					bw.close();
+					
+					tmpLinkFile.add(outf);
+				}
+				
+				myLogger.info("Process file ... "+bam_in+" done.");
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		private int readCoveredBase(SAMRecord samRecord) {
+			// TODO Auto-generated method stub
+			if(samRecord.getReadUnmappedFlag()) return 0;
+			return samRecord.getReadPositionAtReferencePosition(samRecord.getAlignmentEnd())-
+					samRecord.getReadPositionAtReferencePosition(samRecord.getAlignmentStart());
+		}
+	}
+	
+	private final class PairedReadLinkCounter extends LinkCounter {
+		
+		public PairedReadLinkCounter(String bam_in, 
+				String out_prefix) {
+			// TODO Auto-generated constructor stub
+			super(bam_in, out_prefix);
+		}
+		
+		@Override
 		public void buildReadPairGraph(final String bam_in,
 				final String out,
 				final boolean ignore_sa, // ignore secondary alignment
@@ -1231,14 +1654,14 @@ public class Consensus extends Executor {
 							if( sam_ref==mat_ref ) continue;
 
 							if(sam_ref>mat_ref) {
-								int tmp_int = sam_ref;
-								sam_ref = mat_ref;
-								mat_ref = tmp_int;
+								key_ref = mat_ref;
+								key_ref <<= 32;
+								key_ref += sam_ref;
+							} else {
+								key_ref = sam_ref;
+								key_ref <<= 32;
+								key_ref += mat_ref;
 							}
-
-							key_ref = sam_ref;
-							key_ref <<= 32;
-							key_ref += mat_ref;
 
 							if(links.containsKey(key_ref))
 								links.put(key_ref, links.get(key_ref)+1);
@@ -1283,96 +1706,6 @@ public class Consensus extends Executor {
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
-			}
-		}
-		
-		private void mergeLinks(final String[] link_in,
-				final String link_out) {
-			try {
-				
-				int nBatch = link_in.length;
-				BufferedReader[] brLinkInTmp = new BufferedReader[nBatch];
-				final boolean[] reachFileEnd = new boolean[nBatch];
-				final int[] link_count = new int[nBatch];
-				for(int i=0; i!=nBatch; i++) { 
-					brLinkInTmp[i] = new BufferedReader(new FileReader(link_in[i]));
-					reachFileEnd[i] = false;
-					link_count[i] = 0;
-				}
-				
-				final TreeMap<Long, Integer> treeMap = new TreeMap<Long, Integer>();
-				String line;
-				int nReachFileEnd = 0;
-				
-				for(int i=0; i!=nBatch; i++) {
-					line = brLinkInTmp[i].readLine();
-					while( line!=null&&!fillLinkTreeMap(treeMap, link_count, line, i) ) {
-						line = brLinkInTmp[i].readLine();
-					}
-					if(line==null) {
-						reachFileEnd[i] = true;
-						nReachFileEnd++;
-					}
-				}
-				Entry<Long, Integer> firstEntry;
-				long link_key;
-				int link_val;
-				BufferedWriter bwLinkOut = new BufferedWriter(new FileWriter(link_out));
-				while( !treeMap.isEmpty() ) {
-					firstEntry = treeMap.pollFirstEntry();
-					link_key = firstEntry.getKey();
-					link_val = firstEntry.getValue();
-					bwLinkOut.write( (int)(link_key>>32)+" "+(int)link_key+" "+link_count[link_val]+"\n" );
-					
-					if(!reachFileEnd[link_val]) {
-						line = brLinkInTmp[link_val].readLine();
-						while( line!=null&&!fillLinkTreeMap(treeMap, link_count, line, link_val) ) {
-							line = brLinkInTmp[link_val].readLine();
-						}
-						if(line==null) {
-							reachFileEnd[link_val] = true;
-							nReachFileEnd++;
-						}
-					}
-					
-					if(treeMap.isEmpty()&&nReachFileEnd!=nBatch) {
-						for(int i=0; i!=nBatch; i++) {
-							if(!reachFileEnd[i]) {
-								line = brLinkInTmp[i].readLine();
-								while( line!=null&&!fillLinkTreeMap(treeMap, link_count, line, i) ) {
-									line = brLinkInTmp[i].readLine();
-								}
-								if(line==null) {
-									reachFileEnd[i] = true;
-									nReachFileEnd++;
-								}
-							}
-						}
-					}
-				}
-				bwLinkOut.close();
-				for(int i=0; i!=nBatch; i++) brLinkInTmp[i].close();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-		
-		private boolean fillLinkTreeMap(final TreeMap<Long, Integer> treeMap, 
-				final int[] link_count,
-				final String line, 
-				final int i) {
-			// TODO Auto-generated method stub
-			String[] parse_link = line.split("\\s+");
-			long link_key = Long.parseLong(parse_link[0]); 
-			int link_val = Integer.parseInt(parse_link[1]);
-			if(treeMap.containsKey(link_key)) {
-				link_count[treeMap.get(link_key)] += link_val;
-				return false;
-			} else {
-				link_count[i] = link_val;
-				treeMap.put(link_key, i);
-				return true;
 			}
 		}
 	}
