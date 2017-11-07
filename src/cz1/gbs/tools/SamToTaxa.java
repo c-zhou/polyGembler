@@ -3,6 +3,16 @@ package cz1.gbs.tools;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
 import cz1.util.Utils;
+import htsjdk.samtools.SAMFileHeader;
+import htsjdk.samtools.SAMFileHeader.SortOrder;
+import htsjdk.samtools.SAMFileWriter;
+import htsjdk.samtools.SAMFileWriterFactory;
+import htsjdk.samtools.SAMReadGroupRecord;
+import htsjdk.samtools.SAMRecord;
+import htsjdk.samtools.SAMRecordIterator;
+import htsjdk.samtools.SamReader;
+import htsjdk.samtools.SamReaderFactory;
+import htsjdk.samtools.ValidationStringency;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -20,15 +30,6 @@ import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import net.sf.samtools.SAMFileHeader;
-import net.sf.samtools.SAMFileReader;
-import net.sf.samtools.SAMFileWriter;
-import net.sf.samtools.SAMFileWriterFactory;
-import net.sf.samtools.SAMReadGroupRecord;
-import net.sf.samtools.SAMRecord;
-import net.sf.samtools.SAMRecordIterator;
-import net.sf.samtools.SAMFileHeader.SortOrder;
-import net.sf.samtools.SAMFileReader.ValidationStringency;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
@@ -248,7 +249,13 @@ public class SamToTaxa extends Executor {
 			myLogger.info("Using the following BAM file:");
 			myLogger.info(samFile.getAbsolutePath());
 			
-			final SAMFileReader inputSam = new SAMFileReader(samFile);
+			final SamReaderFactory factory =
+					SamReaderFactory.makeDefault()
+					.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
+							SamReaderFactory.Option.VALIDATE_CRC_CHECKSUMS)
+					.validationStringency(ValidationStringency.SILENT);
+			
+			final SamReader inputSam = factory.open(samFile);
 			header_sam = inputSam.getFileHeader();
 			header_sam.setSortOrder(SortOrder.unsorted);
 			
@@ -270,7 +277,6 @@ public class SamToTaxa extends Executor {
 				locks.put(taxa, new Object());
 			}
 			
-			inputSam.setValidationStringency(ValidationStringency.SILENT);
 			SAMRecordIterator iter=inputSam.iterator();
 			
 			cache();

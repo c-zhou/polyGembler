@@ -2,6 +2,18 @@ package cz1.gbs.tools;
 
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
+import htsjdk.samtools.SAMFileHeader;
+import htsjdk.samtools.SAMFileWriter;
+import htsjdk.samtools.SAMFileWriterFactory;
+import htsjdk.samtools.SAMProgramRecord;
+import htsjdk.samtools.SAMReadGroupRecord;
+import htsjdk.samtools.SAMRecord;
+import htsjdk.samtools.SAMRecordIterator;
+import htsjdk.samtools.SAMSequenceDictionary;
+import htsjdk.samtools.SAMSequenceRecord;
+import htsjdk.samtools.SamReader;
+import htsjdk.samtools.SamReaderFactory;
+import htsjdk.samtools.ValidationStringency;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -13,18 +25,6 @@ import java.util.Set;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
-
-import net.sf.samtools.SAMFileHeader;
-import net.sf.samtools.SAMFileReader;
-import net.sf.samtools.SAMFileReader.ValidationStringency;
-import net.sf.samtools.SAMFileWriter;
-import net.sf.samtools.SAMFileWriterFactory;
-import net.sf.samtools.SAMProgramRecord;
-import net.sf.samtools.SAMReadGroupRecord;
-import net.sf.samtools.SAMRecord;
-import net.sf.samtools.SAMRecordIterator;
-import net.sf.samtools.SAMSequenceDictionary;
-import net.sf.samtools.SAMSequenceRecord;
 
 
 public class SamFileExtract extends Executor {
@@ -84,8 +84,12 @@ public class SamFileExtract extends Executor {
 	public void run() {
 		// TODO Auto-generated method stub
 		
-		final SAMFileReader inputSam = new SAMFileReader(new File(bam_in));
-		inputSam.setValidationStringency(ValidationStringency.SILENT);
+		final SamReaderFactory factory =
+				SamReaderFactory.makeDefault()
+				.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
+						SamReaderFactory.Option.VALIDATE_CRC_CHECKSUMS)
+				.validationStringency(ValidationStringency.SILENT);
+		final SamReader inputSam = factory.open(new File(bam_in));
 		final SAMFileHeader header = inputSam.getFileHeader();
 		final SAMSequenceDictionary seqdic = header.getSequenceDictionary();
 		final SAMFileHeader header_out = new SAMFileHeader();
@@ -127,7 +131,12 @@ public class SamFileExtract extends Executor {
 				outputSam.addAlignment(rec);
 		}
 		iter.close();
-		inputSam.close();
+		try {
+			inputSam.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		outputSam.close();
 		
 		System.err.println(bam_in+" return true");

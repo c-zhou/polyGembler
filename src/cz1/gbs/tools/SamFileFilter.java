@@ -7,12 +7,13 @@ import java.io.FilenameFilter;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
 import cz1.util.Utils;
-import net.sf.samtools.SAMFileReader;
-import net.sf.samtools.SAMFileWriterFactory;
-import net.sf.samtools.SAMRecord;
-import net.sf.samtools.SAMRecordIterator;
-import net.sf.samtools.SAMFileReader.ValidationStringency;
-import net.sf.samtools.SAMFileWriter;
+import htsjdk.samtools.SAMFileWriter;
+import htsjdk.samtools.SAMFileWriterFactory;
+import htsjdk.samtools.SAMRecord;
+import htsjdk.samtools.SAMRecordIterator;
+import htsjdk.samtools.SamReader;
+import htsjdk.samtools.SamReaderFactory;
+import htsjdk.samtools.ValidationStringency;
 
 public class SamFileFilter extends Executor {
 	private String input_dir;
@@ -90,9 +91,13 @@ public class SamFileFilter extends Executor {
 				public void run() {
 					// TODO Auto-generated method stub
 					try{
-						final SAMFileReader inputSam = new SAMFileReader(
-								new File(input_dir+"/"+bam_file));
-						inputSam.setValidationStringency(ValidationStringency.SILENT);
+						final SamReaderFactory factory =
+								SamReaderFactory.makeDefault()
+								.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
+										SamReaderFactory.Option.VALIDATE_CRC_CHECKSUMS)
+								.validationStringency(ValidationStringency.SILENT);
+						
+						final SamReader inputSam = factory.open(new File(input_dir+"/"+bam_file));
 
 						final SAMFileWriter outputSam =  new SAMFileWriterFactory().
 								makeSAMOrBAMWriter(inputSam.getFileHeader(),

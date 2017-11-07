@@ -1,22 +1,24 @@
 package cz1.test;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
-import net.sf.samtools.SAMFileHeader;
-import net.sf.samtools.SAMFileReader;
-import net.sf.samtools.SAMFileWriter;
-import net.sf.samtools.SAMFileWriterFactory;
-import net.sf.samtools.SAMReadGroupRecord;
-import net.sf.samtools.SAMRecord;
-import net.sf.samtools.SAMRecord.SAMTagAndValue;
-import net.sf.samtools.SAMRecordIterator;
-import net.sf.samtools.SAMFileHeader.SortOrder;
-import net.sf.samtools.SAMFileReader.ValidationStringency;
+import htsjdk.samtools.SAMFileHeader;
+import htsjdk.samtools.SAMFileHeader.SortOrder;
+import htsjdk.samtools.SAMFileWriter;
+import htsjdk.samtools.SAMFileWriterFactory;
+import htsjdk.samtools.SAMReadGroupRecord;
+import htsjdk.samtools.SAMRecord;
+import htsjdk.samtools.SAMRecord.SAMTagAndValue;
+import htsjdk.samtools.SAMRecordIterator;
+import htsjdk.samtools.SamReader;
+import htsjdk.samtools.SamReaderFactory;
+import htsjdk.samtools.ValidationStringency;
 
 public class SAMtools extends Executor {
 
@@ -65,12 +67,15 @@ public class SAMtools extends Executor {
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		final SAMFileReader inputSam = new SAMFileReader(new File(mySamFile));
-		
+		final SamReaderFactory factory =
+				SamReaderFactory.makeDefault()
+				.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
+						SamReaderFactory.Option.VALIDATE_CRC_CHECKSUMS)
+				.validationStringency(ValidationStringency.SILENT);
+		final SamReader inputSam = factory.open(new File(mySamFile));
 		
 		samHeader = inputSam.getFileHeader();
 		samHeader.setSortOrder(SortOrder.unsorted);
-		inputSam.setValidationStringency(ValidationStringency.SILENT);
 		SAMRecordIterator iter=inputSam.iterator();
 		Set<Entry<String, String>> attr = samHeader.getAttributes();
 		
@@ -95,7 +100,12 @@ public class SAMtools extends Executor {
 		}
 		myLogger.info("exit...");
 		
-		inputSam.close();
+		try {
+			inputSam.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		outSam.close();
 	}
 }
