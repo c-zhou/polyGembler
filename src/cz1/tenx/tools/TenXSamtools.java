@@ -60,7 +60,7 @@ public class TenXSamtools extends Executor {
 			if(record1==null) return  1;
 			if(record2==null) return -1;
 			if(record1.getReadUnmappedFlag()&&record2.getReadUnmappedFlag())
-				return 0;
+				return compareSAMRecord(record1, record2);
 			// unmapped record to the end
 			if(record1.getReadUnmappedFlag()) return  1;
 			if(record2.getReadUnmappedFlag()) return -1;
@@ -127,7 +127,7 @@ public class TenXSamtools extends Executor {
 						if(record2==null) return -1;
 						if(record1.getStringAttribute("BX")==null&&
 								record2.getStringAttribute("BX")==null)
-							return 0;
+							return compareSAMRecord(record1, record2);
 						// none barcode record to the end
 						if(record1.getStringAttribute("BX")==null) return  1;
 						if(record2.getStringAttribute("BX")==null) return -1;
@@ -358,7 +358,7 @@ public class TenXSamtools extends Executor {
 			for(int i=0; i!=batch; i++) {
 				iterSam[i].close();
 				batchSam[i].close();
-				// new File(this.bam_out+String.format("%08d", i)).delete();
+				new File(this.bam_out+String.format("%08d", i)).delete();
 			}
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
