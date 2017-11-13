@@ -64,9 +64,8 @@ public class TenXSamtools extends Executor {
 			// unmapped record to the end
 			if(record1.getReadUnmappedFlag()) return  1;
 			if(record2.getReadUnmappedFlag()) return -1;
-			if(record1.getAlignmentStart()-record2.getAlignmentStart()==0)
-				return compareSAMRecord(record1, record2);
-			return record1.getAlignmentStart()-record2.getAlignmentStart();
+			int diff = record1.getAlignmentStart()-record2.getAlignmentStart();
+			return diff==0 ? compareSAMRecord(record1, record2) : diff;
 		}
 	};
 	
@@ -125,17 +124,15 @@ public class TenXSamtools extends Executor {
 						if(record1==null&&record2==null) return 0;
 						if(record1==null) return  1;
 						if(record2==null) return -1;
-						if(record1.getStringAttribute("BX")==null&&
-								record2.getStringAttribute("BX")==null)
+						String bx1 = record1.getStringAttribute("BX"),
+								bx2 = record2.getStringAttribute("BX");
+						if(bx1==null&&bx2==null)
 							return compareSAMRecord(record1, record2);
 						// none barcode record to the end
-						if(record1.getStringAttribute("BX")==null) return  1;
-						if(record2.getStringAttribute("BX")==null) return -1;
-						if(record1.getStringAttribute("BX").
-								compareTo(record2.getStringAttribute("BX"))==0)
-							return compareSAMRecord(record1, record2);
-						return record1.getStringAttribute("BX").
-								compareTo(record2.getStringAttribute("BX"));
+						if(bx1==null) return  1;
+						if(bx2==null) return -1;
+						int diff = bx1.compareTo(bx2);
+						return diff==0 ? compareSAMRecord(record1, record2) : diff;
 					}
 				};
 			}

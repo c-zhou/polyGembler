@@ -34,7 +34,7 @@ public class GenomeAssemblyTiling extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " -d/--rdot-plot				Rdot plot file directory.\n"
+						+ " -d/--rdot-plot              Rdot plot file directory.\n"
 						+ " -s/--size                   Chromosome/contig/scaffold size file.\n"
 						+ " -f/--rf                     Recombination frequency file.\n"
 						+ " -r/--reference              Reference genome assembly ID.\n"

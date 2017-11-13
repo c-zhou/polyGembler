@@ -2,6 +2,7 @@ package cz1.appl;
 
 import org.apache.log4j.Logger;
 
+import cz1.tenx.tools.TenXMoleculeStats;
 import cz1.tenx.tools.TenXSamtools;
 
 
@@ -24,6 +25,11 @@ public class TenX {
 			tenXSamtools.setParameters(args2);
 			tenXSamtools.run();
 			break;
+		case "stats":
+			TenXMoleculeStats tenXMStats = new TenXMoleculeStats();
+			tenXMStats.setParameters(args2);
+			tenXMStats.run();
+			break;
 		default:
 			printUsage();
 			throw new RuntimeException("Undefined tool!!!");
@@ -34,6 +40,7 @@ public class TenX {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " samtools              TenX Samtools.\n\n");
+						+ " samtools              TenX Samtools.\n"
+						+ " stats                 TenX BAM file molecular statistics.\n\n");
 	}
 }
