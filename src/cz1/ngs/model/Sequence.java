@@ -4,8 +4,10 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -18,6 +20,19 @@ public class Sequence implements Comparable<Sequence> {
 	private final String seq_str; //sequence string
 	
 	public final static char[] nucleotide = new char[]{'A','C','G','T', 'N', 'a','c','g','t', 'n'};
+	public final static Set<Character> nuclset = new HashSet<Character>();
+	static {
+		nuclset.add('A');
+		nuclset.add('C');
+		nuclset.add('G');
+		nuclset.add('T');
+		nuclset.add('N');
+		nuclset.add('a');
+		nuclset.add('c');
+		nuclset.add('g');
+		nuclset.add('t');
+		nuclset.add('n');
+	}
 	public final static Map<Character, Character> revcmp = new HashMap<Character, Character>();
 	static {
 		revcmp.put('A', 'T');

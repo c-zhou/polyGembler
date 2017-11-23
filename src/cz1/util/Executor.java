@@ -47,7 +47,7 @@ public abstract class Executor {
 	protected ExecutorService executor;
 	protected BlockingQueue<Runnable> tasks = null;
 
-	protected void initial_thread_pool() {
+	protected void initial_thread_pool(int thread_num) {
 		if(this.tasks!=null&&tasks.size()>0)
 			throw new RuntimeException("Thread pool initialisation "
 					+ "exception!!! Task queue is not emputy!!!");
@@ -55,9 +55,9 @@ public abstract class Executor {
 			throw new RuntimeException("Thread pool initialisation "
 					+ "exception!!! Executor is on the fly!!!");
 		
-		tasks = new ArrayBlockingQueue<Runnable>(THREADS);
-		executor = new ThreadPoolExecutor(THREADS, 
-				THREADS, 
+		tasks = new ArrayBlockingQueue<Runnable>(thread_num);
+		executor = new ThreadPoolExecutor(thread_num, 
+				thread_num, 
 				1, 
 				TimeUnit.SECONDS, 
 				tasks, 
@@ -74,6 +74,10 @@ public abstract class Executor {
 				}
 			}
 		});
+	}
+	
+	protected void initial_thread_pool() {
+		this.initial_thread_pool(this.THREADS);
 	}
 	
 	protected void waitFor() {
@@ -153,10 +157,16 @@ public abstract class Executor {
 
 	private class BashStream implements Runnable {
 		private final InputStream in;
+		Thread thread;
 		
 		public BashStream(InputStream in) {
 			this.in = in;
 		}
+		
+		public void start () {
+	        thread = new Thread (this);
+	        thread.start();
+	    }
 		
 		@Override
 		public void run() {
@@ -180,25 +190,29 @@ public abstract class Executor {
 		
 	}
 	
+	/**
 	protected void consumeOnTheFly(Process process) {
 		// TODO Auto-generated method stub
 		try {
-			executor.submit(new BashStream(process.getInputStream())).get();
-			executor.submit(new BashStream(process.getErrorStream())).get();
+			BashStream stdout = new BashStream(process.getInputStream());
+			BashStream stderr = new BashStream(process.getErrorStream());
+			stdout.start();
+			stderr.start();
 			process.waitFor();
-		} catch (InterruptedException | ExecutionException e) {
+		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
+	**/
 	
 	protected void consume(Process process) {
 		// TODO Auto-generated method stub
 		try {
-			this.initial_thread_pool();
-			executor.submit(new BashStream(process.getInputStream()));
-			executor.submit(new BashStream(process.getErrorStream()));
-			this.waitFor();
+			BashStream stdout = new BashStream(process.getInputStream());
+			BashStream stderr = new BashStream(process.getErrorStream());
+			stdout.start();
+			stderr.start();
 			process.waitFor();
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
@@ -209,9 +223,8 @@ public abstract class Executor {
 	protected void consumeErr(Process process) {
 		// TODO Auto-generated method stub
 		try {
-			this.initial_thread_pool();
-			executor.submit(new BashStream(process.getErrorStream()));
-			this.waitFor();
+			BashStream stderr = new BashStream(process.getErrorStream());
+			stderr.start();
 			process.waitFor();
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block
@@ -222,9 +235,8 @@ public abstract class Executor {
 	protected void consumeOut(Process process) {
 		// TODO Auto-generated method stub
 		try {
-			this.initial_thread_pool();
-			executor.submit(new BashStream(process.getInputStream()));
-			this.waitFor();
+			BashStream stdout = new BashStream(process.getInputStream());
+			stdout.start();
 			process.waitFor();
 		} catch (InterruptedException e) {
 			// TODO Auto-generated catch block

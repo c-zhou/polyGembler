@@ -530,7 +530,7 @@ public class Gembler extends Executor {
 							+ "-1 "
 							+ "--concorde "+new File(concorde_path).getParent()
 							+ (RLibPath==null ? "" : " --include "+RLibPath);
-					this.consumeOnTheFly(this.bash(command));
+					this.consume(this.bash(command));
 					lgCM[i][task_progress[i]] = this.lgCM(mm_rf_prefix_ij+".log");
 					
 					task_progress[i]++;

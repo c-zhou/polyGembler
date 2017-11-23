@@ -170,6 +170,64 @@ fm <- function(cA, cB, beta=1) {
     (1+beta^2)*p*r/(beta^2*p+r)
 }
 
+
+two_point <- function(in_RData, twopoint_file, out_file, fix_rf=NA) {
+	
+	load(in_RData)
+	diag(distanceMat) = Inf
+	twopoint=matrix(as.character(unlist(read.table(twopoint_file))),ncol=2)
+	n1 = dim(twopoint)[1]
+	n2 = dim(twopoint)[2]
+	clus=matrix(NA, nrow=n1, ncol=n2)
+	for(i in 1:n1)
+		for(j in 1:n2)
+			clus[i,j] = which(scaffs==twopoint[i,j])
+	
+	sink(out_file)
+	for(i in 1:dim(clus)[1]) {
+		if(is.na(clus[i,2])) {
+			cat("-c ")
+			cat(scaffs[clus[i,1]])
+			cat("\n")
+			next
+		}
+		sink("/dev/null")
+		o = ordering(clus[i,], distanceAll, indexMat)
+		sink()		
+		oR = as.numeric(o$order); oO = o$oriO
+		cat("-c ")
+		cat(paste(scaffs[oR], collapse=":"))
+		sepe = rep(NA, length(oR)-1)
+		reverse = rep("false", length(oR))
+		
+		for(j in 1:(length(oR)-1)) {
+			c_1 = oO[2*j]
+			c_2 = oO[2*j+1]
+			if(length(grep("(\\+)",c_1))>0) reverse[j]="true"
+			
+			if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+				sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],1]
+			} else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+				sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],2]
+			} else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+				sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],3]
+			} else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+				sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],4]
+			}
+		}
+		
+		if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j+1]="true"
+		if(is.na(fix_rf)) {
+			cat(" -s "); cat(paste(sepe, collapse=":"))
+		} else {
+			cat(" -s "); cat(paste(rep(fix_rf, n2-1), collapse=":"))
+		}
+		cat(" -r "); cat(paste(reverse, collapse=":"))
+		cat("\n")
+	}
+	sink()
+}
+
 nearest_neighbour_joining <- function(in_RData, out_file, nn=1, rf_thresh=.kosambi_r(.5)) {
 	
     load(in_RData)

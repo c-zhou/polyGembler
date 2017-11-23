@@ -1032,7 +1032,7 @@ public class HetCorr extends Executor {
 			tmp_record=iter1[i].hasNext()?iter1[i].next():null;
 		}
 		buffer[i] = tmp_record;
-		bufferS[i] = tmp_record==null?-1:tmp_record.getAlignmentStart();
+		bufferS[i] = tmp_record==null?Integer.MAX_VALUE:tmp_record.getAlignmentStart();
 		return;
 	}
 
@@ -1821,7 +1821,7 @@ public class HetCorr extends Executor {
 				Arrays.fill(in1, null);
 				Arrays.fill(iter1, null);
 				Arrays.fill(buffer, null);
-				Arrays.fill(bufferS, 0);
+				Arrays.fill(bufferS, Integer.MAX_VALUE);
 				record_pool.clear();
 
 				for(int i=0; i!=bam_list.length; i++) {
@@ -1829,7 +1829,7 @@ public class HetCorr extends Executor {
 					iter1[i] = in1[i].queryOverlapping(refSeq.get(chr).getSequenceName(), 
 							queryStart, queryEnd);
 					buffer[i] = iter1[i].hasNext()?iter1[i].next():null;
-					bufferS[i] = buffer[i]==null?-1:buffer[i].getAlignmentStart();
+					bufferS[i] = buffer[i]==null?Integer.MAX_VALUE:buffer[i].getAlignmentStart();
 					record_pool.add(new HashSet<SAMRecord>());
 				}
 
@@ -1863,7 +1863,7 @@ public class HetCorr extends Executor {
 							}
 							dna_seq = record.getReadString();
 							tmp_int = record.getReadPositionAtReferencePosition(pos);
-							nucl = tmp_int==0?'D':dna_seq.charAt(tmp_int-1);
+							nucl = tmp_int==0?'D':Character.toUpperCase(dna_seq.charAt(tmp_int-1));
 							switch(nucl) {
 							case 'A':
 								allele_stats[0]++;
@@ -1911,7 +1911,7 @@ public class HetCorr extends Executor {
 									len_seq  = seqLength(record, ht_hc);
 									dna_seq = record.getReadString();
 									tmp_int = record.getReadPositionAtReferencePosition(pos);
-									nucl = tmp_int==0?'D':dna_seq.charAt(tmp_int-1);
+									nucl = tmp_int==0?'D':Character.toUpperCase(dna_seq.charAt(tmp_int-1));
 									pair_flag = record.getReadPairedFlag()?(record.getFirstOfPairFlag()?0:1):0;
 									if(nucl!='D') {
 										if(record.getReadNegativeStrandFlag()) {
@@ -1936,7 +1936,7 @@ public class HetCorr extends Executor {
 									len_seq  = seqLength(record, ht_hc);
 									dna_seq = record.getReadString();
 									tmp_int = record.getReadPositionAtReferencePosition(pos);
-									nucl = tmp_int==0?'D':dna_seq.charAt(tmp_int-1);
+									nucl = tmp_int==0?'D':Character.toUpperCase(dna_seq.charAt(tmp_int-1));
 									pair_flag = record.getReadPairedFlag()?(record.getFirstOfPairFlag()?0:1):0;
 									if(nucl=='D') {
 										// find insert position on the read

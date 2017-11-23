@@ -12,6 +12,7 @@ import cz1.hmm.tools.RFEstimatorRS2;
 import cz1.hmm.tools.RFEstimatorRS3;
 import cz1.hmm.tools.Resampler;
 import cz1.hmm.tools.SuperScaffoldConstructor;
+import cz1.hmm.tools.TwoPointConstructor;
 import cz1.hmm.tools.VCFResampling;
 import cz1.ngs.assembly.GenomeAssemblyTiling;
 import cz1.ngs.tools.Anchor;
@@ -85,6 +86,11 @@ public class PolyGembler {
 			nnss.setParameters(args2);
 			nnss.run();
 			break;
+		case "twopoint":
+			TwoPointConstructor twopoint = new TwoPointConstructor();
+			twopoint.setParameters(args2);
+			twopoint.run();
+			break;
 		case "map":
 			LinkageMapConstructor lgc = new LinkageMapConstructor();
 			lgc.setParameters(args2);
@@ -135,6 +141,7 @@ public class PolyGembler {
 						+ " tiling              Attempts to construct a tiling path out of the query assembly as \n"
 						+ "                     mapped to the reference assembly using the LAST alignment results.\n"
 						+ " nnss                Make 1-nearest neighbour superscaffolds.\n"
+						+ " twopoint            Make two-point superscaffolds.\n"
 						+ " map                 Contruct linkage maps.\n"
 						+ " dataresampling      Resample from ZIP data.\n"
 						+ " hetcorr             Heterozygosity and sequencing errors correction.\n"
