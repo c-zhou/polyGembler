@@ -672,4 +672,8 @@ public class Utils {
 			s += sep+array[i];
 		return s;
 	}
+	
+	public static String fixedLengthPaddingString(String str, int len) {
+	    return String.format("%1$"+len+ "s", str);
+	}
 }

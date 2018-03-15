@@ -14,10 +14,10 @@ import java.util.regex.Pattern;
 import cz1.util.Utils;
 
 public class Sequence implements Comparable<Sequence> {
-	private final int seq_no; // sequence index 0-
-	private final int seq_ln; // sequence length
-	private final String seq_sn; // sequence name
-	private final String seq_str; //sequence string
+	private int seq_no; // sequence index 0-
+	private int seq_ln; // sequence length
+	private String seq_sn; // sequence name
+	private String seq_str; //sequence string
 	
 	public final static char[] nucleotide = new char[]{'A','C','G','T', 'N', 'a','c','g','t', 'n'};
 	public final static Set<Character> nuclset = new HashSet<Character>();
@@ -101,7 +101,7 @@ public class Sequence implements Comparable<Sequence> {
 		final List<String> sequences = new ArrayList<String>();
 		try {
 			BufferedReader br_fa = Utils.getBufferedReader(seq_fa);
-			String line = br_fa.readLine();
+			String line;
 			while( (line=br_fa.readLine())!=null ) {
 				if(line.startsWith(">")) 
 					sequences.add(line.replace(">","").split("\\s+")[0]);
@@ -141,6 +141,27 @@ public class Sequence implements Comparable<Sequence> {
 	public static Map<String, Sequence> parseFastaFileAsMap(String seq_fa) {
 		// TODO Auto-generated method stub
 		final List<Sequence> sequences = parseFastaFileAsList(seq_fa);
+		final Map<String, Sequence> seq_map = new HashMap<String, Sequence>();
+		for(Sequence sequence : sequences) seq_map.put(sequence.seq_sn(), sequence);
+		return seq_map;
+	}
+	
+	public static List<Sequence> parseFastaFileWithRevCmpAsList(String seq_fa) {
+		// TODO Auto-generated method stub
+		final List<Sequence> sequences = parseFastaFileAsList(seq_fa);
+		int sz = sequences.size();
+		Sequence seq, rev_seq;
+		for(int i=0; i<sz; i++) {
+			seq = sequences.get(i);
+			rev_seq = new Sequence(seq.seq_sn+"'", Sequence.revCompSeq(seq.seq_str));
+			sequences.add(rev_seq);
+		}
+		return sequences;
+	}
+	
+	public static Map<String, Sequence> parseFastaFileWithRevCmpAsMap(String seq_fa) {
+		// TODO Auto-generated method stub
+		final List<Sequence> sequences = parseFastaFileWithRevCmpAsList(seq_fa);
 		final Map<String, Sequence> seq_map = new HashMap<String, Sequence>();
 		for(Sequence sequence : sequences) seq_map.put(sequence.seq_sn(), sequence);
 		return seq_map;
@@ -209,5 +230,22 @@ public class Sequence implements Comparable<Sequence> {
 	public static Sequence gapSeq(int n) {
 		// TODO Auto-generated method stub
 		return new Sequence("GAP", polyN(n));
+	}
+	
+	public void setSeqNo(int seq_no) {
+		this.seq_no = seq_no;
+	}
+	
+	public void setSeqLn(int seq_ln) {
+		this.seq_ln = seq_ln;
+	}
+	
+	public void setSeqSn(String seq_sn) {
+		this.seq_sn = seq_sn;
+	}
+	
+	public void setSeqStr(String seq_str) {
+		this.seq_str = seq_str;
+		this.seq_ln = seq_str.length();
 	}
 }

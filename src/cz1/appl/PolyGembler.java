@@ -8,8 +8,6 @@ import cz1.hmm.tools.Gembler;
 import cz1.hmm.tools.Haplotyper;
 import cz1.hmm.tools.LinkageMapConstructor;
 import cz1.hmm.tools.RFEstimatorML;
-import cz1.hmm.tools.RFEstimatorRS2;
-import cz1.hmm.tools.RFEstimatorRS3;
 import cz1.hmm.tools.Resampler;
 import cz1.hmm.tools.SuperScaffoldConstructor;
 import cz1.hmm.tools.TwoPointConstructor;

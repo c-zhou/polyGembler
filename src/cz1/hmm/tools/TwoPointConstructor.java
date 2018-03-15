@@ -92,7 +92,7 @@ public class TwoPointConstructor extends Executor {
 				+ "-i "+out_prefix+".RData "
 				+ "-2 "+twopoint_file+" "
 				+ (fixed_rf<0 ? "" : "-r "+fixed_rf+" ")
-				+ "-o "+out_prefix+".tps "
+				+ "-o "+out_prefix+".2pt "
 				+ "--concorde "+new File(concorde_path).getParent()
 				+ (RLibPath==null ? "" : " --include "+RLibPath);
 		this.consume(this.bash(command));

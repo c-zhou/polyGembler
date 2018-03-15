@@ -190,18 +190,24 @@ public class HetCorr extends Executor {
 
 		String[] args2 = new String[args.length-1];
 		System.arraycopy(args, 1, args2, 0, args2.length);
-
+		
+		if (myArgsEngine == null) {
+			myArgsEngine = new ArgsEngine();
+			myArgsEngine.add("-r", "--region", true);
+			myArgsEngine.add("-bs", "--batch-size", true);
+			myArgsEngine.add("-t", "--threads", true);
+			myArgsEngine.add("-o", "--out-prefix", true);
+			myArgsEngine.addWildOptions(se_lib, true);
+			myArgsEngine.addWildOptions(pe1_lib, true);
+			myArgsEngine.addWildOptions(pe2_lib, true);
+			myArgsEngine.addWildOptions(bam_lib, true);
+			myArgsEngine.addWildOptions(corr_lib, true);
+			myArgsEngine.parse(args2);
+		}
+		
 		switch(this.task_list) {
 		case hetcorr:
-			if (myArgsEngine == null) {
-				myArgsEngine = new ArgsEngine();
-				myArgsEngine.add("-r", "--region", true);
-				myArgsEngine.add("-t", "--threads", true);
-				myArgsEngine.add("-o", "--out-prefix", true);
-				myArgsEngine.addWildOptions(bam_lib, true);
-				myArgsEngine.parse(args2);
-			}
-
+			
 			if (myArgsEngine.getBoolean("-r")) {
 				this.target_region = myArgsEngine.getString("-r");
 			}
@@ -221,17 +227,7 @@ public class HetCorr extends Executor {
 
 			break;
 		case sortq:
-			if (myArgsEngine == null) {
-				myArgsEngine = new ArgsEngine();
-				myArgsEngine.add("-bs", "--batch-size", true);
-				myArgsEngine.add("-t", "--threads", true);
-				myArgsEngine.add("-o", "--out", true);
-				myArgsEngine.addWildOptions(se_lib, true);
-				myArgsEngine.addWildOptions(pe1_lib, true);
-				myArgsEngine.addWildOptions(pe2_lib, true);
-				myArgsEngine.parse(args2);
-			}
-
+			
 			if (myArgsEngine.getBoolean("-bs")) {
 				this.batch_size = Integer.parseInt(myArgsEngine.getString("-bs"));
 			}
@@ -251,14 +247,6 @@ public class HetCorr extends Executor {
 
 			break;
 		case sortc:
-			if (myArgsEngine == null) {
-				myArgsEngine = new ArgsEngine();
-				myArgsEngine.add("-bs", "--batch-size", true);
-				myArgsEngine.add("-t", "--threads", true);
-				myArgsEngine.add("-o", "--out", true);
-				myArgsEngine.addWildOptions(corr_lib, true);
-				myArgsEngine.parse(args2);
-			}
 
 			if (myArgsEngine.getBoolean("-bs")) {
 				this.batch_size = Integer.parseInt(myArgsEngine.getString("-bs"));
@@ -279,15 +267,7 @@ public class HetCorr extends Executor {
 
 			break;
 		case corrs:
-			if (myArgsEngine == null) {
-				myArgsEngine = new ArgsEngine();
-				myArgsEngine.add("-t", "--threads", true);
-				myArgsEngine.add("-o", "--out", true);
-				myArgsEngine.addWildOptions(se_lib, true);
-				myArgsEngine.addWildOptions(corr_lib, true);
-				myArgsEngine.parse(args2);
-			}
-
+		
 			if (myArgsEngine.getBoolean("-t")) {
 				this.THREADS = Integer.parseInt(myArgsEngine.getString("-t"));
 			}
@@ -303,16 +283,7 @@ public class HetCorr extends Executor {
 
 			break;
 		case corrp:
-			if (myArgsEngine == null) {
-				myArgsEngine = new ArgsEngine();
-				myArgsEngine.add("-t", "--threads", true);
-				myArgsEngine.add("-o", "--out", true);
-				myArgsEngine.addWildOptions(pe1_lib, true);
-				myArgsEngine.addWildOptions(pe2_lib, true);
-				myArgsEngine.addWildOptions(corr_lib, true);
-				myArgsEngine.parse(args2);
-			}
-
+			
 			if (myArgsEngine.getBoolean("-t")) {
 				this.THREADS = Integer.parseInt(myArgsEngine.getString("-t"));
 			}
@@ -328,18 +299,7 @@ public class HetCorr extends Executor {
 
 			break;
 		case all:
-			if (myArgsEngine == null) {
-				myArgsEngine = new ArgsEngine();
-				myArgsEngine.add("-bs", "--batch-size", true);
-				myArgsEngine.add("-t", "--threads", true);
-				myArgsEngine.add("-o", "--out-prefix", true);
-				myArgsEngine.addWildOptions(se_lib, true);
-				myArgsEngine.addWildOptions(pe1_lib, true);
-				myArgsEngine.addWildOptions(pe2_lib, true);
-				myArgsEngine.addWildOptions(bam_lib, true);
-				myArgsEngine.parse(args2);
-			}
-
+		
 			if (myArgsEngine.getBoolean("-bs")) {
 				this.batch_size = Integer.parseInt(myArgsEngine.getString("-bs"));
 			}
@@ -577,9 +537,11 @@ public class HetCorr extends Executor {
 			if(target_region!=null) {
 				String[] s = target_region.split(":");
 				queryRefSeq = s[0].trim();
-				s = s[1].split("-");
-				queryStart = Integer.parseInt(s[0]);
-				queryEnd = Integer.parseInt(s[1]);
+				if(s.length>1) {
+					s = s[1].split("-");
+					queryStart = Integer.parseInt(s[0]);
+					queryEnd = Integer.parseInt(s[1]);
+				}
 			}
 			refSeqDict = factory.open(new File(this.bam_list[0])).
 					getFileHeader().
@@ -588,8 +550,10 @@ public class HetCorr extends Executor {
 			n = target_region==null ? refSeq.size() : 1;
 			chrSpan = new int[n][3];
 			if(target_region!=null) {
-				chrSpan[0] = new int[]{refSeqDict.getSequenceIndex(queryRefSeq), 
-						queryStart, queryEnd};
+				int refSeqIndex = refSeqDict.getSequenceIndex(queryRefSeq);
+				chrSpan[0] = new int[]{refSeqIndex, 
+						queryStart==-1 ? 0 : queryStart, 
+								queryEnd==-1 ? refSeq.get(refSeqIndex).getSequenceLength() : queryEnd};
 			} else {
 				for(int i=0; i!=n; i++) {
 					chrSpan[i] = new int[]{i, 0, refSeq.get(i).getSequenceLength()};
@@ -747,9 +711,11 @@ public class HetCorr extends Executor {
 			if(target_region!=null) {
 				String[] s = target_region.split(":");
 				queryRefSeq = s[0].trim();
-				s = s[1].split("-");
-				queryStart = Integer.parseInt(s[0]);
-				queryEnd = Integer.parseInt(s[1]);
+				if(s.length>1) {
+					s = s[1].split("-");
+					queryStart = Integer.parseInt(s[0]);
+					queryEnd = Integer.parseInt(s[1]);
+				}
 			}
 			refSeqDict = factory.open(new File(this.bam_list[0])).
 					getFileHeader().
@@ -758,13 +724,16 @@ public class HetCorr extends Executor {
 			n = target_region==null ? refSeq.size() : 1;
 			chrSpan = new int[n][3];
 			if(target_region!=null) {
-				chrSpan[0] = new int[]{refSeqDict.getSequenceIndex(queryRefSeq), 
-						queryStart, queryEnd};
+				int refSeqIndex = refSeqDict.getSequenceIndex(queryRefSeq);
+				chrSpan[0] = new int[]{refSeqIndex, 
+						queryStart==-1 ? 0 : queryStart, 
+								queryEnd==-1 ? refSeq.get(refSeqIndex).getSequenceLength() : queryEnd};
 			} else {
 				for(int i=0; i!=n; i++) {
 					chrSpan[i] = new int[]{i, 0, refSeq.get(i).getSequenceLength()};
 				}
 			}
+			
 
 			jobs = scheduleJobs(chrSpan);
 

@@ -2,7 +2,7 @@ package cz1.ngs.model;
 
 import java.util.Comparator;
 
-public class Blast6Record extends BlastRecord {
+public class Blast6Record extends AlignmentRecord {
 
 	// blastn outfmt 6
 	private final double pident;   // percentage of identical matches
@@ -135,5 +135,32 @@ public class Blast6Record extends BlastRecord {
 				this.send+"\t"+
 				this.evalue+"\t"+
 				this.bitscore+"\t";
+	}
+	
+	public static Blast6Record collinear(final Blast6Record record1, final Blast6Record record2, final double max_shift) {
+		// TODO Auto-generated method stub
+		
+		if(AlignmentRecord.reverse(record1, record2) ||
+				AlignmentRecord.sdistance(record1, record2)>max_shift ||
+				AlignmentRecord.qdistance(record1, record2)>max_shift ||
+				AlignmentRecord.pdistance(record1, record2)>max_shift) {
+			return null;
+		}
+
+		// merge collinear alignment segments
+		int qstart = Math.min(record1.true_qstart(), 
+				record2.true_qstart());
+		int qend = Math.max(record1.true_qend(),
+				record2.true_qend());
+		int sstart = Math.min(record1.true_sstart(), 
+				record2.true_sstart());
+		int send = Math.max(record1.true_send(),
+				record2.true_send());
+		double pident = Math.max(record1.pident(), record2.pident());
+		int length = qend-qstart;
+		
+		return record1.reverse() ? 
+				new Blast6Record(record1.qseqid(),record1.sseqid(),pident,length,-1,-1,qstart,qend,send,sstart,-1,-1):
+				new Blast6Record(record1.qseqid(),record1.sseqid(),pident,length,-1,-1,qstart,qend,sstart,send,-1,-1);
 	}
 }
