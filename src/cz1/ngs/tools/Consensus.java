@@ -43,8 +43,8 @@ import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 
-import cz1.ngs.model.AlignmentRecord;
-import cz1.ngs.model.Blast6Record;
+import cz1.ngs.model.AlignmentSegment;
+import cz1.ngs.model.Blast6Segment;
 import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
@@ -1269,9 +1269,9 @@ public class Consensus extends Executor {
 			try {	
 				myLogger.info("Process file ... "+bam_in);
 				
-				final List<AlignmentRecord> record_list = new ArrayList<AlignmentRecord>();
+				final List<AlignmentSegment> record_list = new ArrayList<AlignmentSegment>();
 				final Set<SAMRecord> record_buffer = new HashSet<SAMRecord>();
-				AlignmentRecord record, primary_record, secondary_record;
+				AlignmentSegment record, primary_record, secondary_record;
 				SAMRecord tmp_record;
 				String sam_id;
 				
@@ -1323,7 +1323,7 @@ public class Consensus extends Executor {
 					if( record_list.isEmpty() ) continue;
 					
 					// merge collinear alignment records
-					Collections.sort(record_list, new AlignmentRecord.SubjectCoordinationComparator());
+					Collections.sort(record_list, new AlignmentSegment.SubjectCoordinationComparator());
 					
 					for(int i=0; i<record_list.size(); i++) {
 						primary_record = record_list.get(i);
@@ -1331,7 +1331,7 @@ public class Consensus extends Executor {
 							secondary_record = record_list.get(j);
 							double max_shift = collinear_shift*
 									Math.min(primary_record.qlength(), secondary_record.qlength());
-							if( (record=AlignmentRecord.collinear(primary_record, 
+							if( (record=AlignmentSegment.collinear(primary_record, 
 									secondary_record, max_shift))!=null ) {
 								record_list.set(i, record);
 								record_list.remove(j);
@@ -1342,7 +1342,7 @@ public class Consensus extends Executor {
 					}
 					
 					span = Range.closed(0, 0);
-					for(AlignmentRecord r : record_list) {
+					for(AlignmentSegment r : record_list) {
 						if(r.slength()>span.upperEndpoint()-span.lowerEndpoint()+1)
 							if(r.sstart()>r.send())
 								span = Range.closed(r.send(), r.sstart());
@@ -1370,9 +1370,9 @@ public class Consensus extends Executor {
 			
 		}
 		
-		private AlignmentRecord samRecordToAlignmentRecord(SAMRecord samRecord) {
+		private AlignmentSegment samRecordToAlignmentRecord(SAMRecord samRecord) {
 			// TODO Auto-generated method stub
-			return new AlignmentRecord( samRecord.getReadName(),
+			return new AlignmentSegment( samRecord.getReadName(),
 					samRecord.getReferenceName(),
 					samRecord.getReadPositionAtReferencePosition(samRecord.getAlignmentStart())-1,
 					samRecord.getReadPositionAtReferencePosition(samRecord.getAlignmentEnd())-1,

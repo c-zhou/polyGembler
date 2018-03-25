@@ -11,7 +11,7 @@ import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 
 import cz1.backup.Anchor1;
-import cz1.ngs.model.Blast6Record;
+import cz1.ngs.model.Blast6Segment;
 import cz1.ngs.model.Sequence;
 import cz1.ngs.tools.Redundas;
 import cz1.util.Utils;

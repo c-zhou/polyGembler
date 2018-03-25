@@ -48,6 +48,16 @@ public class Sequence implements Comparable<Sequence> {
 	}
 	
 	public Sequence (final int seq_no,
+			final int seq_ln,
+			final String seq_sn,
+			final String seq_str) {
+		this.seq_no = seq_no;
+		this.seq_ln = seq_ln;
+		this.seq_sn = null;
+		this.seq_str = null;
+	}
+	
+	public Sequence (final int seq_no,
 			final int seq_ln) {
 		this.seq_no = seq_no;
 		this.seq_ln = seq_ln;
@@ -167,9 +177,17 @@ public class Sequence implements Comparable<Sequence> {
 		return seq_map;
 	}
 	
-	public String revCompSeq() {
+	public Sequence revCompSeq() {
 		// TODO Auto-generated method stub
-		return revCompSeq(this.seq_str);
+		return new Sequence(seq_no,
+				seq_ln,
+				seq_sn+"'",
+				revCompSeq(seq_str));
+	}
+	
+	public static Sequence revCompSeq(Sequence seq) {
+		// TODO Auto-generated method stub
+		return seq.revCompSeq();
 	}
 	
 	public static String revCompSeq(String seq) {

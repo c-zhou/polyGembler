@@ -2,7 +2,7 @@ package cz1.ngs.model;
 
 import java.util.Comparator;
 
-public class Blast6Record extends AlignmentRecord {
+public class Blast6Segment extends AlignmentSegment {
 
 	// blastn outfmt 6
 	private final double pident;   // percentage of identical matches
@@ -12,7 +12,7 @@ public class Blast6Record extends AlignmentRecord {
 	private final double evalue;   // expect value
 	private final double bitscore;    // bit score
 	
-	public Blast6Record(
+	public Blast6Segment(
 			final String qseqid,   // query (e.g., gene) sequence id
 			final String sseqid,   // subject (e.g., reference genome) sequence id
 			final double pident,   // percentage of identical matches
@@ -36,11 +36,11 @@ public class Blast6Record extends AlignmentRecord {
 		this.bitscore = bitscore;
 	}
 
-	public static Blast6Record blast6Record(String b6Record) {
+	public static Blast6Segment blast6Record(String b6Record) {
 		// TODO Auto-generated method stub
 		if(b6Record==null) return null;
 		String[] s = b6Record.split("\\s+");
-		return new Blast6Record(
+		return new Blast6Segment(
 				s[0],
 				s[1],
 				Double.parseDouble(s[2]),
@@ -80,10 +80,10 @@ public class Blast6Record extends AlignmentRecord {
 	}
 	
 	public static class SubjectCoordinationComparator 
-		implements Comparator<Blast6Record> {
+		implements Comparator<Blast6Segment> {
 		
 		@Override
-		public int compare(Blast6Record b1, Blast6Record b2) {
+		public int compare(Blast6Segment b1, Blast6Segment b2) {
 			// TODO Auto-generated method stub
 			// check position on the subject sequence
 			int b1_sstart = (b1.sstart<b1.send?b1.sstart:b1.send);
@@ -97,10 +97,10 @@ public class Blast6Record extends AlignmentRecord {
 	}
 	
 	public static class MatchIndentityComparator 
-		implements Comparator<Blast6Record> {
+		implements Comparator<Blast6Segment> {
 
 		@Override
-		public int compare(Blast6Record b1, Blast6Record b2) {
+		public int compare(Blast6Segment b1, Blast6Segment b2) {
 			// TODO Auto-generated method stub
 			// larger match length ranks higher
 			if(b1.length!=b2.length) return b2.length-b1.length;
@@ -111,9 +111,9 @@ public class Blast6Record extends AlignmentRecord {
 	}
 	
 	public static class SegmentSizeComparator 
-		implements Comparator<Blast6Record> {
+		implements Comparator<Blast6Segment> {
 		@Override
-		public int compare(Blast6Record record1, Blast6Record record2) {
+		public int compare(Blast6Segment record1, Blast6Segment record2) {
 			// TODO Auto-generated method stub
 			// large segment size ranks higher
 			return record2.length-record1.length;
@@ -137,13 +137,13 @@ public class Blast6Record extends AlignmentRecord {
 				this.bitscore+"\t";
 	}
 	
-	public static Blast6Record collinear(final Blast6Record record1, final Blast6Record record2, final double max_shift) {
+	public static Blast6Segment collinear(final Blast6Segment record1, final Blast6Segment record2, final double max_shift) {
 		// TODO Auto-generated method stub
 		
-		if(AlignmentRecord.reverse(record1, record2) ||
-				AlignmentRecord.sdistance(record1, record2)>max_shift ||
-				AlignmentRecord.qdistance(record1, record2)>max_shift ||
-				AlignmentRecord.pdistance(record1, record2)>max_shift) {
+		if(AlignmentSegment.reverse(record1, record2) ||
+				AlignmentSegment.sdistance(record1, record2)>max_shift ||
+				AlignmentSegment.qdistance(record1, record2)>max_shift ||
+				AlignmentSegment.pdistance(record1, record2)>max_shift) {
 			return null;
 		}
 
@@ -160,7 +160,7 @@ public class Blast6Record extends AlignmentRecord {
 		int length = qend-qstart;
 		
 		return record1.reverse() ? 
-				new Blast6Record(record1.qseqid(),record1.sseqid(),pident,length,-1,-1,qstart,qend,send,sstart,-1,-1):
-				new Blast6Record(record1.qseqid(),record1.sseqid(),pident,length,-1,-1,qstart,qend,sstart,send,-1,-1);
+				new Blast6Segment(record1.qseqid(),record1.sseqid(),pident,length,-1,-1,qstart,qend,send,sstart,-1,-1):
+				new Blast6Segment(record1.qseqid(),record1.sseqid(),pident,length,-1,-1,qstart,qend,sstart,send,-1,-1);
 	}
 }

@@ -4,7 +4,7 @@ import java.util.Comparator;
 
 import org.apache.commons.math3.stat.StatUtils;
 
-public class AlignmentRecord {
+public class AlignmentSegment {
 	
 	protected final String qseqid;   // query (e.g., gene) sequence id
 	protected final String sseqid;   // subject (e.g., reference genome) sequence id
@@ -16,7 +16,7 @@ public class AlignmentRecord {
 	protected final double sintercept;
 	protected final double qintercept;
 	
-	public AlignmentRecord(
+	public AlignmentSegment(
 			final String qseqid,   // query (e.g., gene) sequence id
 			final String sseqid,   // subject (e.g., reference genome) sequence id
 			final int qstart,      // start of alignment in query
@@ -45,11 +45,11 @@ public class AlignmentRecord {
     public boolean equals(Object obj) {
 
         if (obj == this) return true;
-        if (!(obj instanceof AlignmentRecord)) {
+        if (!(obj instanceof AlignmentSegment)) {
             return false;
         }
 
-        AlignmentRecord b = (AlignmentRecord) obj;
+        AlignmentSegment b = (AlignmentSegment) obj;
 
         return b.qseqid.equals(qseqid) &&
         		b.sseqid.equals(sseqid) &&
@@ -95,27 +95,27 @@ public class AlignmentRecord {
     }
     
     public static class SubjectCoordinationComparator 
-    	implements Comparator<AlignmentRecord> {
+    	implements Comparator<AlignmentSegment> {
 		@Override
-		public int compare(AlignmentRecord b1, AlignmentRecord b2) {
+		public int compare(AlignmentSegment b1, AlignmentSegment b2) {
 			// TODO Auto-generated method stub
 			return b1.true_sstart()-b2.true_sstart();
 		}
 	}
     
     public static class SInterceptComparator 
-    	implements Comparator<AlignmentRecord> {
+    	implements Comparator<AlignmentSegment> {
 		@Override
-		public int compare(AlignmentRecord record1, AlignmentRecord record2) {
+		public int compare(AlignmentSegment record1, AlignmentSegment record2) {
 			// TODO Auto-generated method stub
 			return Double.compare(record1.sintercept, record2.sintercept);
 		}
 	}
     
     public static class QInterceptComparator 
-    	implements Comparator<AlignmentRecord> {
+    	implements Comparator<AlignmentSegment> {
     	@Override
-    	public int compare(AlignmentRecord record1, AlignmentRecord record2) {
+    	public int compare(AlignmentSegment record1, AlignmentSegment record2) {
     		// TODO Auto-generated method stub
     		return Double.compare(record1.qintercept, record2.qintercept);
     	}
@@ -170,7 +170,7 @@ public class AlignmentRecord {
 		return Math.abs(this.slope());
 	}
 
-	public double pdistance(AlignmentRecord record) {
+	public double pdistance(AlignmentSegment record) {
 		// TODO Auto-generated method stub
 		// perpendicular distance
 		if(this.intersect(record)) return 0;
@@ -182,12 +182,12 @@ public class AlignmentRecord {
 		return StatUtils.min(allD);
 	}
 	
-	public static double pdistance(AlignmentRecord record1, 
-			AlignmentRecord record2) {
+	public static double pdistance(AlignmentSegment record1, 
+			AlignmentSegment record2) {
 		return record1.pdistance(record2);
 	}
 
-	private boolean intersect(AlignmentRecord record) {
+	private boolean intersect(AlignmentSegment record) {
 		// TODO Auto-generated method stub
 		double s1_x = this.send-this.sstart,
 				s1_y = this.qend-this.qstart,
@@ -201,8 +201,8 @@ public class AlignmentRecord {
 	    return s>=0&&s<=1&&t>=0&&t<=1;
 	}
 	
-	public static boolean intersect(AlignmentRecord record1, 
-			AlignmentRecord record2) {
+	public static boolean intersect(AlignmentSegment record1, 
+			AlignmentSegment record2) {
 		// TODO Auto-generated method stub
 		return record1.intersect(record2);
 	}
@@ -230,7 +230,7 @@ public class AlignmentRecord {
 		return Math.sqrt(dx*dx+dy*dy);
 	}
 
-	public static double distance(AlignmentRecord record, 
+	public static double distance(AlignmentSegment record, 
 			double[] point) {
 		return record.distance(point);
 	}
@@ -262,23 +262,23 @@ public class AlignmentRecord {
 		return this.qintercept;
 	}
 	
-	public static boolean forward(AlignmentRecord record1, 
-			AlignmentRecord record2) {
+	public static boolean forward(AlignmentSegment record1, 
+			AlignmentSegment record2) {
 		return record1.forward()&&record2.forward() ||
 				record1.reverse()&&record2.reverse();
 	}
 	
-	public static boolean reverse(AlignmentRecord record1, 
-			AlignmentRecord record2) {
+	public static boolean reverse(AlignmentSegment record1, 
+			AlignmentSegment record2) {
 		return !forward(record1, record2);
 	}
 	
-	public boolean forward(AlignmentRecord record) {
+	public boolean forward(AlignmentSegment record) {
 		return this.forward()&&record.forward() ||
 				this.reverse()&&record.reverse();
 	}
 	
-	public boolean reverse(AlignmentRecord record) {
+	public boolean reverse(AlignmentSegment record) {
 		return !this.forward(record);
 	}
 	
@@ -306,7 +306,7 @@ public class AlignmentRecord {
 		System.out.println(this.toString());
 	}
 
-	public int sdistance(AlignmentRecord record) {
+	public int sdistance(AlignmentSegment record) {
 		// TODO Auto-generated method stub
 		if(this.soverlap(record)) return 0;
 		if(!this.sseqid.equals(record.sseqid)) return Integer.MAX_VALUE;
@@ -314,8 +314,8 @@ public class AlignmentRecord {
 				Math.min(this.true_send(), record.true_send());
 	}
 	
-	public static int sdistance(AlignmentRecord record1,
-			AlignmentRecord record2) {
+	public static int sdistance(AlignmentSegment record1,
+			AlignmentSegment record2) {
 		// TODO Auto-generated method stub
 		if(soverlap(record1, record2)) return 0;
 		if(!record1.sseqid.equals(record2.sseqid)) return Integer.MAX_VALUE;
@@ -323,7 +323,7 @@ public class AlignmentRecord {
 				Math.min(record1.true_send(), record2.true_send());
 	}
 	
-	public int qdistance(AlignmentRecord record) {
+	public int qdistance(AlignmentSegment record) {
 		// TODO Auto-generated method stub
 		if(this.qoverlap(record)) return 0;
 		if(!this.qseqid.equals(record.qseqid)) return Integer.MAX_VALUE;
@@ -331,8 +331,8 @@ public class AlignmentRecord {
 				Math.min(this.true_qend(), record.true_qend());
 	}
 	
-	public static int qdistance(AlignmentRecord record1,
-			AlignmentRecord record2) {
+	public static int qdistance(AlignmentSegment record1,
+			AlignmentSegment record2) {
 		// TODO Auto-generated method stub
 		if(qoverlap(record1, record2)) return 0;
 		if(!record1.qseqid.equals(record2.qseqid)) return Integer.MAX_VALUE;
@@ -340,43 +340,43 @@ public class AlignmentRecord {
 				Math.min(record1.true_qend(), record2.true_qend());
 	}
 	
-	public boolean soverlap(AlignmentRecord record) {
+	public boolean soverlap(AlignmentSegment record) {
 		// TODO Auto-generated method stub
 		if(!this.sseqid.equals(record.sseqid)) return false;
 		return (this.true_sstart()-record.true_send())*
 				(record.true_sstart()-this.true_send())>=0;
 	}
 
-	public boolean qoverlap(AlignmentRecord record) {
+	public boolean qoverlap(AlignmentSegment record) {
 		// TODO Auto-generated method stub
 		if(!this.qseqid.equals(record.qseqid)) return false;
 		return (this.true_qstart()-record.true_qend())*
 				(record.true_qstart()-this.true_qend())>=0;
 	}
 
-	public static boolean soverlap(AlignmentRecord record1,
-			AlignmentRecord record2) {
+	public static boolean soverlap(AlignmentSegment record1,
+			AlignmentSegment record2) {
 		// TODO Auto-generated method stub
 		if(!record1.sseqid.equals(record2.sseqid)) return false;
 		return (record1.true_sstart()-record2.true_send())*
 				(record2.true_sstart()-record1.true_send())>=0;
 	}
 
-	public static boolean qoverlap(AlignmentRecord record1,
-			AlignmentRecord record2) {
+	public static boolean qoverlap(AlignmentSegment record1,
+			AlignmentSegment record2) {
 		// TODO Auto-generated method stub
 		if(!record1.qseqid.equals(record2.qseqid)) return false;
 		return (record1.true_qstart()-record2.true_qend())*
 				(record2.true_qstart()-record1.true_qend())>=0;
 	}
 	
-	public static AlignmentRecord collinear(final AlignmentRecord record1, final AlignmentRecord record2, final double max_shift) {
+	public static AlignmentSegment collinear(final AlignmentSegment record1, final AlignmentSegment record2, final double max_shift) {
 		// TODO Auto-generated method stub
 		
-		if(AlignmentRecord.reverse(record1, record2) ||
-				AlignmentRecord.sdistance(record1, record2)>max_shift ||
-				AlignmentRecord.qdistance(record1, record2)>max_shift ||
-				AlignmentRecord.pdistance(record1, record2)>max_shift) {
+		if(AlignmentSegment.reverse(record1, record2) ||
+				AlignmentSegment.sdistance(record1, record2)>max_shift ||
+				AlignmentSegment.qdistance(record1, record2)>max_shift ||
+				AlignmentSegment.pdistance(record1, record2)>max_shift) {
 			return null;
 		}
 
@@ -391,8 +391,8 @@ public class AlignmentRecord {
 				record2.true_send());
 		
 		return record1.reverse() ? 
-				new AlignmentRecord(record1.qseqid(),record1.sseqid(),qstart,qend,send,sstart):
-				new AlignmentRecord(record1.qseqid(),record1.sseqid(),qstart,qend,sstart,send);
+				new AlignmentSegment(record1.qseqid(),record1.sseqid(),qstart,qend,send,sstart):
+				new AlignmentSegment(record1.qseqid(),record1.sseqid(),qstart,qend,sstart,send);
 	}
 
 	public int qlength() {

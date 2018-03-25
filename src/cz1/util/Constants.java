@@ -3,8 +3,13 @@ package cz1.util;
 import java.awt.Font;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Random;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.math3.distribution.BetaDistribution;
 import org.apache.commons.math3.random.RandomGenerator;
@@ -96,6 +101,8 @@ public class Constants {
 	public static  Font font6 = new Font("SansSerif", Font.PLAIN, 6);
 	
 	public static int universer_counter = 0;
+	
+	public static int omp_threads = 1;
 	
 	@SuppressWarnings("unused")
 	private static void check() {
@@ -216,6 +223,97 @@ public class Constants {
 		// TODO Auto-generated method stub
 		_ploidy_H = ploidy;
 		_haplotype_z = ploidy*2;
+	}
+	
+	public final static Pattern cgPat = Pattern.compile("([0-9]+)([MIDNSHPX=])");
+	
+	public static String cgRev(String overlap) {
+		// TODO Auto-generated method stub
+		Matcher matcher = Constants.cgPat.matcher(overlap);
+		List<String> rev_eles = new ArrayList<String>();
+		
+		while(matcher.find())
+			rev_eles.add(""+Integer.parseInt(matcher.group(1))+matcher.group(2));
+		
+		Collections.reverse(rev_eles);
+		StringBuilder strb = new StringBuilder();
+		for(String str : rev_eles) strb.append(str);
+		
+		return strb.toString();
+	}
+	
+	public static String cgRevCmp(String overlap) {
+		// TODO Auto-generated method stub
+		Matcher matcher = Constants.cgPat.matcher(overlap);
+		String element;
+		List<String> rev_eles = new ArrayList<String>();
+		int length;
+		
+		while(matcher.find()) {
+			length  = Integer.parseInt(matcher.group(1));
+			element =                  matcher.group(2) ;
+			
+			switch(element) {
+			case "M":
+				break;
+			case "I":
+				element = "D";
+				break;
+			case "D":
+				element = "I";
+				break;
+			case "S":
+				element = "N";
+				break;
+			case "N":
+				element = "S";
+				break;
+			case "H":
+				element = "P";
+				break;
+			case "P":
+				element = "H";
+				break;
+			default:
+				throw new RuntimeException("unrecognised cigar element '"+element+"'!!!");
+			}
+			
+			rev_eles.add(""+length+element);
+		}
+		Collections.reverse(rev_eles);
+		StringBuilder strb = new StringBuilder();
+		for(String str : rev_eles) strb.append(str);
+		
+		return strb.toString();
+	}
+
+	public static int getOlapFromCigar(String overlap) {
+		// TODO Auto-generated method stub
+		Matcher matcher = Constants.cgPat.matcher(overlap);
+		int olap = 0;
+		String element;
+		int length;
+		while(matcher.find()) {
+			length  = Integer.parseInt(matcher.group(1));
+			element =                  matcher.group(2) ;
+			switch(element) {
+			case "M":
+			case "I":
+			case "S":
+			case "H":
+			case "=":
+			case "X":
+				olap += length;
+				break;
+			case "D":
+			case "P":
+			case "N":
+				break;
+			default:
+				throw new RuntimeException("unrecognised cigar element '"+element+"'!!!");
+			}
+		}
+		return olap;
 	}
 }
 

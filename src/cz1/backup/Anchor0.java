@@ -17,8 +17,8 @@ import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 
-import cz1.ngs.model.Blast6Record;
-import cz1.ngs.model.AlignmentRecord;
+import cz1.ngs.model.Blast6Segment;
+import cz1.ngs.model.AlignmentSegment;
 import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
@@ -142,7 +142,7 @@ public class Anchor0 extends Executor {
 		// find 'N/n's in subject/reference sequences
 		// which could have impact on parsing the blast records
 		final Map<String, TreeRangeSet<Integer>> sub_gaps = new HashMap<String, TreeRangeSet<Integer>>();
-		final Map<String, List<Blast6Record>> anchored_records = new HashMap<String, List<Blast6Record>>();
+		final Map<String, List<Blast6Segment>> anchored_records = new HashMap<String, List<Blast6Segment>>();
 		
 		for(Map.Entry<String, Sequence> entry : sub_seqs.entrySet()) {
 			String seq_sn = entry.getKey();
@@ -164,23 +164,23 @@ public class Anchor0 extends Executor {
 			}
 			sub_gaps.put(seq_sn, range_set);
 			// initialise an array list for each reference chromosome
-			anchored_records.put(seq_sn, new ArrayList<Blast6Record>());
+			anchored_records.put(seq_sn, new ArrayList<Blast6Segment>());
 		}
 
 		// parse blast records
 		// blast records buffer
-		final List<Blast6Record> buff = new ArrayList<Blast6Record>();
+		final List<Blast6Segment> buff = new ArrayList<Blast6Segment>();
 		// selected blast records
-		final List<Blast6Record> sel_recs = new ArrayList<Blast6Record>();
+		final List<Blast6Segment> sel_recs = new ArrayList<Blast6Segment>();
 		// temp list
-		final List<Blast6Record> tmp_records = new ArrayList<Blast6Record>();
+		final List<Blast6Segment> tmp_records = new ArrayList<Blast6Segment>();
 		// collinear merged record list
 		// final List<Blast6Record> collinear_merged = new ArrayList<Blast6Record>();
 		
 		try {
 			BufferedReader br_blast = Utils.getBufferedReader(blast_out);
-			Blast6Record tmp_record = Blast6Record.blast6Record(br_blast.readLine());
-			Blast6Record primary_record, secondary_record;
+			Blast6Segment tmp_record = Blast6Segment.blast6Record(br_blast.readLine());
+			Blast6Segment primary_record, secondary_record;
 			String qry;
 			double qry_ln, aln_frac;
 			
@@ -189,7 +189,7 @@ public class Anchor0 extends Executor {
 				qry_ln = qry_seqs.get(qry).seq_ln();
 				buff.clear();
 				buff.add(tmp_record);
-				while( (tmp_record=Blast6Record.blast6Record(br_blast.readLine()))!=null
+				while( (tmp_record=Blast6Segment.blast6Record(br_blast.readLine()))!=null
 						&&
 						tmp_record.qseqid().equals(qry) ) {
 					// filter by identity
@@ -202,7 +202,7 @@ public class Anchor0 extends Executor {
 				for(String sub : sub_seqs.keySet()) {
 					// get all records for subject/reference sequence sub_seq
 					tmp_records.clear();
-					for(Blast6Record record : buff)
+					for(Blast6Segment record : buff)
 						if(record.sseqid().equals(sub))
 							tmp_records.add(record);
 					
@@ -211,7 +211,7 @@ public class Anchor0 extends Executor {
 					// find alignment segments that can be deleted
 					// those that are subsets of larger alignment segments
 					// (Sstart, (sstart, send), Send) and (Qstart, (qstart, qend), Qend)
-					Collections.sort(tmp_records, new Blast6Record.SegmentSizeComparator());
+					Collections.sort(tmp_records, new Blast6Segment.SegmentSizeComparator());
 					final Set<int[][]> ranges = new HashSet<int[][]>();
 					outerloop:
 						for(int i=0; i<tmp_records.size(); i++) {
@@ -305,16 +305,16 @@ public class Anchor0 extends Executor {
 					
 					// find collinear alignment segments that can be merged
 					// more accurate but slower
-					Collections.sort(tmp_records, new AlignmentRecord.SubjectCoordinationComparator());
+					Collections.sort(tmp_records, new AlignmentSegment.SubjectCoordinationComparator());
 					
-					Blast6Record record;
+					Blast6Segment record;
 					for(int i=0; i<tmp_records.size(); i++) {
 						primary_record = tmp_records.get(i);
 						for(int j=i+1; j<tmp_records.size(); j++) {
 							secondary_record = tmp_records.get(j);
 							double max_shift = collinear_shift*
 									Math.min(primary_record.length(), secondary_record.length());
-							if( (record=Blast6Record.collinear(primary_record, secondary_record, max_shift))!=null ) {
+							if( (record=Blast6Segment.collinear(primary_record, secondary_record, max_shift))!=null ) {
 								tmp_records.set(i, record);
 								tmp_records.remove(j);
 								--i;
@@ -327,7 +327,7 @@ public class Anchor0 extends Executor {
 					// (sstart, send)---(start2, send2)
 					// (sstart  ...  ---  ...    send2)
 					TreeRangeSet<Integer> sub_gap = sub_gaps.get(sub);
-					Collections.sort(tmp_records, new AlignmentRecord.SubjectCoordinationComparator());
+					Collections.sort(tmp_records, new AlignmentSegment.SubjectCoordinationComparator());
 					
 					for(int i=0; i<tmp_records.size(); i++) {
 						primary_record = tmp_records.get(i);
@@ -343,7 +343,7 @@ public class Anchor0 extends Executor {
 								}
 							}
 							if(secondary_record==null || 
-									AlignmentRecord.reverse(primary_record, secondary_record)) {
+									AlignmentSegment.reverse(primary_record, secondary_record)) {
 								// no clipping
 								// reverse alignment segments
 								continue;
@@ -363,9 +363,9 @@ public class Anchor0 extends Executor {
 								
 								// replace primary record with merged record
 								// delete secondary record
-								Blast6Record merged_record = primary_record.forward()?
-										new Blast6Record(qry,sub,pident,length,-1,-1,qstart,qend,sstart,send,-1,-1):
-										new Blast6Record(qry,sub,pident,length,-1,-1,qstart,qend,send,sstart,-1,-1);
+								Blast6Segment merged_record = primary_record.forward()?
+										new Blast6Segment(qry,sub,pident,length,-1,-1,qstart,qend,sstart,send,-1,-1):
+										new Blast6Segment(qry,sub,pident,length,-1,-1,qstart,qend,send,sstart,-1,-1);
 								tmp_records.set(i, merged_record);
 								tmp_records.remove(sec_j);
 								
@@ -383,7 +383,7 @@ public class Anchor0 extends Executor {
 				buff.clear();
 				buff.addAll(sel_recs);
 				sel_recs.clear();
-				for(Blast6Record record : buff) {
+				for(Blast6Segment record : buff) {
 					if(record.length()/qry_ln>=this.min_frac)
 						sel_recs.add(record);
 				}
@@ -394,7 +394,7 @@ public class Anchor0 extends Executor {
 					continue;
 				}
 				// filter blast records
-				Collections.sort(sel_recs, new Blast6Record.MatchIndentityComparator());
+				Collections.sort(sel_recs, new Blast6Segment.MatchIndentityComparator());
 				// process primary alignment
 				primary_record = sel_recs.get(0);
 				anchored_records.get(primary_record.sseqid()).add(primary_record);
@@ -413,7 +413,7 @@ public class Anchor0 extends Executor {
 			}
 			br_blast.close();
 		
-			for(Map.Entry<String, List<Blast6Record>> entry : anchored_records.entrySet()) {
+			for(Map.Entry<String, List<Blast6Segment>> entry : anchored_records.entrySet()) {
 				System.out.println(entry.getKey()+": "+entry.getValue().size());
 			}
 			
@@ -424,12 +424,12 @@ public class Anchor0 extends Executor {
 			
 			for(String sub_sn : sub_list) {
 				
-				List<Blast6Record> blast6_records = anchored_records.get(sub_sn);
+				List<Blast6Segment> blast6_records = anchored_records.get(sub_sn);
 				int total = blast6_records.size(), count = 0;
 				
 				// sort blast records
 				Collections.sort(blast6_records, 
-						new Blast6Record.SubjectCoordinationComparator());
+						new Blast6Segment.SubjectCoordinationComparator());
 				// consensus
 				int posUpto = 0, send_clip = 0;
 				int sstart, send, qstart, qend, qlen, tmp_int, qstart_clip, qend_clip, gap_size;
@@ -442,7 +442,7 @@ public class Anchor0 extends Executor {
 				// will form a pseudomolecule
 				StringBuilder seq_str = new StringBuilder();
 				
-				for(Blast6Record record : blast6_records) {
+				for(Blast6Segment record : blast6_records) {
 					
 					if(count++%10000==0) myLogger.info(sub_sn+" "+count+"/"+total+" done.");
 					

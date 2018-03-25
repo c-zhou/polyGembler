@@ -5,40 +5,10 @@ import java.util.LinkedList;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.Graphs;
-import org.jgrapht.graph.DefaultWeightedEdge;
-import org.jgrapht.graph.DirectedWeightedPseudograph;
 import org.jgrapht.graph.GraphWalk;
 import org.jgrapht.traverse.BreadthFirstIterator;
 
 public final class BFSShortestPath<V, E> {
-	
-	public static void main(String[] args) {
-		// to test this class
-		final DirectedWeightedPseudograph<Integer, DefaultWeightedEdge> graph = 
-				new DirectedWeightedPseudograph<Integer, DefaultWeightedEdge>(DefaultWeightedEdge.class);
-		graph.addVertex(0);
-		graph.addVertex(1);
-		graph.addVertex(2);
-		graph.addVertex(3);
-		graph.addVertex(4);
-		graph.addVertex(5);
-		graph.setEdgeWeight(graph.addEdge(0, 1), 1.0);
-		graph.setEdgeWeight(graph.addEdge(0, 2), 2.0);
-		graph.setEdgeWeight(graph.addEdge(3, 0), 3.0);
-		graph.setEdgeWeight(graph.addEdge(1, 3), 4.0);
-		graph.setEdgeWeight(graph.addEdge(4, 5), 5.0);
-		
-		BFSShortestPath<Integer, DefaultWeightedEdge> bfs = new BFSShortestPath<Integer, DefaultWeightedEdge>(graph);
-		GraphPath<Integer, DefaultWeightedEdge> path = bfs.getPath(0, 3);
-		
-		if(path==null) {
-			System.out.println("No path find!!!");
-		} else {
-			for(DefaultWeightedEdge edge : path.getEdgeList()) {
-				System.out.println(edge.toString());
-			}
-		}
-	}
 	
     /**
      * Error message for reporting that a source vertex is missing.

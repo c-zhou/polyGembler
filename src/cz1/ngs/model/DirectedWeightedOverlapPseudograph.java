@@ -13,7 +13,7 @@ public class DirectedWeightedOverlapPseudograph<V> extends DirectedWeightedPseud
 		super(edgeClass);
 	}
 	
-	public void setEdgeOverlap(OverlapEdge edge, int olap) {
+	public void setEdgeOverlap(OverlapEdge edge, double olap) {
 		edge.olap = olap;
 	}
 	
@@ -21,11 +21,46 @@ public class DirectedWeightedOverlapPseudograph<V> extends DirectedWeightedPseud
 		edge.cigar = cigar;
 	}
 	
-	public int getEdgeOverlap(OverlapEdge edge) {
+	public void setEdgeOverlapInfo(OverlapEdge edge, OverlapResult olapInfo) {
+		edge.olapInfo = olapInfo;
+	}
+	
+	public double getEdgeOverlap(OverlapEdge edge) {
 		return edge.olap;
 	}
 	
 	public String getEdgeCigar(OverlapEdge edge) {
 		return edge.cigar;
 	}
+	
+	public OverlapResult getEdgeOverlapInfo(OverlapEdge edge) {
+		return edge.olapInfo;
+	}
+	
+	/***
+	public V getVertexId(SequenceVertex<V> vertex) {
+		return vertex.id;
+	}
+	
+	public String getVertexSeq(SequenceVertex<V> vertex) {
+		return vertex.seq;
+	}
+	
+	public int getVertexLen(SequenceVertex<V> vertex) {
+		return vertex.len;
+	}
+	
+	public boolean getVertexRev(SequenceVertex<V> vertex) {
+		return vertex.rev;
+	}
+	
+	public void setVertexSeq(SequenceVertex<V> vertex, String seq) {
+		vertex.seq = seq;
+		vertex.len = seq.length();
+	}
+	
+	public void setVertexRev(SequenceVertex<V> vertex, boolean rev) {
+		vertex.rev = rev;
+	}
+	**/
 }

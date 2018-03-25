@@ -16,7 +16,7 @@ import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 
-import cz1.ngs.model.Blast6Record;
+import cz1.ngs.model.Blast6Segment;
 import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
@@ -118,7 +118,7 @@ public class Redundas extends Executor {
 		Set<String> seq_rm = new HashSet<String>();
 		try {
 			BufferedReader br_blast6 = new BufferedReader(new FileReader(blast_out));
-			Set<Blast6Record> buffer_b6 = new HashSet<Blast6Record>();
+			Set<Blast6Segment> buffer_b6 = new HashSet<Blast6Segment>();
 			line = br_blast6.readLine();
 			String qseqid;
 			while( line!=null ) {
@@ -127,15 +127,15 @@ public class Redundas extends Executor {
 				
 				buffer_b6.clear();
 				
-				buffer_b6.add(Blast6Record.blast6Record(line));
+				buffer_b6.add(Blast6Segment.blast6Record(line));
 				while( (line=br_blast6.readLine())!=null && 
 						line.startsWith(qseqid) ) 
-					buffer_b6.add(Blast6Record.blast6Record(line));		
+					buffer_b6.add(Blast6Segment.blast6Record(line));		
 				
 				int sz = sequence_map.get(qseqid).seq_ln();
 			
 				RangeSet<Integer> range_covered = TreeRangeSet.create();
-				for(Blast6Record record : buffer_b6) {
+				for(Blast6Segment record : buffer_b6) {
 					if( !seq_rm.contains(record.sseqid()) &&
 							!record.qseqid().equals(record.sseqid()) &&
 							record.pident()>=min_ident && 

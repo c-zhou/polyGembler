@@ -8,10 +8,11 @@ public class OverlapEdge extends DefaultWeightedEdge {
 	 */
 	private static final long serialVersionUID = -5051004486663077338L;
 	
-	protected int olap = 0;
+	protected double olap = Double.NaN;
 	protected String cigar = null;
+	protected OverlapResult olapInfo = null;
 	
-	public int olap() {
+	public double olap() {
 		return this.olap;
 	}
 	
@@ -19,11 +20,19 @@ public class OverlapEdge extends DefaultWeightedEdge {
 		return this.cigar;
 	}
 	
-	public void setOlap(int olap) {
+	public OverlapResult olapInfo() {
+		return this.olapInfo;
+	}
+	
+	public void setOlap(double olap) {
 		this.olap = olap;
 	}
 	
 	public void setCigar(String cigar) {
 		this.cigar = cigar;
+	}
+	
+	public void setOlapInfo(OverlapResult olapInfo) {
+		this.olapInfo = olapInfo;
 	}
 }
