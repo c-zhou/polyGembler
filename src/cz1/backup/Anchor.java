@@ -343,7 +343,7 @@ public class Anchor extends Executor {
 		
 		try {
 			BufferedReader br_blast = Utils.getBufferedReader(blast_out);
-			Blast6Segment tmp_record = Blast6Segment.blast6Record(br_blast.readLine());
+			Blast6Segment tmp_record = Blast6Segment.blast6Segment(br_blast.readLine());
 			Blast6Segment primary_record, secondary_record;
 			String qry;
 			double qry_ln, aln_frac;
@@ -353,7 +353,7 @@ public class Anchor extends Executor {
 				qry_ln = qry_seqs.get(qry).seq_ln();
 				buff.clear();
 				buff.add(tmp_record);
-				while( (tmp_record=Blast6Segment.blast6Record(br_blast.readLine()))!=null
+				while( (tmp_record=Blast6Segment.blast6Segment(br_blast.readLine()))!=null
 						&&
 						tmp_record.qseqid().equals(qry) ) {
 					// filter by identity

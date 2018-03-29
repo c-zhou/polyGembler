@@ -127,10 +127,10 @@ public class Redundas extends Executor {
 				
 				buffer_b6.clear();
 				
-				buffer_b6.add(Blast6Segment.blast6Record(line));
+				buffer_b6.add(Blast6Segment.blast6Segment(line));
 				while( (line=br_blast6.readLine())!=null && 
 						line.startsWith(qseqid) ) 
-					buffer_b6.add(Blast6Segment.blast6Record(line));		
+					buffer_b6.add(Blast6Segment.blast6Segment(line));		
 				
 				int sz = sequence_map.get(qseqid).seq_ln();
 			

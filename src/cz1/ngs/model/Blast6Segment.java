@@ -36,7 +36,7 @@ public class Blast6Segment extends AlignmentSegment {
 		this.bitscore = bitscore;
 	}
 
-	public static Blast6Segment blast6Record(String b6Record) {
+	public static Blast6Segment blast6Segment(String b6Record) {
 		// TODO Auto-generated method stub
 		if(b6Record==null) return null;
 		String[] s = b6Record.split("\\s+");

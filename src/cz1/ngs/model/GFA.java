@@ -22,6 +22,7 @@ import org.biojava.nbio.alignment.SimpleGapPenalty;
 import org.biojava.nbio.alignment.template.PairwiseSequenceAligner;
 import org.biojava.nbio.core.alignment.matrices.SubstitutionMatrixHelper;
 import org.biojava.nbio.core.alignment.template.SequencePair;
+import org.biojava.nbio.core.alignment.template.SubstitutionMatrix;
 import org.biojava.nbio.core.exceptions.CompoundNotFoundException;
 import org.biojava.nbio.core.sequence.DNASequence;
 import org.biojava.nbio.core.sequence.compound.AmbiguityDNACompoundSet;
@@ -181,10 +182,6 @@ public class GFA {
 		}
 	}
 	
-	
-	private int olap_loading_progress = 0;
-	private long elapsed_time = 0;
-	
 	private void readOverlapGraph(String olap_file) {
 		// TODO Auto-generated method stub
 		myLogger.info("Loading assembly graph from file.");
@@ -208,14 +205,16 @@ public class GFA {
 					public void run() {
 						// TODO Auto-generated method stub
 						
-						
-						synchronized(lock) {
-							olap_loading_progress++;
-							if(olap_loading_progress%1000==0) 
-								myLogger.info("      olap_loading_progress: "+olap_loading_progress+"\n"
-										     +"           loading_elapsed : "+elapsed_time);
-						}
-						
+						/*** 
+						 * 
+						 * excessive computations to do here 
+						 * the program is overburdened
+						 * in fact we do not need to do all the calculations
+						 * instead we only need to store the preliminary overlaps
+						 * and will refine the overlaps later where needed
+						 *
+						 */
+						/***
 						String[] olap_str;
 						String fromId, toId, fromSeq, toSeq, fromSeq_flank, toSeq_flank;
 						boolean fromFw, toFw, olapFw;
@@ -236,7 +235,7 @@ public class GFA {
 						b1       =   Integer.parseInt(olap_str[9]);
 						b2       =   Integer.parseInt(olap_str[10]);
 						toLen    =   Integer.parseInt(olap_str[11]);
-
+						
 						fromSeq   = seg.get(fromId).seq_str();
 						a1_flank  = Math.max(0, a1-default_flank);
 						a2_flank  = Math.min(fromLen, a2+default_flank);
@@ -246,11 +245,7 @@ public class GFA {
 						fromSeq_flank = fromFw ? fromSeq.substring(a1_flank, a2_flank) : Sequence.revCompSeq(fromSeq.substring(a1_flank, a2_flank));
 						toSeq_flank   = toFw   ? toSeq.substring  (b1_flank, b2_flank) : Sequence.revCompSeq(toSeq.substring  (b1_flank, b2_flank));
 						
-						long ss = System.nanoTime();
 						seqPair = this.pairMatcher(fromSeq_flank, toSeq_flank);
-						synchronized(lock) {
-							elapsed_time += System.nanoTime()-ss;
-						}
 						
 						// alignment coordinates on the flanked sequences
 						aLen = seqPair.getLength();
@@ -313,7 +308,74 @@ public class GFA {
 								// a -> b
 								edge = gfa.addEdge(toId, fromId);
 								gfa.setEdgeWeight(edge, 1.0);
-								gfa.setEdgeOverlapInfo(edge, new OverlapResult(toId, fromId, score, rawScore, toLen-b2+1, toLen-b1+1, toLen, fromLen-a2+1, fromLen-a2+1, fromLen));
+								gfa.setEdgeOverlapInfo(edge, new OverlapResult(toId, fromId, score, rawScore, toLen-b2+1, toLen-b1+1, toLen, fromLen-a2+1, fromLen-a1+1, fromLen));
+							} else {
+								// b -> a
+								edge = gfa.addEdge(fromId, toId);
+								gfa.setEdgeWeight(edge, 1.0);
+								gfa.setEdgeOverlapInfo(edge, new OverlapResult(fromId, toId, score, rawScore, fromLen-a2+1, fromLen-a1+1, fromLen, toLen-b2+1, toLen-b1+1, toLen));
+							}
+						}
+						**/
+						
+						/*** this is the replacement ***/
+						
+						String[] olap_str;
+						String fromId, toId;
+						boolean fromFw, toFw, olapFw;
+						double score, rawScore;
+						int a1, a2, b1, b2, fromLen, toLen;
+						OverlapEdge edge; 
+						
+						olap_str =   olap.split("\\s+");
+						fromId   =   olap_str[0];
+						toId     =   olap_str[1];
+						score    =   Double.parseDouble(olap_str[2]);
+						rawScore =   Double.parseDouble(olap_str[3]); 
+						fromFw   =   olap_str[4].equals("0");
+						a1       =   Integer.parseInt(olap_str[5]);
+						a2       =   Integer.parseInt(olap_str[6]);
+						fromLen  =   Integer.parseInt(olap_str[7]);
+						toFw     =   olap_str[8].equals("0");
+						b1       =   Integer.parseInt(olap_str[9]);
+						b2       =   Integer.parseInt(olap_str[10]);
+						toLen    =   Integer.parseInt(olap_str[11]);
+						
+						// decide the overlap direction
+						// true : a->b
+						// false: b->a
+						olapFw = a1+toLen-b2>b1+fromLen-a2;
+						// add vertices
+						fromId = fromFw ? fromId : rev.get(fromId);
+						toId   = toFw   ? toId   : rev.get(toId  );
+						
+						synchronized(lock) {
+							if(!gfa.containsVertex(fromId))  gfa.addVertex(fromId);
+							if(!gfa.containsVertex(toId)  )  gfa.addVertex(toId  );
+
+							if(olapFw) {
+								// a -> b
+								edge = gfa.addEdge(fromId, toId);
+								gfa.setEdgeWeight(edge, 1.0);
+								gfa.setEdgeOverlapInfo(edge, new OverlapResult(fromId, toId, score, rawScore, a1, a2, fromLen, b1, b2, toLen));
+							} else {
+								// b -> a
+								edge = gfa.addEdge(toId, fromId);
+								gfa.setEdgeWeight(edge, 1.0);
+								gfa.setEdgeOverlapInfo(edge, new OverlapResult(toId, fromId, score, rawScore, b1, b2, toLen, a1, a2, fromLen));
+							}
+
+							// symmetrizing 
+							fromId = rev.get(fromId);
+							toId   = rev.get(toId  );
+
+							if(!gfa.containsVertex(fromId))  gfa.addVertex(fromId);
+							if(!gfa.containsVertex(toId)  )  gfa.addVertex(toId  );
+							if(olapFw) {
+								// a -> b
+								edge = gfa.addEdge(toId, fromId);
+								gfa.setEdgeWeight(edge, 1.0);
+								gfa.setEdgeOverlapInfo(edge, new OverlapResult(toId, fromId, score, rawScore, toLen-b2+1, toLen-b1+1, toLen, fromLen-a2+1, fromLen-a1+1, fromLen));
 							} else {
 								// b -> a
 								edge = gfa.addEdge(fromId, toId);
@@ -327,26 +389,6 @@ public class GFA {
 						// TODO Auto-generated method stub
 						this.olap = olap;
 						return this;
-					}
-
-					private SequencePair<DNASequence, NucleotideCompound> pairMatcher(String targetSeq, String querySeq) {
-						try {			
-							DNASequence target = new DNASequence(targetSeq, AmbiguityDNACompoundSet.getDNACompoundSet());
-							DNASequence query  = new DNASequence(querySeq, AmbiguityDNACompoundSet.getDNACompoundSet());
-							
-							PairwiseSequenceAligner<DNASequence, NucleotideCompound> aligner = Alignments.getPairwiseAligner(
-									target,
-									query,
-									PairwiseSequenceAlignerType.LOCAL,
-									new SimpleGapPenalty(6,1), 
-									SubstitutionMatrixHelper.getNuc4_4());
-							SequencePair<DNASequence, NucleotideCompound> seqAlnPair = aligner.getPair();
-							return seqAlnPair;
-						} catch (CompoundNotFoundException e1) {
-							// TODO Auto-generated catch block
-							e1.printStackTrace();
-						}
-						return null;
 					}
 					
 				}.init(olap));
@@ -362,7 +404,95 @@ public class GFA {
 		
 		return;
 	}
+	
+	public void realign(OverlapEdge edge) {
+		// this is to realign the overlap for refinement
+		// performed with the Smith-Waterman algorithm
+		
+		String fromId, toId, fromSeq_flank, toSeq_flank;
+		double rawScore;
+		int a1, a2, b1, b2, fromLen, toLen, a1_flank, a2_flank, b1_flank, b2_flank, aLen;
+		SequencePair<DNASequence, NucleotideCompound> seqPair;
+		
+		OverlapResult olap = edge.olapInfo;
+		
+		fromId   =   olap.getFromId();
+		toId     =   olap.getToId();
+		a1       =   olap.getFromStart();
+		a2       =   olap.getFromEnd();
+		fromLen  =   olap.getFromLen();
+		b1       =   olap.getToStart();
+		b2       =   olap.getToEnd();
+		toLen    =   olap.getToLen();
+		
+		a1_flank  = Math.max(0, a1-default_flank);
+		a2_flank  = Math.min(fromLen, a2+default_flank);
+		b1_flank  = Math.max(0, b1-default_flank);
+		b2_flank  = Math.min(toLen, b2+default_flank);
+		fromSeq_flank = seg.get(fromId).seq_str().substring(a1_flank, a2_flank);
+		toSeq_flank   = seg.get(toId).seq_str().substring  (b1_flank, b2_flank);
+		
+		seqPair = this.pairMatcher(fromSeq_flank, toSeq_flank);
+		
+		// alignment coordinates on the flanked sequences
+		aLen = seqPair.getLength();
+		a1 = seqPair.getIndexInQueryAt(1);
+		a2 = seqPair.getIndexInQueryAt(aLen);
+		b1 = seqPair.getIndexInTargetAt(1);
+		b2 = seqPair.getIndexInTargetAt(aLen);
 
+		// convert them back to the original sequence coordinates
+		a1 += a1_flank;
+		a2 += a1_flank;
+		
+		b1 += b1_flank;
+		b2 += b1_flank;
+			
+		// use overlap length as raw score
+		rawScore = (double) aLen;
+		
+		olap.setFromStart(a1);
+		olap.setFromEnd(a2);
+		olap.setToStart(b1);
+		olap.setToEnd(b2);
+		olap.setRawScore(rawScore);
+		olap.setRealigned();
+		
+		// process the symmetric edge
+		olap = this.gfa.getEdge(rev.get(toId), rev.get(fromId)).olapInfo;
+		
+		olap.setFromStart(toLen-b2+1);
+		olap.setFromEnd(toLen-b1+1);
+		olap.setToStart(fromLen-a2+1);
+		olap.setToEnd(fromLen-a1+1);
+		olap.setRawScore(rawScore);
+		olap.setRealigned();
+		
+		return;
+	}
+
+	private static final SimpleGapPenalty penalty = new SimpleGapPenalty(6,1);
+	private static final SubstitutionMatrix<NucleotideCompound> subMat = SubstitutionMatrixHelper.getNuc4_4();
+	
+	private SequencePair<DNASequence, NucleotideCompound> pairMatcher(String targetSeq, String querySeq) {
+		try {			
+			DNASequence target = new DNASequence(targetSeq, AmbiguityDNACompoundSet.getDNACompoundSet());
+			DNASequence query  = new DNASequence(querySeq, AmbiguityDNACompoundSet.getDNACompoundSet());
+			
+			PairwiseSequenceAligner<DNASequence, NucleotideCompound> aligner = Alignments.getPairwiseAligner(
+					target,
+					query,
+					PairwiseSequenceAlignerType.LOCAL,
+					penalty, 
+					subMat);
+			SequencePair<DNASequence, NucleotideCompound> seqAlnPair = aligner.getPair();
+			return seqAlnPair;
+		} catch (CompoundNotFoundException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		return null;
+	}
 	
 	public GraphPath<String, OverlapEdge> getPath(String source, String sink) {
 		return bfs.getPath(source, sink);
@@ -639,7 +769,7 @@ public class GFA {
 		// TODO Auto-generated method stub
 
 		// TODO distinguish between the de-bruijn, overlap-layout-consensus and overlap assembly graph
-		return Graph_type.overlap;
+		return Graph_type.olc;
 	}
 
 	public String graph_type() {
@@ -720,7 +850,7 @@ public class GFA {
 	}
 
 	public Set<OverlapEdge> outgoingEdgesOf(String v) {
-		return this.gfa.incomingEdgesOf(v);
+		return this.gfa.outgoingEdgesOf(v);
 	}
 
 	public Set<String> getSeqSet() {
@@ -741,5 +871,13 @@ public class GFA {
 
 	public Map<String, Sequence> getSequenceMap() {
 		return this.seg;
+	}
+	
+	public String getEdgeSource(OverlapEdge e) {
+		return this.gfa.getEdgeSource(e);
+	}
+	
+	public String getEdgeTarget(OverlapEdge e) {
+		return this.gfa.getEdgeTarget(e);
 	}
 }
