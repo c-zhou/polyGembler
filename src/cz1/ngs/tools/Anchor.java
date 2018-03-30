@@ -15,12 +15,12 @@ import java.util.Set;
 
 import javax.swing.JFrame;
 
+import org.apache.commons.collections4.BidiMap;
+import org.apache.commons.collections4.bidimap.TreeBidiMap;
 import org.jgraph.JGraph;
 import org.jgrapht.Graph;
 import org.jgrapht.ext.JGraphModelAdapter;
-import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.DirectedWeightedPseudograph;
-import org.jgrapht.graph.ListenableDirectedWeightedGraph;
 import org.jgrapht.traverse.BreadthFirstIterator;
 
 import com.google.common.collect.DiscreteDomain;
@@ -32,6 +32,7 @@ import cz1.ngs.model.GFA;
 import cz1.ngs.model.OverlapEdge;
 import cz1.ngs.model.SAMSegment;
 import cz1.ngs.model.Sequence;
+import cz1.ngs.model.TraceableEdge;
 import cz1.ngs.model.TraceableVertex;
 import cz1.util.ArgsEngine;
 import cz1.util.Constants;
@@ -79,6 +80,7 @@ public class Anchor extends Executor {
 						+ "                         alignments will be discared (default 0.05).\n"
 						+ " -t/--threads            Number of threads to use (default 16).\n"
 						+ " -d/--debug              Debugging mode will have extra information printed out.\n"
+						+ " -dd/--debug-debug       Debugging mode will have more information printed out than -d mode.\n"
 						+ " -o/--out-prefix         Prefix of the output files.\n"
 						+ "\n");	
 	}
@@ -101,6 +103,7 @@ public class Anchor extends Executor {
 	private int num_threads = Runtime.getRuntime().availableProcessors();
 	private String out_prefix = null;
 	private boolean debug = false;
+	private boolean ddebug = false;
 	
 	@Override
 	public void setParameters(String[] args) {
@@ -118,6 +121,7 @@ public class Anchor extends Executor {
 			myArgsEngine.add("-df", "--diff-fraction", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-d", "--debug", false);
+			myArgsEngine.add("-dd", "--debug-debug", false);
 			myArgsEngine.add("-o", "--out-prefix", true);
 			myArgsEngine.parse(args);
 		}
@@ -190,6 +194,10 @@ public class Anchor extends Executor {
 		
 		if (myArgsEngine.getBoolean("-d")) {
 			this.debug = true;
+		}
+		
+		if (myArgsEngine.getBoolean("-dd")) {
+			this.ddebug = true;
 		}
 	}
 
@@ -271,7 +279,8 @@ public class Anchor extends Executor {
 				qry_ln = qry_seqs.get(qry).seq_ln();			
 				
 				buff.clear();
-				buff.add(SAMSegment.samRecord(rc, true, qry_ln));
+                if(!rc.getReadUnmappedFlag())
+                    buff.add(SAMSegment.samRecord(rc, true, qry_ln));
 
 				
 				while( (rc=iter1.next())!=null
@@ -279,7 +288,9 @@ public class Anchor extends Executor {
 						rc.getReadName().equals(qry) ) {
 					buff.add(SAMSegment.samRecord(rc, true, qry_ln));
 				}
-				
+			    
+                if(buff.isEmpty()) continue;
+
 				min_aln = 0.9*buff.get(0).qlength();
 				
 				// keep alignment fragment that has qual>0
@@ -303,42 +314,51 @@ public class Anchor extends Executor {
 			e.printStackTrace();
 		}
 		
-		Collections.sort(initPseudoAssembly.get("1_pilon"), new AlignmentSegment.SubjectCoordinationComparator());
+		// Collections.sort(initPseudoAssembly.get("1_pilon"), new AlignmentSegment.SubjectCoordinationComparator());
 		
-		if(debug) {
-			for(SAMSegment record : initPseudoAssembly.get("1_pilon")) {
-				System.out.println(record.qseqid()+":"+record.sstart()+"-"+record.send());
-			}
-		}
+		// if(debug) {
+		//	for(SAMSegment record : initPseudoAssembly.get("1_pilon")) {
+		//		System.out.println(record.qseqid()+":"+record.sstart()+"-"+record.send());
+		//	}
+		// }
 		
 		final Set<SAMSegment> contained = new HashSet<SAMSegment>();
 		final int flank_size = 50000;
 		int distance;
-		
+
 		for(String sub_seq : sub_seqs.keySet()) {
-			final List<SAMSegment> seq_by_sub = initPseudoAssembly.get(sub_seq);
-			contained.clear();
+
+            // sub_seq = "Chr10";
+            if(sub_seq.equals("Chr00")) continue;
+            
+            myLogger.info(">>>>>>>>>>>>>"+sub_seq+"<<<<<<<<<<<<<<<<");
+            
+            final List<SAMSegment> seq_by_sub = initPseudoAssembly.get(sub_seq);
+		    Collections.sort(seq_by_sub, new AlignmentSegment.SubjectCoordinationComparator());
+        
+            contained.clear();
 			
 			int nSeq = seq_by_sub.size();
-			double edge_weight;
+			double edge_penalty, edge_score;
 			SAMSegment root_seq, source_seq, target_seq;
 			Set<SAMSegment> target_seqs;
 			Set<OverlapEdge> outgoing;
-			DefaultWeightedEdge edge;
+			TraceableEdge edge;
 			String root_seqid, source_seqid, target_seqid;
 			TraceableVertex<String> root_vertex, source_vertex, target_vertex;
 			Deque<SAMSegment> deque = new ArrayDeque<SAMSegment>();
 			final List<TraceableVertex<String>> traceable = new ArrayList<TraceableVertex<String>>();
-			
+
 			for(int i=0; i<nSeq; i++) {
+				
 				root_seq = seq_by_sub.get(i);
 				root_seqid = root_seq.qseqid();
 				
 				if(contained.contains(root_seq)) 
 					continue;
 				
-				final DirectedWeightedPseudograph<TraceableVertex<String>, DefaultWeightedEdge> razor = 
-						new DirectedWeightedPseudograph<TraceableVertex<String>, DefaultWeightedEdge>(DefaultWeightedEdge.class);
+				final DirectedWeightedPseudograph<TraceableVertex<String>, TraceableEdge> razor = 
+						new DirectedWeightedPseudograph<TraceableVertex<String>, TraceableEdge>(TraceableEdge.class);
 				
 
 				// final ListenableDirectedWeightedGraph<TraceableVertex<String>, DefaultWeightedEdge> razor = 
@@ -348,7 +368,6 @@ public class Anchor extends Executor {
 				//		 new JGraphModelAdapter<TraceableVertex<String>, DefaultWeightedEdge>(razor);
 
 				// JGraph jgraph = new JGraph(jgAdapter);
-				
 				
 				deque.clear();
 				deque.push(root_seq);
@@ -398,65 +417,125 @@ public class Anchor extends Executor {
 							edge = razor.addEdge(source_vertex, target_vertex);
 							// calculate edge weight
 							// higher weight edges are those,
-							//       1. large/long alignment segments vertices
+							
+							/****
+							//       1.  large/long alignment segments vertices
 							// TODO: 2*. small gaps on the reference
 							edge_weight = qry_seqs.get(source_seqid).seq_ln()+
 									qry_seqs.get(target_seqid).seq_ln()-
 									gfa.getEdge(source_seqid, target_seqid).olap();
-							razor.setEdgeWeight(edge, edge_weight);
+							**/
+
+							// TODO: 1*. large/long alignment segments vertices
+							//       2.  small gaps on the reference
+							edge_penalty = AlignmentSegment.sdistance(source_seq, target_seq);
+							edge.setPenalty(edge_penalty);
+							
+							edge_score = qry_seqs.get(source_seqid).seq_ln()+
+									qry_seqs.get(target_seqid).seq_ln()-
+									gfa.getEdge(source_seqid, target_seqid).olap();
+							edge.setScore(edge_score);
 							
 							deque.push(target_seq);
 						}
 					}
 				}
-				
+				myLogger.info(root_seqid+" "+razor.vertexSet().size()+" "+razor.edgeSet().size()+" done");
+
 				// JFrame frame = new JFrame();
 			    // frame.getContentPane().add(jgraph);
 			    // frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 			    // frame.pack();
 			    // frame.setVisible(true);
-				
+
+                if(root_seqid.equals("tig18216103")) {
+                    for(TraceableEdge e : razor.edgeSet()) {
+                    	myLogger.info(e.toString());
+                    }
+                    ddebug = true; 
+                }
+
 			    // "pseudo"-DFS to find the route with the highest score
-				Set<TraceableVertex<String>> visited = new HashSet<TraceableVertex<String>>();
-		        Deque<TraceableVertex<String>> queue = new ArrayDeque<TraceableVertex<String>>();
-		        root_vertex = new TraceableVertex<String>(root_seqid);
+                
+                // we use a bidirectional hashmap to simulate the deque
+                // this is because we may need to do deletions
+		        // Deque<TraceableVertex<String>> queue = new ArrayDeque<TraceableVertex<String>>();
+		        final TreeBidiMap<Long, TraceableVertex<String>> bidiQ = new TreeBidiMap<Long, TraceableVertex<String>>();
+                
+                root_vertex = new TraceableVertex<String>(root_seqid);
+		        root_vertex.setSAMSegment(root_seq);
 		        root_vertex.setScore(qry_seqs.get(root_seqid).seq_ln());
-		        queue.push(root_vertex);
-		        visited.add(root_vertex);
+		        root_vertex.setPenalty(0);
+                root_vertex.setStatus(true);
 		        
-		        Set<DefaultWeightedEdge> out_edges;
-				double max_score = Double.NEGATIVE_INFINITY, source_score, target_score, score;
+                bidiQ.put(0L, root_vertex);
+		        
+				double max_score = Double.NEGATIVE_INFINITY, source_penalty, 
+						target_penalty, source_score, penalty, score;
 				int source_ln;
+		        Set<TraceableEdge> out_edges;
 				TraceableVertex<String> max_vertex = null;
+				long sizeQ;
 				boolean isLeaf;
 				
-		        while(!queue.isEmpty()) {
-		        	source_vertex = queue.pop();
+				
+		        while(!bidiQ.isEmpty()) {
+		        	sizeQ = bidiQ.lastKey();
+		        	source_vertex = bidiQ.get(sizeQ);
+		        	bidiQ.remove(sizeQ);
+		        	
 		        	source_ln = qry_seqs.get(source_vertex.getVertexId()).seq_ln();
 		        	source_score = source_vertex.getScore()-source_ln;
+		        	source_penalty = source_vertex.getPenalty();
+		        	
 		        	isLeaf = true;
 		        	out_edges = razor.outgoingEdgesOf(source_vertex);
-		        	for(DefaultWeightedEdge out : out_edges) {
+		        	for(TraceableEdge out : out_edges) {
 		        		target_vertex = razor.getEdgeTarget(out);
-		        		target_score = target_vertex.getScore();
-		        		edge_weight = razor.getEdgeWeight(out);
-		        		score = source_score+edge_weight;
+		        		target_penalty = target_vertex.getPenalty();
+		        		edge_penalty = out.getPenalty();
+		        		penalty = source_penalty+edge_penalty;
+		        		edge_score = out.getScore();
+		        		score = source_score+edge_score;
 		        		
-		        		if( visited.contains(target_vertex) && 
-		        				(score<=target_score ||
+		        		if( target_vertex.getStatus() && 
+		        				(penalty>=target_penalty ||
 		        				isLoopback(razor, source_vertex, target_vertex)) ) 
 		        			continue;
-		        		
+
 		        		isLeaf = false;
 		        		target_vertex.setBackTrace(source_vertex);
+		        		target_vertex.setPenalty(penalty);
 		        		target_vertex.setScore(score);
-		        		queue.push(target_vertex);
-		        		visited.add(target_vertex);
+		        		target_vertex.setStatus(true);
+		        		
+                        bidiQ.put(sizeQ++, target_vertex);
 		        	}
 		        	
 		        	if(isLeaf && source_vertex.getScore()>max_score) {
 		        		max_score = source_vertex.getScore();
 		        		max_vertex = source_vertex;
+
+		        		if(ddebug) {
+		        			String source = max_vertex.getVertexId(), target;
+		        			
+		        			String trace = source+":"+
+		        					max_vertex.getSAMSegment().sstart()+"-"+
+		        					max_vertex.getSAMSegment().send();
+		        			double size = qry_seqs.get(source).seq_ln();
+		        			
+		        			while( (max_vertex = max_vertex.getBackTrace())!=null ) {
+		        				target = max_vertex.getVertexId();
+		        				trace += ","+target+":"+
+		        						max_vertex.getSAMSegment().sstart()+"-"+
+		        						max_vertex.getSAMSegment().send();
+		        				
+		        				size += qry_seqs.get(max_vertex.getVertexId()).seq_ln()-
+		        						gfa.getEdge(source, target).olap();
+		        			}
+		        			myLogger.info("trace back ["+max_score+","+size+"]: "+trace);
+
+		        		}
 		        	}
 		        }
 		        
@@ -472,19 +551,21 @@ public class Anchor extends Executor {
 					return Double.compare(t1.getScore(), t0.getScore());
 				}
 			});
-			
+
 			if(debug) {
 				for(TraceableVertex<String> max_vertex : traceable) {
+
+					String max_id = max_vertex.getVertexId();
 					double score = max_vertex.getScore();
+					double penalty = max_vertex.getPenalty(); 
 					String trace = max_vertex.toString();
 					while( (max_vertex = max_vertex.getBackTrace())!=null ) {
 						trace += ","+max_vertex.toString();
 					}
-
-					myLogger.info("trace back ["+score+"]: "+trace);
+					myLogger.info("trace back ["+max_id+", "+score+", "+penalty+"]: "+trace);
 				}
 			}
-			
+
 			// we generate a compound alignment record for each traceable
 			for(TraceableVertex<String> max_vertex : traceable) {
 				
@@ -492,7 +573,7 @@ public class Anchor extends Executor {
 		}
 	}
 
-	private boolean isLoopback(DirectedWeightedPseudograph<TraceableVertex<String>, DefaultWeightedEdge> graph,
+	private boolean isLoopback(DirectedWeightedPseudograph<TraceableVertex<String>, TraceableEdge> graph,
 			TraceableVertex<String> source,
 			TraceableVertex<String> target) {
 		// TODO Auto-generated method stub

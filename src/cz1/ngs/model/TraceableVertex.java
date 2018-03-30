@@ -1,20 +1,29 @@
 package cz1.ngs.model;
 
-public class TraceableVertex<V> {
+public class TraceableVertex<V extends Comparable<V>> implements Comparable<TraceableVertex<V>> {
 	private final V id;
 	private TraceableVertex<V> backtrace = null;
-	private double score = Double.NEGATIVE_INFINITY;
+	private double penalty = Double.POSITIVE_INFINITY;
+	private double score   = Double.NEGATIVE_INFINITY;
 	private SAMSegment segment;
+	// specify the status of the vertex
+	// e.g., is visited or not during traversal
+	private boolean status = false;
 	
 	public TraceableVertex(V id) {
 		this.id = id;
 	}
 	
-	public TraceableVertex(V id, TraceableVertex<V> backtrace, double score, SAMSegment segment) {
-		this.id = id;
-		this.backtrace = backtrace;
-		this.score = score;
-		this.segment = segment;
+	public void changeStatus() {
+		this.status  = !this.status;
+	}
+	
+	public void setStatus(boolean status) {
+		this.status  = status;
+	}
+	
+	public boolean getStatus() {
+		return this.status;
 	}
 	
 	public void setBackTrace(TraceableVertex<V> backtrace) {
@@ -24,6 +33,10 @@ public class TraceableVertex<V> {
 	public void setScore(double score) {
 		this.score = score;
 	}
+	
+	public void setPenalty(double penalty) {
+		this.penalty = penalty;
+	}
 
 	public void setSAMSegment(SAMSegment segment) {
 		this.segment = segment;
@@ -31,6 +44,10 @@ public class TraceableVertex<V> {
 	
 	public TraceableVertex<V> getBackTrace() {
 		return this.backtrace;
+	}
+	
+	public double getPenalty() {
+		return this.penalty;
 	}
 	
 	public double getScore() {
@@ -64,5 +81,11 @@ public class TraceableVertex<V> {
 	@Override
 	public String toString() {
 		return this.id.toString();
+	}
+
+	@Override
+	public int compareTo(TraceableVertex<V> v) {
+		// TODO Auto-generated method stub
+		return this.id.compareTo(v.id);
 	}
 }
