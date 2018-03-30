@@ -440,20 +440,13 @@ public class Anchor extends Executor {
 						}
 					}
 				}
-				if(debug) myLogger.info(root_seqid+" "+razor.vertexSet().size()+" "+razor.edgeSet().size()+" done");
+				if(ddebug) myLogger.info(root_seqid+" "+razor.vertexSet().size()+" "+razor.edgeSet().size()+" done");
 
 				// JFrame frame = new JFrame();
 			    // frame.getContentPane().add(jgraph);
 			    // frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 			    // frame.pack();
 			    // frame.setVisible(true);
-
-                if(root_seqid.equals("tig18216103")) {
-                    for(TraceableEdge e : razor.edgeSet()) {
-                    	myLogger.info(e.toString());
-                    }
-                    ddebug = true; 
-                }
 
 			    // "pseudo"-DFS to find the route with the highest score
                 
@@ -557,14 +550,19 @@ public class Anchor extends Executor {
 			if(debug) {
 				for(TraceableVertex<String> opt_vertex : traceable) {
 
-					String max_id = opt_vertex.getVertexId();
 					double score = opt_vertex.getScore();
 					double penalty = opt_vertex.getPenalty(); 
-					String trace = opt_vertex.toString();
+					
+					String trace = opt_vertex.toString()+":"+
+        					opt_vertex.getSAMSegment().sstart()+"-"+
+        					opt_vertex.getSAMSegment().send();
+					
 					while( (opt_vertex = opt_vertex.getBackTrace())!=null ) {
-						trace += ","+opt_vertex.toString();
+						trace += ","+opt_vertex.toString()+":"+
+								opt_vertex.getSAMSegment().sstart()+"-"+
+								opt_vertex.getSAMSegment().send();
 					}
-					myLogger.info("trace back ["+max_id+", "+score+", "+penalty+"]: "+trace);
+					myLogger.info("trace back ["+score+", "+penalty+"]: "+trace);
 				}
 			}
 
