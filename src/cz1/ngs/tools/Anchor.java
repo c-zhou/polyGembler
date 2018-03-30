@@ -529,11 +529,12 @@ public class Anchor extends Executor {
 		        			String trace = opt_vertex.toString()+":"+
 		        					opt_vertex.getSAMSegment().sstart()+"-"+
 		        					opt_vertex.getSAMSegment().send();
-
-		        			while( (opt_vertex = opt_vertex.getBackTrace())!=null ) {
-		        				trace += ","+opt_vertex.toString()+":"+
-		        						opt_vertex.getSAMSegment().sstart()+"-"+
-		        						opt_vertex.getSAMSegment().send();
+		        			
+		        			TraceableVertex<String> optx = opt_vertex;
+		        			while( (optx = optx.getBackTrace())!=null ) {
+		        				trace += ","+optx.toString()+":"+
+		        						optx.getSAMSegment().sstart()+"-"+
+		        						optx.getSAMSegment().send();
 		        			}
 		        			myLogger.info("trace back ["+score+", "+penalty+"]: "+trace);
 		        		}
