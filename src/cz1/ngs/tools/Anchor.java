@@ -440,7 +440,7 @@ public class Anchor extends Executor {
 						}
 					}
 				}
-				myLogger.info(root_seqid+" "+razor.vertexSet().size()+" "+razor.edgeSet().size()+" done");
+				if(debug) myLogger.info(root_seqid+" "+razor.vertexSet().size()+" "+razor.edgeSet().size()+" done");
 
 				// JFrame frame = new JFrame();
 			    // frame.getContentPane().add(jgraph);
@@ -469,12 +469,13 @@ public class Anchor extends Executor {
                 root_vertex.setStatus(true);
 		        
                 bidiQ.put(0L, root_vertex);
-		        
-				double max_score = Double.NEGATIVE_INFINITY, source_penalty, 
-						target_penalty, source_score, penalty, score;
+
+                double max_ws = Double.NEGATIVE_INFINITY,
+                		source_penalty, target_penalty, source_score, target_score, 
+                		penalty, score, target_ws, source_ws, ws;
 				int source_ln;
 		        Set<TraceableEdge> out_edges;
-				TraceableVertex<String> max_vertex = null;
+				TraceableVertex<String> opt_vertex = null;
 				long sizeQ;
 				boolean isLeaf;
 				
@@ -487,59 +488,59 @@ public class Anchor extends Executor {
 		        	source_ln = qry_seqs.get(source_vertex.getVertexId()).seq_ln();
 		        	source_score = source_vertex.getScore()-source_ln;
 		        	source_penalty = source_vertex.getPenalty();
+		        	source_ws = source_score-source_penalty;
 		        	
 		        	isLeaf = true;
 		        	out_edges = razor.outgoingEdgesOf(source_vertex);
 		        	for(TraceableEdge out : out_edges) {
 		        		target_vertex = razor.getEdgeTarget(out);
+		        		target_score = target_vertex.getScore();
 		        		target_penalty = target_vertex.getPenalty();
+		        		target_ws = target_score-target_penalty;
+		        		
 		        		edge_penalty = out.getPenalty();
 		        		penalty = source_penalty+edge_penalty;
 		        		edge_score = out.getScore();
 		        		score = source_score+edge_score;
+		        		ws = score-penalty;
 		        		
 		        		if( target_vertex.getStatus() && 
-		        				(penalty>=target_penalty ||
+		        				(ws<=target_ws ||
 		        				isLoopback(razor, source_vertex, target_vertex)) ) 
 		        			continue;
 
 		        		isLeaf = false;
 		        		target_vertex.setBackTrace(source_vertex);
-		        		target_vertex.setPenalty(penalty);
 		        		target_vertex.setScore(score);
+		        		target_vertex.setPenalty(penalty);
 		        		target_vertex.setStatus(true);
 		        		
                         bidiQ.put(sizeQ++, target_vertex);
 		        	}
 		        	
-		        	if(isLeaf && source_vertex.getScore()>max_score) {
-		        		max_score = source_vertex.getScore();
-		        		max_vertex = source_vertex;
+		        	if(isLeaf && source_ws>max_ws) {
+		        		penalty = source_vertex.getPenalty();
+		        		score   = source_vertex.getScore();
+		        		max_ws = source_ws;
+		        		opt_vertex  = source_vertex;
 
 		        		if(ddebug) {
-		        			String source = max_vertex.getVertexId(), target;
 		        			
-		        			String trace = source+":"+
-		        					max_vertex.getSAMSegment().sstart()+"-"+
-		        					max_vertex.getSAMSegment().send();
-		        			double size = qry_seqs.get(source).seq_ln();
-		        			
-		        			while( (max_vertex = max_vertex.getBackTrace())!=null ) {
-		        				target = max_vertex.getVertexId();
-		        				trace += ","+target+":"+
-		        						max_vertex.getSAMSegment().sstart()+"-"+
-		        						max_vertex.getSAMSegment().send();
-		        				
-		        				size += qry_seqs.get(max_vertex.getVertexId()).seq_ln()-
-		        						gfa.getEdge(source, target).olap();
-		        			}
-		        			myLogger.info("trace back ["+max_score+","+size+"]: "+trace);
+		        			String trace = opt_vertex.toString()+":"+
+		        					opt_vertex.getSAMSegment().sstart()+"-"+
+		        					opt_vertex.getSAMSegment().send();
 
+		        			while( (opt_vertex = opt_vertex.getBackTrace())!=null ) {
+		        				trace += ","+opt_vertex.toString()+":"+
+		        						opt_vertex.getSAMSegment().sstart()+"-"+
+		        						opt_vertex.getSAMSegment().send();
+		        			}
+		        			myLogger.info("trace back ["+score+", "+penalty+"]: "+trace);
 		        		}
 		        	}
 		        }
 		        
-		        traceable.add(max_vertex);
+		        traceable.add(opt_vertex);
 			}
 			
 			// sort traceable by size
@@ -553,21 +554,21 @@ public class Anchor extends Executor {
 			});
 
 			if(debug) {
-				for(TraceableVertex<String> max_vertex : traceable) {
+				for(TraceableVertex<String> opt_vertex : traceable) {
 
-					String max_id = max_vertex.getVertexId();
-					double score = max_vertex.getScore();
-					double penalty = max_vertex.getPenalty(); 
-					String trace = max_vertex.toString();
-					while( (max_vertex = max_vertex.getBackTrace())!=null ) {
-						trace += ","+max_vertex.toString();
+					String max_id = opt_vertex.getVertexId();
+					double score = opt_vertex.getScore();
+					double penalty = opt_vertex.getPenalty(); 
+					String trace = opt_vertex.toString();
+					while( (opt_vertex = opt_vertex.getBackTrace())!=null ) {
+						trace += ","+opt_vertex.toString();
 					}
 					myLogger.info("trace back ["+max_id+", "+score+", "+penalty+"]: "+trace);
 				}
 			}
 
 			// we generate a compound alignment record for each traceable
-			for(TraceableVertex<String> max_vertex : traceable) {
+			for(TraceableVertex<String> opt_vertex : traceable) {
 				
 			}
 		}
