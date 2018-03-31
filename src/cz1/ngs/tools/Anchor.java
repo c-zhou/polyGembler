@@ -32,6 +32,7 @@ import cz1.ngs.model.GFA;
 import cz1.ngs.model.OverlapEdge;
 import cz1.ngs.model.SAMSegment;
 import cz1.ngs.model.Sequence;
+import cz1.ngs.model.TraceableDirectedWeightedPseudograph;
 import cz1.ngs.model.TraceableEdge;
 import cz1.ngs.model.TraceableVertex;
 import cz1.util.ArgsEngine;
@@ -197,6 +198,7 @@ public class Anchor extends Executor {
 		}
 		
 		if (myArgsEngine.getBoolean("-dd")) {
+			this.debug  = true;
 			this.ddebug = true;
 		}
 	}
@@ -323,7 +325,8 @@ public class Anchor extends Executor {
 		// }
 		
 		final Set<SAMSegment> contained = new HashSet<SAMSegment>();
-		final int flank_size = 50000;
+		final Set<SAMSegment> placed    = new HashSet<SAMSegment>();
+		final int flank_size = 10000;
 		int distance;
 
 		for(String sub_seq : sub_seqs.keySet()) {
@@ -336,8 +339,8 @@ public class Anchor extends Executor {
             final List<SAMSegment> seq_by_sub = initPseudoAssembly.get(sub_seq);
 		    Collections.sort(seq_by_sub, new AlignmentSegment.SubjectCoordinationComparator());
         
-            contained.clear();
-			
+            placed.clear();
+            
 			int nSeq = seq_by_sub.size();
 			double edge_penalty, edge_score;
 			SAMSegment root_seq, source_seq, target_seq;
@@ -354,11 +357,11 @@ public class Anchor extends Executor {
 				root_seq = seq_by_sub.get(i);
 				root_seqid = root_seq.qseqid();
 				
-				if(contained.contains(root_seq)) 
+				if(placed.contains(root_seq)) 
 					continue;
 				
-				final DirectedWeightedPseudograph<TraceableVertex<String>, TraceableEdge> razor = 
-						new DirectedWeightedPseudograph<TraceableVertex<String>, TraceableEdge>(TraceableEdge.class);
+				final TraceableDirectedWeightedPseudograph<String> razor = 
+						new TraceableDirectedWeightedPseudograph<String>(TraceableEdge.class);
 				
 
 				// final ListenableDirectedWeightedGraph<TraceableVertex<String>, DefaultWeightedEdge> razor = 
@@ -371,6 +374,7 @@ public class Anchor extends Executor {
 				
 				deque.clear();
 				deque.push(root_seq);
+				contained.clear();
 				
 				while(!deque.isEmpty()) {
 					
@@ -449,20 +453,21 @@ public class Anchor extends Executor {
 			    // frame.setVisible(true);
 
 			    // "pseudo"-DFS to find the route with the highest score
+                final Map<String, TraceableVertex<String>> razv_map  =new HashMap<String, TraceableVertex<String>>();
+                for(TraceableVertex<String> v : razor.vertexSet()) razv_map.put(v.getId(), v);
                 
                 // we use a bidirectional hashmap to simulate the deque
                 // this is because we may need to do deletions
 		        // Deque<TraceableVertex<String>> queue = new ArrayDeque<TraceableVertex<String>>();
 		        final TreeBidiMap<Long, TraceableVertex<String>> bidiQ = new TreeBidiMap<Long, TraceableVertex<String>>();
-                
-                root_vertex = new TraceableVertex<String>(root_seqid);
+
+                root_vertex = razv_map.get(root_seqid);
 		        root_vertex.setSAMSegment(root_seq);
 		        root_vertex.setScore(qry_seqs.get(root_seqid).seq_ln());
 		        root_vertex.setPenalty(0);
                 root_vertex.setStatus(true);
 		        
                 bidiQ.put(0L, root_vertex);
-
                 double max_ws = Double.NEGATIVE_INFINITY,
                 		source_penalty, target_penalty, source_score, target_score, 
                 		penalty, score, target_ws, source_ws, ws;
@@ -478,7 +483,7 @@ public class Anchor extends Executor {
 		        	source_vertex = bidiQ.get(sizeQ);
 		        	bidiQ.remove(sizeQ);
 		        	
-		        	source_ln = qry_seqs.get(source_vertex.getVertexId()).seq_ln();
+		        	source_ln = qry_seqs.get(source_vertex.getId()).seq_ln();
 		        	source_score = source_vertex.getScore()-source_ln;
 		        	source_penalty = source_vertex.getPenalty();
 		        	source_ws = source_score-source_penalty;
@@ -486,7 +491,9 @@ public class Anchor extends Executor {
 		        	isLeaf = true;
 		        	out_edges = razor.outgoingEdgesOf(source_vertex);
 		        	for(TraceableEdge out : out_edges) {
-		        		target_vertex = razor.getEdgeTarget(out);
+		        		// this is not right because graph edges are immutable?
+		        		// target_vertex = razor.getEdgeTarget(out);
+		        		target_vertex = razv_map.get(razor.getEdgeTarget(out).getId());
 		        		target_score = target_vertex.getScore();
 		        		target_penalty = target_vertex.getPenalty();
 		        		target_ws = target_score-target_penalty;
@@ -497,7 +504,8 @@ public class Anchor extends Executor {
 		        		score = source_score+edge_score;
 		        		ws = score-penalty;
 		        		
-		        		if( target_vertex.getStatus() && 
+		        		if( edge_penalty>flank_size || 
+		        				target_vertex.getStatus() && 
 		        				(ws<=target_ws ||
 		        				isLoopback(razor, source_vertex, target_vertex)) ) 
 		        			continue;
@@ -509,14 +517,14 @@ public class Anchor extends Executor {
 		        		target_vertex.setStatus(true);
 		        		
                         bidiQ.put(sizeQ++, target_vertex);
-		        	}
+                    }
 		        	
 		        	if(isLeaf && source_ws>max_ws) {
 		        		penalty = source_vertex.getPenalty();
 		        		score   = source_vertex.getScore();
 		        		max_ws = source_ws;
 		        		opt_vertex  = source_vertex;
-
+		        		
 		        		if(ddebug) {
 		        			
 		        			String trace = opt_vertex.toString()+":"+
@@ -535,6 +543,12 @@ public class Anchor extends Executor {
 		        }
 		        
 		        traceable.add(opt_vertex);
+		        
+		        Set<TraceableVertex<String>> optx = new HashSet<TraceableVertex<String>>();
+		        optx.add(opt_vertex);
+		        while( (opt_vertex = opt_vertex.getBackTrace())!=null ) optx.add(opt_vertex);
+		    
+		        for(TraceableVertex<String> v : optx) placed.add(v.getSAMSegment());
 			}
 			
 			// sort traceable by size

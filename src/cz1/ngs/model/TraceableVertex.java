@@ -54,7 +54,7 @@ public class TraceableVertex<V extends Comparable<V>> implements Comparable<Trac
 		return this.score;
 	}
 	
-	public V getVertexId() {
+	public V getId() {
 		return this.id;
 	}
 	
