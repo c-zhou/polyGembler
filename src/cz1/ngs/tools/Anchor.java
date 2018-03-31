@@ -477,7 +477,10 @@ public class Anchor extends Executor {
 				long sizeQ;
 				boolean isLeaf;
 				
-				
+				if(ddebug)
+					for(TraceableEdge e : razor.edgeSet()) 
+						myLogger.info(e.toString()+"("+razor.getEdgeSource(e).getSAMSegment().toString()+"|"+razor.getEdgeTarget(e).getSAMSegment().toString()+"|"+e.getScore()+"-"+e.getPenalty()+")");
+
 		        while(!bidiQ.isEmpty()) {
 		        	sizeQ = bidiQ.lastKey();
 		        	source_vertex = bidiQ.get(sizeQ);
@@ -529,13 +532,17 @@ public class Anchor extends Executor {
 		        			
 		        			String trace = opt_vertex.toString()+":"+
 		        					opt_vertex.getSAMSegment().sstart()+"-"+
-		        					opt_vertex.getSAMSegment().send();
+		        					opt_vertex.getSAMSegment().send()+"("+
+		        					opt_vertex.getScore()+"-"+
+		        					opt_vertex.getPenalty()+")";
 		        			
 		        			TraceableVertex<String> optx = opt_vertex;
 		        			while( (optx = optx.getBackTrace())!=null ) {
 		        				trace += ","+optx.toString()+":"+
 		        						optx.getSAMSegment().sstart()+"-"+
-		        						optx.getSAMSegment().send();
+		        						optx.getSAMSegment().send()+"("+
+		        						optx.getScore()+"-"+
+		        						optx.getPenalty()+")";
 		        			}
 		        			myLogger.info("trace back ["+score+", "+penalty+"]: "+trace);
 		        		}
@@ -569,12 +576,16 @@ public class Anchor extends Executor {
 					
 					String trace = opt_vertex.toString()+":"+
         					opt_vertex.getSAMSegment().sstart()+"-"+
-        					opt_vertex.getSAMSegment().send();
-					
+        					opt_vertex.getSAMSegment().send()+"("+
+        					opt_vertex.getScore()+"-"+
+        					opt_vertex.getPenalty()+")";
+
 					while( (opt_vertex = opt_vertex.getBackTrace())!=null ) {
 						trace += ","+opt_vertex.toString()+":"+
 								opt_vertex.getSAMSegment().sstart()+"-"+
-								opt_vertex.getSAMSegment().send();
+								opt_vertex.getSAMSegment().send()+"("+
+								opt_vertex.getScore()+"-"+
+								opt_vertex.getPenalty()+")";
 					}
 					myLogger.info("trace back ["+score+", "+penalty+"]: "+trace);
 				}

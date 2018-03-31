@@ -343,14 +343,14 @@ public class AlignmentSegment {
 	public boolean soverlap(AlignmentSegment record) {
 		// TODO Auto-generated method stub
 		if(!this.sseqid.equals(record.sseqid)) return false;
-		return (this.true_sstart()-record.true_send())*
+		return ((double)(this.true_sstart()-record.true_send()))*
 				(record.true_sstart()-this.true_send())>=0;
 	}
 
 	public boolean qoverlap(AlignmentSegment record) {
 		// TODO Auto-generated method stub
 		if(!this.qseqid.equals(record.qseqid)) return false;
-		return (this.true_qstart()-record.true_qend())*
+		return ((double)(this.true_qstart()-record.true_qend()))*
 				(record.true_qstart()-this.true_qend())>=0;
 	}
 
@@ -358,7 +358,7 @@ public class AlignmentSegment {
 			AlignmentSegment record2) {
 		// TODO Auto-generated method stub
 		if(!record1.sseqid.equals(record2.sseqid)) return false;
-		return (record1.true_sstart()-record2.true_send())*
+		return ((double)(record1.true_sstart()-record2.true_send()))*
 				(record2.true_sstart()-record1.true_send())>=0;
 	}
 
@@ -366,7 +366,7 @@ public class AlignmentSegment {
 			AlignmentSegment record2) {
 		// TODO Auto-generated method stub
 		if(!record1.qseqid.equals(record2.qseqid)) return false;
-		return (record1.true_qstart()-record2.true_qend())*
+		return ((double)(record1.true_qstart()-record2.true_qend()))*
 				(record2.true_qstart()-record1.true_qend())>=0;
 	}
 	
