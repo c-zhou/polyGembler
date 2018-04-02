@@ -338,6 +338,8 @@ public class Anchor extends Executor {
 			this.executor.submit(
 					new Runnable() {
 
+						String sub_seq = null;
+						
 						@Override
 						public void run() {
 							// TODO Auto-generated method stub
@@ -483,7 +485,7 @@ public class Anchor extends Executor {
 										// we discard all the sequences
 										// we discard this tree
 										for(TraceableVertex<String> v : razor.vertexSet()) placed.add(v.getSAMSegment());
-										if(debug) myLogger.info("Average coverage +"+cvg/ln+", discared.");
+										if(ddebug) myLogger.info("Average coverage +"+cvg/ln+", discared.");
 										continue;
 									}
 
@@ -676,7 +678,14 @@ public class Anchor extends Executor {
 								System.exit(1);
 							}
 						}
-					});
+
+						public Runnable init(String sub_seq) {
+							// TODO Auto-generated method stub
+							this.sub_seq = sub_seq;
+							return this;
+						}
+						
+					}.init(sub_seq));
 		}
 		this.waitFor();
 		
