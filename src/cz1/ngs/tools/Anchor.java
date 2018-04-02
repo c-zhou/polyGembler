@@ -1,5 +1,6 @@
 package cz1.ngs.tools;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
@@ -29,6 +30,7 @@ import com.google.common.collect.Range;
 import com.google.common.collect.TreeRangeSet;
 
 import cz1.ngs.model.AlignmentSegment;
+import cz1.ngs.model.Blast6Segment;
 import cz1.ngs.model.GFA;
 import cz1.ngs.model.OverlapEdge;
 import cz1.ngs.model.SAMSegment;
@@ -100,7 +102,7 @@ public class Anchor extends Executor {
 	private double diff_ident = 0.05;     // keep the secondary alignment if the identity score difference is no greater than this
 	private double diff_frac = 0.05;      // keep the secondary alignment if the completeness difference is no greater than this
 	private int min_overlap = 10;         // minimum overlap length
-	private double collinear_shift = 0.5; // maximum shift distance for two collinear alignment segments - 50% of the smaller segment size
+	private double collinear_shift = 10; // maximum shift distance for two collinear alignment segments - 50% of the smaller segment size
 	private int kmer_size = -1;           // kmer size to construct the de bruijn assembly graph
 
 	private int num_threads = Runtime.getRuntime().availableProcessors();
@@ -187,6 +189,7 @@ public class Anchor extends Executor {
 		if (myArgsEngine.getBoolean("-t")) {
 			int t = Integer.parseInt(myArgsEngine.getString("-t"));
 			if(t<this.num_threads) this.num_threads = t;
+			this.THREADS = t;
 			Constants.omp_threads = this.num_threads;
 			myLogger.info("OMP_THREADS = "+this.num_threads);
 		}
@@ -212,6 +215,7 @@ public class Anchor extends Executor {
 	private Map<String, Sequence> qry_seqs;
 	private Map<String, Sequence> sub_seqs;
 	private Map<String, TreeRangeSet<Integer>> sub_gaps;
+	private static List<SAMSegment> sam_records;
 
 	private final static int match_score  = 1;
 	private final static int clip_penalty = 1;
@@ -221,6 +225,456 @@ public class Anchor extends Executor {
 
 	@Override
 	public void run() {
+		// this.run1();
+		this.run2();
+	}
+	
+	public void run2() {
+		sub_seqs = Sequence.parseFastaFileAsMap(subject_file);
+		qry_seqs = Sequence.parseFastaFileWithRevCmpAsMap(query_file);
+		
+		// find 'N/n's in subject/reference sequences
+		// which could have impact on parsing the blast records
+		final Map<String, TreeRangeSet<Integer>> sub_gaps = new HashMap<String, TreeRangeSet<Integer>>();
+		final Map<String, List<SAMSegment>> anchored_records = new HashMap<String, List<SAMSegment>>();
+
+		for(Map.Entry<String, Sequence> entry : sub_seqs.entrySet()) {
+			String seq_sn = entry.getKey();
+			String seq_str = entry.getValue().seq_str();
+
+			final TreeRangeSet<Integer> tmp_rangeSet = TreeRangeSet.create();
+			for(int j=0; j<seq_str.length(); j++) {
+				if(seq_str.charAt(j)=='N'||seq_str.charAt(j)=='n')
+					// blast record is 1-based closed coordination
+					tmp_rangeSet.add(Range.closed(j+1, j+1).
+							canonical(DiscreteDomain.integers()));
+			}
+			int seq_ln = seq_str.length();
+			final TreeRangeSet<Integer> range_set = TreeRangeSet.create();
+			for(Range<Integer> range : tmp_rangeSet.asRanges()) {
+				int lowerend = range.hasLowerBound() ? Math.max(0, range.lowerEndpoint()-gap_buff) : 0;
+				int upperend = range.hasUpperBound() ? Math.min(seq_ln, range.upperEndpoint()+gap_buff-1) : seq_ln;
+				range_set.add( Range.closed(lowerend, upperend).canonical(DiscreteDomain.integers()) );
+			}
+			sub_gaps.put(seq_sn, range_set);
+			// initialise an array list for each reference chromosome
+			anchored_records.put(seq_sn, new ArrayList<SAMSegment>());
+		}
+		
+		// parse blast records
+		// blast records buffer
+		final List<SAMSegment> buff = new ArrayList<SAMSegment>();
+		// selected blast records
+		final List<SAMSegment> sel_recs = new ArrayList<SAMSegment>();
+		// temp list
+		final List<SAMSegment> tmp_records = new ArrayList<SAMSegment>();
+		// collinear merged record list
+		// final List<Blast6Record> collinear_merged = new ArrayList<Blast6Record>();
+
+		try {
+			final SamReaderFactory factory =
+					SamReaderFactory.makeDefault()
+					.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
+							SamReaderFactory.Option.VALIDATE_CRC_CHECKSUMS)
+					.validationStringency(ValidationStringency.SILENT);
+			final SamReader in1 = factory.open(new File(align_file));
+			final SAMRecordIterator iter1 = in1.iterator();
+			
+			SAMSegment tmp_record = SAMSegment.samRecord(iter1.next());
+			SAMSegment primary_record, secondary_record;
+			String qry;
+			double qry_ln, aln_frac;
+
+			while(tmp_record!=null) {
+				qry = tmp_record.qseqid();
+				qry_ln = qry_seqs.get(qry).seq_ln();
+				buff.clear();
+				buff.add(tmp_record);
+				
+				buff.add(tmp_record);
+
+				while( (tmp_record=SAMSegment.samRecord(iter1.next()))!=null
+						&&
+						tmp_record.qseqid().equals(qry) ) {
+					buff.add(tmp_record);
+				}
+
+				sel_recs.clear();
+				// merge collinear records
+				for(String sub : sub_seqs.keySet()) {
+					// get all records for subject/reference sequence sub_seq
+					tmp_records.clear();
+					for(SAMSegment record : buff)
+						if(record.sseqid().equals(sub))
+							tmp_records.add(record);
+
+					if(tmp_records.isEmpty()) continue;
+
+					// find alignment segments that can be deleted
+					// those that are subsets of larger alignment segments
+					// (Sstart, (sstart, send), Send) and (Qstart, (qstart, qend), Qend)
+					Collections.sort(tmp_records, new SAMSegment.SegmentSizeComparator());
+					final Set<int[][]> ranges = new HashSet<int[][]>();
+					outerloop:
+						for(int i=0; i<tmp_records.size(); i++) {
+							primary_record = tmp_records.get(i);
+							int[][] range = new int[2][2];
+							if(primary_record.sstart()<primary_record.send()) {
+								range[0][0] = primary_record.sstart();
+								range[0][1] = primary_record.send();
+							} else {
+								range[0][0] = primary_record.send();
+								range[0][1] = primary_record.sstart();
+							}
+							if(primary_record.qstart()<primary_record.qend()) {
+								range[1][0] = primary_record.qstart();
+								range[1][1] = primary_record.qend();
+							} else {
+								range[1][0] = primary_record.qend();
+								range[1][1] = primary_record.qstart();
+							}
+							for(int[][] r : ranges) {
+								if(r[0][0]<=range[0][0]&&
+										r[0][1]>=range[0][1]&&
+										r[1][0]<=range[1][0]&&
+										r[1][1]>=range[1][1]) {
+									tmp_records.remove(i--);
+									continue outerloop;
+								}
+							}
+							ranges.add(range);
+						}
+					
+					// find collinear alignment segments that can be merged
+					// more accurate but slower
+					Collections.sort(tmp_records, new AlignmentSegment.SubjectCoordinationComparator());
+
+					SAMSegment record;
+					for(int i=0; i<tmp_records.size(); i++) {
+						primary_record = tmp_records.get(i);
+						for(int j=i+1; j<tmp_records.size(); j++) {
+							secondary_record = tmp_records.get(j);
+							double max_shift = collinear_shift*
+									Math.min(primary_record.qlength(), secondary_record.qlength());
+							if( (record=SAMSegment.collinear(primary_record, secondary_record, max_shift))!=null ) {
+								tmp_records.set(i, record);
+								tmp_records.remove(j);
+								--i;
+								break;
+							}
+						}
+					}
+
+					// process blast records that clipped by gaps
+					// (sstart, send)---(start2, send2)
+					// (sstart  ...  ---  ...    send2)
+					TreeRangeSet<Integer> sub_gap = sub_gaps.get(sub);
+					Collections.sort(tmp_records, new AlignmentSegment.SubjectCoordinationComparator());
+
+					for(int i=0; i<tmp_records.size(); i++) {
+						primary_record = tmp_records.get(i);
+						if( sub_gap.contains(primary_record.true_send()) ) {
+							secondary_record = null;
+							int sec_j = -1;
+							for(int j=i+1; j<tmp_records.size(); j++) {
+								if( tmp_records.get(j).true_sstart()>=
+										primary_record.true_send() ) {
+									secondary_record = tmp_records.get(j);
+									sec_j = j;
+									break;
+								}
+							}
+							if(secondary_record==null || 
+									AlignmentSegment.reverse(primary_record, secondary_record)) {
+								// no clipping
+								// reverse alignment segments
+								continue;
+							}
+
+							if( sub_gap.contains(secondary_record.true_sstart()) &&
+									sub_gap.rangeContaining(primary_record.true_send()).
+									equals(sub_gap.rangeContaining(secondary_record.true_sstart()))) {
+								// clipping
+								// merge two alignment segments
+								int qstart = Math.min(primary_record.true_qstart(), secondary_record.true_qstart());
+								int qend = Math.max(primary_record.true_qend(), secondary_record.true_qend());
+								int sstart = Math.min(primary_record.true_sstart(), secondary_record.true_sstart());
+								int send = Math.max(primary_record.true_send(), secondary_record.true_send());
+								
+								// replace primary record with merged record
+								// delete secondary record
+								SAMSegment merged_record = primary_record.forward()?
+										new SAMSegment(qry,sub,qstart,qend,sstart,send):
+											new SAMSegment(qry,sub,qstart,qend,send,sstart);
+										tmp_records.set(i, merged_record);
+										tmp_records.remove(sec_j);
+
+										// the merged records need to be processed
+										--i;
+							}
+						}
+					}
+
+					// add to sel_recs
+					sel_recs.addAll(tmp_records);
+				}
+
+				// filter by alignment fraction		
+				buff.clear();
+				buff.addAll(sel_recs);
+				sel_recs.clear();
+				for(SAMSegment record : buff) {
+					if(record.qlength()/qry_ln>=this.min_frac)
+						sel_recs.add(record);
+				}
+
+				if(sel_recs.isEmpty()) {
+					// unplaced query sequences
+					// continue
+					continue;
+				}
+				// process primary alignment
+				primary_record = sel_recs.get(0);
+				anchored_records.get(primary_record.sseqid()).add(primary_record);
+				aln_frac = primary_record.qlength()/qry_ln;
+				// compare secondary alignments to primary alignment
+				// and process
+				for(int i=1; i<sel_recs.size(); i++) {
+					secondary_record = sel_recs.get(i);
+					if(secondary_record.qlength()/qry_ln+this.diff_frac<aln_frac) {
+						break;
+					} else {
+						anchored_records.get(secondary_record.sseqid()).add(secondary_record);
+					}
+				}
+			}
+
+			iter1.close();
+			in1.close();
+			
+			for(Map.Entry<String, List<SAMSegment>> entry : anchored_records.entrySet()) {
+				System.out.println(entry.getKey()+": "+entry.getValue().size());
+			}
+
+			final BufferedWriter bw_map = Utils.getBufferedWriter(out_prefix+".map");
+			final BufferedWriter bw_fa = Utils.getBufferedWriter(out_prefix+".fa");
+			final Set<String> anchored_seqs = new HashSet<String>();
+			final List<String> sub_list = Sequence.parseSeqList(subject_file);
+
+			for(String sub_sn : sub_list) {
+
+				sam_records = anchored_records.get(sub_sn);
+				int nV = sam_records.size(), count = 0;
+
+				// sort blast records
+				Collections.sort(sam_records, new SAMSegment.SubjectCoordinationComparator());
+				// consensus
+				int posUpto = 0, send_clip = 0;
+				int sstart, send, qstart, qend, qlen, tmp_int, qstart_clip, qend_clip, gap_size;
+				// distance to last 'N', start from next position to find longest common suffix-prefix
+				int prev_n = Integer.MAX_VALUE;
+				int mol_len = 0;
+				String qseq;
+				int nS, nQ;
+
+				// first step: construct super scaffold
+				// will form a tree graph indicating the path through the contigs
+
+				// convert contig names to integer indices
+				// one contig could end up with multiple indices due to repeats
+				Map<Integer, String> ss_coordinate = new HashMap<Integer, String>();
+				int index = 0;
+				for(SAMSegment record : sam_records)
+					ss_coordinate.put(index++, record.qseqid()+(record.forward()?"":"'"));
+
+				StringBuilder seq_str = new StringBuilder();
+				for(int v=0; v<nV-1; v++) {
+					if(++count%10000==0) myLogger.info(sub_sn+" "+count+"/"+nV+" done.");
+
+					SAMSegment record = sam_records.get(v);
+					qlen = qry_seqs.get(record.qseqid()).seq_ln();
+					sstart = record.sstart();
+					send = record.send();
+					qstart = record.qstart();
+					qend = record.qend();
+					if(sstart>send) {
+						// make sure sstart<send
+						tmp_int = sstart;
+						sstart = send;
+						send = tmp_int;
+						tmp_int = qstart;
+						qstart = qend;
+						qend = tmp_int;
+					}
+
+					if(qstart>qend) {
+						qstart_clip = qlen-qstart;
+						qend_clip = qend-1;
+						qseq = Sequence.revCompSeq(qry_seqs.get(record.qseqid()).seq_str());
+					} else {
+						qstart_clip = qstart-1;
+						qend_clip = qlen-qend;
+						qseq = qry_seqs.get(record.qseqid()).seq_str();
+					}
+
+					if(send<posUpto||sstart<posUpto&&qstart_clip>max_clip) {
+						// skip if it is redundant
+						//     ====================
+						//      /-------\
+						//        /----\
+						// skip if contradiction observed
+						//     ====================
+						//      /-------\
+						//       --/----\--
+						// TODO process
+						continue;
+					}
+
+					// find longest suffix-prefix
+					nS = seq_str.length();
+					nQ = qseq.length();
+					int nO = Math.min(prev_n, Math.min(nS, nQ));
+					outerloop:
+						for(; nO>=min_overlap; nO--) {
+							int nS_i = nS-nO;
+							for(int i=0; i<nO; i++) {
+								if(seq_str.charAt(nS_i+i)!=qseq.charAt(i))
+									continue outerloop;
+							}
+							break outerloop;
+						}
+
+					if(nO<min_overlap) {
+						// no overlap found
+
+						// simply extend
+						//     ====================
+						//      /-------\
+						//               /----\
+
+						// will insert a GAP anyway
+						// if sstart<=posUpto will insert a small GAP min_gap
+						// otherwise will insert a large GAP max(pseduo_distance, max_gap)
+						if(posUpto>0) {
+							if(sstart<=posUpto) {
+								// if too much overlap, then treat it as a contradiction
+								if(posUpto-sstart>min_overlap) {
+									//discard
+									continue;
+								} else {
+									// insert a min_gap
+									gap_size = min_gap;
+								}
+							} else {
+								// estimate gap size
+								gap_size = (sstart-posUpto)-(send_clip+qstart_clip);
+								if(gap_size<max_gap) gap_size = max_gap;	
+							}
+
+							bw_map.write("GAP\t"+
+									gap_size+
+									"\t0\t"+
+									gap_size+
+									"\t+\t"+
+									sub_sn+
+									"\t"+
+									mol_len+
+									"\t"+
+									(mol_len+gap_size)+
+									"\n");
+							seq_str.append( Sequence.polyN(gap_size) );
+							mol_len += gap_size;
+						}
+						bw_map.write(record.qseqid()+
+								"\t"+
+								qlen+
+								"\t");
+						if(qstart>qend) {
+							// reverse
+							bw_map.write("0\t"+qlen+"\t-\t");
+						} else {
+							// forward
+							bw_map.write("0\t"+qlen+"\t+\t");
+						}
+						seq_str.append(qseq);
+						bw_map.write(sub_sn+
+								"\t"+
+								mol_len+
+								"\t"+
+								(mol_len+qlen)+
+								"\n");
+						mol_len += qlen;
+						prev_n = qlen;
+
+						anchored_seqs.add(record.qseqid());
+
+					} else {
+						// overlap found
+						// will not insert gap
+						//     ====================
+						//      /-------\
+						//            /----\
+						// calculate overlaps
+						// process overlap
+
+						qstart = nO;
+						if(qstart==qlen) continue;
+						bw_map.write(record.qseqid()+
+								"\t"+
+								(qlen-qstart)+
+								"\t");
+
+						if(qstart>qend) {
+							// reverse
+							bw_map.write( 0+
+									"\t"+
+									(qlen-qstart)+
+									"\t-\t" );
+						} else {
+							// forward
+							bw_map.write( qstart+
+									"\t"+
+									qlen+
+									"\t+\t" );
+						}
+						bw_map.write(sub_sn+
+								"\t"+
+								mol_len+
+								"\t"+
+								(mol_len+qlen-qstart)+
+								"\n");
+						mol_len += qlen-qstart;
+						prev_n += qlen-qstart;
+						seq_str.append( qseq.substring(qstart) );
+
+						anchored_seqs.add(record.qseqid());
+					}
+
+					posUpto = send;
+					send_clip = qend_clip;
+
+				}
+
+				if(seq_str.length()>0) 
+					bw_fa.write(Sequence.formatOutput(sub_sn, seq_str.toString()));
+			}
+
+			bw_fa.close();
+			bw_map.close();
+
+			final BufferedWriter bw_ufa = Utils.getBufferedWriter(out_prefix+"_unplaced.fa");
+			for(String seq : qry_seqs.keySet()) 
+				if(!anchored_seqs.contains(seq))
+					bw_ufa.write(qry_seqs.get(seq).formatOutput());
+			bw_ufa.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	
+	public void run1() {
 		// TODO Auto-generated method stub
 
 		// read assembly graph file
@@ -572,7 +1026,7 @@ public class Anchor extends Executor {
 											opt_vertex  = source_vertex;
 
 											if(ddebug) {
-
+												
 												String trace = opt_vertex.toString()+":"+
 														opt_vertex.getSAMSegment().sstart()+"-"+
 														opt_vertex.getSAMSegment().send()+"("+
@@ -612,6 +1066,8 @@ public class Anchor extends Executor {
 								});
 
 								if(debug) {
+									myLogger.info("<<<<<<<<<<<<<"+sub_seq+">>>>>>>>>>>>>>>>");
+								
 									for(TraceableVertex<String> opt_vertex : traceable) {
 
 										double score = opt_vertex.getScore();

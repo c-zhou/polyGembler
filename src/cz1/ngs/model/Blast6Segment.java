@@ -117,8 +117,7 @@ public class Blast6Segment extends AlignmentSegment {
 			// TODO Auto-generated method stub
 			// large segment size ranks higher
 			return record2.length-record1.length;
-		}
-		
+		}	
 	}
 	
 	@Override
