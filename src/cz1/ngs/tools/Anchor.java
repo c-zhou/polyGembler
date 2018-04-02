@@ -327,10 +327,16 @@ public class Anchor extends Executor {
 		final Set<SAMSegment> contained = new HashSet<SAMSegment>();
 		final Set<SAMSegment> placed    = new HashSet<SAMSegment>();
 		final int flank_size = 10000;
-		int distance;
+		int distance, sub_ln;
 
 		for(String sub_seq : sub_seqs.keySet()) {
-
+			
+			sub_ln = sub_seqs.get(sub_seq).seq_ln();
+			// this is to calculate the coverage on the subject sequence
+			// we are going to skip certain regions if the coverage is too high
+			// say the average coverage is greater than 64
+			byte[] sub_cvg = new byte[sub_ln]; 
+			
             // sub_seq = "Chr10";
             if(sub_seq.equals("Chr00")) continue;
             
@@ -388,8 +394,11 @@ public class Anchor extends Executor {
 					source_vertex = new TraceableVertex<String>(source_seqid);
 					source_vertex.setSAMSegment(source_seq);
 					
-					if(!razor.containsVertex(source_vertex)) 
+					if(!razor.containsVertex(source_vertex)) {
+						for(int b=source_seq.sstart()-1; b<source_seq.send(); b++)
+							if(sub_cvg[b]<127) sub_cvg[b]++;
 						razor.addVertex(source_vertex);
+					}
 
 					outgoing = gfa.outgoingEdgesOf(source_seqid);
 					
@@ -412,8 +421,11 @@ public class Anchor extends Executor {
 							target_vertex = new TraceableVertex<String>(target_seqid);
 							target_vertex.setSAMSegment(target_seq);
 							
-							if(!razor.containsVertex(target_vertex))
+							if(!razor.containsVertex(target_vertex)) {
+								for(int b=target_seq.sstart()-1; b<target_seq.send(); b++)
+									if(sub_cvg[b]<127) sub_cvg[b]++;
 								razor.addVertex(target_vertex);
+							}
 							
 							if(razor.containsEdge(source_vertex, target_vertex))
 								continue;
@@ -446,6 +458,21 @@ public class Anchor extends Executor {
 				}
 				if(ddebug) myLogger.info(root_seqid+" "+razor.vertexSet().size()+" "+razor.edgeSet().size()+" done");
 
+				// we check the coverage of the graph
+				double cvg = 0d, ln = 0d;
+				for(TraceableVertex<String> v : razor.vertexSet()) {
+					int a = v.getSAMSegment().sstart()-1,
+							b = v.getSAMSegment().send();
+					ln += b-a;
+					for(int w = a; w<b; w++) cvg += sub_cvg[w];
+				}
+				if(cvg/ln>64d) {
+					// we discard all the sequences
+					// we discard this tree
+					for(TraceableVertex<String> v : razor.vertexSet()) placed.add(v.getSAMSegment());
+					continue;
+				}
+				
 				// JFrame frame = new JFrame();
 			    // frame.getContentPane().add(jgraph);
 			    // frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
