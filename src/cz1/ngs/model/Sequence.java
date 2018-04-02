@@ -53,8 +53,8 @@ public class Sequence implements Comparable<Sequence> {
 			final String seq_str) {
 		this.seq_no = seq_no;
 		this.seq_ln = seq_ln;
-		this.seq_sn = null;
-		this.seq_str = null;
+		this.seq_sn = seq_sn;
+		this.seq_str = seq_str;
 	}
 	
 	public Sequence (final int seq_no,
