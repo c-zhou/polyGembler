@@ -457,9 +457,11 @@ public class GFA {
 		olap.setToEnd(b2);
 		olap.setRawScore(rawScore);
 		olap.setRealigned();
+		edge.setOlap(rawScore);
 		
 		// process the symmetric edge
-		olap = this.gfa.getEdge(rev.get(toId), rev.get(fromId)).olapInfo;
+		OverlapEdge rev_edge = this.gfa.getEdge(rev.get(toId), rev.get(fromId)); 
+		olap = rev_edge.olapInfo;
 		
 		olap.setFromStart(toLen-b2+1);
 		olap.setFromEnd(toLen-b1+1);
@@ -467,6 +469,7 @@ public class GFA {
 		olap.setToEnd(fromLen-a1+1);
 		olap.setRawScore(rawScore);
 		olap.setRealigned();
+		rev_edge.setOlap(rawScore);
 		
 		return;
 	}
@@ -769,7 +772,8 @@ public class GFA {
 		// TODO Auto-generated method stub
 
 		// TODO distinguish between the de-bruijn, overlap-layout-consensus and overlap assembly graph
-		return Graph_type.olc;
+		// return Graph_type.olc;
+		return Graph_type.overlap;
 	}
 
 	public String graph_type() {

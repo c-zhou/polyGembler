@@ -225,8 +225,8 @@ public class Anchor extends Executor {
 
 	@Override
 	public void run() {
-		// this.run1();
-		this.run2();
+		this.run1();
+		// this.run2();
 	}
 	
 	public void run2() {
@@ -1116,8 +1116,11 @@ public class Anchor extends Executor {
 												
 											OverlapEdge e = gfa.getEdge(source_seqid, target_seqid);
 											
-											linkSeq.append(qry_seqs.get(target_seqid).seq_str().
-													substring(Constants.getOlapFromCigar(Constants.cgRevCmp(e.cigar()))));
+											if(!e.olapInfo().isRealigned()) gfa.realign(e);
+											
+											// linkSeq.append(qry_seqs.get(target_seqid).seq_str().
+											//		substring(Constants.getOlapFromCigar(Constants.cgRevCmp(e.cigar()))));
+											linkSeq.append(qry_seqs.get(target_seqid).seq_str().substring((int)e.olap()));
 											linkPlace.add(target_seqid);
 											source_seqid = target_seqid;
 										}
