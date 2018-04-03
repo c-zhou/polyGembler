@@ -152,8 +152,7 @@ public class Redundas extends Executor {
 
 				RangeSet<Integer> range_covered = TreeRangeSet.create();
 				for(SAMSegment record : buffer_sam) {
-					if( !seq_rm.contains(record.sseqid()) &&
-							!record.qseqid().equals(record.sseqid()) &&
+					if( !record.qseqid().equals(record.sseqid()) &&
 							(record.qstart()<=max_overhang ||
 							record.qend()>sz-max_overhang) )
 						range_covered.add(Range.closedOpen(record.qstart(), record.qend()).canonical(DiscreteDomain.integers()));
