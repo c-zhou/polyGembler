@@ -5,6 +5,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -17,15 +18,21 @@ import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 
 import cz1.ngs.model.Blast6Segment;
+import cz1.ngs.model.SAMSegment;
 import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
 import cz1.util.Utils;
+import htsjdk.samtools.SAMRecord;
+import htsjdk.samtools.SAMRecordIterator;
+import htsjdk.samtools.SamReader;
+import htsjdk.samtools.SamReaderFactory;
+import htsjdk.samtools.ValidationStringency;
 
 public class Redundas extends Executor {
 
 	private String query_file = null;
-	private String blast_out = null;
+	private String align_file = null;
 	private double min_ident = 0.95;
 	private int min_match = 100;
 	private int max_overhang = Integer.MAX_VALUE;
@@ -38,7 +45,7 @@ public class Redundas extends Executor {
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
 						+ " -q/--query              Query sequences to remove redundancy.\n"
-						+ " -b/--blast              Self-to-self BLAST output (-outfmt 6) of query sequences.\n"
+						+ " -a/--alignment          Self-to-self alignment of query sequences.\n"
 						+ " -i/--min-identity       Minimum identity between the query and subject sequences \n"
 						+ "                         to mark a redundancy (default 0.95).\n"
 						+ " -m/--min-match          Minimum match length between the query and subject sequences \n"
@@ -57,7 +64,7 @@ public class Redundas extends Executor {
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-q", "--query", true);
-			myArgsEngine.add("-b", "--blast", true);
+			myArgsEngine.add("-a", "--alignment", true);
 			myArgsEngine.add("-i", "--min-identity", true);
 			myArgsEngine.add("-m", "--min-match", true);
 			myArgsEngine.add("-x", "--max-overhang", true);
@@ -73,8 +80,8 @@ public class Redundas extends Executor {
 			throw new IllegalArgumentException("Please specify the query file.");
 		}
 		
-		if (myArgsEngine.getBoolean("-b")) {
-			this.blast_out = myArgsEngine.getString("-b");
+		if (myArgsEngine.getBoolean("-a")) {
+			this.align_file = myArgsEngine.getString("-a");
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify the BLAST file.");
@@ -110,6 +117,78 @@ public class Redundas extends Executor {
 
 	@Override
 	public void run() {
+		Map<String, Sequence> sequence_map = Sequence.parseFastaFileAsMap(query_file);
+
+		try {
+			final SamReaderFactory factory =
+					SamReaderFactory.makeDefault()
+					.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
+							SamReaderFactory.Option.VALIDATE_CRC_CHECKSUMS)
+					.validationStringency(ValidationStringency.SILENT);
+			final SamReader in1 = factory.open(new File(align_file));
+			final SAMRecordIterator iter1 = in1.iterator();
+			SAMRecord rc = iter1.next();
+			String qseqid;
+			List<SAMSegment> buffer_sam = new ArrayList<SAMSegment>();
+
+			Set<String> seq_rm = new HashSet<String>();
+
+			while(rc!=null) {
+				qseqid = rc.getReadName();
+
+				buffer_sam.clear();
+				if(!rc.getReadUnmappedFlag())
+					buffer_sam.add(SAMSegment.samRecord(rc));
+
+				while( (rc=iter1.next())!=null
+						&&
+						rc.getReadName().equals(qseqid) ) {
+					buffer_sam.add(SAMSegment.samRecord(rc));
+				}
+
+				if(buffer_sam.isEmpty()) continue;
+
+				int sz = sequence_map.get(qseqid).seq_ln();
+
+				RangeSet<Integer> range_covered = TreeRangeSet.create();
+				for(SAMSegment record : buffer_sam) {
+					if( !seq_rm.contains(record.sseqid()) &&
+							!record.qseqid().equals(record.sseqid()) &&
+							(record.qstart()<=max_overhang ||
+							record.qend()>sz-max_overhang) )
+						range_covered.add(Range.closedOpen(record.qstart(), record.qend()).canonical(DiscreteDomain.integers()));
+				}
+
+				int unique_cvg = 0;
+				for(Range<Integer> range : range_covered.asRanges()) 
+					unique_cvg += range.upperEndpoint()-range.lowerEndpoint();
+
+				if( (double)unique_cvg/sz>=min_frac ) {
+					seq_rm.add(qseqid);
+					myLogger.info("Redundant sequence "+qseqid+"\t"+sz+"\t"+unique_cvg+"\t"+(double)unique_cvg/sz);
+				}
+			}
+
+
+			iter1.close();
+			in1.close();
+
+			BufferedWriter bw_unique = Utils.getBufferedWriter(this.out_prefix+".fa");
+			BufferedWriter bw_redundas = Utils.getBufferedWriter(this.out_prefix+"_redundas.fa");
+			for(Map.Entry<String, Sequence> entry : sequence_map.entrySet()) {
+				if(seq_rm.contains(entry.getKey())) 
+					bw_redundas.write(entry.getValue().formatOutput());
+				else bw_unique.write(entry.getValue().formatOutput());
+			}
+			bw_unique.close();
+			bw_redundas.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	public void run1() {
 		// TODO Auto-generated method stub
 		Map<String, Sequence> sequence_map = Sequence.parseFastaFileAsMap(query_file);
 		
@@ -117,7 +196,7 @@ public class Redundas extends Executor {
 		String[] s;
 		Set<String> seq_rm = new HashSet<String>();
 		try {
-			BufferedReader br_blast6 = new BufferedReader(new FileReader(blast_out));
+			BufferedReader br_blast6 = new BufferedReader(new FileReader(align_file));
 			Set<Blast6Segment> buffer_b6 = new HashSet<Blast6Segment>();
 			line = br_blast6.readLine();
 			String qseqid;

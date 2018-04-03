@@ -280,25 +280,28 @@ public class Anchor extends Executor {
 			final SamReader in1 = factory.open(new File(align_file));
 			final SAMRecordIterator iter1 = in1.iterator();
 			
-			SAMSegment tmp_record = SAMSegment.samRecord(iter1.next());
+			SAMRecord rc = iter1.next();
 			SAMSegment primary_record, secondary_record;
 			String qry;
 			double qry_ln, aln_frac;
 
-			while(tmp_record!=null) {
-				qry = tmp_record.qseqid();
-				qry_ln = qry_seqs.get(qry).seq_ln();
-				buff.clear();
-				buff.add(tmp_record);
+			while(rc!=null) {
 				
-				buff.add(tmp_record);
+				qry = rc.getReadName();
+				qry_ln = qry_seqs.get(qry).seq_ln();			
 
-				while( (tmp_record=SAMSegment.samRecord(iter1.next()))!=null
+				buff.clear();
+				if(!rc.getReadUnmappedFlag())
+					buff.add(SAMSegment.samRecord(rc));
+
+				while( (rc=iter1.next())!=null
 						&&
-						tmp_record.qseqid().equals(qry) ) {
-					buff.add(tmp_record);
+						rc.getReadName().equals(qry) ) {
+					buff.add(SAMSegment.samRecord(rc));
 				}
 
+				if(buff.isEmpty()) continue;
+				
 				sel_recs.clear();
 				// merge collinear records
 				for(String sub : sub_seqs.keySet()) {
@@ -825,7 +828,7 @@ public class Anchor extends Executor {
 								TraceableVertex<String> root_vertex, source_vertex, target_vertex;
 								Deque<SAMSegment> deque = new ArrayDeque<SAMSegment>();
 								final List<TraceableVertex<String>> traceable = new ArrayList<TraceableVertex<String>>();
-
+								
 								int distance;
 								for(int i=0; i<nSeq; i++) {
 
@@ -904,9 +907,9 @@ public class Anchor extends Executor {
 												// higher weight edges are those,
 
 												/****
-										//       1.  large/long alignment segments vertices
-										// TODO: 2*. small gaps on the reference
-										edge_weight = qry_seqs.get(source_seqid).seq_ln()+
+												//       1.  large/long alignment segments vertices
+												// TODO: 2*. small gaps on the reference
+												edge_weight = qry_seqs.get(source_seqid).seq_ln()+
 												qry_seqs.get(target_seqid).seq_ln()-
 												gfa.getEdge(source_seqid, target_seqid).olap();
 												 **/
@@ -1088,11 +1091,6 @@ public class Anchor extends Executor {
 										}
 										myLogger.info("final trace back ["+score+", "+penalty+"]: "+trace);
 									}
-								}
-
-								// we generate a compound alignment record for each traceable
-								for(TraceableVertex<String> opt_vertex : traceable) {
-
 								}
 
 								final StringBuilder linkSeq = new StringBuilder();
