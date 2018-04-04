@@ -922,6 +922,8 @@ public class Anchor extends Executor {
 												edge_score = qry_seqs.get(source_seqid).seq_ln()+
 														qry_seqs.get(target_seqid).seq_ln()-
 														gfa.getEdge(source_seqid, target_seqid).olap();
+												OverlapEdge ee = gfa.getEdge(source_seqid, target_seqid);
+												
 												edge.setScore(edge_score);
 
 												deque.push(target_seq);
@@ -1053,6 +1055,10 @@ public class Anchor extends Executor {
 
 									Set<TraceableVertex<String>> optx = new HashSet<TraceableVertex<String>>();
 									optx.add(opt_vertex);
+									
+									if(opt_vertex.getId().equals("tig00048149'"))
+										System.out.println(opt_vertex.getId());
+									
 									while( (opt_vertex = opt_vertex.getBackTrace())!=null ) optx.add(opt_vertex);
 
 									for(TraceableVertex<String> v : optx) placed.add(v.getSAMSegment());
@@ -1118,9 +1124,7 @@ public class Anchor extends Executor {
 											
 											if(!e.olapInfo().isRealigned()) gfa.realign(e);
 											
-											// linkSeq.append(qry_seqs.get(target_seqid).seq_str().
-											//		substring(Constants.getOlapFromCigar(Constants.cgRevCmp(e.cigar()))));
-											linkSeq.append(qry_seqs.get(target_seqid).seq_str().substring((int)e.olap()));
+											linkSeq.append(qry_seqs.get(target_seqid).seq_str().substring((int)e.olapR()));
 											linkPlace.add(target_seqid);
 											source_seqid = target_seqid;
 										}

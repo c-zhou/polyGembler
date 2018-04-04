@@ -182,6 +182,10 @@ public class GFA {
 		}
 	}
 	
+	private final static int max_cut = 20;
+	private final static double max_err = 0.03;
+	private static long counter;
+	
 	private void readOverlapGraph(String olap_file) {
 		// TODO Auto-generated method stub
 		myLogger.info("Loading assembly graph from file.");
@@ -191,6 +195,8 @@ public class GFA {
 		
 		BufferedReader br_olap = Utils.getBufferedReader(olap_file);
 		String olap;
+		
+		for(String s : seg.keySet()) gfa.addVertex(s);
 		
 		this.initial_thread_pool();
 
@@ -204,6 +210,11 @@ public class GFA {
 					@Override
 					public void run() {
 						// TODO Auto-generated method stub
+						
+						synchronized(lock) {
+							++counter;
+							if(counter%1000000==0) myLogger.info(counter+" overlaps processed.");
+						}
 						
 						/*** 
 						 * 
@@ -328,18 +339,19 @@ public class GFA {
 						OverlapEdge edge; 
 						
 						olap_str =   olap.split("\\s+");
-						fromId   =   olap_str[0];
-						toId     =   olap_str[1];
-						score    =   Double.parseDouble(olap_str[2]);
-						rawScore =   Double.parseDouble(olap_str[3]); 
-						fromFw   =   olap_str[4].equals("0");
+						score    =   Double.parseDouble(olap_str[2]); 
 						a1       =   Integer.parseInt(olap_str[5]);
 						a2       =   Integer.parseInt(olap_str[6]);
 						fromLen  =   Integer.parseInt(olap_str[7]);
-						toFw     =   olap_str[8].equals("0");
 						b1       =   Integer.parseInt(olap_str[9]);
 						b2       =   Integer.parseInt(olap_str[10]);
 						toLen    =   Integer.parseInt(olap_str[11]);
+						if(score>max_err||a1>max_cut&&fromLen-a2>max_cut||b1>max_cut&&toLen-b2>max_cut) return;
+						fromId   =   olap_str[0];
+						toId     =   olap_str[1];
+						rawScore =   Double.parseDouble(olap_str[3]);
+						fromFw   =   olap_str[4].equals("0");
+						toFw     =   olap_str[8].equals("0");
 						
 						// decide the overlap direction
 						// true : a->b
@@ -350,17 +362,23 @@ public class GFA {
 						toId   = toFw   ? toId   : rev.get(toId  );
 						
 						synchronized(lock) {
-							if(!gfa.containsVertex(fromId))  gfa.addVertex(fromId);
-							if(!gfa.containsVertex(toId)  )  gfa.addVertex(toId  );
+							// if(!gfa.containsVertex(fromId))  gfa.addVertex(fromId);
+							// if(!gfa.containsVertex(toId)  )  gfa.addVertex(toId  );
 
 							if(olapFw) {
 								// a -> b
 								edge = gfa.addEdge(fromId, toId);
+								edge.setOlapF(fromLen-a1+1);
+								edge.setOlapR(b2);
+								edge.setOlap(fromLen-a1+1);
 								gfa.setEdgeWeight(edge, 1.0);
 								gfa.setEdgeOverlapInfo(edge, new OverlapResult(fromId, toId, score, rawScore, a1, a2, fromLen, b1, b2, toLen));
 							} else {
 								// b -> a
 								edge = gfa.addEdge(toId, fromId);
+								edge.setOlapF(toLen-b1+1);
+								edge.setOlapR(a2);
+								edge.setOlap(toLen-b1+1);
 								gfa.setEdgeWeight(edge, 1.0);
 								gfa.setEdgeOverlapInfo(edge, new OverlapResult(toId, fromId, score, rawScore, b1, b2, toLen, a1, a2, fromLen));
 							}
@@ -369,16 +387,22 @@ public class GFA {
 							fromId = rev.get(fromId);
 							toId   = rev.get(toId  );
 
-							if(!gfa.containsVertex(fromId))  gfa.addVertex(fromId);
-							if(!gfa.containsVertex(toId)  )  gfa.addVertex(toId  );
+							// if(!gfa.containsVertex(fromId))  gfa.addVertex(fromId);
+							// if(!gfa.containsVertex(toId)  )  gfa.addVertex(toId  );
 							if(olapFw) {
 								// a -> b
 								edge = gfa.addEdge(toId, fromId);
+								edge.setOlapF(b2);
+								edge.setOlapR(fromLen-a1+1);
+								edge.setOlap(b2);
 								gfa.setEdgeWeight(edge, 1.0);
 								gfa.setEdgeOverlapInfo(edge, new OverlapResult(toId, fromId, score, rawScore, toLen-b2+1, toLen-b1+1, toLen, fromLen-a2+1, fromLen-a1+1, fromLen));
 							} else {
 								// b -> a
 								edge = gfa.addEdge(fromId, toId);
+								edge.setOlapF(a2);
+								edge.setOlapR(toLen-b1+1);
+								edge.setOlap(a2);
 								gfa.setEdgeWeight(edge, 1.0);
 								gfa.setEdgeOverlapInfo(edge, new OverlapResult(fromId, toId, score, rawScore, fromLen-a2+1, fromLen-a1+1, fromLen, toLen-b2+1, toLen-b1+1, toLen));
 							}
@@ -410,7 +434,7 @@ public class GFA {
 		// performed with the Smith-Waterman algorithm
 		
 		String fromId, toId, fromSeq_flank, toSeq_flank;
-		double rawScore;
+		double olapF, olapR;
 		int a1, a2, b1, b2, fromLen, toLen, a1_flank, a2_flank, b1_flank, b2_flank, aLen;
 		SequencePair<DNASequence, NucleotideCompound> seqPair;
 		
@@ -426,13 +450,13 @@ public class GFA {
 		toLen    =   olap.getToLen();
 		
 		a1_flank  = Math.max(0, a1-default_flank);
-		a2_flank  = Math.min(fromLen, a2+default_flank);
-		b1_flank  = Math.max(0, b1-default_flank);
+		a2_flank  = fromLen;
+		b1_flank  = 0;
 		b2_flank  = Math.min(toLen, b2+default_flank);
 		fromSeq_flank = seg.get(fromId).seq_str().substring(a1_flank, a2_flank);
 		toSeq_flank   = seg.get(toId).seq_str().substring  (b1_flank, b2_flank);
 		
-		seqPair = this.pairMatcher(fromSeq_flank, toSeq_flank);
+		seqPair = pairMatcher(fromSeq_flank, toSeq_flank);
 		
 		// alignment coordinates on the flanked sequences
 		aLen = seqPair.getLength();
@@ -441,23 +465,22 @@ public class GFA {
 		b1 = seqPair.getIndexInTargetAt(1);
 		b2 = seqPair.getIndexInTargetAt(aLen);
 
+		olapF = fromLen-a1+1;
+		olapR = b2;
+		
 		// convert them back to the original sequence coordinates
 		a1 += a1_flank;
 		a2 += a1_flank;
-		
-		b1 += b1_flank;
-		b2 += b1_flank;
-			
-		// use overlap length as raw score
-		rawScore = (double) aLen;
 		
 		olap.setFromStart(a1);
 		olap.setFromEnd(a2);
 		olap.setToStart(b1);
 		olap.setToEnd(b2);
-		olap.setRawScore(rawScore);
+		olap.setRawScore(aLen);
 		olap.setRealigned();
-		edge.setOlap(rawScore);
+		edge.setOlap(aLen);
+		edge.setOlapF(olapF);
+		edge.setOlapR(olapR);
 		
 		// process the symmetric edge
 		OverlapEdge rev_edge = this.gfa.getEdge(rev.get(toId), rev.get(fromId)); 
@@ -467,9 +490,11 @@ public class GFA {
 		olap.setFromEnd(toLen-b1+1);
 		olap.setToStart(fromLen-a2+1);
 		olap.setToEnd(fromLen-a1+1);
-		olap.setRawScore(rawScore);
+		olap.setRawScore(aLen);
 		olap.setRealigned();
-		rev_edge.setOlap(rawScore);
+		rev_edge.setOlap(aLen);
+		rev_edge.setOlapF(olapR);
+		rev_edge.setOlapR(olapF);
 		
 		return;
 	}
@@ -477,7 +502,7 @@ public class GFA {
 	private static final SimpleGapPenalty penalty = new SimpleGapPenalty(6,1);
 	private static final SubstitutionMatrix<NucleotideCompound> subMat = SubstitutionMatrixHelper.getNuc4_4();
 	
-	private SequencePair<DNASequence, NucleotideCompound> pairMatcher(String targetSeq, String querySeq) {
+	private static SequencePair<DNASequence, NucleotideCompound> pairMatcher(String targetSeq, String querySeq) {
 		try {			
 			DNASequence target = new DNASequence(targetSeq, AmbiguityDNACompoundSet.getDNACompoundSet());
 			DNASequence query  = new DNASequence(querySeq, AmbiguityDNACompoundSet.getDNACompoundSet());
@@ -702,7 +727,8 @@ public class GFA {
 						OverlapEdge e = gfa.addEdge(source, target);
 						gfa.setEdgeWeight(e, 1.0);
 						gfa.setEdgeCigar(e, overlap);
-						gfa.setEdgeOverlap(e, Constants.getOlapFromCigar(overlap));
+						gfa.setEdgeOverlapF(e, Constants.getOlapFromCigar(overlap));
+						gfa.setEdgeOverlapR(e, Constants.getOlapFromCigar(Constants.cgRevCmp(overlap)));
 					}
 					break;
 				case "C":
@@ -751,7 +777,8 @@ public class GFA {
 					gfa.setEdgeWeight(e, 1.0);
 					overlap = Constants.cgRevCmp(olapE.cigar);
 					gfa.setEdgeCigar(e, overlap);
-					gfa.setEdgeOverlap(e, Constants.getOlapFromCigar(overlap));
+					gfa.setEdgeOverlapF(e, Constants.getOlapFromCigar(overlap));
+					gfa.setEdgeOverlapR(e, Constants.getOlapFromCigar(Constants.cgRevCmp(overlap)));
 					++link_new;
 				}
 			}
@@ -884,4 +911,5 @@ public class GFA {
 	public String getEdgeTarget(OverlapEdge e) {
 		return this.gfa.getEdgeTarget(e);
 	}
+
 }
