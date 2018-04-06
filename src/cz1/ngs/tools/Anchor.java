@@ -801,24 +801,41 @@ public class Anchor extends Executor {
 						public void run() {
 							// TODO Auto-generated method stub
 							try {
+
+								if(sub_seq.equals("Chr00")) return;
+								myLogger.info(">>>>>>>>>>>>>"+sub_seq+"<<<<<<<<<<<<<<<<");
+
+								final List<SAMSegment> seqBySubAll = initPseudoAssembly.get(sub_seq);
+								
+								
 								final int sub_ln = sub_seqs.get(sub_seq).seq_ln();
 								// this is to calculate the coverage on the subject sequence
 								// we are going to skip certain regions if the coverage is too high
 								// say the average coverage is greater than 64
-								byte[] sub_cvg = new byte[sub_ln]; 
+								int[] sub_cvg = new int[sub_ln]; 
 
-								// sub_seq = "Chr10";
-								if(sub_seq.equals("Chr00")) return;
-
-								myLogger.info(">>>>>>>>>>>>>"+sub_seq+"<<<<<<<<<<<<<<<<");
-
-								final List<SAMSegment> seq_by_sub = initPseudoAssembly.get(sub_seq);
-								Collections.sort(seq_by_sub, new AlignmentSegment.SubjectCoordinationComparator());
-
+								// we calculate the coverage across the reference chromosome
+								for(SAMSegment sams : seqBySubAll) {
+									int a = sams.sstart()-1, b = sams.send();
+									for(int w = a; w<b; w++) sub_cvg[w]++;
+								}
+								
+								// we filter out high-coverage/highly-repetitive regions
+								// >63x
+								final List<SAMSegment> seqBySubLowCov = new ArrayList<SAMSegment>();
+								for(SAMSegment sams : seqBySubAll) {
+									int a = sams.sstart()-1, b = sams.send();
+									double cov = 0d;
+									for(int w=a; w<b; w++) cov += sub_cvg[w];
+									if(cov/(b-a)<64) seqBySubLowCov.add(sams);
+								}
+								
+								myLogger.info(sub_seq+" highly-repetitive regions: "+(seqBySubAll.size()-seqBySubLowCov.size())+"/"+seqBySubAll.size()+
+										" records filtered out due to high coverage(>63)");
+								
 								final Set<SAMSegment> contained = new HashSet<SAMSegment>();
 								final Set<SAMSegment> placed    = new HashSet<SAMSegment>();
 
-								int nSeq = seq_by_sub.size();
 								double edge_penalty, edge_score;
 								SAMSegment root_seq, source_seq, target_seq;
 								Set<SAMSegment> target_seqs;
@@ -829,10 +846,14 @@ public class Anchor extends Executor {
 								Deque<SAMSegment> deque = new ArrayDeque<SAMSegment>();
 								final List<TraceableVertex<String>> traceable = new ArrayList<TraceableVertex<String>>();
 								
+								
 								int distance;
+								
+								Collections.sort(seqBySubLowCov, new AlignmentSegment.SubjectCoordinationComparator());
+								int nSeq = seqBySubLowCov.size();
 								for(int i=0; i<nSeq; i++) {
 
-									root_seq = seq_by_sub.get(i);
+									root_seq = seqBySubLowCov.get(i);
 									root_seqid = root_seq.qseqid();
 
 									if(placed.contains(root_seq)) 
@@ -866,11 +887,8 @@ public class Anchor extends Executor {
 										source_vertex = new TraceableVertex<String>(source_seqid);
 										source_vertex.setSAMSegment(source_seq);
 
-										if(!razor.containsVertex(source_vertex)) {
-											for(int b=source_seq.sstart()-1; b<source_seq.send(); b++)
-												if(sub_cvg[b]<127) sub_cvg[b]++;
+										if(!razor.containsVertex(source_vertex))
 											razor.addVertex(source_vertex);
-										}
 
 										outgoing = gfa.outgoingEdgesOf(source_seqid);
 
@@ -893,12 +911,9 @@ public class Anchor extends Executor {
 												target_vertex = new TraceableVertex<String>(target_seqid);
 												target_vertex.setSAMSegment(target_seq);
 
-												if(!razor.containsVertex(target_vertex)) {
-													for(int b=target_seq.sstart()-1; b<target_seq.send(); b++)
-														if(sub_cvg[b]<127) sub_cvg[b]++;
+												if(!razor.containsVertex(target_vertex)) 
 													razor.addVertex(target_vertex);
-												}
-
+												
 												if(razor.containsEdge(source_vertex, target_vertex))
 													continue;
 
@@ -922,7 +937,6 @@ public class Anchor extends Executor {
 												edge_score = qry_seqs.get(source_seqid).seq_ln()+
 														qry_seqs.get(target_seqid).seq_ln()-
 														gfa.getEdge(source_seqid, target_seqid).olap();
-												OverlapEdge ee = gfa.getEdge(source_seqid, target_seqid);
 												
 												edge.setScore(edge_score);
 
@@ -931,22 +945,6 @@ public class Anchor extends Executor {
 										}
 									}
 									if(ddebug) myLogger.info(root_seqid+" "+razor.vertexSet().size()+" "+razor.edgeSet().size()+" done");
-
-									// we check the coverage of the graph
-									double cvg = 0d, ln = 0d;
-									for(TraceableVertex<String> v : razor.vertexSet()) {
-										int a = v.getSAMSegment().sstart()-1,
-												b = v.getSAMSegment().send();
-										ln += b-a;
-										for(int w = a; w<b; w++) cvg += sub_cvg[w];
-									}
-									if(cvg/ln>64d) {
-										// we discard all the sequences
-										// we discard this tree
-										for(TraceableVertex<String> v : razor.vertexSet()) placed.add(v.getSAMSegment());
-										if(ddebug) myLogger.info("Average coverage +"+cvg/ln+", discared.");
-										continue;
-									}
 
 									// JFrame frame = new JFrame();
 									// frame.getContentPane().add(jgraph);
@@ -1055,9 +1053,6 @@ public class Anchor extends Executor {
 
 									Set<TraceableVertex<String>> optx = new HashSet<TraceableVertex<String>>();
 									optx.add(opt_vertex);
-									
-									if(opt_vertex.getId().equals("tig00048149'"))
-										System.out.println(opt_vertex.getId());
 									
 									while( (opt_vertex = opt_vertex.getBackTrace())!=null ) optx.add(opt_vertex);
 
