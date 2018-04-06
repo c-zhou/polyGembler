@@ -129,7 +129,7 @@ public class Redundas extends Executor {
 			final SAMRecordIterator iter1 = in1.iterator();
 			SAMRecord rc = iter1.next();
 			String qseqid;
-			List<SAMSegment> buffer_sam = new ArrayList<SAMSegment>();
+			List<SAMRecord> buffer_sam = new ArrayList<SAMRecord>();
 
 			Set<String> seq_rm = new HashSet<String>();
 
@@ -138,36 +138,33 @@ public class Redundas extends Executor {
 
 				buffer_sam.clear();
 				if(!rc.getReadUnmappedFlag())
-					buffer_sam.add(SAMSegment.samRecord(rc));
+					buffer_sam.add(rc);
 
 				while( (rc=iter1.next())!=null
 						&&
 						rc.getReadName().equals(qseqid) ) {
-					buffer_sam.add(SAMSegment.samRecord(rc));
+					buffer_sam.add(rc);
 				}
 
 				if(buffer_sam.isEmpty()) continue;
 
 				int sz = sequence_map.get(qseqid).seq_ln();
-
-				RangeSet<Integer> range_covered = TreeRangeSet.create();
-				for(SAMSegment record : buffer_sam) {
-					if( !record.qseqid().equals(record.sseqid()) &&
-							(record.qstart()<=max_overhang ||
-							record.qend()>sz-max_overhang) )
-						range_covered.add(Range.closedOpen(record.qstart(), record.qend()).canonical(DiscreteDomain.integers()));
-				}
-
-				int unique_cvg = 0;
-				for(Range<Integer> range : range_covered.asRanges()) 
-					unique_cvg += range.upperEndpoint()-range.lowerEndpoint();
-
-				if( (double)unique_cvg/sz>=min_frac ) {
-					seq_rm.add(qseqid);
-					myLogger.info("Redundant sequence "+qseqid+"\t"+sz+"\t"+unique_cvg+"\t"+(double)unique_cvg/sz);
+				int cvg;
+				double frac;
+				
+				for(SAMRecord record : buffer_sam) {
+					if(seq_rm.contains(record.getReferenceName())) continue;
+					if( !record.getReadName().equals(record.getReferenceName()) ) {
+						cvg = Math.abs(record.getReadPositionAtReferencePosition(record.getAlignmentEnd())-
+								record.getReadPositionAtReferencePosition(record.getAlignmentStart()));
+						frac=Math.min(1d,(double)cvg/sz);
+						if(frac>=min_frac) {
+							seq_rm.add(qseqid);
+							myLogger.info("Redundant sequence "+qseqid+"\t"+sz+"\t"+cvg+"\t"+frac);
+						}
+					}
 				}
 			}
-
 
 			iter1.close();
 			in1.close();

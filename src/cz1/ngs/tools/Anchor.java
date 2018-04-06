@@ -820,6 +820,11 @@ public class Anchor extends Executor {
 									for(int w = a; w<b; w++) sub_cvg[w]++;
 								}
 								
+								int lowCvg = 0;
+								for(int w=0; w<sub_ln; w++) {
+									if(sub_cvg[w]<64) ++lowCvg; 
+								}
+									
 								// we filter out high-coverage/highly-repetitive regions
 								// >63x
 								final List<SAMSegment> seqBySubLowCov = new ArrayList<SAMSegment>();
@@ -830,8 +835,9 @@ public class Anchor extends Executor {
 									if(cov/(b-a)<64) seqBySubLowCov.add(sams);
 								}
 								
-								myLogger.info(sub_seq+" highly-repetitive regions: "+(seqBySubAll.size()-seqBySubLowCov.size())+"/"+seqBySubAll.size()+
-										" records filtered out due to high coverage(>63)");
+								myLogger.info(sub_seq+" highly-repetitive regions: "+(sub_ln-lowCvg)+"/"+sub_ln+"bp,"+
+										(seqBySubAll.size()-seqBySubLowCov.size())+"/"+seqBySubAll.size()+
+										"alignment records filtered out due to high coverage(>63)");
 								
 								final Set<SAMSegment> contained = new HashSet<SAMSegment>();
 								final Set<SAMSegment> placed    = new HashSet<SAMSegment>();
