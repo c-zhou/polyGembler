@@ -6,6 +6,8 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -18,7 +20,6 @@ import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 
 import cz1.ngs.model.Blast6Segment;
-import cz1.ngs.model.SAMSegment;
 import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
@@ -118,7 +119,19 @@ public class Redundas extends Executor {
 	@Override
 	public void run() {
 		Map<String, Sequence> sequence_map = Sequence.parseFastaFileAsMap(query_file);
-
+		List<Sequence> sequence_list = Sequence.parseFastaFileAsList(query_file);
+		
+		Collections.sort(sequence_list, new Comparator<Sequence>() {
+			@Override
+			public int compare(Sequence seq0, Sequence seq1) {
+				// TODO Auto-generated method stub
+				return seq1.seq_ln()-seq0.seq_ln();
+			}
+		});
+		Map<String, Integer> sequence_index = new HashMap<String, Integer>();
+		int nSeq = sequence_list.size();
+		for(int i=0; i<nSeq; i++) sequence_index.put(sequence_list.get(i).seq_sn(), i);
+		
 		try {
 			final SamReaderFactory factory =
 					SamReaderFactory.makeDefault()
@@ -128,7 +141,7 @@ public class Redundas extends Executor {
 			final SamReader in1 = factory.open(new File(align_file));
 			final SAMRecordIterator iter1 = in1.iterator();
 			SAMRecord rc = iter1.next();
-			String qseqid;
+			String qseqid, sseqid;
 			List<SAMRecord> buffer_sam = new ArrayList<SAMRecord>();
 
 			Set<String> seq_rm = new HashSet<String>();
@@ -151,17 +164,17 @@ public class Redundas extends Executor {
 				int sz = sequence_map.get(qseqid).seq_ln();
 				int cvg;
 				double frac;
+				int index = sequence_index.get(qseqid);
 				
 				for(SAMRecord record : buffer_sam) {
-					if(seq_rm.contains(record.getReferenceName())) continue;
-					if( !record.getReadName().equals(record.getReferenceName()) ) {
-						cvg = Math.abs(record.getReadPositionAtReferencePosition(record.getAlignmentEnd())-
-								record.getReadPositionAtReferencePosition(record.getAlignmentStart()));
-						frac=Math.min(1d,(double)cvg/sz);
-						if(frac>=min_frac) {
-							seq_rm.add(qseqid);
-							myLogger.info("Redundant sequence "+qseqid+"\t"+sz+"\t"+cvg+"\t"+frac);
-						}
+					sseqid = record.getReferenceName();
+					if(seq_rm.contains(sseqid)||sequence_index.get(sseqid)>=index) continue;
+					cvg = Math.abs(record.getReadPositionAtReferencePosition(record.getAlignmentEnd())-
+							record.getReadPositionAtReferencePosition(record.getAlignmentStart()));
+					frac = Math.min(1d, (double)cvg/sz);
+					if(frac>=min_frac) {
+						seq_rm.add(qseqid);
+						myLogger.info("Redundant sequence "+qseqid+"\t"+sz+"\t"+cvg+"\t"+frac);
 					}
 				}
 			}
