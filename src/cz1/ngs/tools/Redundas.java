@@ -170,7 +170,7 @@ public class Redundas extends Executor {
 					sseqid = record.getReferenceName();
 					if(seq_rm.contains(sseqid)||sequence_index.get(sseqid)>=index) continue;
 					cvg = Math.abs(record.getReadPositionAtReferencePosition(record.getAlignmentEnd())-
-							record.getReadPositionAtReferencePosition(record.getAlignmentStart()));
+							record.getReadPositionAtReferencePosition(record.getAlignmentStart())+1);
 					frac = Math.min(1d, (double)cvg/sz);
 					if(frac>=min_frac) {
 						seq_rm.add(qseqid);
@@ -184,10 +184,10 @@ public class Redundas extends Executor {
 
 			BufferedWriter bw_unique = Utils.getBufferedWriter(this.out_prefix+".fa");
 			BufferedWriter bw_redundas = Utils.getBufferedWriter(this.out_prefix+"_redundas.fa");
-			for(Map.Entry<String, Sequence> entry : sequence_map.entrySet()) {
-				if(seq_rm.contains(entry.getKey())) 
-					bw_redundas.write(entry.getValue().formatOutput());
-				else bw_unique.write(entry.getValue().formatOutput());
+			for(Sequence seq : sequence_list) {
+				if(seq_rm.contains(seq.seq_sn())) 
+					bw_redundas.write(seq.formatOutput());
+				else bw_unique.write(seq.formatOutput());
 			}
 			bw_unique.close();
 			bw_redundas.close();

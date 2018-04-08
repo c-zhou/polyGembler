@@ -219,8 +219,9 @@ public class Anchor extends Executor {
 
 	private final static int match_score  = 1;
 	private final static int clip_penalty = 1;
-	private final static int hc_gap  = 100000;
-
+	private final static int hc_gap  = 10000;
+	private final static int max_cov = 31;
+	
 	private final static Object lock = new Object();
 
 	@Override
@@ -785,10 +786,9 @@ public class Anchor extends Executor {
 		//	}
 		// }
 
-		final int flank_size = 50000;
 		final Set<String> linkPlace  = new HashSet<String>();
 		final List<String> linkSeqStr = new ArrayList<String>();
-
+		
 		this.initial_thread_pool();
 		for(String sub_seq : sub_seqs.keySet()) {
 
@@ -811,7 +811,7 @@ public class Anchor extends Executor {
 								final int sub_ln = sub_seqs.get(sub_seq).seq_ln();
 								// this is to calculate the coverage on the subject sequence
 								// we are going to skip certain regions if the coverage is too high
-								// say the average coverage is greater than 64
+								// say the average coverage is greater than max_cov
 								int[] sub_cvg = new int[sub_ln]; 
 
 								// we calculate the coverage across the reference chromosome
@@ -822,22 +822,22 @@ public class Anchor extends Executor {
 								
 								int lowCvg = 0;
 								for(int w=0; w<sub_ln; w++) {
-									if(sub_cvg[w]<64) ++lowCvg; 
+									if(sub_cvg[w]<=max_cov) ++lowCvg; 
 								}
 									
 								// we filter out high-coverage/highly-repetitive regions
-								// >63x
+								// >max_cov x
 								final List<SAMSegment> seqBySubLowCov = new ArrayList<SAMSegment>();
 								for(SAMSegment sams : seqBySubAll) {
 									int a = sams.sstart()-1, b = sams.send();
 									double cov = 0d;
 									for(int w=a; w<b; w++) cov += sub_cvg[w];
-									if(cov/(b-a)<64) seqBySubLowCov.add(sams);
+									if(cov/(b-a)<=max_cov) seqBySubLowCov.add(sams);
 								}
 								
 								myLogger.info(sub_seq+" highly-repetitive regions: "+(sub_ln-lowCvg)+"/"+sub_ln+"bp,"+
 										(seqBySubAll.size()-seqBySubLowCov.size())+"/"+seqBySubAll.size()+
-										"alignment records filtered out due to high coverage(>63)");
+										"alignment records filtered out due to high coverage(>"+max_cov+")");
 								
 								final Set<SAMSegment> contained = new HashSet<SAMSegment>();
 								final Set<SAMSegment> placed    = new HashSet<SAMSegment>();
@@ -851,7 +851,6 @@ public class Anchor extends Executor {
 								TraceableVertex<String> root_vertex, source_vertex, target_vertex;
 								Deque<SAMSegment> deque = new ArrayDeque<SAMSegment>();
 								final List<TraceableVertex<String>> traceable = new ArrayList<TraceableVertex<String>>();
-								
 								
 								int distance;
 								
@@ -913,7 +912,7 @@ public class Anchor extends Executor {
 													target_seq = seq;
 												}
 											}
-											if(distance<=flank_size) {
+											if(distance<=hc_gap) {
 												target_vertex = new TraceableVertex<String>(target_seqid);
 												target_vertex.setSAMSegment(target_seq);
 
@@ -1013,7 +1012,7 @@ public class Anchor extends Executor {
 											score = source_score+edge_score;
 											ws = score-penalty;
 
-											if( edge_penalty>flank_size || 
+											if( edge_penalty>hc_gap || 
 													target_vertex.getStatus() && 
 													(ws<=target_ws ||
 													isLoopback(razor, source_vertex, target_vertex)) ) 
