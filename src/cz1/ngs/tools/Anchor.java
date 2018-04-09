@@ -803,6 +803,7 @@ public class Anchor extends Executor {
 							try {
 
 								if(sub_seq.equals("Chr00")) return;
+								if(!sub_seq.equals("scaffold_000232")) return;
 								myLogger.info(">>>>>>>>>>>>>"+sub_seq+"<<<<<<<<<<<<<<<<");
 
 								final List<SAMSegment> seqBySubAll = initPseudoAssembly.get(sub_seq);
@@ -828,16 +829,20 @@ public class Anchor extends Executor {
 								// we filter out high-coverage/highly-repetitive regions
 								// >max_cov x
 								final List<SAMSegment> seqBySubLowCov = new ArrayList<SAMSegment>();
+								final Set<String> seqPool = new HashSet<String>();
 								for(SAMSegment sams : seqBySubAll) {
 									int a = sams.sstart()-1, b = sams.send();
 									double cov = 0d;
 									for(int w=a; w<b; w++) cov += sub_cvg[w];
-									if(cov/(b-a)<=max_cov) seqBySubLowCov.add(sams);
+									if(cov/(b-a)<=max_cov) {
+										seqBySubLowCov.add(sams);
+										seqPool.add(sams.qseqid());
+									}
 								}
 								
 								myLogger.info(sub_seq+" highly-repetitive regions: "+(sub_ln-lowCvg)+"/"+sub_ln+"bp,"+
 										(seqBySubAll.size()-seqBySubLowCov.size())+"/"+seqBySubAll.size()+
-										"alignment records filtered out due to high coverage(>"+max_cov+")");
+										" alignment records filtered out due to high coverage(>"+max_cov+")");
 								
 								final Set<SAMSegment> contained = new HashSet<SAMSegment>();
 								final Set<SAMSegment> placed    = new HashSet<SAMSegment>();
@@ -899,6 +904,9 @@ public class Anchor extends Executor {
 
 										for(OverlapEdge out : outgoing) {
 											target_seqid = gfa.getEdgeTarget(out);
+											
+											if(!seqPool.contains(target_seqid)) continue;
+											
 											if(!initPlace.containsKey(target_seqid))
 												continue;
 											target_seqs = initPlace.get(target_seqid);
