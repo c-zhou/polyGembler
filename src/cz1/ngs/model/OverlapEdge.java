@@ -13,6 +13,8 @@ public class OverlapEdge extends DefaultWeightedEdge {
 	protected double olapR = Double.NaN;
 	protected String cigar = null;
 	protected OverlapResult olapInfo = null;
+
+	protected boolean realigned = false;
 	
 	public double olap() {
 		return this.olap;
@@ -52,5 +54,17 @@ public class OverlapEdge extends DefaultWeightedEdge {
 	
 	public void setOlapInfo(OverlapResult olapInfo) {
 		this.olapInfo = olapInfo;
+	}
+	
+	public void setRealigned() {
+		this.realigned = true;
+	}
+	
+	public void setRealigned(boolean realigned) {
+		this.realigned = realigned;
+	}
+	
+	public boolean isRealigned() {
+		return this.realigned;
 	}
 }

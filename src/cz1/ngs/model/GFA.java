@@ -477,10 +477,10 @@ public class GFA {
 		olap.setToStart(b1);
 		olap.setToEnd(b2);
 		olap.setRawScore(aLen);
-		olap.setRealigned();
 		edge.setOlap(aLen);
 		edge.setOlapF(olapF);
 		edge.setOlapR(olapR);
+		edge.setRealigned();
 		
 		// process the symmetric edge
 		OverlapEdge rev_edge = this.gfa.getEdge(rev.get(toId), rev.get(fromId)); 
@@ -491,10 +491,10 @@ public class GFA {
 		olap.setToStart(fromLen-a2+1);
 		olap.setToEnd(fromLen-a1+1);
 		olap.setRawScore(aLen);
-		olap.setRealigned();
 		rev_edge.setOlap(aLen);
 		rev_edge.setOlapF(olapR);
 		rev_edge.setOlapR(olapF);
+		rev_edge.setRealigned();
 		
 		return;
 	}
@@ -729,6 +729,8 @@ public class GFA {
 						gfa.setEdgeCigar(e, overlap);
 						gfa.setEdgeOverlapF(e, Constants.getOlapFromCigar(overlap));
 						gfa.setEdgeOverlapR(e, Constants.getOlapFromCigar(Constants.cgRevCmp(overlap)));
+						gfa.setEdgeOverlap(e, Constants.getOlapFromCigar(overlap));
+						gfa.setEdgeRealigned(e);
 					}
 					break;
 				case "C":
@@ -779,6 +781,8 @@ public class GFA {
 					gfa.setEdgeCigar(e, overlap);
 					gfa.setEdgeOverlapF(e, Constants.getOlapFromCigar(overlap));
 					gfa.setEdgeOverlapR(e, Constants.getOlapFromCigar(Constants.cgRevCmp(overlap)));
+					gfa.setEdgeOverlap(e, Constants.getOlapFromCigar(overlap));
+					gfa.setEdgeRealigned(e);
 					++link_new;
 				}
 			}
@@ -799,8 +803,8 @@ public class GFA {
 		// TODO Auto-generated method stub
 
 		// TODO distinguish between the de-bruijn, overlap-layout-consensus and overlap assembly graph
-		// return Graph_type.olc;
-		return Graph_type.overlap;
+		return Graph_type.olc;
+		// return Graph_type.overlap;
 	}
 
 	public String graph_type() {

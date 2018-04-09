@@ -13,22 +13,6 @@ public final class OverlapResult {
 	private double score;
 	private double rawScore;
 	
-	private boolean realigned = false;
-	
-	protected OverlapResult(String fromId, String toId, double score, double rawScore, int a1, int a2, int aLen, int b1, int b2, int bLen, boolean realigned) {
-		this.fromId = fromId;
-		this.toId = toId;
-		this.score = score;
-		this.rawScore = rawScore;
-		this.a1 = a1;
-		this.a2 = a2;
-		this.aLen = aLen;
-		this.b1 = b1;
-		this.b2 = b2;
-		this.bLen = bLen;
-		this.realigned = realigned;
-	}
-	
 	protected OverlapResult(String fromId, String toId, double score, double rawScore, int a1, int a2, int aLen, int b1, int b2, int bLen) {
 		this.fromId = fromId;
 		this.toId = toId;
@@ -144,18 +128,6 @@ public final class OverlapResult {
 
 	public void setRawScore(double rawScore) {
 		this.rawScore = rawScore;
-	}
-	
-	public void setRealigned() {
-		this.realigned = true;
-	}
-	
-	public void setRealigned(boolean realigned) {
-		this.realigned = realigned;
-	}
-	
-	public boolean isRealigned() {
-		return this.realigned;
 	}
 	
 	public String toString()

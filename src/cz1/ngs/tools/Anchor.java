@@ -804,7 +804,6 @@ public class Anchor extends Executor {
 							try {
 
 								if(sub_seq.equals("Chr00")) return;
-								// if(!sub_seq.equals("scaffold_000232")) return;
 								myLogger.info(">>>>>>>>>>>>>"+sub_seq+"<<<<<<<<<<<<<<<<");
 
 								final List<SAMSegment> seqBySubAll = initPseudoAssembly.get(sub_seq);
@@ -1153,7 +1152,7 @@ public class Anchor extends Executor {
 												
 											OverlapEdge e = gfa.getEdge(source_seqid, target_seqid);
 											
-											if(!e.olapInfo().isRealigned()) gfa.realign(e);
+											if(!e.isRealigned()) gfa.realign(e);
 											
 											linkSeq.append(qry_seqs.get(target_seqid).seq_str().substring((int)e.olapR()));
 											linkPlace.add(target_seqid);

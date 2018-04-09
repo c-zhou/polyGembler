@@ -21,6 +21,10 @@ public class DirectedWeightedOverlapPseudograph<V> extends DirectedWeightedPseud
 		edge.olapR = olap;
 	}
 	
+	public void setEdgeOverlap(OverlapEdge edge, double olap) {
+		edge.olap = olap;
+	}
+	
 	public void setEdgeCigar(OverlapEdge edge, String cigar) {
 		edge.cigar = cigar;
 	}
@@ -29,12 +33,21 @@ public class DirectedWeightedOverlapPseudograph<V> extends DirectedWeightedPseud
 		edge.olapInfo = olapInfo;
 	}
 	
+	public void setEdgeRealigned(OverlapEdge e) {
+		// TODO Auto-generated method stub
+		e.setRealigned();
+	}
+	
 	public double getEdgeOverlapF(OverlapEdge edge) {
 		return edge.olapF;
 	}
 	
 	public double getEdgeOverlapR(OverlapEdge edge) {
 		return edge.olapR;
+	}
+	
+	public double getEdgeOverlap(OverlapEdge edge) {
+		return edge.olap;
 	}
 	
 	public String getEdgeCigar(OverlapEdge edge) {
