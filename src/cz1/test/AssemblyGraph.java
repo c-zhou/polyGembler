@@ -222,6 +222,8 @@ public class AssemblyGraph {
 		rangeS.add(Range.closed(0, 1).canonical(DiscreteDomain.integers()));
 		rangeS2.add(Range.closed(11, 22).canonical(DiscreteDomain.integers()));
 		System.out.println();
+		
+		System.out.println(String.format("%12s","aa"));
 	}
 }
 

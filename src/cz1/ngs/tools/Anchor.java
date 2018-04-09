@@ -788,7 +788,7 @@ public class Anchor extends Executor {
 		// }
 
 		final Set<String> linkPlace  = new HashSet<String>();
-		final List<String> linkSeqStr = new ArrayList<String>();
+		final List<Contig> linkSeqStr = new ArrayList<Contig>();
 		
 		this.initial_thread_pool();
 		for(String sub_seq : sub_seqs.keySet()) {
@@ -1134,19 +1134,27 @@ public class Anchor extends Executor {
 								}
 
 								final StringBuilder linkSeq = new StringBuilder();
-
+								final StringBuilder linkContigging = new StringBuilder();
+								
 								synchronized(lock) {
 									for(TraceableVertex<String> opt_vertex : traceable) {
 										
 										List<TraceableVertex<String>> opt_vertices = new ArrayList<TraceableVertex<String>>();
 										opt_vertices.add(opt_vertex);
 										while( (opt_vertex = opt_vertex.getBackTrace())!=null ) opt_vertices.add(opt_vertex);
+										
+										if(opt_vertices.size()==1)
+											// this is a singleton
+											continue;
+										
 										Collections.reverse(opt_vertices);
 										
 										opt_vertex = opt_vertices.get(0);
 										source_seqid = opt_vertex.getId();
 										linkSeq.setLength(0);
 										linkSeq.append(qry_seqs.get(source_seqid).seq_str());
+										linkContigging.setLength(0);
+										linkContigging.append(source_seqid);
 										linkPlace.add(source_seqid);
 										
 										for(int k=1; k<opt_vertices.size(); k++) {
@@ -1159,10 +1167,11 @@ public class Anchor extends Executor {
 											if(!e.isRealigned()) gfa.realign(e);
 											
 											linkSeq.append(qry_seqs.get(target_seqid).seq_str().substring((int)e.olapR()));
+											linkContigging.append("->"+target_seqid);
 											linkPlace.add(target_seqid);
 											source_seqid = target_seqid;
 										}
-										linkSeqStr.add(linkSeq.toString());
+										linkSeqStr.add(new Contig(linkSeq.toString(),linkContigging.toString()));
 									}
 								}
 							} catch (Exception e) {
@@ -1185,26 +1194,33 @@ public class Anchor extends Executor {
 		this.waitFor();
 		
 		try {
-			BufferedWriter bw = Utils.getBufferedWriter(this.out_prefix+".fa2");
-			
-			Collections.sort(linkSeqStr, new Comparator<String>() {
+			BufferedWriter bw_fa = Utils.getBufferedWriter(this.out_prefix+".fa2");
+			BufferedWriter bw_map = Utils.getBufferedWriter(this.out_prefix+".map2");
+
+			Collections.sort(linkSeqStr, new Comparator<Contig>() {
 
 				@Override
-				public int compare(String s1, String s2) {
+				public int compare(Contig c1, Contig c2) {
 					// TODO Auto-generated method stub
-					return s2.length()-s1.length();
+					return c2.seqStr.length()-c2.seqStr.length();
 				}
 			});
 			
 			int scaf = 1;
-			for(String seq : linkSeqStr) 
-				bw.write(Sequence.formatOutput("contig"+String.format("%08d", scaf++), seq, 80));
+			for(Contig seq : linkSeqStr) {
+				bw_fa.write(Sequence.formatOutput("contig"+String.format("%08d", scaf), seq.seqStr, 80));
+				bw_map.write(String.format("%16s", "contig"+String.format("%08d", scaf))+"\t"+seq.components+"\n");
+				++scaf;
+			}
 			for(String seqid : qry_seqs.keySet()) {
 				if(seqid.endsWith("'")) continue;
-				if(!linkPlace.contains(seqid))
-					bw.write(qry_seqs.get(seqid).formatOutput(80));
+				if(!linkPlace.contains(seqid)) {
+					bw_fa.write(qry_seqs.get(seqid).formatOutput(80));
+					bw_map.write(String.format("%16s", seqid)+"\t"+seqid+"\n");
+				}
 			}
-			bw.close();
+			bw_fa.close();
+			bw_map.close();
 		} catch(IOException e) {
 			e.printStackTrace();
 		}
@@ -1227,6 +1243,16 @@ public class Anchor extends Executor {
 		while( (source = source.getBackTrace())!=null )
 			if(source.equals(target)) return true;
 		return false;
+	}
+	
+	private class Contig {
+		final String components;
+		final String seqStr;
+		
+		public Contig(String seqStr, String components) {
+			this.seqStr = seqStr;
+			this.components = components;
+		}
 	}
 }
 
