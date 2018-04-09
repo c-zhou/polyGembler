@@ -1,10 +1,16 @@
 package cz1.ngs.model;
 
+import com.google.common.collect.DiscreteDomain;
+import com.google.common.collect.Range;
+import com.google.common.collect.RangeSet;
+import com.google.common.collect.TreeRangeSet;
+
 public class TraceableVertex<V extends Comparable<V>> implements Comparable<TraceableVertex<V>> {
 	private final V id;
 	private TraceableVertex<V> backtrace = null;
 	private double penalty = Double.POSITIVE_INFINITY;
 	private double score   = Double.NEGATIVE_INFINITY;
+	private RangeSet<Integer> sinterval = null;
 	private SAMSegment segment;
 	// specify the status of the vertex
 	// e.g., is visited or not during traversal
@@ -20,6 +26,40 @@ public class TraceableVertex<V extends Comparable<V>> implements Comparable<Trac
 	
 	public void setStatus(boolean status) {
 		this.status  = status;
+	}
+	
+	public void setSInterval() {
+		this.sinterval = TreeRangeSet.create();
+	}
+	
+	public void setSInterval(RangeSet<Integer> sinterval) {
+		this.sinterval = sinterval;
+	}
+	
+	public RangeSet<Integer> getSInterval() {
+		return this.sinterval;
+	}
+	
+	public void addSInterval(Range<Integer> range) {
+		this.sinterval.add(range);
+	}
+	
+
+	public void setSInterval(int lowerEndPoint, int upperEndPoint) {
+		// TODO Auto-generated method stub
+		this.setSInterval();
+		this.addSInterval(lowerEndPoint, upperEndPoint);
+	}
+	
+	public void addSInterval(int lowerEndPoint, int upperEndPoint) {
+		this.sinterval.add(Range.closed(lowerEndPoint, upperEndPoint).
+				canonical(DiscreteDomain.integers()));
+	}
+	
+	public RangeSet<Integer> getSIntervalCopy() {
+		RangeSet<Integer> rangeS = TreeRangeSet.create();
+		rangeS.addAll(this.sinterval);
+		return rangeS;
 	}
 	
 	public boolean getStatus() {

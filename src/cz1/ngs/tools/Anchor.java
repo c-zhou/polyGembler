@@ -27,6 +27,7 @@ import org.jgrapht.traverse.BreadthFirstIterator;
 
 import com.google.common.collect.DiscreteDomain;
 import com.google.common.collect.Range;
+import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 
 import cz1.ngs.model.AlignmentSegment;
@@ -803,7 +804,7 @@ public class Anchor extends Executor {
 							try {
 
 								if(sub_seq.equals("Chr00")) return;
-								if(!sub_seq.equals("scaffold_000232")) return;
+								// if(!sub_seq.equals("scaffold_000232")) return;
 								myLogger.info(">>>>>>>>>>>>>"+sub_seq+"<<<<<<<<<<<<<<<<");
 
 								final List<SAMSegment> seqBySubAll = initPseudoAssembly.get(sub_seq);
@@ -979,6 +980,7 @@ public class Anchor extends Executor {
 									root_vertex.setScore(qry_seqs.get(root_seqid).seq_ln());
 									root_vertex.setPenalty(0);
 									root_vertex.setStatus(true);
+									root_vertex.setSInterval(root_seq.sstart(), root_seq.send());
 
 									bidiQ.put(0L, root_vertex);
 									double max_ws = Double.NEGATIVE_INFINITY,
@@ -987,6 +989,9 @@ public class Anchor extends Executor {
 									int source_ln;
 									Set<TraceableEdge> out_edges;
 									TraceableVertex<String> opt_vertex = null;
+									RangeSet<Integer> source_sinterval, target_sinterval;
+									SAMSegment target_samseg;
+									Range<Integer> target_range;
 									long sizeQ;
 									boolean isLeaf;
 
@@ -1003,6 +1008,7 @@ public class Anchor extends Executor {
 										source_score = source_vertex.getScore()-source_ln;
 										source_penalty = source_vertex.getPenalty();
 										source_ws = source_score-source_penalty;
+										source_sinterval = source_vertex.getSInterval();
 
 										isLeaf = true;
 										out_edges = razor.outgoingEdgesOf(source_vertex);
@@ -1010,6 +1016,22 @@ public class Anchor extends Executor {
 											// this is not right because graph edges are immutable?
 											// target_vertex = razor.getEdgeTarget(out);
 											target_vertex = razv_map.get(razor.getEdgeTarget(out).getId());
+											target_samseg = target_vertex.getSAMSegment();
+											
+											// in order to avoid recursive placement in repetitive regions 
+											// we need the new contig to expand the contigging on the reference genome
+											target_range = Range.closed(target_samseg.sstart(), 
+													target_samseg.send()).canonical(DiscreteDomain.integers());
+											if(source_sinterval.encloses(target_range)) continue;
+											target_sinterval = source_vertex.getSIntervalCopy();
+											target_sinterval.add(target_range);
+											
+											if(countIntervalCoverage(target_vertex.getSInterval())
+													>= countIntervalCoverage(target_sinterval))
+												// if target vertex has been visited
+												// and the reference covered is greater
+												continue;
+											
 											target_score = target_vertex.getScore();
 											target_penalty = target_vertex.getPenalty();
 											target_ws = target_score-target_penalty;
@@ -1031,6 +1053,7 @@ public class Anchor extends Executor {
 											target_vertex.setScore(score);
 											target_vertex.setPenalty(penalty);
 											target_vertex.setStatus(true);
+											target_vertex.setSInterval(target_sinterval);
 
 											bidiQ.put(sizeQ++, target_vertex);
 										}
@@ -1182,6 +1205,15 @@ public class Anchor extends Executor {
 		} catch(IOException e) {
 			e.printStackTrace();
 		}
+	}
+
+	protected int countIntervalCoverage(RangeSet<Integer> interval) {
+		// TODO Auto-generated method stub
+		if(interval==null) return 0;
+		int cvg = 0;
+		for(Range<Integer> range : interval.asRanges()) 
+			cvg += range.upperEndpoint()-range.lowerEndpoint()+1;
+		return cvg;
 	}
 
 	private boolean isLoopback(DirectedWeightedPseudograph<TraceableVertex<String>, TraceableEdge> graph,

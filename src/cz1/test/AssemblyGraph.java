@@ -16,6 +16,11 @@ import org.jgrapht.GraphPath;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.DirectedWeightedPseudograph;
 
+import com.google.common.collect.DiscreteDomain;
+import com.google.common.collect.Range;
+import com.google.common.collect.RangeSet;
+import com.google.common.collect.TreeRangeSet;
+
 import cz1.ngs.model.BFSShortestPath;
 import cz1.ngs.model.Sequence;
 import htsjdk.samtools.Cigar;
@@ -200,13 +205,26 @@ public class AssemblyGraph {
 	public static void main(String[] args) {
 		long tic, toc;
 		tic = System.nanoTime();
-		makeAssemblyGraph(args[0]);
+		//makeAssemblyGraph(args[0]);
 		toc = System.nanoTime();
 		System.out.println("Assembly graph construction elapsed time: "+(toc-tic)+"ns.");
 	
 		tic = System.nanoTime();
-		validateAssemblyGraph(args[0], args[1]);
+		//validateAssemblyGraph(args[0], args[1]);
 		toc = System.nanoTime();
 		System.out.println("Processing BAM file elapsed time: "+(toc-tic)+"ns.");
+		
+		RangeSet<Integer> rangeS = TreeRangeSet.create();
+		rangeS.add(Range.closed(1, 2).canonical(DiscreteDomain.integers()));
+		RangeSet<Integer> rangeS2 = TreeRangeSet.create();
+		rangeS2.addAll(rangeS);
+		rangeS.add(Range.closed(2, 3).canonical(DiscreteDomain.integers()));
+		rangeS.add(Range.closed(0, 1).canonical(DiscreteDomain.integers()));
+		rangeS2.add(Range.closed(11, 22).canonical(DiscreteDomain.integers()));
+		System.out.println();
 	}
 }
+
+
+
+
