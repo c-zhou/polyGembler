@@ -979,7 +979,7 @@ public class Anchor extends Executor {
 									root_vertex.setScore(qry_seqs.get(root_seqid).seq_ln());
 									root_vertex.setPenalty(0);
 									root_vertex.setStatus(true);
-									root_vertex.setSInterval(root_seq.sstart(), root_seq.send());
+									// root_vertex.setSInterval(root_seq.sstart(), root_seq.send());
 
 									bidiQ.put(0L, root_vertex);
 									double max_ws = Double.NEGATIVE_INFINITY,
@@ -988,9 +988,9 @@ public class Anchor extends Executor {
 									int source_ln;
 									Set<TraceableEdge> out_edges;
 									TraceableVertex<String> opt_vertex = null;
-									RangeSet<Integer> source_sinterval, target_sinterval;
-									SAMSegment target_samseg;
-									Range<Integer> target_range;
+									// RangeSet<Integer> source_sinterval, target_sinterval;
+									// SAMSegment target_samseg;
+									// Range<Integer> target_range;
 									long sizeQ;
 									boolean isLeaf;
 
@@ -1007,7 +1007,7 @@ public class Anchor extends Executor {
 										source_score = source_vertex.getScore()-source_ln;
 										source_penalty = source_vertex.getPenalty();
 										source_ws = source_score-source_penalty;
-										source_sinterval = source_vertex.getSInterval();
+										// source_sinterval = source_vertex.getSInterval();
 
 										isLeaf = true;
 										out_edges = razor.outgoingEdgesOf(source_vertex);
@@ -1015,6 +1015,8 @@ public class Anchor extends Executor {
 											// this is not right because graph edges are immutable?
 											// target_vertex = razor.getEdgeTarget(out);
 											target_vertex = razv_map.get(razor.getEdgeTarget(out).getId());
+											
+											/***
 											target_samseg = target_vertex.getSAMSegment();
 											
 											// in order to avoid recursive placement in repetitive regions 
@@ -1024,12 +1026,14 @@ public class Anchor extends Executor {
 											if(source_sinterval.encloses(target_range)) continue;
 											target_sinterval = source_vertex.getSIntervalCopy();
 											target_sinterval.add(target_range);
-											
+											***/
+											/***
 											if(countIntervalCoverage(target_vertex.getSInterval())
-													>= countIntervalCoverage(target_sinterval))
+													> countIntervalCoverage(target_sinterval))
 												// if target vertex has been visited
 												// and the reference covered is greater
 												continue;
+											***/
 											
 											target_score = target_vertex.getScore();
 											target_penalty = target_vertex.getPenalty();
@@ -1052,7 +1056,7 @@ public class Anchor extends Executor {
 											target_vertex.setScore(score);
 											target_vertex.setPenalty(penalty);
 											target_vertex.setStatus(true);
-											target_vertex.setSInterval(target_sinterval);
+											// target_vertex.setSInterval(target_sinterval);
 
 											bidiQ.put(sizeQ++, target_vertex);
 										}
@@ -1194,7 +1198,7 @@ public class Anchor extends Executor {
 			
 			int scaf = 1;
 			for(String seq : linkSeqStr) 
-				bw.write(Sequence.formatOutput("Scaffold"+String.format("%08d", scaf++), seq, 80));
+				bw.write(Sequence.formatOutput("contig"+String.format("%08d", scaf++), seq, 80));
 			for(String seqid : qry_seqs.keySet()) {
 				if(seqid.endsWith("'")) continue;
 				if(!linkPlace.contains(seqid))
