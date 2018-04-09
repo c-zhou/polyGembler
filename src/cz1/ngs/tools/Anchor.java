@@ -220,8 +220,8 @@ public class Anchor extends Executor {
 
 	private final static int match_score  = 1;
 	private final static int clip_penalty = 1;
-	private final static int hc_gap  = 10000;
-	private final static int max_cov = 31;
+	private final static int hc_gap  = 50000;
+	private final static int max_cov = 127;
 	
 	private final static Object lock = new Object();
 
@@ -788,6 +788,7 @@ public class Anchor extends Executor {
 		// }
 
 		final Set<String> linkPlace  = new HashSet<String>();
+		final Set<String> contigging = new HashSet<String>();
 		final List<Contig> linkSeqStr = new ArrayList<Contig>();
 		
 		this.initial_thread_pool();
@@ -1135,6 +1136,7 @@ public class Anchor extends Executor {
 
 								final StringBuilder linkSeq = new StringBuilder();
 								final StringBuilder linkContigging = new StringBuilder();
+								String contigStr;
 								
 								synchronized(lock) {
 									for(TraceableVertex<String> opt_vertex : traceable) {
@@ -1171,7 +1173,11 @@ public class Anchor extends Executor {
 											linkPlace.add(target_seqid);
 											source_seqid = target_seqid;
 										}
-										linkSeqStr.add(new Contig(linkSeq.toString(),linkContigging.toString()));
+										
+										contigStr = linkContigging.toString();
+										if(contigging.contains(contigStr)) continue;
+										linkSeqStr.add(new Contig(linkSeq.toString(),contigStr));
+										contigging.add(contigStr);
 									}
 								}
 							} catch (Exception e) {
@@ -1202,7 +1208,7 @@ public class Anchor extends Executor {
 				@Override
 				public int compare(Contig c1, Contig c2) {
 					// TODO Auto-generated method stub
-					return c2.seqStr.length()-c2.seqStr.length();
+					return c2.seqStr.length()-c1.seqStr.length();
 				}
 			});
 			
