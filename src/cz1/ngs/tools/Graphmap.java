@@ -1,7 +1,10 @@
 package cz1.ngs.tools;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -32,7 +35,7 @@ public class Graphmap extends Executor {
 						+ "                         assembly graph to the format used by CANU.\n"
 						+ "                         NOTE: it is possible to run the program without an assembly graph, \n"
 						+ "                         however, the assembly might be less accurate.\n"
-						+ " -k/--kmer-size          K-mer size (no greater than 16, default 12)."
+						+ " -k/--kmer-size          K-mer size (no greater than 16, default 12).\n"
 						+ " -t/--threads            Threads to use (default 1). \n"
 						+ "                         The maximum number of threads to use will be the number of BAM files.\n"
 						+ " -o/--out                Prefix of the output files.\n"
@@ -134,7 +137,7 @@ public class Graphmap extends Executor {
 	//          32bits sequence index + 32bits sequence position
 	final Map<Integer, Set<Long>> kmer_ht = new HashMap<Integer, Set<Long>>();
 	private final static Object lock = new Object();
-	private static long cons_progress = 0;
+	private static long cons_progress = 0L, cons_size = 0L;
 	
 	@Override
 	public void run() {
@@ -155,30 +158,46 @@ public class Graphmap extends Executor {
 		long elapsed_start = System.nanoTime();
 		
 		this.initial_thread_pool();
-		for(Map.Entry<String, Sequence> entry : sub_seqs.entrySet()) {
+		List<Sequence> sequences = new ArrayList<Sequence>();
+		long seq_sz = 0;
+		
+		Iterator<Map.Entry<String, Sequence>> it = sub_seqs.entrySet().iterator();
+		while(it.hasNext()) {
+			Sequence seq = it.next().getValue();
+			sequences.add(seq);
+			seq_sz += seq.seq_ln();
+			
+			// we process 1Mb chunks for parallelism
+			// no need to gain lock frequently compared to parallelise in sequence level
+			// however will end up with extra work on copy hash table and extra memory consumption
+			if(seq_sz<1000000&&it.hasNext()) continue; 
+			
 			executor.submit(new Runnable() {
-				private Sequence sequence;
+				private List<Sequence> sequences;
 				
 				@Override
 				public void run() {
 					// TODO Auto-generated method stub
-					String seq_sn = sequence.seq_sn();
-					long long_key = seq_index.get(seq_sn);
-					long_key <<= 32;
-					String seq_str = sequence.seq_str();
-					int seq_ln = seq_str.length()-merK;
-					String kmer;
-					final Map<Integer, Set<Long>> ht = new HashMap<Integer, Set<Long>>();
-					for(int i=0; i!=seq_ln; i++) {
-						// process each mer
-						kmer = seq_str.substring(i, i+merK);
-						if(kmer.contains("N")||kmer.contains("n")) 
-							continue;
-						int kmer_hash = int_hash(kmer);
 
-						if(!ht.containsKey(kmer_hash)) 
-							ht.put(kmer_hash, new HashSet<Long>());
-						ht.get(kmer_hash).add(long_key+i);
+					final Map<Integer, Set<Long>> ht = new HashMap<Integer, Set<Long>>();
+					for(Sequence sequence : sequences) {
+						String seq_sn = sequence.seq_sn();
+						long long_key = seq_index.get(seq_sn);
+						long_key <<= 32;
+						String seq_str = sequence.seq_str();
+						int seq_ln = seq_str.length()-merK;
+						String kmer;
+						for(int i=0; i!=seq_ln; i++) {
+							// process each mer
+							kmer = seq_str.substring(i, i+merK);
+							if(kmer.contains("N")||kmer.contains("n")) 
+								continue;
+							int kmer_hash = int_hash(kmer);
+
+							if(!ht.containsKey(kmer_hash)) 
+								ht.put(kmer_hash, new HashSet<Long>());
+							ht.get(kmer_hash).add(long_key+i);
+						}
 					}
 					synchronized(lock) {
 						for(Map.Entry<Integer, Set<Long>> entry : ht.entrySet()) {
@@ -186,18 +205,26 @@ public class Graphmap extends Executor {
 								kmer_ht.put(entry.getKey(), entry.getValue());
 							} else {
 								kmer_ht.get(entry.getKey()).addAll(entry.getValue());
+								// not sure if this is necessary
+								// likely will simplify the garbage collection? 
+								kmer_ht.remove(entry.getKey());
 							}
 						}
-						if(++cons_progress%10000==0) 
-							myLogger.info(cons_progress+" sequences processed.");
+						cons_progress += this.sequences.size();
+						for(Sequence sequence : sequences) cons_size += sequence.seq_ln();
 					}
+					
+					myLogger.info("#"+cons_progress+"/"+cons_size+"bp sequences processed.");
 				}
 				
-				public Runnable init(Sequence sequence) {
-					this.sequence = sequence;
+				public Runnable init(List<Sequence> sequences) {
+					this.sequences = sequences;
 					return this;
 				}
-			}.init(entry.getValue()));
+			}.init(sequences));
+			
+			seq_sz = 0;
+			sequences = new ArrayList<Sequence>();
 		}
 		this.waitFor();
 		long elapsed_end = System.nanoTime();
@@ -207,6 +234,9 @@ public class Graphmap extends Executor {
 		myLogger.info("Total memory : "+totalMemory()+"Mb");
 		myLogger.info("Free memory  : "+freeMemory() +"Mb");
 		myLogger.info("Used memory  : "+usedMemory() +"Mb");
+	
+		// now map each sequence in the query file to the graph
+		
 	}
 
 	private int int_hash(String kmer) {
