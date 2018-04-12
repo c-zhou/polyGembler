@@ -1,5 +1,7 @@
 package cz1.ngs.tools;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -15,6 +17,7 @@ import cz1.ngs.model.GFA;
 import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
+import cz1.util.Utils;
 
 public class Graphmap extends Executor {
 
@@ -24,7 +27,7 @@ public class Graphmap extends Executor {
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
 						+ " -s/--subject            The FASTA file contain subject/reference sequences. \n"
-						+ " -q/--query              The FASTA file contain query sequences to map. \n"
+						+ " -q/--query              The FASTA/FASTQ file contain query sequences to map. \n"
 						+ " -g/--graph              Assembly graph (GFA) format. Currently, the program only accept \n"
 						+ "                         the assembly graph format used by the assembler SPAdes (de-bruijn \n"
 						+ "                         graph) or CANU (overlap). For assembly graphs in other formats: \n"
@@ -146,7 +149,12 @@ public class Graphmap extends Executor {
 		gfa = new GFA(subject_file, graph_file);
 		sub_seqs = gfa.getSequenceMap();
 		int index = 0;
-		for(String seq : sub_seqs.keySet()) seq_index.put(seq, ++index);
+		long seqTotalSize = 0L;
+		for(String seq : sub_seqs.keySet()) {
+			seq_index.put(seq, ++index);
+			seqTotalSize += sub_seqs.get(seq).seq_ln();
+		}
+		final long chunkSize = seqTotalSize/this.THREADS/10;
 		
 		myLogger.info("++++JVM memory after loading data++++");
 		myLogger.info("Total memory : "+totalMemory()+"Mb");
@@ -157,20 +165,20 @@ public class Graphmap extends Executor {
 		myLogger.info("Construct initialise "+merK+"-mer hash table using "+this.THREADS+" threads.");
 		long elapsed_start = System.nanoTime();
 		
+		
 		this.initial_thread_pool();
 		List<Sequence> sequences = new ArrayList<Sequence>();
 		long seq_sz = 0;
-		
 		Iterator<Map.Entry<String, Sequence>> it = sub_seqs.entrySet().iterator();
 		while(it.hasNext()) {
 			Sequence seq = it.next().getValue();
 			sequences.add(seq);
 			seq_sz += seq.seq_ln();
 			
-			// we process 1Mb chunks for parallelism
+			// we process chunkSize chunks for parallelism
 			// no need to gain lock frequently compared to parallelise in sequence level
 			// however will end up with extra work on copy hash table and extra memory consumption
-			if(seq_sz<1000000&&it.hasNext()) continue; 
+			if(seq_sz<chunkSize&&it.hasNext()) continue; 
 			
 			executor.submit(new Runnable() {
 				private List<Sequence> sequences;
@@ -236,7 +244,33 @@ public class Graphmap extends Executor {
 		myLogger.info("Used memory  : "+usedMemory() +"Mb");
 	
 		// now map each sequence in the query file to the graph
-		
+		try {
+			BufferedReader br_qry = Utils.getBufferedReader(query_file);
+			String line = br_qry.readLine();
+			boolean isFASTQ = true;
+			if(line.startsWith(">")) isFASTQ = false;
+			String qry_sn, qry_str;
+			while( line!=null ) {
+				qry_sn = line.split("\\s+")[0].substring(1);
+				qry_str = br_qry.readLine();
+				
+				// we have query sequence now
+				// we need to find shared kmers with the subject/reference sequences
+				
+				
+				if(isFASTQ) {
+					// skip two lines if is FASTQ file
+					br_qry.readLine();
+					br_qry.readLine();
+				}
+				line = br_qry.readLine();
+			}
+			
+			br_qry.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
 	private int int_hash(String kmer) {
