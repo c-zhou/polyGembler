@@ -134,6 +134,7 @@ public class Graphmap extends Executor {
 	//          32bits sequence index + 32bits sequence position
 	final Map<Integer, Set<Long>> kmer_ht = new HashMap<Integer, Set<Long>>();
 	private final static Object lock = new Object();
+	private static long cons_progress = 0;
 	
 	@Override
 	public void run() {
@@ -147,6 +148,7 @@ public class Graphmap extends Executor {
 		// initialise the kmer hash table 
 		myLogger.info("Construct initialise "+merK+"-mer hash table using "+this.THREADS+" threads.");
 		long elapsed_start = System.nanoTime();
+		
 		this.initial_thread_pool();
 		for(Map.Entry<String, Sequence> entry : sub_seqs.entrySet()) {
 			executor.submit(new Runnable() {
@@ -181,6 +183,8 @@ public class Graphmap extends Executor {
 								kmer_ht.get(entry.getKey()).addAll(entry.getValue());
 							}
 						}
+						if(++cons_progress%10000==0) 
+							myLogger.info(cons_progress+" sequences processed.");
 					}
 				}
 				
