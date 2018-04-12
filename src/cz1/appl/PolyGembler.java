@@ -15,6 +15,8 @@ import cz1.hmm.tools.VCFResampling;
 import cz1.ngs.assembly.GenomeAssemblyTiling;
 import cz1.ngs.tools.Anchor;
 import cz1.ngs.tools.Consensus;
+import cz1.ngs.tools.Contigger;
+import cz1.ngs.tools.Graphmap;
 import cz1.ngs.tools.HetCorr;
 import cz1.ngs.tools.Redundas;
 import cz1.simulation.tools.GBSSimulator;
@@ -109,6 +111,16 @@ public class PolyGembler {
 			anchor.setParameters(args2);
 			anchor.run();
 			break;
+		case "graphmap":
+			Graphmap graphmap = new Graphmap();
+			graphmap.setParameters(args2);
+			graphmap.run();
+			break;	
+		case "contigger":
+			Contigger contigger = new Contigger();
+			contigger.setParameters(args2);
+			contigger.run();
+			break;	
 		case "consensus":
 			Consensus consensus = new Consensus();
 			consensus.setParameters(args2);
@@ -144,6 +156,8 @@ public class PolyGembler {
 						+ " dataresampling      Resample from ZIP data.\n"
 						+ " hetcorr             Heterozygosity and sequencing errors correction.\n"
 						+ " anchor              Anchor contigs/scaffolds against a reference.\n"
+						+ " graphmap            Map noisy long reads (Nanopore and Pacbio) to an assembly graph.\n"
+						+ " contigger           Contigging using paired-end and/or long reads.\n"
 						+ " consensus           Consensus with paired reads link analysis.\n"
 						+ " redundas            Remove redundancies in the genome assembly.\n"
 						+ " gembler             Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.\n\n");

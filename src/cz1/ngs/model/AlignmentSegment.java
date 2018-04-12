@@ -103,6 +103,15 @@ public class AlignmentSegment {
 		}
 	}
     
+    public static class QueryCoordinationComparator 
+    implements Comparator<AlignmentSegment> {
+    	@Override
+    	public int compare(AlignmentSegment b1, AlignmentSegment b2) {
+    		// TODO Auto-generated method stub
+    		return b1.true_qstart()-b2.true_qstart();
+    	}
+    }
+    
     public static class SInterceptComparator 
     	implements Comparator<AlignmentSegment> {
 		@Override

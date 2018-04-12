@@ -227,8 +227,8 @@ public class Anchor extends Executor {
 
 	@Override
 	public void run() {
-		this.run1();
-		// this.run2();
+		// this.run1();
+		this.run2();
 	}
 	
 	public void run2() {

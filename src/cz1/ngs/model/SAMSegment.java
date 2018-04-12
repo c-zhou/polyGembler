@@ -77,39 +77,74 @@ public class SAMSegment extends AlignmentSegment {
 				sam_rc.getIntegerAttribute("AS"));
 	}
 	
-	public static SAMSegment samRecord(SAMRecord sam_rc, boolean rev, int qry_ln) {
+	public static SAMSegment samRecord(SAMRecord sam_rc, boolean rev, int seq_ln) {
 		// TODO Auto-generated method stub
 		
 		if(sam_rc==null) return null;
-		
-		CigarElement c = sam_rc.getCigar().getFirstCigarElement();
-		int hc = c.getOperator()==CigarOperator.HARD_CLIP ? c.getLength() : 0;
-		
-		String qseqid = sam_rc.getReadName();
-		int qstart = sam_rc.getReadPositionAtReferencePosition(sam_rc.getAlignmentStart())+hc;
-		int qend   = sam_rc.getReadPositionAtReferencePosition(sam_rc.getAlignmentEnd())  +hc;
-		int sstart = sam_rc.getAlignmentStart();
-		int send   = sam_rc.getAlignmentEnd();
-		String cigar = sam_rc.getCigarString();
-				
-		if( sam_rc.getReadNegativeStrandFlag() ) {
-			qseqid  = qseqid+"'";
-			int tmp = qstart;
-			qstart  = qry_ln-qend+1;
-			qend    = qry_ln-tmp +1;
-			cigar   = Constants.cgRev(cigar);
+
+		if(rev) {
+			// reverse query sequence for reverse complementary alignment
+			
+			CigarElement c = sam_rc.getCigar().getFirstCigarElement();
+			int hc = c.getOperator()==CigarOperator.HARD_CLIP ? c.getLength() : 0;
+
+			String qseqid = sam_rc.getReadName();
+			int qstart = sam_rc.getReadPositionAtReferencePosition(sam_rc.getAlignmentStart())+hc;
+			int qend   = sam_rc.getReadPositionAtReferencePosition(sam_rc.getAlignmentEnd())  +hc;
+			int sstart = sam_rc.getAlignmentStart();
+			int send   = sam_rc.getAlignmentEnd();
+			String cigar = sam_rc.getCigarString();
+
+			if( sam_rc.getReadNegativeStrandFlag() ) {
+				qseqid  = qseqid+"'";
+				int tmp = qstart;
+				qstart  = seq_ln-qend+1;
+				qend    = seq_ln-tmp +1;
+				cigar   = Constants.cgRev(cigar);
+			}
+
+			return new SAMSegment(qseqid, 
+					sam_rc.getReferenceName(),
+					qstart,
+					qend,
+					sstart,
+					send,
+					cigar,
+					sam_rc.getMappingQuality(),
+					sam_rc.getIntegerAttribute("NM"),
+					sam_rc.getIntegerAttribute("AS"));
+		} else {
+			// reverse reference sequence for reverse complementary alignment
+			
+			CigarElement c = sam_rc.getCigar().getFirstCigarElement();
+			int hc = c.getOperator()==CigarOperator.HARD_CLIP ? c.getLength() : 0;
+
+			String sseqid = sam_rc.getReferenceName();
+			int sstart = sam_rc.getAlignmentStart();
+			int send   = sam_rc.getAlignmentEnd();
+			int qstart = sam_rc.getReadPositionAtReferencePosition(sstart)+hc;
+			int qend   = sam_rc.getReadPositionAtReferencePosition(send)  +hc;
+			String cigar = sam_rc.getCigarString();
+
+			if( sam_rc.getReadNegativeStrandFlag() ) {
+				sseqid  = sseqid+"'";
+				int tmp = sstart;
+				sstart  = seq_ln-send+1;
+				send    = seq_ln-tmp +1;
+				cigar   = Constants.cgRev(cigar);
+			}
+
+			return new SAMSegment(sam_rc.getReadName(),
+					sseqid,
+					qstart,
+					qend,
+					sstart,
+					send,
+					cigar,
+					sam_rc.getMappingQuality(),
+					sam_rc.getIntegerAttribute("NM"),
+					sam_rc.getIntegerAttribute("AS"));
 		}
-		
-		return new SAMSegment(qseqid, 
-				sam_rc.getReferenceName(),
-				qstart,
-				qend,
-				sstart,
-				send,
-				cigar,
-				sam_rc.getMappingQuality(),
-				sam_rc.getIntegerAttribute("NM"),
-				sam_rc.getIntegerAttribute("AS"));
 	}
 	
 	public static class SubjectCoordinationComparator 

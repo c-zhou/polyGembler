@@ -3,15 +3,9 @@ package cz1.ngs.tools;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.Reader;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -20,23 +14,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeMap;
-import java.util.TreeSet;
-import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionHandler;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 
-import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import com.google.common.collect.Range;
@@ -44,7 +25,8 @@ import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 
 import cz1.ngs.model.AlignmentSegment;
-import cz1.ngs.model.Blast6Segment;
+import cz1.ngs.model.GFA;
+import cz1.ngs.model.SAMSegment;
 import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
@@ -54,12 +36,13 @@ import htsjdk.samtools.CigarElement;
 import htsjdk.samtools.CigarOperator;
 import htsjdk.samtools.SAMRecord;
 import htsjdk.samtools.SAMRecordIterator;
+import htsjdk.samtools.SAMSequenceDictionary;
 import htsjdk.samtools.SAMSequenceRecord;
 import htsjdk.samtools.SamReader;
 import htsjdk.samtools.SamReaderFactory;
 import htsjdk.samtools.ValidationStringency;
 
-public class Consensus extends Executor {
+public class Contigger extends Executor {
 
 	private final static String s_lib = "--s([0-9]+)";
 	private final static String pe_lib = "--pe([0-9]+)";
@@ -73,94 +56,50 @@ public class Consensus extends Executor {
 	private final static Pattern ins_pat = Pattern.compile(ins_lib);
 	private final static Pattern w_pat = Pattern.compile(w_lib);
 	
-	private static enum Task {all, count, parse, zzz}
-	private Task task_list = Task.zzz;
-	
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub
-		switch(this.task_list) {
-		case zzz:
-			myLogger.info(
-					"\n\nChoose a task from listed:\n"
-							+ " count                   Calculate weighted link counts.\n"
-							+ " parse                   Parse consensus scaffolds. \n"
-							+ " all                     Count links and then parse scaffolds.\n"
-							+ "\n");
-			break;
-		case count:
-			myLogger.info(
-					"\n\nUsage is as follows:\n"
-							+ " --s<#>                  Input BAM file (sorted by read name) for long read library (<#> = 1,2,...).\n"
-							+ " --pe<#>                 Input BAM file (sorted by read name) for paired-end library (<#> = 1,2,...).\n"
-							+ " --mp<#>                 Input BAM file (sorted by read name) for mate-pair library (<#> = 1,2,...).\n"
-							+ " --f<#>                  Fragment/insert size threshold of this library (<#> = 1,2,...).\n"
-							+ "                         NOTE: required for paired-end and mate-pair libraries,\n"
-							+ "                               and will be ignored if provided for long read libraries.\n"
-							+ " --w<#>                  Inverse weight of the links from this library (<#> = 1,2,...).\n"
-							+ "                         This parameter defines the minimum number of links in this library are required \n"
-							+ "                         to confirm a consensus. Generally larger insert size libraries are less realiable \n"
-							+ "                         thus a larger number should be assigned. \n"
-							+ "                         NOTE: if multiple libraries (BAM files) are provided, the weights are summed. \n"
-							+ "                               If the total weight is no less than 1, the consensus is confirmed.\n"
-							+ "                         FOR EXAMPLE: --w1 3 --w2 5 --w3 10. To confirm a consensus, \n"
-							+ "                               1. we need 3 links from the library 1 (W=1.0).\n"
-							+ "                               Or,\n"
-							+ "                               2. we need 2 links from the library 1 and 2 links from the library 2 (W=1.06). \n"
-							+ "                               Or,\n"
-							+ "                               3. we need 4 links from the library 2 and 2 links from the library 3 (W=1.0).\n"
-							+ " -m/--map                Map file generated in the anchor step indicating the order of the contigs. \n"
-							+ " -t/--threads            Threads to use (default 1). \n"
-							+ "                         The maximum number of threads to use will be the number of BAM files.\n"
-							+ " -o/--out                Prefix of the output link count file.\n"
-							+ "\n");
-			break;
-		case parse:
-			myLogger.info(
-					"\n\nUsage is as follows:\n"
-							+ " -q/--query              The FASTA file contain query sequences to anchor. \n"
-							+ " -m/--map                Map file generated in the link count step indicating the order of the contigs. \n"
-							+ " -l/--min-size           Minimum size of scaffolds to output (default 300). \n"
-							+ " -o/--out                Output FASTA file name.\n"
-							+ "\n");
-			break;
-		case all:
-			myLogger.info(
-					"\n\nUsage is as follows:\n"
-							+ " --s<#>                  Input BAM file (sorted by read name) for long read library (<#> = 1,2,...).\n"
-							+ " --pe<#>                 Input BAM file (sorted by read name) for paired-end library (<#> = 1,2,...).\n"
-							+ " --mp<#>                 Input BAM file (sorted by read name) for mate-pair library (<#> = 1,2,...).\n"
-							+ " --f<#>                  Fragment/insert size threshold of this library (<#> = 1,2,...).\n"
-							+ "                         NOTE: required for paired-end libraries,\n"
-							+ "                               and will be ignored if provided for long read libraries.\n"
-							+ " --w<#>                  Inverse weight of the links from this library (<#> = 1,2,...).\n"
-							+ "                         This parameter defines the minimum number of links in this library are required \n"
-							+ "                         to confirm a consensus. Generally larger insert size libraries are less realiable \n"
-							+ "                         thus a larger number should be assigned. \n"
-							+ "                         NOTE: if multiple libraries (BAM files) are provided, the weights are summed. \n"
-							+ "                               If the total weight is no less than 1, the consensus is confirmed.\n"
-							+ "                         FOR EXAMPLE: --w1 3 --w2 5 --w3 10. To confirm a consensus, \n"
-							+ "                               1. we need 3 links from the library 1 (W=1.0).\n"
-							+ "                               Or,\n"
-							+ "                               2. we need 2 links from the library 1 and 2 links from the library 2 (W=1.06). \n"
-							+ "                               Or,\n"
-							+ "                               3. we need 4 links from the library 2 and 2 links from the library 3 (W=1.0).\n"
-							+ " -q/--query              The FASTA file contain query sequences to anchor. \n"
-							+ " -m/--map                Map file indicate the order of the contigs. \n"
-							+ " -t/--threads            Threads to use (default 1). \n"
-							+ "                         The maximum number of threads to use will be the number of BAM files.\n"
-							+ " -l/--min-size           Minimum size of scaffolds to output (default 300). \n"
-							+ " -o/--out                Prefix of the output files.\n"
-							+ "\n");
-			break;
-		default:
-			throw new RuntimeException("!!!");
-		}
+		myLogger.info(
+				"\n\nUsage is as follows:\n"
+						+ " --s<#>                  Input BAM file (sorted by read name) for long read library (<#> = 1,2,...).\n"
+						+ " --pe<#>                 Input BAM file (sorted by read name) for paired-end library (<#> = 1,2,...).\n"
+						+ " --mp<#>                 Input BAM file (sorted by read name) for mate-pair library (<#> = 1,2,...).\n"
+						+ " --f<#>                  Fragment/insert size threshold of this library (<#> = 1,2,...).\n"
+						+ "                         NOTE: required for paired-end libraries,\n"
+						+ "                               and will be ignored if provided for long read libraries.\n"
+						+ " --w<#>                  Inverse weight of the links from this library (<#> = 1,2,...).\n"
+						+ "                         This parameter defines the minimum number of links in this library are required \n"
+						+ "                         to confirm a consensus. Generally larger insert size libraries are less realiable \n"
+						+ "                         thus a larger number should be assigned. \n"
+						+ "                         NOTE: if multiple libraries (BAM files) are provided, the weights are summed. \n"
+						+ "                               If the total weight is no less than 1, the consensus is confirmed.\n"
+						+ "                         FOR EXAMPLE: --w1 3 --w2 5 --w3 10. To confirm a consensus, \n"
+						+ "                               1. we need 3 links from the library 1 (W=1.0).\n"
+						+ "                               Or,\n"
+						+ "                               2. we need 2 links from the library 1 and 2 links from the library 2 (W=1.06). \n"
+						+ "                               Or,\n"
+						+ "                               3. we need 4 links from the library 2 and 2 links from the library 3 (W=1.0).\n"
+						+ " -q/--query              The FASTA file contain query sequences to anchor. \n"
+						+ " -g/--graph              Assembly graph (GFA) format. Currently, the program only accept \n"
+						+ "                         the assembly graph format used by the assembler SPAdes (de-bruijn \n"
+						+ "                         graph) or CANU (overlap). For assembly graphs in other formats: \n"
+						+ "                         1. for contigs generated with de-bruijn graph, please ignore this \n"
+						+ "                         option and provide k-mer size, the program is able to rebuild the \n"
+						+ "                         assembly graph from contigs; and, \n"
+						+ "                         2. for contigs generated with overlapping algorithms, please convert \n"
+						+ "                         assembly graph to the format used by CANU.\n"
+						+ "                         NOTE: it is possible to run the program without an assembly graph, \n"
+						+ "                         however, the assembly might be less accurate.\n"
+						+ " -t/--threads            Threads to use (default 1). \n"
+						+ "                         The maximum number of threads to use will be the number of BAM files.\n"
+						+ " -l/--min-size           Minimum size of scaffolds to output (default 300). \n"
+						+ " -o/--out                Prefix of the output files.\n"
+						+ "\n");
 	}
 
 	private static enum Library {s, pe, mp}
-	private String sequence_file = null;
-	private String map_file = null;
+	private String query_file = null;
+	private String graph_file = null;
 	private int min_size = 300;
 	private String out_prefix = null;
 	private String[] bam_list = null;
@@ -169,8 +108,6 @@ public class Consensus extends Executor {
 	private int[] ins_thres = null;
 	private double[] link_w = null;
 	
-	private double collinear_shift = 0.5;
-	
 	@Override
 	public void setParameters(String[] args) {
 		// TODO Auto-generated method stub
@@ -178,29 +115,11 @@ public class Consensus extends Executor {
 			printUsage();
 			throw new IllegalArgumentException("\n\nPlease use the above arguments/options.\n\n");
 		}
-		
-		switch(args[0].toUpperCase()) {
-		case "COUNT":
-			this.task_list = Task.count;
-			break;
-		case "PARSE":
-			this.task_list = Task.parse;
-			break;
-		case "ALL":
-			this.task_list = Task.all;
-			break;
-		default:
-			printUsage();
-			throw new IllegalArgumentException("\n\nPlease use the above arguments/options.\n\n");	
-		}
-		
-		String[] args2 = new String[args.length-1];
-		System.arraycopy(args, 1, args2, 0, args2.length);
-		
+
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-q", "--query", true);
-			myArgsEngine.add("-m", "--map", true);
+			myArgsEngine.add("-g", "--graph", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-l", "--min-size", true);
 			myArgsEngine.add("-o", "--out", true);
@@ -209,96 +128,39 @@ public class Consensus extends Executor {
 			myArgsEngine.addWildOptions(mp_lib, true);
 			myArgsEngine.addWildOptions(ins_lib, true);
 			myArgsEngine.addWildOptions(w_lib, true);
-			myArgsEngine.parse(args2);
+			myArgsEngine.parse(args);
 		}
-		
-		switch(this.task_list) {
-		case count:
 
-			if (myArgsEngine.getBoolean("-m")) {
-				this.map_file = myArgsEngine.getString("-m");
-			} else {
-				printUsage();
-				throw new IllegalArgumentException("Please specify the map file.");
-			}
-			
-			if (myArgsEngine.getBoolean("-t")) {
-				this.THREADS = Integer.parseInt(myArgsEngine.getString("-t"));
-			}
-			
-			if (myArgsEngine.getBoolean("-o")) {
-				this.out_prefix = myArgsEngine.getString("-o");
-			} else {
-				printUsage();
-				throw new IllegalArgumentException("Please specify the output file.");
-			}
-			
-			this.parseDataLibrary(args2);
-			break;
-		case parse:
-			
-			if (myArgsEngine.getBoolean("-q")) {
-				this.sequence_file = myArgsEngine.getString("-q");
-			} else {
-				printUsage();
-				throw new IllegalArgumentException("Please specify the contig file.");
-			}
-
-			if (myArgsEngine.getBoolean("-m")) {
-				this.map_file = myArgsEngine.getString("-m");
-			} else {
-				printUsage();
-				throw new IllegalArgumentException("Please specify the map file.");
-			}
-			
-			if (myArgsEngine.getBoolean("-l")) {
-				this.min_size = Integer.parseInt(myArgsEngine.getString("-l"));
-			}
-			
-			if (myArgsEngine.getBoolean("-o")) {
-				this.out_prefix = myArgsEngine.getString("-o");
-			} else {
-				printUsage();
-				throw new IllegalArgumentException("Please specify the output file.");
-			}
-			
-			break;
-		case all:
-			
-			if (myArgsEngine.getBoolean("-q")) {
-				this.sequence_file = myArgsEngine.getString("-q");
-			} else {
-				printUsage();
-				throw new IllegalArgumentException("Please specify the contig file.");
-			}
-
-			if (myArgsEngine.getBoolean("-m")) {
-				this.map_file = myArgsEngine.getString("-m");
-			} else {
-				printUsage();
-				throw new IllegalArgumentException("Please specify the map file.");
-			}
-			
-			if (myArgsEngine.getBoolean("-t")) {
-				this.THREADS = Integer.parseInt(myArgsEngine.getString("-t"));
-			}
-			
-			if (myArgsEngine.getBoolean("-l")) {
-				this.min_size = Integer.parseInt(myArgsEngine.getString("-l"));
-			}
-			
-			if (myArgsEngine.getBoolean("-o")) {
-				this.out_prefix = myArgsEngine.getString("-o");
-			} else {
-				printUsage();
-				throw new IllegalArgumentException("Please specify the output file.");
-			}
-			
-			this.parseDataLibrary(args2);
-			break;
-		default:
-			throw new RuntimeException("!!!");
+		if (myArgsEngine.getBoolean("-q")) {
+			this.query_file = myArgsEngine.getString("-q");
+		} else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify the contig file.");
 		}
+
+		if (myArgsEngine.getBoolean("-g")) {
+			this.graph_file = myArgsEngine.getString("-g");
+		} else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify the map file.");
+		}
+
+		if (myArgsEngine.getBoolean("-t")) {
+			this.THREADS = Integer.parseInt(myArgsEngine.getString("-t"));
+		}
+
+		if (myArgsEngine.getBoolean("-l")) {
+			this.min_size = Integer.parseInt(myArgsEngine.getString("-l"));
+		}
+
+		if (myArgsEngine.getBoolean("-o")) {
+			this.out_prefix = myArgsEngine.getString("-o");
+		} else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify the output file.");
+		}
+
+		this.parseDataLibrary(args);
 	}
 
 	private void parseDataLibrary(String[] args) {
@@ -395,102 +257,54 @@ public class Consensus extends Executor {
 		}
 	}
 	
+	private Map<String, Sequence> qry_seqs;
+	private GFA gfa;
 	private String[] link_file = null;
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-	
-		String link_out, scaff_out;
-		switch(this.task_list) {
+
+		// gfa = new GFA(query_file, graph_file);
+		// qry_seqs = gfa.getSequenceMap();
 		
-		case zzz:
-			myLogger.info("Task list is empty!!!");
-			break;
-
-		case count:
-			// STEP 1. count links
-			//         merge links
-			myLogger.info("STEP 1. count links");
-			link_file = new String[this.bam_list.length];
-			this.initial_thread_pool();
-			for(int i=0; i<this.bam_list.length; i++) {
-				String out = this.out_prefix+"_"+
-						new File(bam_list[i]).getName().replaceAll(".bam$", "")+".linkC";
-				link_file[i] = out;
-				switch(lib_list[i]) {
-				case s:
-					this.executor.submit(new LongReadLinkCounter(this.bam_list[i], this.map_file, out));
-					break;
-				case pe:
-					this.executor.submit(new PairedReadLinkCounter(this.bam_list[i], this.ins_thres[i], this.map_file, true, out));
-					break;
-				case mp:
-					this.executor.submit(new PairedReadLinkCounter(this.bam_list[i], this.ins_thres[i], this.map_file, false, out));
-					break;
-				default:
-					throw new RuntimeException("Undefined library type!!!");	
-				}
+		String link_out, contig_out;
+		// STEP 1. count links
+		//         merge links
+		myLogger.info("STEP 1. count links");
+		link_file = new String[this.bam_list.length];
+		this.initial_thread_pool();
+		for(int i=0; i<this.bam_list.length; i++) {
+			String out = this.out_prefix+"_"+
+					new File(bam_list[i]).getName().replaceAll(".bam$", "")+".linkC";
+			link_file[i] = out;
+			switch(lib_list[i]) {
+			case s:
+				this.executor.submit(new LongReadLinkCounter(this.bam_list[i], out));
+				break;
+			case pe:
+				this.executor.submit(new PairedReadLinkCounter(this.bam_list[i], this.ins_thres[i], true, out));
+				break;
+			case mp:
+				this.executor.submit(new PairedReadLinkCounter(this.bam_list[i], this.ins_thres[i], false, out));
+				break;
+			default:
+				throw new RuntimeException("Undefined library type!!!");	
 			}
-			this.waitFor();
-
-			myLogger.info("STEP 2. parse links");
-			link_out = this.out_prefix+".linkW";
-			this.parseLink(link_file, link_out);
-			break;
-			
-		case parse:
-			// STEP 3. parse scaffolds
-			myLogger.info("STEP 3. parse scaffolds");
-			scaff_out = this.out_prefix+"_parsedScaffold.fa";
-
-			this.parseScaffold(this.sequence_file, 
-					this.map_file,
-					this.min_size, 
-					scaff_out);
-			break;
-			
-		case all:
-			// STEP 1. count links
-			//         merge links
-			myLogger.info("STEP 1. count links");
-			link_file = new String[this.bam_list.length];
-			this.initial_thread_pool();
-			for(int i=0; i<this.bam_list.length; i++) {
-				String out = this.out_prefix+"_"+
-						new File(bam_list[i]).getName().replaceAll(".bam$", "")+".linkC";
-				link_file[i] = out;
-				switch(lib_list[i]) {
-				case s:
-					this.executor.submit(new LongReadLinkCounter(this.bam_list[i], this.map_file, out));
-					break;
-				case pe:
-					this.executor.submit(new PairedReadLinkCounter(this.bam_list[i], this.ins_thres[i], this.map_file, true, out));
-					break;
-				case mp:
-					this.executor.submit(new PairedReadLinkCounter(this.bam_list[i], this.ins_thres[i], this.map_file, false, out));
-					break;
-				default:
-					throw new RuntimeException("Undefined library type!!!");	
-				}
-			}
-			this.waitFor();
-
-			myLogger.info("STEP 2. parse links");
-			link_out = this.out_prefix+".linkW";
-			this.parseLink(link_file, link_out);
-			
-			myLogger.info("STEP 3. parse scaffolds");
-			scaff_out = this.out_prefix+"_parsedScaffold.fa";
-
-			this.parseScaffold(this.sequence_file, 
-					link_out,
-					this.min_size, 
-					scaff_out);
-			break;
-			
-		default:
-			throw new RuntimeException("!!!");
 		}
+		this.waitFor();
+
+		myLogger.info("STEP 2. parse links");
+		link_out = this.out_prefix+".linkW";
+		this.parseLink(link_file, link_out);
+
+		myLogger.info("STEP 3. parse contigs");
+		contig_out = this.out_prefix+"_parsedContig.fa";
+
+		this.parseContig(this.graph_file, 
+				link_out,
+				this.min_size, 
+				contig_out);
+
 		return;
 	}
 
@@ -932,7 +746,7 @@ public class Consensus extends Executor {
 	
 	private final static int lineWidth = 50;
 	
-	private final void parseScaffold(final String contig_fa,
+	private final void parseContig(final String contig_fa,
 			final String agp_map,
 			final int minL,
 			final String out_fa) {
@@ -1143,43 +957,13 @@ public class Consensus extends Executor {
 
 		protected final String bam_in;
 		protected final String out_prefix;
-		protected final Map<String, RangeSet<Integer>> pseudo_gap = 
-				new HashMap<String, RangeSet<Integer>>();
-		protected final Map<String, Map<Range<Integer>, Integer>> link_count = 
-				new HashMap<String, Map<Range<Integer>, Integer>>();
+		protected final Map<String, Integer> link_count = new HashMap<String, Integer>();
 		
 		public LinkCounter(String bam_in, 
-				String map_file,
 				String out_prefix) {
 			// TODO Auto-generated constructor stub
 			this.bam_in = bam_in;
 			this.out_prefix = out_prefix;
-			this.parseMapFile(map_file);
-		}
-		
-		private void parseMapFile(String map_file) {
-			// TODO Auto-generated method stub
-			try {
-				BufferedReader br_map = Utils.getBufferedReader(map_file);
-				String line;
-				String[] s;
-				while( (line=br_map.readLine())!=null ) {
-					if(!line.startsWith("GAP")) continue;
-					s= line.split("\\s+");
-					if(!pseudo_gap.containsKey(s[5])) {
-						pseudo_gap.put(s[5], TreeRangeSet.create());
-						link_count.put(s[5], new HashMap<Range<Integer>, Integer>());
-					}
-					Range<Integer> range = Range.closedOpen(Integer.parseInt(s[6]), 
-							Integer.parseInt(s[7]));
-					pseudo_gap.get(s[5]).add(range);
-					link_count.get(s[5]).put(range, 0);
-				}
-				br_map.close();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
 		}
 
 		@Override
@@ -1202,22 +986,8 @@ public class Consensus extends Executor {
 			// TODO Auto-generated method stub
 			try {
 				BufferedWriter bw = Utils.getBufferedWriter(this.out_prefix);
-				BufferedReader br_map = Utils.getBufferedReader(map_file);
-				
-				String line;
-				String[] s;
-				while( (line=br_map.readLine())!=null ) {
-					if(!line.startsWith("GAP")) {
-						bw.write(line+"\t-1.0\n");
-						continue;
-					}
-					s= line.split("\\s+");
-					Range<Integer> range = Range.closedOpen(Integer.parseInt(s[6]), 
-							Integer.parseInt(s[7]));
-					
-					bw.write(line+"\t"+link_count.get(s[5]).get(range)+"\n");
-				}
-				br_map.close();
+				for(Map.Entry<String, Integer> entry : this.link_count.entrySet()) 
+					bw.write(entry.getKey()+" "+entry.getValue());
 				bw.close();
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
@@ -1231,32 +1001,10 @@ public class Consensus extends Executor {
 	
 	private final class LongReadLinkCounter extends LinkCounter {
 		
-		private final Map<String, Set<Long>> map_segs;
-		private final List<List<Segment>> list_segs; 
-		
 		public LongReadLinkCounter(String bam_in, 
-				String map_file, 
 				String out_prefix) {
 			// TODO Auto-generated constructor stub
-			super(bam_in, map_file, out_prefix);
-			this.list_segs = parseSegment(map_file);
-			map_segs = new HashMap<String, Set<Long>>();
-			// 32 bits chromosome id + 32 bits positions on chromosome
-			String seq_sn;
-			
-			for(int i=0; i<list_segs.size(); i++) {
-				List<Segment> segs = list_segs.get(i);
-				
-				for(int j=0; j<segs.size(); j++) {
-					seq_sn = segs.get(j).seq_sn;
-					long key = i;
-					key    <<= 32;
-					key     += j;
-					if(!map_segs.containsKey(seq_sn))
-						map_segs.put(seq_sn, new HashSet<Long>());
-					map_segs.get(seq_sn).add(key);
-				}
-			}
+			super(bam_in, out_prefix);
 		}
 		
 		@Override
@@ -1267,31 +1015,39 @@ public class Consensus extends Executor {
 			try {	
 				myLogger.info("Process file ... "+bam_in);
 				
-				final List<AlignmentSegment> record_list = new ArrayList<AlignmentSegment>();
-				final Set<SAMRecord> record_buffer = new HashSet<SAMRecord>();
-				AlignmentSegment record, primary_record, secondary_record;
+				final List<SAMSegment> record_buffer = new ArrayList<SAMSegment>();
+				SAMSegment record, primary_record, secondary_record;
 				SAMRecord tmp_record;
 				String sam_id;
 				
 				final SamReader in1 = factory.open(new File(bam_in));
+				final SAMSequenceDictionary seqDict = in1.getFileHeader().getSequenceDictionary();
 				
 				SAMRecordIterator iter1 = in1.iterator();
 				long record_count = 1;
 				tmp_record = iter1.next();
-				int primary_ref;
 				
 				Range<Integer> span;
 				String refSeq;
-				RangeSet<Integer> intersect;
-				Map<Range<Integer>, Integer> links;
+				int qry_ln, sub_ln;
 				
 				while( tmp_record!=null ) {
+					
+					qry_ln = tmp_record.getReadUnmappedFlag()?0:tmp_record.getReadLength();
+					if(!tmp_record.getReadUnmappedFlag()) {
+						Cigar cigar = tmp_record.getCigar();
+						CigarElement cs = cigar.getFirstCigarElement();
+						CigarElement ce = cigar.getLastCigarElement();
+						qry_ln += (cs.getOperator()==CigarOperator.H?cs.getLength():0)+
+								(ce.getOperator()==CigarOperator.H?ce.getLength():0);
+					}
 					
 					record_buffer.clear();
 					if( !tmp_record.getReadUnmappedFlag() &&
 							!tmp_record.getNotPrimaryAlignmentFlag() ) 
-						record_buffer.add(tmp_record);
-
+						record_buffer.add(SAMSegment.samRecord(tmp_record, false, 
+								seqDict.getSequence(tmp_record.getReferenceIndex()).getSequenceLength()));
+					
 					sam_id = tmp_record.getReadName();
 					refSeq = tmp_record.getReferenceName();
 					
@@ -1302,44 +1058,21 @@ public class Consensus extends Executor {
 
 						if(!tmp_record.getReadUnmappedFlag() &&
 								!tmp_record.getNotPrimaryAlignmentFlag() ) 
-							record_buffer.add(tmp_record);
+							record_buffer.add(SAMSegment.samRecord(tmp_record, false, 
+									seqDict.getSequence(tmp_record.getReferenceIndex()).getSequenceLength()));
 					}
-					
-					primary_ref = -1;
-					for(SAMRecord r : record_buffer)
-						if(!r.getSupplementaryAlignmentFlag()) {
-							primary_ref = r.getReferenceIndex();
-							break;
-						}
-					
-					record_list.clear();
-					for(SAMRecord r : record_buffer)
-						if(r.getReferenceIndex()==primary_ref) 
-							record_list.add(samRecordToAlignmentRecord(r));
 					
 					// is empty
-					if( record_list.isEmpty() ) continue;
+					if( record_buffer.isEmpty() ) continue;
+					
 					
 					// merge collinear alignment records
-					Collections.sort(record_list, new AlignmentSegment.SubjectCoordinationComparator());
+					Collections.sort(record_buffer, new AlignmentSegment.QueryCoordinationComparator());
 					
-					for(int i=0; i<record_list.size(); i++) {
-						primary_record = record_list.get(i);
-						for(int j=i+1; j<record_list.size(); j++) {
-							secondary_record = record_list.get(j);
-							double max_shift = collinear_shift*
-									Math.min(primary_record.qlength(), secondary_record.qlength());
-							if( (record=AlignmentSegment.collinear(primary_record, 
-									secondary_record, max_shift))!=null ) {
-								record_list.set(i, record);
-								record_list.remove(j);
-								--i;
-								break;
-							}
-						}
-					}
 					
 					span = Range.closed(0, 0);
+					
+					/**
 					for(AlignmentSegment r : record_list) {
 						if(r.slength()>span.upperEndpoint()-span.lowerEndpoint()+1)
 							if(r.sstart()>r.send())
@@ -1347,13 +1080,13 @@ public class Consensus extends Executor {
 							else
 								span = Range.closed(r.sstart(), r.send());
 					}
+					**/
+					//intersect = pseudo_gap.get(refSeq).subRangeSet(span);
+					//links = link_count.get(refSeq);
 					
-					intersect = pseudo_gap.get(refSeq).subRangeSet(span);
-					links = link_count.get(refSeq);
-					
-					for(Range<Integer> range : intersect.asRanges())
-						if(links.containsKey(range))
-							links.put(range, links.get(range)+1);
+					//for(Range<Integer> range : intersect.asRanges())
+					//	if(links.containsKey(range))
+					//		links.put(range, links.get(range)+1);
 					
 				}
 				
@@ -1396,11 +1129,10 @@ public class Consensus extends Executor {
 		
 		public PairedReadLinkCounter(String bam_in, 
 				int ins_thres,
-				String map_file,
 				boolean fr,
 				String out_prefix) {
 			// TODO Auto-generated constructor stub
-			super(bam_in, map_file, out_prefix);
+			super(bam_in, out_prefix);
 			this.fr =  fr;
 			this.rf = !fr;
 			this.ins_thres = ins_thres;
@@ -1465,12 +1197,12 @@ public class Consensus extends Executor {
 					}
 					++goodReadPair;
 					refSeq = record_pair[0].getReferenceName();
-					intersect = pseudo_gap.get(refSeq).subRangeSet(span);
-					links = link_count.get(refSeq);
+					//intersect = pseudo_gap.get(refSeq).subRangeSet(span);
+					//links = link_count.get(refSeq);
 					
-					for(Range<Integer> range : intersect.asRanges())
-						if(links.containsKey(range))
-							links.put(range, links.get(range)+1);
+					//for(Range<Integer> range : intersect.asRanges())
+					//	if(links.containsKey(range))
+					//		links.put(range, links.get(range)+1);
 				}
 				iter1.close();
 				in1.close();
