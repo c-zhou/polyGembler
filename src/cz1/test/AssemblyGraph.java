@@ -224,6 +224,16 @@ public class AssemblyGraph {
 		System.out.println();
 		
 		System.out.println(String.format("%12s","aa"));
+		
+		System.out.println(Long.parseLong("11111111111111111111111111111111",2));
+		
+		
+		long a = 1;
+		a <<= 32;
+		a += 2;
+		int i = (int) a;
+		int j = (int) (a>>32);
+		System.out.println(i+" "+j);
 	}
 }
 

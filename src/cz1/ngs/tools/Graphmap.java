@@ -9,6 +9,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
@@ -187,42 +188,51 @@ public class Graphmap extends Executor {
 				public void run() {
 					// TODO Auto-generated method stub
 
-					final Map<Integer, Set<Long>> ht = new HashMap<Integer, Set<Long>>();
-					for(Sequence sequence : sequences) {
-						String seq_sn = sequence.seq_sn();
-						long long_key = seq_index.get(seq_sn);
-						long_key <<= 32;
-						String seq_str = sequence.seq_str();
-						int seq_ln = seq_str.length()-merK;
-						String kmer;
-						for(int i=0; i!=seq_ln; i++) {
-							// process each mer
-							kmer = seq_str.substring(i, i+merK);
-							if(kmer.contains("N")||kmer.contains("n")) 
-								continue;
-							int kmer_hash = int_hash(kmer);
+					try {
+						final Map<Integer, Set<Long>> ht = new HashMap<Integer, Set<Long>>();
+						for(Sequence sequence : sequences) {
+							String seq_sn = sequence.seq_sn();
+							long long_key = seq_index.get(seq_sn);
+							long_key <<= 32;
+							String seq_str = sequence.seq_str();
+							int seq_ln = seq_str.length()-merK+1;
+							String kmer;
+							for(int i=0; i!=seq_ln; i++) {
+								// process each mer
+								kmer = seq_str.substring(i, i+merK);
+								if(kmer.contains("N")||kmer.contains("n")) 
+									continue;
+								int kmer_hash = int_hash(kmer);
 
-							if(!ht.containsKey(kmer_hash)) 
-								ht.put(kmer_hash, new HashSet<Long>());
-							ht.get(kmer_hash).add(long_key+i);
-						}
-					}
-					synchronized(lock) {
-						for(Map.Entry<Integer, Set<Long>> entry : ht.entrySet()) {
-							if(!kmer_ht.containsKey(entry.getKey())) {
-								kmer_ht.put(entry.getKey(), entry.getValue());
-							} else {
-								kmer_ht.get(entry.getKey()).addAll(entry.getValue());
-								// not sure if this is necessary
-								// likely will simplify the garbage collection? 
-								kmer_ht.remove(entry.getKey());
+								if(!ht.containsKey(kmer_hash)) 
+									ht.put(kmer_hash, new HashSet<Long>());
+								ht.get(kmer_hash).add(long_key+i);
 							}
 						}
-						cons_progress += this.sequences.size();
-						for(Sequence sequence : sequences) cons_size += sequence.seq_ln();
+						synchronized(lock) {
+							for(Map.Entry<Integer, Set<Long>> entry : ht.entrySet()) {
+								if(!kmer_ht.containsKey(entry.getKey())) {
+									kmer_ht.put(entry.getKey(), entry.getValue());
+								} else {
+									kmer_ht.get(entry.getKey()).addAll(entry.getValue());
+									// not sure if this is necessary
+									// likely will simplify the garbage collection? 
+									ht.remove(entry.getKey());
+								}
+							}
+							cons_progress += this.sequences.size();
+							for(Sequence sequence : sequences) cons_size += sequence.seq_ln();
+						}
+
+						myLogger.info("#"+cons_progress+"/"+cons_size+"bp sequences processed.");
+					} catch (Exception e) {
+						// TODO Auto-generated catch block
+						Thread t = Thread.currentThread();
+						t.getUncaughtExceptionHandler().uncaughtException(t, e);
+						e.printStackTrace();
+						executor.shutdown();
+						System.exit(1);
 					}
-					
-					myLogger.info("#"+cons_progress+"/"+cons_size+"bp sequences processed.");
 				}
 				
 				public Runnable init(List<Sequence> sequences) {
@@ -249,13 +259,49 @@ public class Graphmap extends Executor {
 			String line = br_qry.readLine();
 			boolean isFASTQ = true;
 			if(line.startsWith(">")) isFASTQ = false;
-			String qry_sn, qry_str;
+			String qry_sn, qry_str, kmer;
+			int qry_ln, kmer_hash, sub_ind, sub_pos;
+			Set<Long> hits;
+			
+			// a hashmap to hold the kmer hits of the query sequence to each subject sequence
+			// a red-black tree to hold the kmer hits positions to the subject sequence 
+			final Map<Integer, TreeMap<Integer, Integer>> kmer_hits = new HashMap<Integer, TreeMap<Integer, Integer>>();
+			// a red-black tree to compare the kmer hits to subject sequences
+			// we calculate a score for each subject sequence
+			final TreeMap<Integer, Double> hits_scorer = new TreeMap<Integer, Double>();
+			
 			while( line!=null ) {
 				qry_sn = line.split("\\s+")[0].substring(1);
 				qry_str = br_qry.readLine();
 				
 				// we have query sequence now
 				// we need to find shared kmers with the subject/reference sequences
+				qry_ln = qry_str.length()-merK+1;
+				kmer_hits.clear();
+				
+				for(int i=0; i!=qry_ln; i++) {
+					// process each mer
+					kmer = qry_str.substring(i, i+merK);
+					if(kmer.contains("N")||kmer.contains("n")) 
+						continue;
+					kmer_hash = int_hash(kmer);
+
+					if(kmer_ht.containsKey(kmer_hash)) {
+						// we need to check the locations of the kmer on the subject sequences
+						hits = kmer_ht.get(kmer_hash);
+						for(long j : hits) {
+							sub_pos = (int) j;
+							sub_ind = (int) (j>>32);
+							if(!kmer_hits.containsKey(sub_ind)) 
+								kmer_hits.put(sub_ind, new TreeMap<Integer, Integer>());
+							kmer_hits.get(sub_ind).put(i, sub_pos);
+						}
+					}
+				}
+				
+				// now we get all kmer hits
+				// we calculate a score for each hit
+				hits_scorer.clear();
 				
 				
 				if(isFASTQ) {
