@@ -145,6 +145,11 @@ public class Graphmap extends Executor {
 		int index = 0;
 		for(String seq : sub_seqs.keySet()) seq_index.put(seq, ++index);
 		
+		myLogger.info("++++JVM memory after loading data++++");
+		myLogger.info("Total memory : "+totalMemory()+"Mb");
+		myLogger.info("Free memory  : "+freeMemory() +"Mb");
+		myLogger.info("Used memory  : "+usedMemory() +"Mb");
+		
 		// initialise the kmer hash table 
 		myLogger.info("Construct initialise "+merK+"-mer hash table using "+this.THREADS+" threads.");
 		long elapsed_start = System.nanoTime();
@@ -198,10 +203,12 @@ public class Graphmap extends Executor {
 		long elapsed_end = System.nanoTime();
 		myLogger.info(merK+"-mer hash table construction completed: "+kmer_ht.size()+" "+
 				merK+"-mers in "+(elapsed_end-elapsed_start)/1e9+" secondes");
-		
+		myLogger.info("++++JVM memory after Kmer hash table construction++++");
+		myLogger.info("Total memory : "+totalMemory()+"Mb");
+		myLogger.info("Free memory  : "+freeMemory() +"Mb");
+		myLogger.info("Used memory  : "+usedMemory() +"Mb");
 	}
 
-	
 	private int int_hash(String kmer) {
 		// TODO Auto-generated method stub
 		int hash = 0;
