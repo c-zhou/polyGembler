@@ -23,7 +23,7 @@ import cz1.util.Utils;
 
 public class Graphmap extends Executor {
 
-	private static enum Task {hash, graphmap, zzz}
+	private static enum Task {hash, map, zzz}
 	private Task task_list = Task.zzz;
 
 	@Override
@@ -34,7 +34,7 @@ public class Graphmap extends Executor {
 			myLogger.info(
 					"\n\nChoose a task from listed:\n"
 							+ " hash                    Create and save hash table.\n"
-							+ " graphmap                Run graphmap to map sequences to an assembly graph.\n"
+							+ " map                     Run graphmap to map sequences to an assembly graph.\n"
 							+ "\n");
 			break;
 		case hash:
@@ -47,7 +47,7 @@ public class Graphmap extends Executor {
 							+ " -o/--out                Prefix of the output files.\n"
 							+ "\n");
 			break;
-		case graphmap:
+		case map:
 			myLogger.info(
 					"\n\nUsage is as follows:\n"
 							+ " -s/--subject            The FASTA file contain subject/reference sequences. \n"
@@ -94,8 +94,8 @@ public class Graphmap extends Executor {
 		case "HASH":
 			this.task_list = Task.hash;
 			break;
-		case "GRAPHMAP":
-			this.task_list = Task.graphmap;
+		case "MAP":
+			this.task_list = Task.map;
 			break;
 		default:
 			printUsage();
@@ -147,7 +147,7 @@ public class Graphmap extends Executor {
 		case hash:
 
 			break;
-		case graphmap:
+		case map:
 
 			if (myArgsEngine.getBoolean("-q")) {
 				this.query_file = myArgsEngine.getString("-q");
@@ -218,7 +218,7 @@ public class Graphmap extends Executor {
 		case hash:
 			this.hash(true);
 			break;
-		case graphmap:
+		case map:
 			this.graphmap();
 			break;
 		default:
@@ -296,20 +296,21 @@ public class Graphmap extends Executor {
 								ht.get(kmer_hash).add(long_key+i);
 							}
 						}
-
-						for(Map.Entry<Integer, Set<Long>> entry : ht.entrySet()) {
-							if(!kmer_ht.containsKey(entry.getKey())) {
-								kmer_ht.put(entry.getKey(), entry.getValue());
-							} else {
-								kmer_ht.get(entry.getKey()).addAll(entry.getValue());
-								// not sure if this is necessary
-								// likely will simplify the garbage collection? 
-								// although this is not correct
-								// ht.remove(entry.getKey());
-							}
-						}
-
+						
 						synchronized(lock) {
+							
+							for(Map.Entry<Integer, Set<Long>> entry : ht.entrySet()) {
+								if(!kmer_ht.containsKey(entry.getKey())) {
+									kmer_ht.put(entry.getKey(), entry.getValue());
+								} else {
+									kmer_ht.get(entry.getKey()).addAll(entry.getValue());
+									// not sure if this is necessary
+									// likely will simplify the garbage collection? 
+									// although this is not correct
+									// ht.remove(entry.getKey());
+								}
+							}
+						
 							cons_progress += this.sequences.size();
 							for(Sequence sequence : sequences) cons_size += sequence.seq_ln();
 						}
@@ -345,18 +346,94 @@ public class Graphmap extends Executor {
 		
 		if(writeHashTable) this.writeHashTable();
 	}
+	
+    private void writeHashTable() {
+        // TODO Auto-generated method stub
+        myLogger.info("Writing "+merK+"-mer hash table to File.");
+        long elapsed_start = System.nanoTime();
+        try {
+            BufferedWriter bw_ht = Utils.getBufferedWriter(this.out_prefix+".h");
+            for(Map.Entry<Integer, Set<Long>> entry : kmer_ht.entrySet()) {
+                bw_ht.write(entry.getKey().toString());
+                for(long val : entry.getValue()) bw_ht.write(" "+val);
+                bw_ht.write("\n");
+            }
+            bw_ht.close();
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        long elapsed_end = System.nanoTime();
+        myLogger.info(merK+"-mer hash table writing completed: "+kmer_ht.size()+" "+
+                merK+"-mers in "+(elapsed_end-elapsed_start)/1e9+" secondes");
+        return;
+    }
 
-	private void writeHashTable() {
+    private void readHashTable() {
+        // TODO Auto-generated method stub
+        myLogger.info("Loading "+merK+"-mer hash table from File.");
+        long elapsed_start = System.nanoTime();
+        try {
+            BufferedReader br_ht = Utils.getBufferedReader(this.hash_file);
+            String line;
+            String[] s;
+            while( (line=br_ht.readLine())!=null ) {
+                s = line.split(" ");
+                Set<Long> val = new HashSet<Long>();
+                for(int i=1; i<s.length; i++)
+                    val.add(Long.parseLong(s[i]));
+                kmer_ht.put(Integer.parseInt(s[0]), val);
+            }
+            br_ht.close();
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        long elapsed_end = System.nanoTime();
+        myLogger.info(merK+"-mer hash table loading completed: "+kmer_ht.size()+" "+
+                merK+"-mers in "+(elapsed_end-elapsed_start)/1e9+" secondes");
+        myLogger.info("++++JVM memory with Kmer hash table loaded++++");
+        myLogger.info("Total memory : "+totalMemory()+"Mb");
+        myLogger.info("Free memory  : "+freeMemory() +"Mb");
+        myLogger.info("Used memory  : "+usedMemory() +"Mb");
+        return;
+    }
+
+	private void writeHashTableInParallel() {
 		// TODO Auto-generated method stub
 		myLogger.info("Writing "+merK+"-mer hash table to File.");
 		long elapsed_start = System.nanoTime();
+		BufferedWriter bw_ht = Utils.getBufferedWriter(this.out_prefix+".h");
+		this.initial_thread_pool();
+		for(Map.Entry<Integer, Set<Long>> entry : kmer_ht.entrySet()) {
+			executor.submit(new Runnable() {
+
+				@Override
+				public void run() {
+					// TODO Auto-generated method stub
+					try {
+						StringBuilder os = new StringBuilder();
+						os.append(entry.getKey());
+						for(long val : entry.getValue()) {
+							os.append(" ");
+							os.append(val);
+						}
+						os.append("\n");
+						bw_ht.write(os.toString());
+					} catch (Exception e) {
+						// TODO Auto-generated catch block
+						Thread t = Thread.currentThread();
+						t.getUncaughtExceptionHandler().uncaughtException(t, e);
+						e.printStackTrace();
+						executor.shutdown();
+						System.exit(1);
+					}
+				}
+			});
+		}
+		this.waitFor();
 		try {
-			BufferedWriter bw_ht = Utils.getBufferedWriter(this.out_prefix+".h");
-			for(Map.Entry<Integer, Set<Long>> entry : kmer_ht.entrySet()) {
-				bw_ht.write(entry.getKey());
-				for(long val : entry.getValue()) bw_ht.write(" "+val);
-				bw_ht.write("\n");
-			}
+
 			bw_ht.close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -368,21 +445,47 @@ public class Graphmap extends Executor {
 		return;
 	}
 
-	private void readHashTable() {
+	private void readHashTableInParallel() {
 		// TODO Auto-generated method stub
 		myLogger.info("Loading "+merK+"-mer hash table from File.");
 		long elapsed_start = System.nanoTime();
 		try {
 			BufferedReader br_ht = Utils.getBufferedReader(this.hash_file);
 			String line; 
-			String[] s;
+			this.initial_thread_pool();
 			while( (line=br_ht.readLine())!=null ) {
-				s = line.split(" ");
-				Set<Long> val = new HashSet<Long>();
-				for(int i=1; i<s.length; i++)
-					val.add(Long.parseLong(s[i]));
-				kmer_ht.put(Integer.parseInt(s[0]), val);
+				executor.submit(new Runnable() {
+					private String line;
+					
+					@Override
+					public void run() {
+						// TODO Auto-generated method stub
+						try {
+							String[] s = line.split(" ");
+							Set<Long> val = new HashSet<Long>();
+							for(int i=1; i<s.length; i++)
+								val.add(Long.parseLong(s[i]));
+							synchronized(lock) {
+								kmer_ht.put(Integer.parseInt(s[0]), val);
+							}
+						} catch (Exception e) {
+							// TODO Auto-generated catch block
+							Thread t = Thread.currentThread();
+							t.getUncaughtExceptionHandler().uncaughtException(t, e);
+							e.printStackTrace();
+							executor.shutdown();
+							System.exit(1);
+						}
+					}
+
+					public Runnable init(String line) {
+						// TODO Auto-generated method stub
+						this.line = line;
+						return this;
+					}
+				}.init(line));
 			}
+			this.waitFor();
 			br_ht.close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
