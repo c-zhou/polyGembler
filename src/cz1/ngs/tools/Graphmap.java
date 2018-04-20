@@ -34,7 +34,8 @@ import cz1.util.Utils;
 
 public class Graphmap extends Executor {
 
-	protected final static BufferedWriter STD_OUT_BUFFER = new BufferedWriter(new OutputStreamWriter(System.out), 65536);
+	// 8Mb buffer size
+	protected final static BufferedWriter STD_OUT_BUFFER = new BufferedWriter(new OutputStreamWriter(System.out), 8388608);
 	private static enum Task {hash, map, zzz}
 	private Task task_list = Task.zzz;
 
@@ -553,7 +554,9 @@ public class Graphmap extends Executor {
 	private final static int k_dst = 24; // at least one kmer in k_dst bp on average
 	private final static double olap_min = 0.99; // min overlap fraction for containment
 	private final static double collinear_shift = 1.0;
-
+	private final static int m_clip = 100; // max clip size to treat an alignment end-to-end
+	private final static int m_clip2 = m_clip*2;
+	
 	// ok, let call this a backup
 	/***
 	private void map() {
@@ -714,10 +717,9 @@ public class Graphmap extends Executor {
 							std_out.append(">>>>>>>>>>"+qry_sn+"<<<<<<<<<<\n");
 
 							String kmer;
-							int qry_ln;
+							int qry_ln, sub_ln;
 							int kmer_hash, sub_ind, sub_pos;
 							KMP kmp_prev, kmp_curr;
-							List<KMP> hits, sort_hits, intercept, segs;
 
 							// we have query sequence now
 							// we need to find shared kmers with the subject/reference sequences
@@ -749,7 +751,7 @@ public class Graphmap extends Executor {
 								}
 							}
 
-							sort_hits = new ArrayList<KMP>();
+							final List<KMP> sort_hits = new ArrayList<KMP>();
 							for(final int i : kmer_hits.keySet()) 
 								sort_hits.add(new KMP(i, kmer_hits.get(i).size()));
 							Collections.sort(sort_hits, new Comparator<KMP>() {
@@ -760,16 +762,22 @@ public class Graphmap extends Executor {
 								}
 							});	
 
-							int qstart, qend, sstart, send, merCount;
+							int qstart, qend, sstart, send, merCount, a, b;
 							// now we get all kmer hits
 							// for each subject sequence we now filter non-collinear hits
 							// and calculate the alignment
 							final List<TraceableAlignmentSegment> alignments = new ArrayList<TraceableAlignmentSegment>();
+							final Set<Integer> a_rm = new HashSet<Integer>();
+							final Set<Integer> b_rm = new HashSet<Integer>();
+							final Set<Integer> a_bucket = new HashSet<Integer>();
+							final Set<Integer> b_bucket = new HashSet<Integer>();
+							TraceableAlignmentSegment alignment;
+							
 							for(final KMP k : sort_hits) {
 								final int i = k.a;
 
-								hits = kmer_hits.get(i);
-								if(hits.size()<k_min) continue;
+								final List<KMP> kmps = kmer_hits.get(i);
+								if(kmps.size()<k_min) continue;
 
 								// we find best alignment block on query sequence first
 								//    ________________________________
@@ -788,9 +796,71 @@ public class Graphmap extends Executor {
 								// (1 2 3 4 6 8) are selected kmers
 								// TODO: this is not exactly right as we also need to consider 
 								//       the positions on the reference sequence
-
+								// TODO: this is not always correct
+								//       especially in the repetitive region
+								// test case: 27f73126-832e-48a9-b7b1-794c670ec630_Basecall_1D_template
+								//  
+								//    ________________________________
+								//   |     1/o     /          /     / |
+								//   |     2/o    /          /     /  |
+								//   |     3/o   /          /     /   |
+								//   |     4/o  /          /     /    |
+								//   |     5/o /       9 x/     /     |
+								//   |     6/o/          /     /      |
+								//   |    7 o/          /  a x/       |
+								//   |     8/o         /     /        |
+								//   |_____/__________/_____/_________|
+								//    a   b   c   d   e   f   g   h
+								//  (1 2 ... 8)      (5)   (6)
+                                //    ________________________________
+								//   |             /          /     / |
+								//   |            /          /     /  |
+								//   |           /          /     /   |
+								//   |          /          /     /    |
+								//   |         /       9 o/     /     |
+								//   |      1 /2 3 4 5 6 /  a o/      |
+								//   |      o/ o o o o o/o o  /       |
+								//   |      /          / 7 8 /        |
+								//   |_____/__________/_____/_________|
+								//    a   b   c   d   e   f   g   h
+								//             (1 2 ... a) 
+								// in the example above, put (1 2 ... a) together is very dangerous 
+								// this is possible if the query sequence is repetitive
+								//
+								// this is to fix the repetitive problem
+								
+								a_rm.clear();
+								b_rm.clear();
+								a_bucket.clear();
+								b_bucket.clear();
+								
+								for(int w=0; w<kmps.size(); w++) {
+									kmp_prev = kmps.get(w);
+									a = kmp_prev.a;
+									if(a_bucket.contains(a)) {
+										a_rm.add(a);
+									} else {
+										a_bucket.add(a);
+									}
+									b = kmp_prev.b;
+									if(b_bucket.contains(b)) {
+										b_rm.add(b);
+									} else {
+										b_bucket.add(b);
+									}
+								}
+								
+								final List<KMP> hits = new ArrayList<KMP>(); 
+								for(KMP kmp : kmps) {
+									if(!a_rm.contains(kmp.a)&&
+											!b_rm.contains(kmp.b)) 
+										hits.add(kmp);
+								}
+								
+								if(hits.isEmpty()) continue;
+								
 								// this is a placeholder for intercepts <position, #kmers>
-								intercept = new ArrayList<KMP>();
+								final List<KMP> intercept = new ArrayList<KMP>();
 								for(int w=0; w<hits.size(); w++) {
 									KMP p = hits.get(w);
 									intercept.add(new KMP(p.a-p.b, w));
@@ -798,6 +868,9 @@ public class Graphmap extends Executor {
 								Collections.sort(intercept);
 
 								if(ddebug) {
+									std_out.append("+");
+									std_out.append(sub_seqs.get(seq_index.getKey(i)).seq_sn());
+									std_out.append("\n");
 									for(KMP kmp : hits) {
 										std_out.append(kmp.a+" "+kmp.b);
 										std_out.append("\n");
@@ -805,7 +878,7 @@ public class Graphmap extends Executor {
 								}
 								
 								// this is a placeholder for segments <position, #kmers>
-								segs = new ArrayList<KMP>();
+								final List<KMP> segs = new ArrayList<KMP>();
 								kmp_prev = intercept.get(0);
 								int start = 0, nk;
 								int is = intercept.size();
@@ -899,7 +972,12 @@ public class Graphmap extends Executor {
 								}
 
 								if(qend-qstart+1>k_dst*merCount) continue;
-								alignments.add(new TraceableAlignmentSegment(qry_sn, sub_seqs.get(seq_index.getKey(i)).seq_sn(), qstart, qend, sstart, send, merCount));
+								alignment = new TraceableAlignmentSegment(qry_sn, sub_seqs.get(seq_index.getKey(i)).seq_sn(), qstart, qend, sstart, send, merCount);
+								
+								// check if this is end-to-end alignment
+								sub_ln = sub_seqs.get(seq_index.getKey(i)).seq_ln();
+								alignment.setEndToEnd(qstart<=m_clip||qend+m_clip>=qry_ln, sstart<=m_clip||send+m_clip>=sub_ln);
+								alignments.add(alignment);
 							}
 
 							Collections.sort(alignments, new TraceableAlignmentSegment.QLengthComparator());
@@ -926,18 +1004,31 @@ public class Graphmap extends Executor {
 								std_out.append(as.toString()+"\n");
 							}
 
+							// TODO: need to check the collinearity, i.e., cannot be too distant alignments
+							//       also if the clip is too large, then we don't want to merge them neither
+							// test case: e023806d-6dbd-42d2-bac0-da6734d90e52_Basecall_1D_template
+							//            f7e121bb-12dd-4144-8d3d-d8426c686d0b_Basecall_1D_template
+							//            f57698c4-3e82-4d9f-b7fb-5f99c872bf9c_Basecall_1D_template
+							//            b956bf82-e9b9-47d1-9071-af5ea1143ce2_Basecall_1D_template
 							int asz = alignments.size();
 							TraceableAlignmentSegment source_as, target_as, tmp_as;
 							String source_id, target_id;
+							int source_qstart, source_qend, target_qstart, target_qend;
 							final Map<String, List<TraceableAlignmentSegment>> merged_seq = new HashMap<String, List<TraceableAlignmentSegment>>(); 
 							for(int w=0; w<asz; w++) {
 								source_as = alignments.get(w);
-								if(source_as==null) continue;
+								// source need to be no clip to the end
+								if(source_as==null||!source_as.getToEnd()) continue;
 								source_id = source_as.sseqid();
+								source_qend = source_as.qend();
 								for(int z=w+1; z<asz; z++) {
 									target_as = alignments.get(z);
-									if(target_as==null) continue;
+									// target need to be not clip to the start
+									if(target_as==null||!target_as.getToStart()) continue;
 									target_id = target_as.sseqid();
+									// if gap size is too big
+									if(target_as.qstart()-source_qend>m_clip2) continue;
+									
 									if(gfa.containsEdge(source_id, target_id)) {
 										if(merged_seq.containsKey(source_id)) {
 											List<TraceableAlignmentSegment> new_seq = merged_seq.get(source_id);
@@ -950,10 +1041,13 @@ public class Graphmap extends Executor {
 											new_seq.add(target_as);
 											merged_seq.put(target_id, new_seq);
 										}
-										alignments.set(w, new TraceableAlignmentSegment(qry_sn, target_id, 
+										alignment = new TraceableAlignmentSegment(qry_sn, target_id, 
 												source_as.qstart(), 
 												Math.max(source_as.qend(),   target_as.qend()),
-												-1, -1) );
+												-1, 
+												-1);
+										alignment.setEndToEnd(source_as.getToStart(), target_as.getToEnd());
+										alignments.set(w,  alignment);
 										alignments.set(z, null);
 										--w;
 										break;
@@ -969,7 +1063,7 @@ public class Graphmap extends Executor {
 							}
 
 							// we remove containment
-							int source_qstart, source_qend, target_qstart, target_qend, source_len, target_len;
+							int source_len, target_len;
 							double source_olap, target_olap;
 							double olap;
 							outerloop:
@@ -1111,8 +1205,8 @@ public class Graphmap extends Executor {
 								std_out.append("--------------------------------\n");
 								for(TraceableAlignmentSegment as : graph_path) { 
 									if(merged_seq.containsKey(as.sseqid())) {
-										List<TraceableAlignmentSegment> ma = merged_seq.get(as.sseqid());
-										for(TraceableAlignmentSegment a : ma) std_out.append(a.toString()+"\n");
+										List<TraceableAlignmentSegment> tas = merged_seq.get(as.sseqid());
+										for(TraceableAlignmentSegment ta : tas) std_out.append(ta.toString()+"\n");
 									} else {
 										std_out.append(as.toString()+"\n");
 									}	
@@ -1211,11 +1305,53 @@ final class TraceableAlignmentSegment extends AlignmentSegment {
 	private TraceableAlignmentSegment trace = null;
 	private double objective = 0d;
 	private int mer_count = 0;
+	private boolean to_start = false;
+	private boolean to_end   = false;
+	private boolean end_to_end = false; 
 
 	public TraceableAlignmentSegment(String qseqid, String sseqid, 
 			int qstart, int qend, int sstart, int send) {
 		// TODO Auto-generated constructor stub
 		super(qseqid, sseqid, qstart, qend, sstart, send, true);
+	}
+	
+	public void setEndToEnd(boolean to_start, boolean to_end) {
+		// TODO Auto-generated method stub
+		this.to_start = to_start;
+		this.to_end   = to_end;
+		this.end_to_end = to_start&&to_end;
+		}
+	
+	public void setEndToEnd(boolean end_to_end) {
+		// TODO Auto-generated method stub
+		this.end_to_end = end_to_end;
+	}
+	
+	public void setToStart(boolean to_start) {
+		// TODO Auto-generated method stub
+		this.to_start = to_start;
+	}
+	
+	
+	public void setToEnd(boolean to_end) {
+		// TODO Auto-generated method stub
+		this.to_end = to_end;
+	}
+	
+	public boolean getToStart() {
+		// TODO Auto-generated method stub
+		return this.to_start;
+	}
+	
+	
+	public boolean getToEnd() {
+		// TODO Auto-generated method stub
+		return this.to_end;
+	}
+	
+	public boolean getEndToEnd() {
+		// TODO Auto-generated method stub
+		return this.end_to_end;
 	}
 
 	public TraceableAlignmentSegment(String qseqid, String sseqid, 
