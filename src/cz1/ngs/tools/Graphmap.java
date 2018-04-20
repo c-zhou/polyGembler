@@ -34,7 +34,7 @@ import cz1.util.Utils;
 
 public class Graphmap extends Executor {
 
-	protected final static BufferedWriter STD_OUT_BUFFER = new BufferedWriter(new OutputStreamWriter(System.out),65536);
+	protected final static BufferedWriter STD_OUT_BUFFER = new BufferedWriter(new OutputStreamWriter(System.out), 65536);
 	private static enum Task {hash, map, zzz}
 	private Task task_list = Task.zzz;
 
@@ -97,7 +97,7 @@ public class Graphmap extends Executor {
 	private String hash_file = null;
 	private String out_prefix;
 	private int merK = 12;
-	private int maxC = Integer.MAX_VALUE;
+	private int maxC = Integer.MAX_VALUE-1;
 	private boolean debug = false;
 	private boolean ddebug = false;
 
@@ -411,6 +411,7 @@ public class Graphmap extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info("Loading "+merK+"-mer hash table from File.");
 		long elapsed_start = System.nanoTime();
+		long progress = 0;
 		try {
 			BufferedReader br_ht = Utils.getBufferedReader(this.hash_file);
 			String line;
@@ -422,6 +423,7 @@ public class Graphmap extends Executor {
 				for(int i=1; i<s.length; i++)
 					val.add(Long.parseLong(s[i]));
 				kmer_ht.put(Integer.parseInt(s[0]), val);
+				if(++progress%100000==0) myLogger.info(merK+"-mer processed: "+progress);
 			}
 			br_ht.close();
 		} catch (IOException e) {
@@ -501,6 +503,7 @@ public class Graphmap extends Executor {
 						// TODO Auto-generated method stub
 						try {
 							String[] s = line.split(" ");
+							if(s.length>maxC+1) return;
 							Set<Long> val = new HashSet<Long>();
 							for(int i=1; i<s.length; i++)
 								val.add(Long.parseLong(s[i]));
