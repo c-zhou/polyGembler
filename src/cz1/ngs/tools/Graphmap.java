@@ -714,20 +714,20 @@ public class Graphmap extends Executor {
 							std_out.append(">>>>>>>>>>"+qry_sn+"<<<<<<<<<<\n");
 
 							String kmer;
-							double qry_ln;
+							int qry_ln;
 							int kmer_hash, sub_ind, sub_pos;
 							KMP kmp_prev, kmp_curr;
 							List<KMP> hits, sort_hits, intercept, segs;
 
 							// we have query sequence now
 							// we need to find shared kmers with the subject/reference sequences
-							qry_ln = qry_sq.length()-merK+1;
+							qry_ln = qry_sq.length();
 
 							// a hashmap to hold the kmer hits of the query sequence to each subject sequence
 							// a list to hold the kmer hits positions to the subject sequence 
 							final Map<Integer, List<KMP>> kmer_hits = new HashMap<Integer, List<KMP>>();
-
-							for(int i=0; i!=qry_ln; i++) {
+							final int N = qry_ln-merK+1;
+							for(int i=0; i<N; i++) {
 								// process each mer
 								kmer = qry_sq.substring(i, i+merK);
 								if(kmer.contains("N")||kmer.contains("n")) 
@@ -915,7 +915,7 @@ public class Graphmap extends Executor {
 
 							if(alignments.size()<=1) {
 								std_out.append(qry_sn+": alignment fraction "+ 
-										(alignments.isEmpty()?0:(alignments.get(0).qlength()/qry_ln))+"\n");
+										(alignments.isEmpty()?0:((double)alignments.get(0).qlength()/qry_ln))+"\n");
 								std_out.append("<<<<<<<<<<"+qry_sn+">>>>>>>>>>\n");
 								STD_OUT_BUFFER.write(std_out.toString());
 								return;
@@ -1028,7 +1028,7 @@ public class Graphmap extends Executor {
 							for(TraceableAlignmentSegment as : alignments) if(as!=null) selected.add(as);
 							if(selected.size()<=1) {
 								std_out.append(qry_sn+": alignment fraction "+ 
-										(selected.isEmpty()?0:(selected.get(0).qlength()/qry_ln))+"\n");
+										(selected.isEmpty()?0:((double)selected.get(0).qlength()/qry_ln))+"\n");
 								std_out.append("<<<<<<<<<<"+qry_sn+">>>>>>>>>>\n");
 								STD_OUT_BUFFER.write(std_out.toString());
 								return;
