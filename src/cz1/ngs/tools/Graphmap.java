@@ -54,6 +54,7 @@ public class Graphmap extends Executor {
 					"\n\nUsage is as follows:\n"
 							+ " -s/--subject            The FASTA file contain subject/reference sequences. \n"
 							+ " -k/--kmer-size          K-mer size (no greater than 16, default 12).\n"
+							+ " -x/--max-mer-count      Maxmium mer count (no limit).\n"
 							+ " -t/--threads            Threads to use (default 1). \n"
 							+ "                         The maximum number of threads to use will be the number of BAM files.\n"
 							+ " -o/--out                Prefix of the output files.\n"
@@ -77,6 +78,7 @@ public class Graphmap extends Executor {
 							+ " -k/--kmer-size          K-mer size (no greater than 16, default 12).\n"
 							+ " -H/--hash-table         Hash table. If provided will load hash table from the file instead of \n"
 							+ "                         reconstruct it.\n"
+							+ " -x/--max-mer-count      Maxmium mer count (no limit).\n"
 							+ " -t/--threads            Threads to use (default 1). \n"
 							+ "                         The maximum number of threads to use will be the number of BAM files.\n"
 							+ " -d/--debug              Debugging mode will have extra information printed out.\n"
@@ -95,6 +97,7 @@ public class Graphmap extends Executor {
 	private String hash_file = null;
 	private String out_prefix;
 	private int merK = 12;
+	private int maxC = Integer.MAX_VALUE;
 	private boolean debug = false;
 	private boolean ddebug = false;
 
@@ -128,6 +131,7 @@ public class Graphmap extends Executor {
 			myArgsEngine.add("-g", "--graph", true);
 			myArgsEngine.add("-k", "--kmer-size", true);
 			myArgsEngine.add("-H", "--hash-table", true);
+			myArgsEngine.add("-x", "--max-mer-count", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-d", "--debug", false);
 			myArgsEngine.add("-dd", "--debug-debug", false);
@@ -148,6 +152,10 @@ public class Graphmap extends Executor {
 				merK = 16;
 				myLogger.warn("Set mer size K=16.");
 			}
+		}
+		
+		if (myArgsEngine.getBoolean("-x")) {
+			this.maxC = Integer.parseInt(myArgsEngine.getString("-x"));
 		}
 
 		if (myArgsEngine.getBoolean("-t")) {
@@ -361,6 +369,11 @@ public class Graphmap extends Executor {
 			sequences = new ArrayList<Sequence>();
 		}
 		this.waitFor();
+
+		// filtering by max mer count
+		for(Map.Entry<Integer, Set<Long>> entry : kmer_ht.entrySet()) 
+			if(entry.getValue().size()>maxC) kmer_ht.remove(entry.getKey());
+		
 		long elapsed_end = System.nanoTime();
 		myLogger.info(merK+"-mer hash table construction completed: "+kmer_ht.size()+" "+
 				merK+"-mers in "+(elapsed_end-elapsed_start)/1e9+" secondes");
@@ -404,6 +417,7 @@ public class Graphmap extends Executor {
 			String[] s;
 			while( (line=br_ht.readLine())!=null ) {
 				s = line.split(" ");
+				if(s.length>maxC+1) continue;
 				Set<Long> val = new HashSet<Long>();
 				for(int i=1; i<s.length; i++)
 					val.add(Long.parseLong(s[i]));
