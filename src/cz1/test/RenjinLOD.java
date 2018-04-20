@@ -74,7 +74,7 @@ public class RenjinLOD extends Executor {
 			ds_in = myArgsEngine.getString("-i").split(",");
 		} else {
 			printUsage();
-			throw new IllegalArgumentException("Please specify your input zip file.");
+			throw new IllegalArgumentException("Please specify your recombination frequency file.");
 		}
 
 		if(myArgsEngine.getBoolean("-o")) {
@@ -88,14 +88,14 @@ public class RenjinLOD extends Executor {
 			n_hap = Integer.parseInt(myArgsEngine.getString("-n"));
 		} else {
 			printUsage();
-			throw new IllegalArgumentException("Please specify your input zip file.");
+			throw new IllegalArgumentException("Please specify the number of samples.");
 		}
 
 		if(myArgsEngine.getBoolean("-g")) {
 			txt_in = myArgsEngine.getString("-g");
 		}  else {
 			printUsage();
-			throw new IllegalArgumentException("Please specify your output file prefix.");
+			throw new IllegalArgumentException("Please specify your log file for genetic mapping.");
 		}
 	}
 
@@ -139,12 +139,13 @@ public class RenjinLOD extends Executor {
 			for(String in : ds_in) {
 				BufferedReader br = Utils.getBufferedReader(in);
 				while( (line=br.readLine())!=null ) {
+					if(line.startsWith("##")) continue;
 					s = line.split("\\s+");
-					scf_i1 = scaffs.getKey(s[6]);
-					scf_i2 = scaffs.getKey(s[7]);
+					scf_i1 = scaffs.getKey(s[5]);
+					scf_i2 = scaffs.getKey(s[6]);
 					if(scf_i1==null || scf_i2==null)
 						continue;
-					f = Double.parseDouble(s[1]);
+					f = Double.parseDouble(s[0]);
 					recomf[scf_i1][scf_i2] = f;
 					recomf[scf_i2][scf_i1] = f;
 					if(f==0) {

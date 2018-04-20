@@ -103,7 +103,7 @@ public class Anchor extends Executor {
 	private double diff_ident = 0.05;     // keep the secondary alignment if the identity score difference is no greater than this
 	private double diff_frac = 0.05;      // keep the secondary alignment if the completeness difference is no greater than this
 	private int min_overlap = 10;         // minimum overlap length
-	private double collinear_shift = 10; // maximum shift distance for two collinear alignment segments - 50% of the smaller segment size
+	private double collinear_shift = 0.5; // maximum shift distance for two collinear alignment segments - 50% of the smaller segment size
 	private int kmer_size = -1;           // kmer size to construct the de bruijn assembly graph
 
 	private int num_threads = Runtime.getRuntime().availableProcessors();
@@ -355,10 +355,28 @@ public class Anchor extends Executor {
 					Collections.sort(tmp_records, new AlignmentSegment.SubjectCoordinationComparator());
 
 					SAMSegment record;
+					int pqstart, pqend, sqstart, sqend, olap;
 					for(int i=0; i<tmp_records.size(); i++) {
 						primary_record = tmp_records.get(i);
+						pqstart = primary_record.true_qstart();
+						pqend   = primary_record.true_qend();
+						
 						for(int j=i+1; j<tmp_records.size(); j++) {
 							secondary_record = tmp_records.get(j);
+							// we need to check if they are two copies that are close to each other
+							// TODO: how?
+							// we check the region of alignments on the query sequence
+							// if the overlap is greater than 90%, we regard them as different copies
+							sqstart = secondary_record.true_qstart();
+							sqend   = secondary_record.true_qend();
+							
+							olap = 0;
+							if(pqstart<=sqstart) olap = Math.max(0, pqend-sqstart);
+							if(pqstart> sqstart) olap = Math.max(0, sqend-pqstart);
+							
+							if( (double)olap/(pqend-pqstart+1)>=0.9||(double)olap/(sqend-sqstart+1)>=0.9 ) continue;
+							
+							// now we check if they two are collinear
 							double max_shift = collinear_shift*
 									Math.min(primary_record.qlength(), secondary_record.qlength());
 							if( (record=SAMSegment.collinear(primary_record, secondary_record, max_shift))!=null ) {
@@ -487,13 +505,13 @@ public class Anchor extends Executor {
 
 				// convert contig names to integer indices
 				// one contig could end up with multiple indices due to repeats
-				Map<Integer, String> ss_coordinate = new HashMap<Integer, String>();
-				int index = 0;
-				for(SAMSegment record : sam_records)
-					ss_coordinate.put(index++, record.qseqid()+(record.forward()?"":"'"));
+				// Map<Integer, String> ss_coordinate = new HashMap<Integer, String>();
+				// int index = 0;
+				// for(SAMSegment record : sam_records)
+				//	ss_coordinate.put(index++, record.qseqid()+(record.forward()?"":"'"));
 
 				StringBuilder seq_str = new StringBuilder();
-				for(int v=0; v<nV-1; v++) {
+				for(int v=0; v<nV; v++) {
 					if(++count%10000==0) myLogger.info(sub_sn+" "+count+"/"+nV+" done.");
 
 					SAMSegment record = sam_records.get(v);
@@ -535,19 +553,24 @@ public class Anchor extends Executor {
 						continue;
 					}
 
-					// find longest suffix-prefix
-					nS = seq_str.length();
-					nQ = qseq.length();
-					int nO = Math.min(prev_n, Math.min(nS, nQ));
-					outerloop:
-						for(; nO>=min_overlap; nO--) {
-							int nS_i = nS-nO;
-							for(int i=0; i<nO; i++) {
-								if(seq_str.charAt(nS_i+i)!=qseq.charAt(i))
-									continue outerloop;
+					int nO = 0;
+					if(send_clip<=min_overlap&&qstart_clip<=min_overlap) {
+						nO = posUpto-sstart+qstart_clip+1;
+					} else {
+						// find longest suffix-prefix
+						nS = seq_str.length();
+						nQ = qseq.length();
+						nO = Math.min(prev_n, Math.min(nS, nQ));
+						outerloop:
+							for(; nO>=min_overlap; nO--) {
+								int nS_i = nS-nO;
+								for(int i=0; i<nO; i++) {
+									if(seq_str.charAt(nS_i+i)!=qseq.charAt(i))
+										continue outerloop;
+								}
+								break outerloop;
 							}
-							break outerloop;
-						}
+					}
 
 					if(nO<min_overlap) {
 						// no overlap found

@@ -1,8 +1,10 @@
 package cz1.ngs.model;
 
 import java.util.Comparator;
+import java.util.List;
 
 import cz1.util.Constants;
+import htsjdk.samtools.Cigar;
 import htsjdk.samtools.CigarElement;
 import htsjdk.samtools.CigarOperator;
 import htsjdk.samtools.SAMRecord;
@@ -65,10 +67,37 @@ public class SAMSegment extends AlignmentSegment {
 	public static SAMSegment samRecord(SAMRecord sam_rc) {
 		// TODO Auto-generated method stub
 		if(sam_rc==null) return null;
-		return new SAMSegment(sam_rc.getReadName(), 
+		if(!sam_rc.getReadNegativeStrandFlag())
+			return new SAMSegment(sam_rc.getReadName(), 
 				sam_rc.getReferenceName(),
 				sam_rc.getReadPositionAtReferencePosition(sam_rc.getAlignmentStart()),
 				sam_rc.getReadPositionAtReferencePosition(sam_rc.getAlignmentEnd()),
+				sam_rc.getAlignmentStart(),
+				sam_rc.getAlignmentEnd(),
+				sam_rc.getCigarString(),
+				sam_rc.getMappingQuality(),
+				sam_rc.getIntegerAttribute("NM"),
+				sam_rc.getIntegerAttribute("AS"));
+		
+		List<CigarElement> cigars = sam_rc.getCigar().getCigarElements();
+		int nL = 0;
+		for(CigarElement cigar : cigars) {
+			switch(cigar.getOperator()) {
+			case H:
+			case S:
+			case M:
+			case I:
+				nL += cigar.getLength();
+				break;
+			default:
+				break;
+			}
+		}
+		
+		return new SAMSegment(sam_rc.getReadName(), 
+				sam_rc.getReferenceName(),
+				nL-sam_rc.getReadPositionAtReferencePosition(sam_rc.getAlignmentStart())+1,
+				nL-sam_rc.getReadPositionAtReferencePosition(sam_rc.getAlignmentEnd())+1,
 				sam_rc.getAlignmentStart(),
 				sam_rc.getAlignmentEnd(),
 				sam_rc.getCigarString(),

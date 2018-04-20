@@ -13,8 +13,8 @@ public class AlignmentSegment {
 	protected final int sstart;      // start of alignment in subject
 	protected final int send;        // end of alignment in subject
 	
-	protected final double sintercept;
-	protected final double qintercept;
+	protected double sintercept;
+	protected double qintercept;
 	
 	public AlignmentSegment(
 			final String qseqid,   // query (e.g., gene) sequence id
@@ -23,6 +23,18 @@ public class AlignmentSegment {
 			final int qend,        // end of alignment in query
 			final int sstart,      // start of alignment in subject
 			final int send         // end of alignment in subject
+			) {
+		this(qseqid, sseqid, qstart,qend,sstart,send, true);	
+	}
+	
+	public AlignmentSegment(
+			final String qseqid,   // query (e.g., gene) sequence id
+			final String sseqid,   // subject (e.g., reference genome) sequence id
+			final int qstart,      // start of alignment in query
+			final int qend,        // end of alignment in query
+			final int sstart,      // start of alignment in subject
+			final int send,        // end of alignment in subject
+			final boolean calcIntercept
 			) {
 		this.qseqid = qseqid;
 		this.sseqid = sseqid;
@@ -37,8 +49,10 @@ public class AlignmentSegment {
 			this.sstart = send;
 			this.send = sstart;
 		}
-		this.sintercept = this.calc_sintercept();
-		this.qintercept = this.calc_qintercept();
+		if(calcIntercept) {
+			this.sintercept = this.calc_sintercept();
+			this.qintercept = this.calc_qintercept();
+		}
 	}
 
 	@Override
@@ -129,6 +143,15 @@ public class AlignmentSegment {
     		return Double.compare(record1.qintercept, record2.qintercept);
     	}
     }
+    
+    public static class QLengthComparator 
+	implements Comparator<AlignmentSegment> {
+	@Override
+	public int compare(AlignmentSegment record1, AlignmentSegment record2) {
+		// TODO Auto-generated method stub
+		return Double.compare(record2.qlength(), record1.qlength());
+	}
+}
     
     private double calc_qintercept() {
 		// TODO Auto-generated method stub
