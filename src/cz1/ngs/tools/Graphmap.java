@@ -34,8 +34,10 @@ import cz1.util.Utils;
 
 public class Graphmap extends Executor {
 
+	private final static int buffSize1Kb = 1024;
 	// 8Mb buffer size
-	protected final static BufferedWriter STD_OUT_BUFFER = new BufferedWriter(new OutputStreamWriter(System.out), 8388608);
+	private final static int buffSize8Mb = 8388608;
+	private final static BufferedWriter STD_OUT_BUFFER = new BufferedWriter(new OutputStreamWriter(System.out), buffSize1Kb);
 	private static enum Task {hash, map, zzz}
 	private Task task_list = Task.zzz;
 
@@ -237,10 +239,6 @@ public class Graphmap extends Executor {
 	//          32bits sequence index + 32bits sequence position
 	private final Map<Integer, Set<Long>> kmer_ht = new HashMap<Integer, Set<Long>>();
 	private final static Object lock = new Object();
-	private final static int match_score = 2;
-	private final static int mismatch_penalty = -4;
-	private final static int[] gap_open = new int[]{-4, -24};
-	private final static int[] gap_extension = new int[]{-2, -1};
 	private static long cons_progress = 0L, cons_size = 0L;
 
 	@Override
@@ -976,7 +974,9 @@ public class Graphmap extends Executor {
 								
 								// check if this is end-to-end alignment
 								sub_ln = sub_seqs.get(seq_index.getKey(i)).seq_ln();
-								alignment.setEndToEnd(qstart<=m_clip||qend+m_clip>=qry_ln, sstart<=m_clip||send+m_clip>=sub_ln);
+								alignment.setEndToEnd(qstart<=m_clip||sstart<=m_clip, qend+m_clip>=qry_ln||send+m_clip>=sub_ln);
+								alignment.setClip(qstart-1, qry_ln-qend, sstart-1, sub_ln-send);
+								alignment.calcScore();
 								alignments.add(alignment);
 							}
 
@@ -1047,6 +1047,9 @@ public class Graphmap extends Executor {
 												-1, 
 												-1);
 										alignment.setEndToEnd(source_as.getToStart(), target_as.getToEnd());
+										alignment.setClip(source_as.getQueryStartClip(), target_as.getQueryEndClip(), 
+												source_as.getSubjectStartClip(), target_as.getSubjectEndClip());
+										alignment.calcScore();
 										alignments.set(w,  alignment);
 										alignments.set(z, null);
 										--w;
@@ -1066,6 +1069,7 @@ public class Graphmap extends Executor {
 							int source_len, target_len;
 							double source_olap, target_olap;
 							double olap;
+							boolean sEndToEnd, tEndToEnd;
 							outerloop:
 								for(int w=0; w<asz; w++) {
 									source_as = alignments.get(w);
@@ -1073,15 +1077,18 @@ public class Graphmap extends Executor {
 									source_qstart = source_as.qstart();
 									source_qend   = source_as.qend();
 									source_len    = source_qend-source_qstart+1;
+									sEndToEnd = source_as.getEndToEnd();
 									for(int z=w+1; z<asz; z++) {
 										target_as = alignments.get(z);
 										if(target_as==null) continue;
 										target_qstart = target_as.qstart();
 										target_qend   = target_as.qend();
 										target_len    = target_qend-target_qstart+1;
+										tEndToEnd = target_as.getEndToEnd();
+										if(!sEndToEnd&&!tEndToEnd) continue;
 										// we calculate overlap size
 										if(target_qend<=source_qend) {
-											alignments.set(z, null);
+											if(sEndToEnd) alignments.set(z, null);
 											continue;
 										}
 										if((olap=source_qend-target_qstart)<=0)
@@ -1090,20 +1097,29 @@ public class Graphmap extends Executor {
 										target_olap = olap/target_len;
 										if(source_olap>=olap_min&&
 												target_olap>=olap_min) {
-											if(source_olap<target_olap) {
+											if(sEndToEnd&&tEndToEnd) {
+												if(source_olap<target_olap) {
+													alignments.set(z, null);
+													continue;
+												} else {
+													alignments.set(w, null);
+													continue outerloop;
+												}
+											} 
+											if(sEndToEnd) {
 												alignments.set(z, null);
 												continue;
-											} else {
+											} 
+											if(tEndToEnd) {
 												alignments.set(w, null);
 												continue outerloop;
 											}
 										}
-
-										if(source_olap>=olap_min) {
+										if(source_olap>=olap_min&&tEndToEnd) {
 											alignments.set(w, null);
 											continue outerloop;
 										}
-										if(target_olap>=olap_min) {
+										if(target_olap>=olap_min&&sEndToEnd) {
 											alignments.set(z, null);
 											continue;
 										}
@@ -1121,6 +1137,18 @@ public class Graphmap extends Executor {
 							final List<TraceableAlignmentSegment> selected = new ArrayList<TraceableAlignmentSegment>();
 							for(TraceableAlignmentSegment as : alignments) if(as!=null) selected.add(as);
 							if(selected.size()<=1) {
+								if(debug) {
+									std_out.append("--------------------------------\n");
+									if(!selected.isEmpty()) {
+										TraceableAlignmentSegment as = selected.get(0);
+										if(merged_seq.containsKey(as.sseqid())) {
+											List<TraceableAlignmentSegment> tas = merged_seq.get(as.sseqid());
+											for(TraceableAlignmentSegment ta : tas) std_out.append(ta.toString()+"\n");
+										} else {
+											std_out.append(as.toString()+"\n");
+										}	
+									}
+								}
 								std_out.append(qry_sn+": alignment fraction "+ 
 										(selected.isEmpty()?0:((double)selected.get(0).qlength()/qry_ln))+"\n");
 								std_out.append("<<<<<<<<<<"+qry_sn+">>>>>>>>>>\n");
@@ -1128,79 +1156,119 @@ public class Graphmap extends Executor {
 								return;
 							}
 
-							double dcov = 0d, objective = 0d; // record the current best path
+							double objective = 0d, dobj, opt_obj = 0d, tmp; // record the current best path
+							int tmp_qstart, tmp_qend;
 							TraceableAlignmentSegment traceback = null;
 							asz = selected.size();
 
+
 							for(int w=0; w<asz; w++) {
 								source_as = selected.get(w);
-								if(source_as.getTraceBack()!=null || 
-										source_as.qstart()>(qry_ln-dcov)) 
+								if(source_as.getTraceBackward()!=null) 
 									continue;
 								source_id = source_as.sseqid();
 								source_qstart = source_as.qstart();
 								source_qend   = source_as.qend();
-								objective = source_qend-source_qstart+1;
-								source_as.setObjective(objective); 
-
+								objective = source_as.getScore();
+								
 								// so we start from w
 								int z = w+1;
-								while(z<asz) {
-									// first find next 
-									// #a <------------------->
-									// #b      <----------------->
-									// #c            <--------------->
-									// we prefer #c over #b
-									target_as = selected.get(z);
-									target_qstart = target_as.qstart();
-									target_qend    = target_as.qend();
-									for(int v=z+1; v<asz; v++) {
-										tmp_as = selected.get(v);
-										if(tmp_as.qstart()>source_qend)
-											break;
-										if(tmp_as.qend()>=target_qend) {
-											target_as = tmp_as;
-											target_qstart = target_as.qstart();
-											target_qend   = target_as.qend();
-											z = v;
+								outerloop:
+									while(z<asz) {
+										// first find next 
+										target_as = selected.get(z);
+										target_qstart = target_as.qstart();
+										target_qend    = target_as.qend();
+										if(target_qstart>source_qend+m_clip) break;
+
+										// calculate addition to the objective
+										dobj = target_as.getScore()+
+												(target_qstart>source_qend?ScoreMatrix.gap_open:0)-
+												(target_qstart>source_qend?0:(source_qend-target_qstart+1)*ScoreMatrix.match_score);
+
+										// #a <------------------->
+										// #b      <----------------->
+										// #c            <--------------->
+										// we prefer #c over #b
+										for(int v=z+1; v<asz; v++) {
+											tmp_as = selected.get(v);
+											tmp_qstart = tmp_as.qstart();
+											tmp_qend = tmp_as.qend();
+											if(tmp_qstart>source_qend && 
+													tmp_qstart>target_qstart)
+												break;
+											tmp = tmp_as.getScore()+
+													(tmp_qstart>source_qend?ScoreMatrix.gap_open:0)-
+													(tmp_qstart>source_qend?0:(source_qend-tmp_qstart+1)*ScoreMatrix.match_score);
+											if(tmp>dobj) {
+												// update selected
+												dobj = tmp;
+												target_as = tmp_as;
+												target_qstart = tmp_qstart;
+												target_qend   = tmp_qend;
+												z = v;
+											}
 										}
-									}
-									// OK now we found it
-									// calculate addition do the objective
-									objective += target_qend-target_qstart+1-
-											(target_qstart>source_qend?0:(source_qend-target_qstart));
 
-									if(objective>target_as.getObjective()) {
-										// if the objective is better, we choose this path
-										target_as.setTraceBack(source_as);
-
-										// finally we update source
-										source_as = target_as;
-										source_qstart = target_qstart;
-										source_qend   = target_qend;
+										// OK now we found it
+										if(dobj>0 && objective+dobj>target_as.getObjective()) {
+											// if the objective is better, we choose this path
+											objective += dobj;
+											target_as.setTraceBackward(source_as);
+											target_as.setObjective(objective);
+											source_as.setTraceForward(target_as);
+											// finally we update source
+											source_as = target_as;
+											source_qstart = target_qstart;
+											source_qend   = target_qend;
+											
+											if(source_as.getTraceForward()!=null) {
+												// so we trace forward from here to avoid redoing this
+												while((target_as=source_as.getTraceForward())!=null) {
+													objective = target_as.getObjective()+dobj;
+													target_as.setObjective(objective);
+													source_as = target_as;
+												}
+												break outerloop;
+											}
+										}
 
 										// don't forget this
 										++z;
 									}
-								}
 
 								// now we get a path
-								if(objective>dcov) {
-									dcov = objective;
+								if(objective>opt_obj) {
+									opt_obj = objective;
 									traceback = source_as;	
 								}
 							}
 
 							// now we get the final path
 							// which can be traced back from 'traceback'
-							std_out.append(qry_sn+": alignment fraction "+ objective/qry_ln+"\n");
 							final List<TraceableAlignmentSegment> graph_path = new ArrayList<TraceableAlignmentSegment>();
 							while(traceback!=null) {
 								graph_path.add(traceback);
-								traceback = traceback.getTraceBack();
-
+								traceback = traceback.getTraceBackward();
 							}
 							Collections.reverse(graph_path);
+							
+							source_as = graph_path.get(0);
+							source_qstart = source_as.qstart();
+							source_qend   = source_as.qend();
+							double dcov = source_qend-source_qstart+1;
+							for(int z=1; z<graph_path.size(); z++) {
+								target_as = graph_path.get(z);
+								target_qstart = target_as.qstart();
+								target_qend   = target_as.qend();
+								dcov += target_qend-target_qstart+1-
+										(target_qstart>source_qend?0:(source_qend-target_qstart));
+								source_as = target_as;
+								source_qstart = target_qstart;
+								source_qend   = target_qend;
+							}
+							std_out.append(qry_sn+": alignment fraction "+ dcov/qry_ln+"\n");
+							
 							if(debug) {
 								std_out.append("--------------------------------\n");
 								for(TraceableAlignmentSegment as : graph_path) { 
@@ -1299,20 +1367,85 @@ final class KMP implements Comparable<KMP> {
 	}
 }
 
+final class ScoreMatrix {
+	final static int match_score = 2;
+	final static int mismatch_penalty = -4;
+	final static int gap_open = -20;
+	final static int gap_extension = -1;
+}
 
 final class TraceableAlignmentSegment extends AlignmentSegment {
 
-	private TraceableAlignmentSegment trace = null;
+	private TraceableAlignmentSegment next = null;
+	private TraceableAlignmentSegment previous = null;
 	private double objective = 0d;
 	private int mer_count = 0;
 	private boolean to_start = false;
 	private boolean to_end   = false;
 	private boolean end_to_end = false; 
-
+	private int sstart_clip = 0;
+	private int send_clip = 0;
+	private int qstart_clip = 0;
+	private int qend_clip = 0;
+	private int score = 0;
+	
 	public TraceableAlignmentSegment(String qseqid, String sseqid, 
 			int qstart, int qend, int sstart, int send) {
 		// TODO Auto-generated constructor stub
 		super(qseqid, sseqid, qstart, qend, sstart, send, true);
+	}
+	
+	public void setClip(int qstart_clip, int qend_clip, int sstart_clip, int send_clip) {
+		// TODO Auto-generated method stub
+		this.qstart_clip = qstart_clip;
+		this.qend_clip = qend_clip;
+		this.sstart_clip = sstart_clip;
+		this.send_clip = send_clip;
+	}
+	
+	public void setQueryStartClip(int qstart_clip) {
+		// TODO Auto-generated method stub
+		this.qstart_clip = qstart_clip;
+	}
+	
+	public void setQueryEndClip(int qend_clip) {
+		// TODO Auto-generated method stub
+		this.qend_clip = qend_clip;
+	}
+	
+	public int getQueryStartClip() {
+		// TODO Auto-generated method stub
+		return this.qstart_clip;
+	}
+	
+	public int getQueryEndClip() {
+		// TODO Auto-generated method stub
+		return this.qend_clip;
+	}
+	
+	public void setSubjectStartClip(int sstart_clip) {
+		// TODO Auto-generated method stub
+		this.sstart_clip = sstart_clip;
+	}
+	
+	public void setSubjectEndClip(int send_clip) {
+		// TODO Auto-generated method stub
+		this.send_clip = send_clip;
+	}
+	
+	public int getSubjectStartClip() {
+		// TODO Auto-generated method stub
+		return this.sstart_clip;
+	}
+	
+	public int getSubjectEndClip() {
+		// TODO Auto-generated method stub
+		return this.send_clip;
+	}
+	
+	public int getClip() {
+		// TODO Auto-generated method stub
+		return this.sstart_clip+this.send_clip;
 	}
 	
 	public void setEndToEnd(boolean to_start, boolean to_end) {
@@ -1320,7 +1453,7 @@ final class TraceableAlignmentSegment extends AlignmentSegment {
 		this.to_start = to_start;
 		this.to_end   = to_end;
 		this.end_to_end = to_start&&to_end;
-		}
+	}
 	
 	public void setEndToEnd(boolean end_to_end) {
 		// TODO Auto-generated method stub
@@ -1331,7 +1464,6 @@ final class TraceableAlignmentSegment extends AlignmentSegment {
 		// TODO Auto-generated method stub
 		this.to_start = to_start;
 	}
-	
 	
 	public void setToEnd(boolean to_end) {
 		// TODO Auto-generated method stub
@@ -1361,20 +1493,46 @@ final class TraceableAlignmentSegment extends AlignmentSegment {
 		this.mer_count = mer_count;
 	}
 
-	public void setTraceBack(TraceableAlignmentSegment trace) {
-		this.trace = trace;
+	public void setTraceForward(TraceableAlignmentSegment next) {
+		this.next = next;
+	}
+	
+	public void setTraceBackward(TraceableAlignmentSegment previous) {
+		this.previous = previous;
 	}
 
+	public void calcScore() {
+		this.score = (this.qend-this.qstart+1)*ScoreMatrix.match_score+
+				Math.min(qstart_clip, sstart_clip)*ScoreMatrix.gap_extension+
+				Math.min(qend_clip, send_clip)*ScoreMatrix.gap_extension;
+	}
+
+	public void setScore(int score) {
+		this.score = score;
+	}
+	
+	public int getScore() {
+		return this.score;
+	}
+	
 	public void setObjective(double objective) {
 		this.objective = objective;
 	}
 
+	public void addObjective(double dobj) {
+		this.objective += dobj;
+	}
+	
 	public void setMerCount(int mer_count) {
 		this.mer_count = mer_count;
 	}
 
-	public TraceableAlignmentSegment getTraceBack() {
-		return this.trace;
+	public TraceableAlignmentSegment getTraceForward() {
+		return this.next;
+	}
+	
+	public TraceableAlignmentSegment getTraceBackward() {
+		return this.previous;
 	}
 
 	public double getObjective() {
