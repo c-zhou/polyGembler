@@ -335,6 +335,7 @@ public class Graphmap extends Executor {
 	private final static Map<Long, Integer> linkCount = new HashMap<Long, Integer>();
 	private final static int m_ins = 2000; // maximum insert size for pe read library
 	private final static int m_lnk = 3;    // minimum #link to confirm a link
+	private final static int m_qual = 10;  // minimum alignment quality
 	private static long exceed_ins = 0;
 	
 	private void map_pe() {
@@ -378,8 +379,8 @@ public class Graphmap extends Executor {
 									if(sam_records[0].getReferenceIndex()==
 											sam_records[1].getReferenceIndex())
 										return;
-									if(sam_records[0].getMappingQuality()<10 || 
-											sam_records[1].getMappingQuality()<10)
+									if(sam_records[0].getMappingQuality()<m_qual || 
+											sam_records[1].getMappingQuality()<m_qual)
 										return;
 									
 									boolean rev0 = sam_records[0].getReadNegativeStrandFlag();
@@ -405,7 +406,9 @@ public class Graphmap extends Executor {
 										b = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
 										
 										if(a>m_ins&&b>m_ins) {
-											myLogger.info(">>>>\n"+sam_records[0].toString()+"\n"+sam_records[1].toString()+"\n<<<<\n");
+											if(ddebug)
+												STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
+														sam_records[0].getSAMString()+"\n"+sam_records[1].getSAMString()+"\n<<<<\n");
 											synchronized(lock) {++exceed_ins;}
 											return;
 										}
@@ -430,7 +433,9 @@ public class Graphmap extends Executor {
 										b = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
 										
 										if(a>m_ins&&b>m_ins) {
-											myLogger.info(">>>>\n"+sam_records[0].toString()+"\n"+sam_records[1].toString()+"\n<<<<\n");
+											if(ddebug)
+												STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
+														sam_records[0].getSAMString()+"\n"+sam_records[1].getSAMString()+"\n<<<<\n");
 											synchronized(lock) {++exceed_ins;}
 											return;
 										}
@@ -455,7 +460,9 @@ public class Graphmap extends Executor {
 										b = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
 										
 										if(a>m_ins&&b>m_ins) {
-											myLogger.info(">>>>\n"+sam_records[0].toString()+"\n"+sam_records[1].toString()+"\n<<<<\n");
+											if(ddebug)
+												STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
+														sam_records[0].getSAMString()+"\n"+sam_records[1].getSAMString()+"\n<<<<\n");
 											synchronized(lock) {++exceed_ins;}
 											return;
 										}
@@ -484,7 +491,9 @@ public class Graphmap extends Executor {
 										b = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
 										
 										if(a>m_ins&&b>m_ins) {
-											myLogger.info(">>>>\n"+sam_records[0].toString()+"\n"+sam_records[1].toString()+"\n<<<<\n");
+											if(ddebug)
+												STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
+														sam_records[0].getSAMString()+"\n"+sam_records[1].getSAMString()+"\n<<<<\n");
 											synchronized(lock) {++exceed_ins;}
 											return;
 										}
@@ -551,11 +560,6 @@ public class Graphmap extends Executor {
 			}
 			this.waitFor();
 			
-			myLogger.info("################################################################");
-			myLogger.info("#good links: "+linkCount.size()/2);
-			myLogger.info("#insert size exceeds "+m_ins+": "+exceed_ins);
-			myLogger.info("################################################################");
-			
 			// now we get link counts
 			int refind;
 			String source, target;
@@ -568,12 +572,14 @@ public class Graphmap extends Executor {
 				if(!peLink.containsKey(source)) 
 					peLink.put(source, new HashSet<String>());
 				peLink.get(source).add(target);
-				STD_OUT_BUFFER.write("#link: "+source+"->"+target+"\n");
+				if(ddebug) STD_OUT_BUFFER.write("#link: "+source+"->"+target+"\n");
 				++links;
 			}
 			STD_OUT_BUFFER.flush();
 			
 			myLogger.info("################################################################");
+			myLogger.info("#insert size exceeds "+m_ins+": "+exceed_ins);
+			myLogger.info("#good links: "+linkCount.size()/2);
 			myLogger.info("#parsed/confident links: "+links/2);
 			myLogger.info("################################################################");
 			
