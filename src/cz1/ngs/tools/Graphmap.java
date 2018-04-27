@@ -376,8 +376,8 @@ public class Graphmap extends Executor {
 									if(!sam_records[0].getReadName().
 											equals(sam_records[1].getReadName()))
 										throw new RuntimeException("!!!");
-									if(sam_records[0].getReferenceIndex()==
-											sam_records[1].getReferenceIndex())
+									if(sam_records[0].getReferenceIndex().intValue()==
+											sam_records[1].getReferenceIndex().intValue())
 										return;
 									if(sam_records[0].getMappingQuality()<m_qual || 
 											sam_records[1].getMappingQuality()<m_qual)
@@ -408,7 +408,7 @@ public class Graphmap extends Executor {
 										if(a>m_ins&&b>m_ins) {
 											if(ddebug)
 												STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-														sam_records[0].getSAMString()+"\n"+sam_records[1].getSAMString()+"\n<<<<\n");
+														sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 											synchronized(lock) {++exceed_ins;}
 											return;
 										}
@@ -435,7 +435,7 @@ public class Graphmap extends Executor {
 										if(a>m_ins&&b>m_ins) {
 											if(ddebug)
 												STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-														sam_records[0].getSAMString()+"\n"+sam_records[1].getSAMString()+"\n<<<<\n");
+														sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 											synchronized(lock) {++exceed_ins;}
 											return;
 										}
@@ -462,7 +462,7 @@ public class Graphmap extends Executor {
 										if(a>m_ins&&b>m_ins) {
 											if(ddebug)
 												STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-														sam_records[0].getSAMString()+"\n"+sam_records[1].getSAMString()+"\n<<<<\n");
+														sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 											synchronized(lock) {++exceed_ins;}
 											return;
 										}
@@ -493,7 +493,7 @@ public class Graphmap extends Executor {
 										if(a>m_ins&&b>m_ins) {
 											if(ddebug)
 												STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-														sam_records[0].getSAMString()+"\n"+sam_records[1].getSAMString()+"\n<<<<\n");
+														sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 											synchronized(lock) {++exceed_ins;}
 											return;
 										}
