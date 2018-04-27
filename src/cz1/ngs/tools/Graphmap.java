@@ -556,7 +556,7 @@ public class Graphmap extends Executor {
 			long refind, links = 0, contained = 0;
 			for(Map.Entry<Long, Integer> entry : linkCount.entrySet()) {
 				if(entry.getValue()<m_lnk) continue;
-				refind = entry.getValue();
+				refind = entry.getKey();
 				target = seq_index.getKey((int)  refind     );
 				source = seq_index.getKey((int) (refind>>32));
 				if(!peLink.containsKey(source)) 
