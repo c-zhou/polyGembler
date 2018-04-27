@@ -405,10 +405,10 @@ public class Graphmap extends Executor {
 										//     <===                ===>
 										b = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
 										
+										if(ddebug)
+											STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
+													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 										if(a>m_ins&&b>m_ins) {
-											if(ddebug)
-												STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-														sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 											synchronized(lock) {++exceed_ins;}
 											return;
 										}
@@ -432,10 +432,10 @@ public class Graphmap extends Executor {
 										//     ===>                <===
 										b = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
 										
+										if(ddebug)
+											STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
+													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 										if(a>m_ins&&b>m_ins) {
-											if(ddebug)
-												STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-														sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 											synchronized(lock) {++exceed_ins;}
 											return;
 										}
@@ -459,10 +459,10 @@ public class Graphmap extends Executor {
 										//     <===                ===>
 										b = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
 										
+										if(ddebug)
+											STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
+													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 										if(a>m_ins&&b>m_ins) {
-											if(ddebug)
-												STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-														sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 											synchronized(lock) {++exceed_ins;}
 											return;
 										}
@@ -490,10 +490,10 @@ public class Graphmap extends Executor {
 										//     ===>                <===
 										b = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
 										
+										if(ddebug)
+											STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
+													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 										if(a>m_ins&&b>m_ins) {
-											if(ddebug)
-												STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-														sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 											synchronized(lock) {++exceed_ins;}
 											return;
 										}
@@ -561,14 +561,13 @@ public class Graphmap extends Executor {
 			this.waitFor();
 			
 			// now we get link counts
-			int refind;
 			String source, target;
-			long links = 0;
+			long refind, links = 0;
 			for(Map.Entry<Long, Integer> entry : linkCount.entrySet()) {
 				if(entry.getValue()<m_lnk) continue;
 				refind = entry.getValue();
-				target = seq_index.getKey((int)refind);
-				source = seq_index.getKey(refind>>32);
+				target = seq_index.getKey((int)  refind     );
+				source = seq_index.getKey((int) (refind>>32));
 				if(!peLink.containsKey(source)) 
 					peLink.put(source, new HashSet<String>());
 				peLink.get(source).add(target);
