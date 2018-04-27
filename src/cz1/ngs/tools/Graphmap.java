@@ -333,7 +333,7 @@ public class Graphmap extends Executor {
 
 	private final static Map<String, Set<String>> peLink = new HashMap<String, Set<String>>();
 	private final static Map<Long, Integer> linkCount = new HashMap<Long, Integer>();
-	private final static int m_ins = 2000; // maximum insert size for pe read library
+	private final static int m_ins = 5000; // maximum insert size for pe read library
 	private final static int m_lnk = 3;    // minimum #link to confirm a link
 	private final static int m_qual = 10;  // minimum alignment quality
 	private static long exceed_ins = 0;
@@ -348,7 +348,6 @@ public class Graphmap extends Executor {
 				final SAMRecordIterator iter1 = in1.iterator();
 				SAMRecord[] sam_records = new SAMRecord[2];
 				SAMRecord sam_record;
-				cons_progress = 0;
 				while(iter1.hasNext()) {
 					sam_record = iter1.next();
 					if(sam_record.getNotPrimaryAlignmentFlag() || 
@@ -359,10 +358,9 @@ public class Graphmap extends Executor {
 					else sam_records[1] = sam_record;
 					
 					if(sam_records[0]!=null&&sam_records[1]!=null) {
-						++cons_progress;
+						
 						executor.submit(new Runnable() {
 							private SAMRecord[] sam_records;
-							private long cons_progress;
 							
 							@Override
 							public void run() {
@@ -529,12 +527,6 @@ public class Graphmap extends Executor {
 											linkCount.put(refind, 1);
 										}
 									}
-									
-									if(cons_progress%1000000==0) {
-										synchronized(lock) {
-											myLogger.info("SAM records processed: #"+cons_progress);
-										}
-									}
 								} catch (Exception e) {
 									// TODO Auto-generated catch block
 									Thread t = Thread.currentThread();
@@ -545,12 +537,11 @@ public class Graphmap extends Executor {
 								}
 							}
 
-							public Runnable init(SAMRecord[] sam_records, long cons_progress) {
+							public Runnable init(SAMRecord[] sam_records) {
 								this.sam_records = sam_records;
-								this.cons_progress = cons_progress;
 								return this;
 							}
-						}.init(sam_records, cons_progress));
+						}.init(sam_records));
 						sam_records = new SAMRecord[2];
 					}
 				}
@@ -562,7 +553,7 @@ public class Graphmap extends Executor {
 			
 			// now we get link counts
 			String source, target;
-			long refind, links = 0;
+			long refind, links = 0, contained = 0;
 			for(Map.Entry<Long, Integer> entry : linkCount.entrySet()) {
 				if(entry.getValue()<m_lnk) continue;
 				refind = entry.getValue();
@@ -571,8 +562,9 @@ public class Graphmap extends Executor {
 				if(!peLink.containsKey(source)) 
 					peLink.put(source, new HashSet<String>());
 				peLink.get(source).add(target);
-				if(ddebug) STD_OUT_BUFFER.write("#link: "+source+"->"+target+"\n");
+				if(gfa.containsEdge(source, target)) ++contained;
 				++links;
+				if(ddebug) STD_OUT_BUFFER.write("#link: "+source+"->"+target+"\n");
 			}
 			STD_OUT_BUFFER.flush();
 			
@@ -580,7 +572,13 @@ public class Graphmap extends Executor {
 			myLogger.info("#insert size exceeds "+m_ins+": "+exceed_ins);
 			myLogger.info("#good links: "+linkCount.size()/2);
 			myLogger.info("#parsed/confident links: "+links/2);
+			myLogger.info("#contained edges: "+contained/2+"/"+links/2);
 			myLogger.info("################################################################");
+			
+			for(Map.Entry<String, Set<String>> entry : peLink.entrySet()) {
+				
+			}
+			
 			
 		} catch(IOException e) {
 			// TODO Auto-generated catch block
