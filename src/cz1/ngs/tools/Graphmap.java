@@ -2,6 +2,7 @@ package cz1.ngs.tools;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
@@ -21,6 +22,7 @@ import java.util.TreeMap;
 
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
+import org.w3c.dom.stylesheets.LinkStyle;
 
 import com.google.common.collect.DiscreteDomain;
 import com.google.common.collect.Range;
@@ -35,6 +37,11 @@ import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
 import cz1.util.Utils;
+import htsjdk.samtools.SAMRecord;
+import htsjdk.samtools.SAMRecordIterator;
+import htsjdk.samtools.SamReader;
+import htsjdk.samtools.SamReaderFactory;
+import htsjdk.samtools.ValidationStringency;
 
 public class Graphmap extends Executor {
 
@@ -43,7 +50,8 @@ public class Graphmap extends Executor {
 	private final static int buffSize8Mb = 8388608;
 	private final static Writer STD_OUT_BUFFER = USE_OS_BUFFER ? 
 			new BufferedWriter(new OutputStreamWriter(System.out), buffSize8Mb) : new OutputStreamWriter(System.out);
-	private static enum Task {hash, map, zzz}
+	private static enum Task {hash, map, zzz};
+	private static enum Library {pe, r454, long3};
 	private Task task_list = Task.zzz;
 
 	@Override
@@ -72,7 +80,8 @@ public class Graphmap extends Executor {
 			myLogger.info(
 					"\n\nUsage is as follows:\n"
 							+ " -s/--subject            The FASTA file contain subject/reference sequences. \n"
-							+ " -q/--query              The FASTA/FASTQ file contain query sequences to map. \n"
+							+ " -q/--query              The FASTA/FASTQ/BAM file contain query sequences to map. \n"
+							+ " -l/--library            The read library type (pe, 454 or long).\n"
 							+ " -g/--graph              Assembly graph (GFA) format. Currently, the program only accept \n"
 							+ "                         the assembly graph format used by the assembler SPAdes (de-bruijn \n"
 							+ "                         graph) or CANU (overlap). For assembly graphs in other formats: \n"
@@ -101,9 +110,10 @@ public class Graphmap extends Executor {
 
 	private String subject_file;
 	private String graph_file;
-	private String query_file;
+	private String[] query_file;
 	private String hash_file = null;
 	private String out_prefix;
+	private Library library = null;
 	private int merK = 12;
 	private int maxC = Integer.MAX_VALUE-1;
 	private boolean debug = false;
@@ -136,6 +146,7 @@ public class Graphmap extends Executor {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-s", "--subject", true);
 			myArgsEngine.add("-q", "--query", true);
+			myArgsEngine.add("-l", "--library", true);
 			myArgsEngine.add("-g", "--graph", true);
 			myArgsEngine.add("-k", "--kmer-size", true);
 			myArgsEngine.add("-H", "--hash-table", true);
@@ -161,7 +172,7 @@ public class Graphmap extends Executor {
 				myLogger.warn("Set mer size K=16.");
 			}
 		}
-		
+
 		if (myArgsEngine.getBoolean("-x")) {
 			this.maxC = Integer.parseInt(myArgsEngine.getString("-x"));
 		}
@@ -193,10 +204,29 @@ public class Graphmap extends Executor {
 		case map:
 
 			if (myArgsEngine.getBoolean("-q")) {
-				this.query_file = myArgsEngine.getString("-q");
+				this.query_file = myArgsEngine.getString("-q").split(",");
 			} else {
 				printUsage();
 				throw new IllegalArgumentException("Please specify the contig file.");
+			}
+
+			if (myArgsEngine.getBoolean("-l")) {
+				switch(myArgsEngine.getString("-l")) {
+				case "pe":
+					this.library = Library.pe;
+					break;
+				case "454":
+					this.library = Library.r454;
+					break;
+				case "long":
+					this.library = Library.long3;
+					break;
+				default:
+					throw new IllegalArgumentException("Please specify the read library.");
+				}
+			} else {
+				printUsage();
+				throw new IllegalArgumentException("Please specify the read library.");
 			}
 
 			if (myArgsEngine.getBoolean("-g")) {
@@ -238,6 +268,7 @@ public class Graphmap extends Executor {
 	private Map<String, Sequence> sub_seqs;
 	private GFA gfa;
 	private final BidiMap<String, Integer> seq_index = new DualHashBidiMap<String, Integer>();
+	private final Map<String, String> symm_seqsn = new HashMap<String, String>();
 	// kmer hash table
 	// key   :  mer
 	// value :  positions of the mer.
@@ -253,7 +284,13 @@ public class Graphmap extends Executor {
 		sub_seqs = Sequence.parseFastaFileWithRevCmpAsMap(subject_file);
 		int index = 0;
 		for(String seq : sub_seqs.keySet()) seq_index.put(seq, ++index);
-
+		for(String seq : sub_seqs.keySet()) {
+			if(!seq.endsWith("'")) {
+				symm_seqsn.put(seq, seq+"'");
+				symm_seqsn.put(seq+"'", seq);
+			}
+		}
+		
 		switch(this.task_list) {
 
 		case zzz:
@@ -263,12 +300,287 @@ public class Graphmap extends Executor {
 			this.hash(true);
 			break;
 		case map:
-			this.map();
+			switch(this.library) {
+			case pe:
+				this.map_pe();
+				break;
+			case r454:
+				this.map_r454();
+				break;
+			case long3:
+				this.map_long3();
+				break;
+			default:
+				throw new RuntimeException("!!!");
+			}
 			break;
 		default:
 			throw new RuntimeException("!!!");
 		}
 		return;
+	}
+
+	final static SamReaderFactory factory =
+			SamReaderFactory.makeDefault()
+			.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
+					SamReaderFactory.Option.VALIDATE_CRC_CHECKSUMS)
+			.validationStringency(ValidationStringency.SILENT);
+
+	private void map_r454() {
+		// TODO Auto-generated method stub
+
+	}
+
+	private final static Map<String, Set<String>> peLink = new HashMap<String, Set<String>>();
+	private final static Map<Long, Integer> linkCount = new HashMap<Long, Integer>();
+	private final static int m_ins = 2000; // maximum insert size for pe read library
+	private final static int m_lnk = 3;    // minimum #link to confirm a link
+	private static long exceed_ins = 0;
+	
+	private void map_pe() {
+		// TODO Auto-generated method stub
+		gfa = new GFA(subject_file, graph_file);
+		try {
+			this.initial_thread_pool();
+			for(final String qf : query_file) {
+				final SamReader in1 = factory.open(new File(qf));
+				final SAMRecordIterator iter1 = in1.iterator();
+				SAMRecord[] sam_records = new SAMRecord[2];
+				SAMRecord sam_record;
+				cons_progress = 0;
+				while(iter1.hasNext()) {
+					sam_record = iter1.next();
+					if(sam_record.getNotPrimaryAlignmentFlag() || 
+							sam_record.getSupplementaryAlignmentFlag())
+						continue;
+					if(sam_record.getFirstOfPairFlag()) 
+						sam_records[0] = sam_record;
+					else sam_records[1] = sam_record;
+					
+					if(sam_records[0]!=null&&sam_records[1]!=null) {
+						++cons_progress;
+						executor.submit(new Runnable() {
+							private SAMRecord[] sam_records;
+							private long cons_progress;
+							
+							@Override
+							public void run() {
+								// TODO Auto-generated method stub
+								try {
+									// so we have a confident read pair aligned to two contigs
+									// check return
+									if(sam_records[0].getReadUnmappedFlag() ||
+											sam_records[1].getReadUnmappedFlag())
+										return;
+									if(!sam_records[0].getReadName().
+											equals(sam_records[1].getReadName()))
+										throw new RuntimeException("!!!");
+									if(sam_records[0].getReferenceIndex()==
+											sam_records[1].getReferenceIndex())
+										return;
+									if(sam_records[0].getMappingQuality()<10 || 
+											sam_records[1].getMappingQuality()<10)
+										return;
+									
+									boolean rev0 = sam_records[0].getReadNegativeStrandFlag();
+									boolean rev1 = sam_records[1].getReadNegativeStrandFlag();
+									int reflen0  = sub_seqs.get(sam_records[0].getReferenceName()).seq_ln();
+									int reflen1  = sub_seqs.get(sam_records[1].getReferenceName()).seq_ln();
+									
+									final String[] refstr = new String[2];
+									
+									int a, b;
+									if(rev0&&rev1) {
+										//       0                  1
+										// ---------------     -------------
+										//     <===                <===
+										
+										// reverse 0
+										// ---------------     -------------
+										//     ===>                <===
+										a = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
+										// reverse 1
+										// ---------------     -------------
+										//     <===                ===>
+										b = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
+										
+										if(a>m_ins&&b>m_ins) {
+											myLogger.info(">>>>\n"+sam_records[0].toString()+"\n"+sam_records[1].toString()+"\n<<<<\n");
+											synchronized(lock) {++exceed_ins;}
+											return;
+										}
+										if(a<b) {
+											// reverse 0
+											refstr[0] = sam_records[0].getReferenceName()+"'";
+											refstr[1] = sam_records[1].getReferenceName();
+										} else {
+											// reverse 1
+											refstr[0] = sam_records[1].getReferenceName()+"'";
+											refstr[1] = sam_records[0].getReferenceName();
+										}
+									} else if(rev0&&!rev1) {
+										//       0                  1
+										// ---------------     -------------
+										//     <===                ===>
+										a = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
+										
+										// reverse 0 & reverse1
+										// ---------------     -------------
+										//     ===>                <===
+										b = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
+										
+										if(a>m_ins&&b>m_ins) {
+											myLogger.info(">>>>\n"+sam_records[0].toString()+"\n"+sam_records[1].toString()+"\n<<<<\n");
+											synchronized(lock) {++exceed_ins;}
+											return;
+										}
+										
+										if(a<b) {
+											refstr[0] = sam_records[1].getReferenceName();
+											refstr[1] = sam_records[0].getReferenceName();
+										} else {
+											refstr[0] = sam_records[0].getReferenceName()+"'";
+											refstr[1] = sam_records[1].getReferenceName()+"'";
+										}
+										
+									} else if(!rev0&&rev1) {
+										//       0                  1
+										// ---------------     -------------
+										//     ===>                <===
+										a = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
+										
+										// reverse 0 & reverse1
+										// ---------------     -------------
+										//     <===                ===>
+										b = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
+										
+										if(a>m_ins&&b>m_ins) {
+											myLogger.info(">>>>\n"+sam_records[0].toString()+"\n"+sam_records[1].toString()+"\n<<<<\n");
+											synchronized(lock) {++exceed_ins;}
+											return;
+										}
+										
+										if(a<b) {
+											refstr[0] = sam_records[0].getReferenceName();
+											refstr[1] = sam_records[1].getReferenceName();
+										} else {
+											refstr[0] = sam_records[1].getReferenceName()+"'";
+											refstr[1] = sam_records[0].getReferenceName()+"'";
+										}
+										
+									} else {
+										//       0                  1
+										// ---------------     -------------
+										//     ===>                ===>
+										
+										// reverse 0
+										// ---------------     -------------
+										//     <===                ===>
+										a = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
+										
+										// reverse 1
+										// ---------------     -------------
+										//     ===>                <===
+										b = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
+										
+										if(a>m_ins&&b>m_ins) {
+											myLogger.info(">>>>\n"+sam_records[0].toString()+"\n"+sam_records[1].toString()+"\n<<<<\n");
+											synchronized(lock) {++exceed_ins;}
+											return;
+										}
+										
+										if(a<b) {
+											refstr[0] = sam_records[1].getReferenceName();
+											refstr[1] = sam_records[0].getReferenceName()+"'";
+										} else {
+											refstr[0] = sam_records[0].getReferenceName();
+											refstr[1] = sam_records[1].getReferenceName()+"'";
+										}
+									}
+									
+									long refind;
+									refind  = seq_index.get(refstr[0]);
+									refind <<= 32;
+									refind += seq_index.get(refstr[1]);
+									synchronized(lock) {
+										if(linkCount.containsKey(refind)) {
+											linkCount.put(refind, linkCount.get(refind)+1);
+										} else {
+											linkCount.put(refind, 1);
+										}
+									}
+									
+									refind  = seq_index.get(symm_seqsn.get(refstr[1]));
+									refind <<= 32;
+									refind += seq_index.get(symm_seqsn.get(refstr[0]));
+									synchronized(lock) {
+										if(linkCount.containsKey(refind)) {
+											linkCount.put(refind, linkCount.get(refind)+1);
+										} else {
+											linkCount.put(refind, 1);
+										}
+									}
+									
+									if(cons_progress%1000000==0) {
+										synchronized(lock) {
+											myLogger.info("SAM records processed: #"+cons_progress);
+										}
+									}
+								} catch (Exception e) {
+									// TODO Auto-generated catch block
+									Thread t = Thread.currentThread();
+									t.getUncaughtExceptionHandler().uncaughtException(t, e);
+									e.printStackTrace();
+									executor.shutdown();
+									System.exit(1);
+								}
+							}
+
+							public Runnable init(SAMRecord[] sam_records, long cons_progress) {
+								this.sam_records = sam_records;
+								this.cons_progress = cons_progress;
+								return this;
+							}
+						}.init(sam_records, cons_progress));
+						sam_records = new SAMRecord[2];
+					}
+				}
+				
+				iter1.close();
+				in1.close();
+			}
+			this.waitFor();
+			
+			myLogger.info("################################################################");
+			myLogger.info("#good links: "+linkCount.size()/2);
+			myLogger.info("#insert size exceeds "+m_ins+": "+exceed_ins);
+			myLogger.info("################################################################");
+			
+			// now we get link counts
+			int refind;
+			String source, target;
+			long links = 0;
+			for(Map.Entry<Long, Integer> entry : linkCount.entrySet()) {
+				if(entry.getValue()<m_lnk) continue;
+				refind = entry.getValue();
+				target = seq_index.getKey((int)refind);
+				source = seq_index.getKey(refind>>32);
+				if(!peLink.containsKey(source)) 
+					peLink.put(source, new HashSet<String>());
+				peLink.get(source).add(target);
+				STD_OUT_BUFFER.write("#link: "+source+"->"+target+"\n");
+				++links;
+			}
+			STD_OUT_BUFFER.flush();
+			
+			myLogger.info("################################################################");
+			myLogger.info("#parsed/confident links: "+links/2);
+			myLogger.info("################################################################");
+			
+		} catch(IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
 	private void hash() {
@@ -377,7 +689,7 @@ public class Graphmap extends Executor {
 		// filtering by max mer count
 		for(Map.Entry<Integer, Set<Long>> entry : kmer_ht.entrySet()) 
 			if(entry.getValue().size()>maxC) kmer_ht.remove(entry.getKey());
-		
+
 		long elapsed_end = System.nanoTime();
 		myLogger.info(merK+"-mer hash table construction completed: "+kmer_ht.size()+" "+
 				merK+"-mers in "+(elapsed_end-elapsed_start)/1e9+" secondes");
@@ -558,7 +870,7 @@ public class Graphmap extends Executor {
 	private final static double olap_min = 0.99; // min overlap fraction for containment
 	private final static double collinear_shift = 1.0;
 	private final static double m_clip = 0.2; // max clip size (%) to treat an alignment end-to-end
-	
+
 	// ok, let call this a backup
 	/***
 	private void map() {
@@ -675,7 +987,7 @@ public class Graphmap extends Executor {
 	}
 	 **/
 
-	private void map() {
+	private void map_long3() {
 		// TODO Auto-generated method stub
 		gfa = new GFA(subject_file, graph_file);
 		if(this.hash_file==null) {
@@ -686,481 +998,631 @@ public class Graphmap extends Executor {
 
 		// now map each sequence in the query file to the graph
 		try {
-			BufferedReader br_qry = Utils.getBufferedReader(query_file);
-			String line = br_qry.readLine();
-			boolean isFASTQ = true;
-			if(line.startsWith(">")) isFASTQ = false;
-
 			this.initial_thread_pool();
 
-			String qry_sn, qry_sq;
-			while( line!=null ) {
+			for(final String qf : query_file) {
 
-				qry_sn = line.split("\\s+")[0].substring(1);
-				qry_sq = br_qry.readLine();
+				BufferedReader br_qry = Utils.getBufferedReader(qf);
+				String line = br_qry.readLine();
+				boolean isFASTQ = true;
+				if(line.startsWith(">")) isFASTQ = false;
 
-				executor.submit(new Runnable() {
-					private String qry_sn;
-					private String qry_sq;
+				String qry_sn, qry_sq;
+				while( line!=null ) {
 
-					@Override
-					public void run() {
-						// TODO Auto-generated method stub
-						final StringBuilder std_out = new StringBuilder();
+					qry_sn = line.split("\\s+")[0].substring(1);
+					qry_sq = br_qry.readLine();
 
-						synchronized(lock) {
-							if(++cons_progress%1000==0)
-								std_out.append("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
-										+ "Reads processed: "+cons_progress+
-										"++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
-						}
-						
-						try {
-							std_out.append(">>>>>>>>>>"+qry_sn+"<<<<<<<<<<\n");
+					executor.submit(new Runnable() {
+						private String qry_sn;
+						private String qry_sq;
 
-							String kmer;
-							int qry_ln, sub_ln;
-							int kmer_hash, sub_ind, sub_pos;
-							KMP kmp_prev, kmp_curr;
+						@Override
+						public void run() {
+							// TODO Auto-generated method stub
+							final StringBuilder std_out = new StringBuilder();
 
-							// we have query sequence now
-							// we need to find shared kmers with the subject/reference sequences
-							qry_ln = qry_sq.length();
-
-							// a hashmap to hold the kmer hits of the query sequence to each subject sequence
-							// a list to hold the kmer hits positions to the subject sequence 
-							final Map<Integer, List<KMP>> kmer_hits = new HashMap<Integer, List<KMP>>();
-							final int N = qry_ln-merK+1;
-							for(int i=0; i<N; i++) {
-								// process each mer
-								kmer = qry_sq.substring(i, i+merK);
-								if(kmer.contains("N")||kmer.contains("n")) 
-									continue;
-								kmer_hash = int_hash(kmer);
-
-								if(kmer_ht.containsKey(kmer_hash)) {
-									// we need to check the locations of the kmer on the subject sequences
-									Set<Long> hts = kmer_ht.get(kmer_hash);
-									for(long j : hts) {
-										sub_pos = (int) j;
-										sub_ind = (int) (j>>32);
-										if(!kmer_hits.containsKey(sub_ind)) 
-											kmer_hits.put(sub_ind, new ArrayList<KMP>());
-										// TODO: this is not right if a kmer is mapped to two positions 
-										//       on the reference sequence
-										kmer_hits.get(sub_ind).add(new KMP(i, sub_pos));
-									}
-								}
-							}
-							
-							final Set<String> sub_hits = new HashSet<String>();
-							for(final int i : kmer_hits.keySet()) {
-								if(kmer_hits.get(i).size()>=3)
-									// we need at least three mers to confirm a hit
-									sub_hits.add(seq_index.getKey(i));
+							synchronized(lock) {
+								if(++cons_progress%1000==0)
+									std_out.append("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++"
+											+ "Reads processed: "+cons_progress+
+											"++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 							}
 
-							final List<KMP> sort_hits = new ArrayList<KMP>();
-							for(final int i : kmer_hits.keySet()) 
-								sort_hits.add(new KMP(i, kmer_hits.get(i).size()));
-							Collections.sort(sort_hits, new Comparator<KMP>() {
-								@Override
-								public int compare(KMP o1, KMP o2) {
-									// TODO Auto-generated method stub
-									return o2.b-o1.b;
-								}
-							});	
+							try {
+								std_out.append(">>>>>>>>>>"+qry_sn+"<<<<<<<<<<\n");
 
-							int qstart, qend, sstart, send, merCount, a, b;
-							double clip;
-							// now we get all kmer hits
-							// for each subject sequence we now filter non-collinear hits
-							// and calculate the alignment
-							final List<TraceableAlignmentSegment> alignments = new ArrayList<TraceableAlignmentSegment>();
-							final Set<Integer> a_rm = new HashSet<Integer>();
-							final Set<Integer> b_rm = new HashSet<Integer>();
-							final Set<Integer> a_bucket = new HashSet<Integer>();
-							final Set<Integer> b_bucket = new HashSet<Integer>();
-							TraceableAlignmentSegment alignment;
-							
-							for(final KMP k : sort_hits) {
-								final int i = k.a;
+								String kmer;
+								int qry_ln, sub_ln;
+								int kmer_hash, sub_ind, sub_pos;
+								KMP kmp_prev, kmp_curr;
 
-								final List<KMP> kmps = kmer_hits.get(i);
-								if(kmps.size()<k_min) continue;
+								// we have query sequence now
+								// we need to find shared kmers with the subject/reference sequences
+								qry_ln = qry_sq.length();
 
-								// we find best alignment block on query sequence first
-								//    ________________________________
-								//   |            1/ o        /     / |
-								//   |         2 o/          /     /  |
-								//   |          3/o         /     /   |
-								//   |        4 /o         /     /    |
-								//   |         /       5 x/     /     |
-								//   |     6 o/          /     /      |
-								//   |       /          /  7 x/       |
-								//   |     8/o         /     /        |
-								//   |_____/__________/_____/_________|
-								//    a   b   c   d   e   f   g   h    
-								// (1 2 3 4 6 8)     (5)   (7)
-								// in the example above, the intercepts on the x-axis gathers around b
-								// (1 2 3 4 6 8) are selected kmers
-								// TODO: this is not exactly right as we also need to consider 
-								//       the positions on the reference sequence
-								// TODO: this is not always correct
-								//       especially in the repetitive region
-								// test case: 27f73126-832e-48a9-b7b1-794c670ec630_Basecall_1D_template
-								//  
-								//    ________________________________
-								//   |     1/o     /          /     / |
-								//   |     2/o    /          /     /  |
-								//   |     3/o   /          /     /   |
-								//   |     4/o  /          /     /    |
-								//   |     5/o /       9 x/     /     |
-								//   |     6/o/          /     /      |
-								//   |    7 o/          /  a x/       |
-								//   |     8/o         /     /        |
-								//   |_____/__________/_____/_________|
-								//    a   b   c   d   e   f   g   h
-								//  (1 2 ... 8)      (5)   (6)
-                                //    ________________________________
-								//   |             /          /     / |
-								//   |            /          /     /  |
-								//   |           /          /     /   |
-								//   |          /          /     /    |
-								//   |         /       9 o/     /     |
-								//   |      1 /2 3 4 5 6 /  a o/      |
-								//   |      o/ o o o o o/o o  /       |
-								//   |      /          / 7 8 /        |
-								//   |_____/__________/_____/_________|
-								//    a   b   c   d   e   f   g   h
-								//             (1 2 ... a) 
-								// in the example above, put (1 2 ... a) together is very dangerous 
-								// this is possible if the query sequence is repetitive
-								//
-								// this is to fix the repetitive problem
-								
-								a_rm.clear();
-								b_rm.clear();
-								a_bucket.clear();
-								b_bucket.clear();
-								
-								for(int w=0; w<kmps.size(); w++) {
-									kmp_prev = kmps.get(w);
-									a = kmp_prev.a;
-									if(a_bucket.contains(a)) {
-										a_rm.add(a);
-									} else {
-										a_bucket.add(a);
-									}
-									b = kmp_prev.b;
-									if(b_bucket.contains(b)) {
-										b_rm.add(b);
-									} else {
-										b_bucket.add(b);
+								// a hashmap to hold the kmer hits of the query sequence to each subject sequence
+								// a list to hold the kmer hits positions to the subject sequence 
+								final Map<Integer, List<KMP>> kmer_hits = new HashMap<Integer, List<KMP>>();
+								final int N = qry_ln-merK+1;
+								for(int i=0; i<N; i++) {
+									// process each mer
+									kmer = qry_sq.substring(i, i+merK);
+									if(kmer.contains("N")||kmer.contains("n")) 
+										continue;
+									kmer_hash = int_hash(kmer);
+
+									if(kmer_ht.containsKey(kmer_hash)) {
+										// we need to check the locations of the kmer on the subject sequences
+										Set<Long> hts = kmer_ht.get(kmer_hash);
+										for(long j : hts) {
+											sub_pos = (int) j;
+											sub_ind = (int) (j>>32);
+											if(!kmer_hits.containsKey(sub_ind)) 
+												kmer_hits.put(sub_ind, new ArrayList<KMP>());
+											// TODO: this is not right if a kmer is mapped to two positions 
+											//       on the reference sequence
+											kmer_hits.get(sub_ind).add(new KMP(i, sub_pos));
+										}
 									}
 								}
-								
-								final List<KMP> hits = new ArrayList<KMP>(); 
-								for(KMP kmp : kmps) {
-									if(!a_rm.contains(kmp.a)&&
-											!b_rm.contains(kmp.b)) 
-										hits.add(kmp);
-								}
-								
-								if(hits.isEmpty()) continue;
-								
-								// this is a placeholder for intercepts <position, #kmers>
-								final List<KMP> intercept = new ArrayList<KMP>();
-								for(int w=0; w<hits.size(); w++) {
-									KMP p = hits.get(w);
-									intercept.add(new KMP(p.a-p.b, w));
-								}
-								Collections.sort(intercept);
 
-								if(ddebug) {
-									std_out.append("+");
-									std_out.append(sub_seqs.get(seq_index.getKey(i)).seq_sn());
-									std_out.append("\n");
-									for(KMP kmp : hits) {
-										std_out.append(kmp.a+" "+kmp.b);
-										std_out.append("\n");
-									}
+								final Set<String> sub_hits = new HashSet<String>();
+								for(final int i : kmer_hits.keySet()) {
+									if(kmer_hits.get(i).size()>=3)
+										// we need at least three mers to confirm a hit
+										sub_hits.add(seq_index.getKey(i));
 								}
-								
-								// this is a placeholder for segments <position, #kmers>
-								final List<KMP> segs = new ArrayList<KMP>();
-								kmp_prev = intercept.get(0);
-								int start = 0, nk;
-								int is = intercept.size();
-								for(int w=1; w<is; w++) {
-									kmp_curr = intercept.get(w);
-									if(kmp_curr.a-kmp_prev.a>d_max) {
-										// break here
-										if( (nk=w-start)>=k_min ) segs.add(new KMP(start, nk));
-										start = w;
-									}
-									kmp_prev = kmp_curr;
-								}
-								if( (nk=is-start)>=k_min ) segs.add(new KMP(start, nk));
-								if(segs.isEmpty()) continue;
 
-								Collections.sort(segs, new Comparator<KMP>() {
-
+								final List<KMP> sort_hits = new ArrayList<KMP>();
+								for(final int i : kmer_hits.keySet()) 
+									sort_hits.add(new KMP(i, kmer_hits.get(i).size()));
+								Collections.sort(sort_hits, new Comparator<KMP>() {
 									@Override
-									public int compare(KMP kmp, KMP kmp2) {
+									public int compare(KMP o1, KMP o2) {
 										// TODO Auto-generated method stub
-										return kmp2.b-kmp.b;
+										return o2.b-o1.b;
+									}
+								});	
+
+								int qstart, qend, sstart, send, merCount, a, b;
+								double clip;
+								// now we get all kmer hits
+								// for each subject sequence we now filter non-collinear hits
+								// and calculate the alignment
+								final List<TraceableAlignmentSegment> alignments = new ArrayList<TraceableAlignmentSegment>();
+								final Set<Integer> a_rm = new HashSet<Integer>();
+								final Set<Integer> b_rm = new HashSet<Integer>();
+								final Set<Integer> a_bucket = new HashSet<Integer>();
+								final Set<Integer> b_bucket = new HashSet<Integer>();
+								TraceableAlignmentSegment alignment;
+
+								for(final KMP k : sort_hits) {
+									final int i = k.a;
+
+									final List<KMP> kmps = kmer_hits.get(i);
+									if(kmps.size()<k_min) continue;
+
+									// we find best alignment block on query sequence first
+									//    ________________________________
+									//   |            1/ o        /     / |
+									//   |         2 o/          /     /  |
+									//   |          3/o         /     /   |
+									//   |        4 /o         /     /    |
+									//   |         /       5 x/     /     |
+									//   |     6 o/          /     /      |
+									//   |       /          /  7 x/       |
+									//   |     8/o         /     /        |
+									//   |_____/__________/_____/_________|
+									//    a   b   c   d   e   f   g   h    
+									// (1 2 3 4 6 8)     (5)   (7)
+									// in the example above, the intercepts on the x-axis gathers around b
+									// (1 2 3 4 6 8) are selected kmers
+									// TODO: this is not exactly right as we also need to consider 
+									//       the positions on the reference sequence
+									// TODO: this is not always correct
+									//       especially in the repetitive region
+									// test case: 27f73126-832e-48a9-b7b1-794c670ec630_Basecall_1D_template
+									//  
+									//    ________________________________
+									//   |     1/o     /          /     / |
+									//   |     2/o    /          /     /  |
+									//   |     3/o   /          /     /   |
+									//   |     4/o  /          /     /    |
+									//   |     5/o /       9 x/     /     |
+									//   |     6/o/          /     /      |
+									//   |    7 o/          /  a x/       |
+									//   |     8/o         /     /        |
+									//   |_____/__________/_____/_________|
+									//    a   b   c   d   e   f   g   h
+									//  (1 2 ... 8)      (5)   (6)
+									//    ________________________________
+									//   |             /          /     / |
+									//   |            /          /     /  |
+									//   |           /          /     /   |
+									//   |          /          /     /    |
+									//   |         /       9 o/     /     |
+									//   |      1 /2 3 4 5 6 /  a o/      |
+									//   |      o/ o o o o o/o o  /       |
+									//   |      /          / 7 8 /        |
+									//   |_____/__________/_____/_________|
+									//    a   b   c   d   e   f   g   h
+									//             (1 2 ... a) 
+									// in the example above, put (1 2 ... a) together is very dangerous 
+									// this is possible if the query sequence is repetitive
+									//
+									// this is to fix the repetitive problem
+
+									a_rm.clear();
+									b_rm.clear();
+									a_bucket.clear();
+									b_bucket.clear();
+
+									for(int w=0; w<kmps.size(); w++) {
+										kmp_prev = kmps.get(w);
+										a = kmp_prev.a;
+										if(a_bucket.contains(a)) {
+											a_rm.add(a);
+										} else {
+											a_bucket.add(a);
+										}
+										b = kmp_prev.b;
+										if(b_bucket.contains(b)) {
+											b_rm.add(b);
+										} else {
+											b_bucket.add(b);
+										}
 									}
 
-								});
+									final List<KMP> hits = new ArrayList<KMP>(); 
+									for(KMP kmp : kmps) {
+										if(!a_rm.contains(kmp.a)&&
+												!b_rm.contains(kmp.b)) 
+											hits.add(kmp);
+									}
 
-								List<TraceableAlignmentSegment> seg_list = new ArrayList<TraceableAlignmentSegment>();
-								for(KMP seg : segs) {
+									if(hits.isEmpty()) continue;
+
+									// this is a placeholder for intercepts <position, #kmers>
+									final List<KMP> intercept = new ArrayList<KMP>();
+									for(int w=0; w<hits.size(); w++) {
+										KMP p = hits.get(w);
+										intercept.add(new KMP(p.a-p.b, w));
+									}
+									Collections.sort(intercept);
+
+									if(ddebug) {
+										std_out.append("+");
+										std_out.append(sub_seqs.get(seq_index.getKey(i)).seq_sn());
+										std_out.append("\n");
+										for(KMP kmp : hits) {
+											std_out.append(kmp.a+" "+kmp.b);
+											std_out.append("\n");
+										}
+									}
+
+									// this is a placeholder for segments <position, #kmers>
+									final List<KMP> segs = new ArrayList<KMP>();
+									kmp_prev = intercept.get(0);
+									int start = 0, nk;
+									int is = intercept.size();
+									for(int w=1; w<is; w++) {
+										kmp_curr = intercept.get(w);
+										if(kmp_curr.a-kmp_prev.a>d_max) {
+											// break here
+											if( (nk=w-start)>=k_min ) segs.add(new KMP(start, nk));
+											start = w;
+										}
+										kmp_prev = kmp_curr;
+									}
+									if( (nk=is-start)>=k_min ) segs.add(new KMP(start, nk));
+									if(segs.isEmpty()) continue;
+
+									Collections.sort(segs, new Comparator<KMP>() {
+
+										@Override
+										public int compare(KMP kmp, KMP kmp2) {
+											// TODO Auto-generated method stub
+											return kmp2.b-kmp.b;
+										}
+
+									});
+
+									List<TraceableAlignmentSegment> seg_list = new ArrayList<TraceableAlignmentSegment>();
+									for(KMP seg : segs) {
+										qstart = Integer.MAX_VALUE;
+										sstart = Integer.MAX_VALUE;
+										qend   = Integer.MIN_VALUE;
+										send   = Integer.MIN_VALUE;
+										for(int w=seg.a; w<seg.a+seg.b; w++) {
+											kmp_prev = hits.get(intercept.get(w).b);
+											if(kmp_prev.a<qstart) {
+												qstart = kmp_prev.a;
+												sstart = kmp_prev.b;
+											}
+											if(kmp_prev.a>qend) {
+												qend   = kmp_prev.a;
+												send   = kmp_prev.b;
+											}
+										}
+										qend  += merK;
+										send  += merK;
+
+										if(qend<qstart) {
+											throw new RuntimeException("!!!");
+										}
+										// filter by segment size
+										if(qend-qstart+1<d_max) continue;
+										// filter by kmer density
+										// ok will do this after processing collinearity
+										//if(qend-qstart+1>k_dst*seg.b) continue;
+										seg_list.add(new TraceableAlignmentSegment(qry_sn, sub_seqs.get(seq_index.getKey(i)).seq_sn(), qstart, qend, sstart, send, seg.b));
+									}
+
+									if(seg_list.isEmpty()) continue;
+
+									// now need to merge collinear segment
+									// we always keep the longest hit
+									// and check the collinearity with the remains
+									TraceableAlignmentSegment primary_seg, secondary_seg;
+									final List<Integer> sels = new ArrayList<Integer>();
+									sels.add(0);
+									int max_shift;
+									for(int w=1; w<seg_list.size();w++) {
+										primary_seg = seg_list.get(w);
+										for(int z : sels) {
+											secondary_seg = seg_list.get(z); 
+											max_shift = Math.min(primary_seg.qlength(), secondary_seg.qlength());
+											if( Math.abs(primary_seg.qintercept()-secondary_seg.qintercept())<=max_shift||
+													TraceableAlignmentSegment.pdistance(primary_seg, secondary_seg)<=max_shift ) {
+												sels.add(w);
+												break;
+											}
+										}
+									}
+
 									qstart = Integer.MAX_VALUE;
 									sstart = Integer.MAX_VALUE;
 									qend   = Integer.MIN_VALUE;
 									send   = Integer.MIN_VALUE;
-									for(int w=seg.a; w<seg.a+seg.b; w++) {
-										kmp_prev = hits.get(intercept.get(w).b);
-										if(kmp_prev.a<qstart) {
-											qstart = kmp_prev.a;
-											sstart = kmp_prev.b;
-										}
-										if(kmp_prev.a>qend) {
-											qend   = kmp_prev.a;
-											send   = kmp_prev.b;
-										}
+									merCount = 0;
+									for(int z : sels) {
+										primary_seg = seg_list.get(z); 
+										if(primary_seg.qstart()<qstart) qstart = primary_seg.qstart();
+										if(primary_seg.qend()  >qend)   qend = primary_seg.qend();
+										if(primary_seg.sstart()<sstart) sstart = primary_seg.sstart();
+										if(primary_seg.send()  >send)   send = primary_seg.send();
+										merCount += primary_seg.getMerCount();
 									}
-									qend  += merK;
-									send  += merK;
 
-									if(qend<qstart) {
-										throw new RuntimeException("!!!");
-									}
-									// filter by segment size
-									if(qend-qstart+1<d_max) continue;
-									// filter by kmer density
-									// ok will do this after processing collinearity
-									//if(qend-qstart+1>k_dst*seg.b) continue;
-									seg_list.add(new TraceableAlignmentSegment(qry_sn, sub_seqs.get(seq_index.getKey(i)).seq_sn(), qstart, qend, sstart, send, seg.b));
+									if(qend-qstart+1>k_dst*merCount) continue;
+									alignment = new TraceableAlignmentSegment(qry_sn, sub_seqs.get(seq_index.getKey(i)).seq_sn(), qstart, qend, sstart, send, merCount);
+
+									// check if this is end-to-end alignment
+									sub_ln = sub_seqs.get(seq_index.getKey(i)).seq_ln();
+									clip = Math.max(100, (qend-qstart+1)*m_clip);
+									alignment.setEndToEnd(qstart<=clip, qend+clip>=qry_ln, sstart<=clip, send+clip>=sub_ln);
+									alignment.setClip(qstart-1, qry_ln-qend, sstart-1, sub_ln-send);
+									alignment.calcScore();
+									if(alignment.getEndToEnd()) alignments.add(alignment);
 								}
 
-								if(seg_list.isEmpty()) continue;
+								Collections.sort(alignments, new TraceableAlignmentSegment.QLengthComparator());
 
-								// now need to merge collinear segment
-								// we always keep the longest hit
-								// and check the collinearity with the remains
-								TraceableAlignmentSegment primary_seg, secondary_seg;
-								final List<Integer> sels = new ArrayList<Integer>();
-								sels.add(0);
-								int max_shift;
-								for(int w=1; w<seg_list.size();w++) {
-									primary_seg = seg_list.get(w);
-									for(int z : sels) {
-										secondary_seg = seg_list.get(z); 
-										max_shift = Math.min(primary_seg.qlength(), secondary_seg.qlength());
-										if( Math.abs(primary_seg.qintercept()-secondary_seg.qintercept())<=max_shift||
-												TraceableAlignmentSegment.pdistance(primary_seg, secondary_seg)<=max_shift ) {
-											sels.add(w);
+								// RangeSet<Integer> qry_cov = TreeRangeSet.create();
+								// qry_cov.add( Range.closed(1, qry_ln).canonical(DiscreteDomain.integers()) );
+								// for(TraceableAlignmentSegment as : alignments) 
+								// 	qry_cov.remove( Range.closed(as.qstart(), as.qend()).canonical(DiscreteDomain.integers()) );
+								//	int as_ln = 0;
+								//	for(Range<Integer> r : qry_cov.asRanges()) as_ln += r.upperEndpoint()-r.lowerEndpoint();
+								//	myLogger.info(qry_sn+": alignment fraction "+(1-(double)as_ln/qry_ln));
+
+
+								if(alignments.size()<=1) {
+									std_out.append(qry_sn+": alignment fraction "+ 
+											(alignments.isEmpty()?0:((double)alignments.get(0).qlength()/qry_ln))+"\n");
+									std_out.append("<<<<<<<<<<"+qry_sn+">>>>>>>>>>\n");
+									STD_OUT_BUFFER.write(std_out.toString());
+									return;
+								}
+								Collections.sort(alignments, new TraceableAlignmentSegment.QueryCoordinationComparator());
+
+								if(ddebug) for(TraceableAlignmentSegment as : alignments) {
+									std_out.append(as.toString()+"\n");
+								}
+
+								// TODO: need to check the collinearity, i.e., cannot be too distant alignments
+								//       also if the clip is too large, then we don't want to merge them neither
+								// test case: e023806d-6dbd-42d2-bac0-da6734d90e52_Basecall_1D_template
+								//            f7e121bb-12dd-4144-8d3d-d8426c686d0b_Basecall_1D_template
+								//            f57698c4-3e82-4d9f-b7fb-5f99c872bf9c_Basecall_1D_template
+								//            b956bf82-e9b9-47d1-9071-af5ea1143ce2_Basecall_1D_template
+								int asz = alignments.size();
+								TraceableAlignmentSegment source_as, target_as, tmp_as;
+								String source_id, target_id;
+								int source_qstart, source_qend, target_qstart, target_qend;
+								double source_ln, target_ln;
+								final Map<String, List<TraceableAlignmentSegment>> merged_seq = new HashMap<String, List<TraceableAlignmentSegment>>(); 
+								for(int w=0; w<asz; w++) {
+									source_as = alignments.get(w);
+									// source need to be no clip to the end
+									if(source_as==null||!source_as.getToEnd()) continue;
+									source_id = source_as.sseqid();
+									source_qend = source_as.qend();
+									source_ln = source_as.qend()-source_as.qstart()+1;
+									sub_ln = sub_seqs.get(source_id).seq_ln();
+
+									for(int z=w+1; z<asz; z++) {
+										target_as = alignments.get(z);
+										// target need to be not clip to the start
+										if(target_as==null||!target_as.getToStart()) continue;
+										target_id = target_as.sseqid();
+										target_ln = target_as.qend()-target_as.qstart()+1;
+										// if gap size is too big
+										clip = Math.max(100, (source_ln+target_ln)*m_clip);
+										if(target_as.qstart()-source_qend>clip) continue;
+
+										if(gfa.containsEdge(source_id, target_id)) {
+											if(merged_seq.containsKey(source_id)) {
+												List<TraceableAlignmentSegment> new_seq = merged_seq.get(source_id);
+												new_seq.add(target_as);
+												merged_seq.remove(source_id);
+												merged_seq.put(target_id, new_seq);
+											} else {
+												List<TraceableAlignmentSegment> new_seq = new ArrayList<TraceableAlignmentSegment>();
+												new_seq.add(source_as);
+												new_seq.add(target_as);
+												merged_seq.put(target_id, new_seq);
+											}
+											alignment = new TraceableAlignmentSegment(qry_sn, target_id, 
+													source_as.qstart(), 
+													Math.max(source_as.qend(),   target_as.qend()),
+													-1, 
+													-1);
+											alignment.setEndToEnd(source_as.getQueryStartClip()<=clip, target_as.getQueryEndClip()<=clip,
+													source_as.getSubjectStartClip()<=clip, target_as.getSubjectEndClip()<=clip);
+											alignment.setClip(source_as.getQueryStartClip(), target_as.getQueryEndClip(), 
+													source_as.getSubjectStartClip(), target_as.getSubjectEndClip());
+											alignment.calcScore();
+											alignments.set(w,  alignment);
+											alignments.set(z, null);
+											--w;
 											break;
 										}
 									}
 								}
 
-								qstart = Integer.MAX_VALUE;
-								sstart = Integer.MAX_VALUE;
-								qend   = Integer.MIN_VALUE;
-								send   = Integer.MIN_VALUE;
-								merCount = 0;
-								for(int z : sels) {
-									primary_seg = seg_list.get(z); 
-									if(primary_seg.qstart()<qstart) qstart = primary_seg.qstart();
-									if(primary_seg.qend()  >qend)   qend = primary_seg.qend();
-									if(primary_seg.sstart()<sstart) sstart = primary_seg.sstart();
-									if(primary_seg.send()  >send)   send = primary_seg.send();
-									merCount += primary_seg.getMerCount();
-								}
-
-								if(qend-qstart+1>k_dst*merCount) continue;
-								alignment = new TraceableAlignmentSegment(qry_sn, sub_seqs.get(seq_index.getKey(i)).seq_sn(), qstart, qend, sstart, send, merCount);
-								
-								// check if this is end-to-end alignment
-								sub_ln = sub_seqs.get(seq_index.getKey(i)).seq_ln();
-								clip = (qend-qstart+1)*m_clip;
-								alignment.setEndToEnd(qstart<=clip, qend+clip>=qry_ln, sstart<=clip, send+clip>=sub_ln);
-								alignment.setClip(qstart-1, qry_ln-qend, sstart-1, sub_ln-send);
-								alignment.calcScore();
-								if(alignment.getEndToEnd()) alignments.add(alignment);
-							}
-
-							Collections.sort(alignments, new TraceableAlignmentSegment.QLengthComparator());
-
-							// RangeSet<Integer> qry_cov = TreeRangeSet.create();
-							// qry_cov.add( Range.closed(1, qry_ln).canonical(DiscreteDomain.integers()) );
-							// for(TraceableAlignmentSegment as : alignments) 
-							// 	qry_cov.remove( Range.closed(as.qstart(), as.qend()).canonical(DiscreteDomain.integers()) );
-							//	int as_ln = 0;
-							//	for(Range<Integer> r : qry_cov.asRanges()) as_ln += r.upperEndpoint()-r.lowerEndpoint();
-							//	myLogger.info(qry_sn+": alignment fraction "+(1-(double)as_ln/qry_ln));
-
-
-							if(alignments.size()<=1) {
-								std_out.append(qry_sn+": alignment fraction "+ 
-										(alignments.isEmpty()?0:((double)alignments.get(0).qlength()/qry_ln))+"\n");
-								std_out.append("<<<<<<<<<<"+qry_sn+">>>>>>>>>>\n");
-								STD_OUT_BUFFER.write(std_out.toString());
-								return;
-							}
-							Collections.sort(alignments, new TraceableAlignmentSegment.QueryCoordinationComparator());
-
-							if(ddebug) for(TraceableAlignmentSegment as : alignments) {
-								std_out.append(as.toString()+"\n");
-							}
-
-							// TODO: need to check the collinearity, i.e., cannot be too distant alignments
-							//       also if the clip is too large, then we don't want to merge them neither
-							// test case: e023806d-6dbd-42d2-bac0-da6734d90e52_Basecall_1D_template
-							//            f7e121bb-12dd-4144-8d3d-d8426c686d0b_Basecall_1D_template
-							//            f57698c4-3e82-4d9f-b7fb-5f99c872bf9c_Basecall_1D_template
-							//            b956bf82-e9b9-47d1-9071-af5ea1143ce2_Basecall_1D_template
-							int asz = alignments.size();
-							TraceableAlignmentSegment source_as, target_as, tmp_as;
-							String source_id, target_id;
-							int source_qstart, source_qend, target_qstart, target_qend;
-							double source_ln, target_ln;
-							final Map<String, List<TraceableAlignmentSegment>> merged_seq = new HashMap<String, List<TraceableAlignmentSegment>>(); 
-							for(int w=0; w<asz; w++) {
-								source_as = alignments.get(w);
-								// source need to be no clip to the end
-								if(source_as==null||!source_as.getToEnd()) continue;
-								source_id = source_as.sseqid();
-								source_qend = source_as.qend();
-								source_ln = source_as.qend()-source_as.qstart()+1;
-								sub_ln = sub_seqs.get(source_id).seq_ln();
-								
-								for(int z=w+1; z<asz; z++) {
-									target_as = alignments.get(z);
-									// target need to be not clip to the start
-									if(target_as==null||!target_as.getToStart()) continue;
-									target_id = target_as.sseqid();
-									target_ln = target_as.qend()-target_as.qstart()+1;
-									// if gap size is too big
-									clip = (source_ln+target_ln)*m_clip;
-									if(target_as.qstart()-source_qend>clip) continue;
-									
-									if(gfa.containsEdge(source_id, target_id)) {
-										if(merged_seq.containsKey(source_id)) {
-											List<TraceableAlignmentSegment> new_seq = merged_seq.get(source_id);
-											new_seq.add(target_as);
-											merged_seq.remove(source_id);
-											merged_seq.put(target_id, new_seq);
-										} else {
-											List<TraceableAlignmentSegment> new_seq = new ArrayList<TraceableAlignmentSegment>();
-											new_seq.add(source_as);
-											new_seq.add(target_as);
-											merged_seq.put(target_id, new_seq);
-										}
-										alignment = new TraceableAlignmentSegment(qry_sn, target_id, 
-												source_as.qstart(), 
-												Math.max(source_as.qend(),   target_as.qend()),
-												-1, 
-												-1);
-										alignment.setEndToEnd(source_as.getQueryStartClip()<=clip, target_as.getQueryEndClip()<=clip,
-												source_as.getSubjectStartClip()<=clip, target_as.getSubjectEndClip()<=clip);
-										alignment.setClip(source_as.getQueryStartClip(), target_as.getQueryEndClip(), 
-												source_as.getSubjectStartClip(), target_as.getSubjectEndClip());
-										alignment.calcScore();
-										alignments.set(w,  alignment);
-										alignments.set(z, null);
-										--w;
-										break;
+								if(ddebug) {
+									std_out.append("--------------------------------\n");
+									for(TraceableAlignmentSegment as : alignments) if(as!=null) {
+										std_out.append(as.toString()+"\n");
 									}
 								}
-							}
 
-							if(ddebug) {
-								std_out.append("--------------------------------\n");
-								for(TraceableAlignmentSegment as : alignments) if(as!=null) {
-									std_out.append(as.toString()+"\n");
-								}
-							}
-
-							// we remove containment
-							int source_len, target_len;
-							double source_olap, target_olap;
-							double olap;
-							boolean sEndToEnd, tEndToEnd;
-							outerloop:
-								for(int w=0; w<asz; w++) {
-									source_as = alignments.get(w);
-									if(source_as==null) continue;
-									source_qstart = source_as.qstart();
-									source_qend   = source_as.qend();
-									source_len    = source_qend-source_qstart+1;
-									sEndToEnd = source_as.getEndToEnd();
-									for(int z=w+1; z<asz; z++) {
-										target_as = alignments.get(z);
-										if(target_as==null) continue;
-										target_qstart = target_as.qstart();
-										target_qend   = target_as.qend();
-										target_len    = target_qend-target_qstart+1;
-										tEndToEnd = target_as.getEndToEnd();
-										if(!sEndToEnd&&!tEndToEnd) continue;
-										// we calculate overlap size
-										if(target_qend<=source_qend) {
-											if(sEndToEnd) alignments.set(z, null);
-											continue;
-										}
-										if((olap=source_qend-target_qstart)<=0)
-											continue outerloop;
-										source_olap = olap/source_len;
-										target_olap = olap/target_len;
-										if(source_olap>=olap_min&&
-												target_olap>=olap_min) {
-											if(sEndToEnd&&tEndToEnd) {
-												if(source_olap<target_olap) {
+								// we remove containment
+								int source_len, target_len;
+								double source_olap, target_olap;
+								double olap;
+								boolean sEndToEnd, tEndToEnd;
+								outerloop:
+									for(int w=0; w<asz; w++) {
+										source_as = alignments.get(w);
+										if(source_as==null) continue;
+										source_qstart = source_as.qstart();
+										source_qend   = source_as.qend();
+										source_len    = source_qend-source_qstart+1;
+										sEndToEnd = source_as.getEndToEnd();
+										for(int z=w+1; z<asz; z++) {
+											target_as = alignments.get(z);
+											if(target_as==null) continue;
+											target_qstart = target_as.qstart();
+											target_qend   = target_as.qend();
+											target_len    = target_qend-target_qstart+1;
+											tEndToEnd = target_as.getEndToEnd();
+											if(!sEndToEnd&&!tEndToEnd) continue;
+											// we calculate overlap size
+											if(target_qend<=source_qend) {
+												if(sEndToEnd) alignments.set(z, null);
+												continue;
+											}
+											if((olap=source_qend-target_qstart)<=0)
+												continue outerloop;
+											source_olap = olap/source_len;
+											target_olap = olap/target_len;
+											if(source_olap>=olap_min&&
+													target_olap>=olap_min) {
+												if(sEndToEnd&&tEndToEnd) {
+													if(source_olap<target_olap) {
+														alignments.set(z, null);
+														continue;
+													} else {
+														alignments.set(w, null);
+														continue outerloop;
+													}
+												} 
+												if(sEndToEnd) {
 													alignments.set(z, null);
 													continue;
-												} else {
+												} 
+												if(tEndToEnd) {
 													alignments.set(w, null);
 													continue outerloop;
 												}
-											} 
-											if(sEndToEnd) {
-												alignments.set(z, null);
-												continue;
-											} 
-											if(tEndToEnd) {
+											}
+											if(source_olap>=olap_min&&tEndToEnd) {
 												alignments.set(w, null);
 												continue outerloop;
 											}
-										}
-										if(source_olap>=olap_min&&tEndToEnd) {
-											alignments.set(w, null);
-											continue outerloop;
-										}
-										if(target_olap>=olap_min&&sEndToEnd) {
-											alignments.set(z, null);
-											continue;
+											if(target_olap>=olap_min&&sEndToEnd) {
+												alignments.set(z, null);
+												continue;
+											}
 										}
 									}
+								if(ddebug) {
+									std_out.append("--------------------------------\n");
+									for(TraceableAlignmentSegment as : alignments) if(as!=null) {
+										std_out.append(as.toString()+"\n");
+									}
 								}
-							if(ddebug) {
-								std_out.append("--------------------------------\n");
-								for(TraceableAlignmentSegment as : alignments) if(as!=null) {
-									std_out.append(as.toString()+"\n");
-								}
-							}
 
-							// we find the best path for coverage
-							// get a copy of the alignment to remove nulls
-							final List<TraceableAlignmentSegment> selected = new ArrayList<TraceableAlignmentSegment>();
-							for(TraceableAlignmentSegment as : alignments) if(as!=null) selected.add(as);
-							if(selected.size()<=1) {
+								// we find the best path for coverage
+								// get a copy of the alignment to remove nulls
+								final List<TraceableAlignmentSegment> selected = new ArrayList<TraceableAlignmentSegment>();
+								for(TraceableAlignmentSegment as : alignments) if(as!=null) selected.add(as);
+								if(selected.size()<=1) {
+									if(debug) {
+										std_out.append("--------------------------------\n");
+										if(!selected.isEmpty()) {
+											TraceableAlignmentSegment as = selected.get(0);
+											if(merged_seq.containsKey(as.sseqid())) {
+												List<TraceableAlignmentSegment> tas = merged_seq.get(as.sseqid());
+												for(TraceableAlignmentSegment ta : tas) std_out.append(ta.toString()+"\n");
+											} else {
+												std_out.append(as.toString()+"\n");
+											}	
+										}
+									}
+									std_out.append(qry_sn+": alignment fraction "+ 
+											(selected.isEmpty()?0:((double)selected.get(0).qlength()/qry_ln))+"\n");
+									std_out.append("<<<<<<<<<<"+qry_sn+">>>>>>>>>>\n");
+									STD_OUT_BUFFER.write(std_out.toString());
+									return;
+								}
+
+								double objective = Double.NEGATIVE_INFINITY, dobj, opt_obj = 0d, tmp; // record the current best path
+								int tmp_qstart, tmp_qend;
+								TraceableAlignmentSegment traceback = null;
+								asz = selected.size();
+
+								for(int w=0; w<asz; w++) {
+									source_as = selected.get(w);
+									if(source_as.getTraceBackward()!=null) 
+										continue;
+									objective = source_as.getScore();
+									if(objective<0) continue;
+									source_id = source_as.sseqid();
+									source_qstart = source_as.qstart();
+									source_qend   = source_as.qend();
+
+									// so we start from w
+									int z = w+1;
+									outerloop:
+										while(z<asz) {
+											// first find next 
+											target_as = selected.get(z);
+
+											if(!target_as.getToSubjectStart()||
+													!target_as.getToEnd()) {
+												++z;
+												continue;
+											}
+
+											target_qstart = target_as.qstart();
+											target_qend   = target_as.qend();
+
+											// calculate addition to the objective
+											dobj = target_as.getScore()+
+													(target_qstart>source_qend?ScoreMatrix.gap_open:0)-
+													(target_qstart>source_qend?0:(source_qend-target_qstart)*ScoreMatrix.match_score);
+
+											// #a <------------------->
+											// #b      <----------------->
+											// #c            <--------------->
+											// we prefer #c over #b
+											for(int v=z+1; v<asz; v++) {
+												tmp_as = selected.get(v);
+												if(!tmp_as.getToSubjectStart()||
+														!tmp_as.getToEnd()) 
+													continue;
+
+												tmp_qstart = tmp_as.qstart();
+												tmp_qend = tmp_as.qend();
+												if(tmp_qstart>source_qend && 
+														tmp_qstart>target_qstart)
+													break;
+												tmp = tmp_as.getScore()+
+														(tmp_qstart>source_qend?ScoreMatrix.gap_open:0)-
+														(tmp_qstart>source_qend?0:(source_qend-tmp_qstart)*ScoreMatrix.match_score);
+												if(tmp>dobj) {
+													// update selected
+													dobj = tmp;
+													target_as = tmp_as;
+													target_qstart = tmp_qstart;
+													target_qend   = tmp_qend;
+													z = v;
+												}
+											}
+
+											// OK now we found it
+											if(dobj>0 && dobj+objective>target_as.getObjective()) {
+												// if the objective is better, we choose this path
+												objective += dobj;
+												target_as.setTraceBackward(source_as);
+												target_as.setObjective(objective);
+												source_as.setTraceForward(target_as);
+												// finally we update source
+												source_as = target_as;
+												source_id = source_as.sseqid();
+												source_qstart = target_qstart;
+												source_qend   = target_qend;
+
+												if(source_as.getTraceForward()!=null) {
+													// so we trace forward from here to avoid redoing this
+													while((target_as=source_as.getTraceForward())!=null) {
+														objective = target_as.getObjective()+dobj;
+														target_as.setObjective(objective);
+														source_as = target_as;
+													}
+													break outerloop;
+												}
+											}
+											// don't forget this
+											++z;
+										}
+
+									// now we get a path
+									if(objective>opt_obj) {
+										opt_obj = objective;
+										traceback = source_as;	
+									}
+								}
+
+								// now we get the final path
+								// which can be traced back from 'traceback'
+								if(traceback==null) {
+									std_out.append(qry_sn+": alignment fraction 0\n");
+									std_out.append("<<<<<<<<<<"+qry_sn+">>>>>>>>>>\n");
+									STD_OUT_BUFFER.write(std_out.toString());
+									return;
+								}
+
+								final List<TraceableAlignmentSegment> graph_path = new ArrayList<TraceableAlignmentSegment>();
+								while(traceback!=null) {
+									graph_path.add(traceback);
+									traceback = traceback.getTraceBackward();
+								}
+								Collections.reverse(graph_path);
+
+								source_as = graph_path.get(0);
+								source_qstart = source_as.qstart();
+								source_qend   = source_as.qend();
+								double dcov = source_qend-source_qstart+1;
+								for(int z=1; z<graph_path.size(); z++) {
+									target_as = graph_path.get(z);
+									target_qstart = target_as.qstart();
+									target_qend   = target_as.qend();
+									dcov += target_qend-target_qstart+1-
+											(target_qstart>source_qend?0:(source_qend-target_qstart));
+									source_as = target_as;
+									source_qstart = target_qstart;
+									source_qend   = target_qend;
+								}
+								std_out.append(qry_sn+": alignment fraction "+ dcov/qry_ln+"\n");
+
 								if(debug) {
 									std_out.append("--------------------------------\n");
-									if(!selected.isEmpty()) {
-										TraceableAlignmentSegment as = selected.get(0);
+									for(TraceableAlignmentSegment as : graph_path) { 
 										if(merged_seq.containsKey(as.sseqid())) {
 											List<TraceableAlignmentSegment> tas = merged_seq.get(as.sseqid());
 											for(TraceableAlignmentSegment ta : tas) std_out.append(ta.toString()+"\n");
@@ -1169,186 +1631,42 @@ public class Graphmap extends Executor {
 										}	
 									}
 								}
-								std_out.append(qry_sn+": alignment fraction "+ 
-										(selected.isEmpty()?0:((double)selected.get(0).qlength()/qry_ln))+"\n");
+
+								// now contigging and updating the assembly graph
+
+
 								std_out.append("<<<<<<<<<<"+qry_sn+">>>>>>>>>>\n");
 								STD_OUT_BUFFER.write(std_out.toString());
-								return;
+							} catch (Exception e) {
+								// TODO Auto-generated catch block
+								Thread t = Thread.currentThread();
+								t.getUncaughtExceptionHandler().uncaughtException(t, e);
+								e.printStackTrace();
+								executor.shutdown();
+								System.exit(1);
 							}
-
-							double objective = Double.NEGATIVE_INFINITY, dobj, opt_obj = 0d, tmp; // record the current best path
-							int tmp_qstart, tmp_qend;
-							TraceableAlignmentSegment traceback = null;
-							asz = selected.size();
-
-							for(int w=0; w<asz; w++) {
-								source_as = selected.get(w);
-								if(source_as.getTraceBackward()!=null) 
-									continue;
-								objective = source_as.getScore();
-								if(objective<0) continue;
-								source_id = source_as.sseqid();
-								source_qstart = source_as.qstart();
-								source_qend   = source_as.qend();
-
-								// so we start from w
-								int z = w+1;
-								outerloop:
-									while(z<asz) {
-										// first find next 
-										target_as = selected.get(z);
-
-										if(!target_as.getToSubjectStart()||
-												!target_as.getToEnd()) {
-											++z;
-											continue;
-										}
-
-										target_qstart = target_as.qstart();
-										target_qend   = target_as.qend();
-
-										// calculate addition to the objective
-										dobj = target_as.getScore()+
-												(target_qstart>source_qend?ScoreMatrix.gap_open:0)-
-												(target_qstart>source_qend?0:(source_qend-target_qstart)*ScoreMatrix.match_score);
-
-										// #a <------------------->
-										// #b      <----------------->
-										// #c            <--------------->
-										// we prefer #c over #b
-										for(int v=z+1; v<asz; v++) {
-											tmp_as = selected.get(v);
-											if(!tmp_as.getToSubjectStart()||
-													!tmp_as.getToEnd()) 
-												continue;
-
-											tmp_qstart = tmp_as.qstart();
-											tmp_qend = tmp_as.qend();
-											if(tmp_qstart>source_qend && 
-													tmp_qstart>target_qstart)
-												break;
-											tmp = tmp_as.getScore()+
-													(tmp_qstart>source_qend?ScoreMatrix.gap_open:0)-
-													(tmp_qstart>source_qend?0:(source_qend-tmp_qstart)*ScoreMatrix.match_score);
-											if(tmp>dobj) {
-												// update selected
-												dobj = tmp;
-												target_as = tmp_as;
-												target_qstart = tmp_qstart;
-												target_qend   = tmp_qend;
-												z = v;
-											}
-										}
-
-										// OK now we found it
-										if(dobj>0 && dobj+objective>target_as.getObjective()) {
-											// if the objective is better, we choose this path
-											objective += dobj;
-											target_as.setTraceBackward(source_as);
-											target_as.setObjective(objective);
-											source_as.setTraceForward(target_as);
-											// finally we update source
-											source_as = target_as;
-											source_id = source_as.sseqid();
-											source_qstart = target_qstart;
-											source_qend   = target_qend;
-
-											if(source_as.getTraceForward()!=null) {
-												// so we trace forward from here to avoid redoing this
-												while((target_as=source_as.getTraceForward())!=null) {
-													objective = target_as.getObjective()+dobj;
-													target_as.setObjective(objective);
-													source_as = target_as;
-												}
-												break outerloop;
-											}
-										}
-										// don't forget this
-										++z;
-									}
-								
-								// now we get a path
-								if(objective>opt_obj) {
-									opt_obj = objective;
-									traceback = source_as;	
-								}
-							}
-
-							// now we get the final path
-							// which can be traced back from 'traceback'
-							if(traceback==null) {
-								std_out.append(qry_sn+": alignment fraction 0\n");
-								std_out.append("<<<<<<<<<<"+qry_sn+">>>>>>>>>>\n");
-								STD_OUT_BUFFER.write(std_out.toString());
-								return;
-							}
-							
-							final List<TraceableAlignmentSegment> graph_path = new ArrayList<TraceableAlignmentSegment>();
-							while(traceback!=null) {
-								graph_path.add(traceback);
-								traceback = traceback.getTraceBackward();
-							}
-							Collections.reverse(graph_path);
-							
-							source_as = graph_path.get(0);
-							source_qstart = source_as.qstart();
-							source_qend   = source_as.qend();
-							double dcov = source_qend-source_qstart+1;
-							for(int z=1; z<graph_path.size(); z++) {
-								target_as = graph_path.get(z);
-								target_qstart = target_as.qstart();
-								target_qend   = target_as.qend();
-								dcov += target_qend-target_qstart+1-
-										(target_qstart>source_qend?0:(source_qend-target_qstart));
-								source_as = target_as;
-								source_qstart = target_qstart;
-								source_qend   = target_qend;
-							}
-							std_out.append(qry_sn+": alignment fraction "+ dcov/qry_ln+"\n");
-							
-							if(debug) {
-								std_out.append("--------------------------------\n");
-								for(TraceableAlignmentSegment as : graph_path) { 
-									if(merged_seq.containsKey(as.sseqid())) {
-										List<TraceableAlignmentSegment> tas = merged_seq.get(as.sseqid());
-										for(TraceableAlignmentSegment ta : tas) std_out.append(ta.toString()+"\n");
-									} else {
-										std_out.append(as.toString()+"\n");
-									}	
-								}
-							}
-
-							
-							std_out.append("<<<<<<<<<<"+qry_sn+">>>>>>>>>>\n");
-							STD_OUT_BUFFER.write(std_out.toString());
-						} catch (Exception e) {
-							// TODO Auto-generated catch block
-							Thread t = Thread.currentThread();
-							t.getUncaughtExceptionHandler().uncaughtException(t, e);
-							e.printStackTrace();
-							executor.shutdown();
-							System.exit(1);
 						}
-					}
 
-					public Runnable init(String qry_sn, String qry_sq) {
-						this.qry_sn = qry_sn;
-						this.qry_sq = qry_sq;
-						return this;
-					}
-				}.init(qry_sn, qry_sq));
+						public Runnable init(String qry_sn, String qry_sq) {
+							this.qry_sn = qry_sn;
+							this.qry_sq = qry_sq;
+							return this;
+						}
+					}.init(qry_sn, qry_sq));
 
-				if(isFASTQ) {
-					// skip two lines if is FASTQ file
-					br_qry.readLine();
-					br_qry.readLine();
+					if(isFASTQ) {
+						// skip two lines if is FASTQ file
+						br_qry.readLine();
+						br_qry.readLine();
+					}
+					line = br_qry.readLine();
 				}
-				line = br_qry.readLine();
+
+				br_qry.close();
 			}
 			this.waitFor();
 			STD_OUT_BUFFER.flush();
-			
-			br_qry.close();
+
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -1415,43 +1733,43 @@ final class TraversalTraceable {
 	private final String id;
 	private TraversalTraceable previous = null;
 	private double gap = 0;
-	
+
 	public TraversalTraceable(final String id) {
 		this.id = id;
 	}
-	
+
 	public String getId() {
 		return this.id;
 	}
-	
+
 	public void setTraceBackward(TraversalTraceable previous) {
 		this.previous = previous;
 	}
-	
+
 	public TraversalTraceable getTraceBackward() {
 		return this.previous;
 	}
-	
+
 	public void setGap(double gap) {
 		this.gap = gap;
 	}
-	
+
 	public double getGap() {
 		return this.gap;
 	}
-	
+
 	@Override
 	public int hashCode(){
-        return this.id.hashCode();
-    }
-	
+		return this.id.hashCode();
+	}
+
 	@Override
-    public boolean equals(Object obj){
-        if (obj instanceof TraversalTraceable) {
-           return this.id.equals(((TraversalTraceable)obj).id);
-        }
-        return false;
-    }
+	public boolean equals(Object obj){
+		if (obj instanceof TraversalTraceable) {
+			return this.id.equals(((TraversalTraceable)obj).id);
+		}
+		return false;
+	}
 }
 
 final class TraceableAlignmentSegment extends AlignmentSegment {
@@ -1472,7 +1790,7 @@ final class TraceableAlignmentSegment extends AlignmentSegment {
 	private int qstart_clip = 0;
 	private int qend_clip = 0;
 	private int score = 0;
-	
+
 	public TraceableAlignmentSegment(String qseqid, String sseqid, 
 			int qstart, int qend, int sstart, int send) {
 		// TODO Auto-generated constructor stub
@@ -1486,52 +1804,52 @@ final class TraceableAlignmentSegment extends AlignmentSegment {
 		this.sstart_clip = sstart_clip;
 		this.send_clip = send_clip;
 	}
-	
+
 	public void setQueryStartClip(int qstart_clip) {
 		// TODO Auto-generated method stub
 		this.qstart_clip = qstart_clip;
 	}
-	
+
 	public void setQueryEndClip(int qend_clip) {
 		// TODO Auto-generated method stub
 		this.qend_clip = qend_clip;
 	}
-	
+
 	public int getQueryStartClip() {
 		// TODO Auto-generated method stub
 		return this.qstart_clip;
 	}
-	
+
 	public int getQueryEndClip() {
 		// TODO Auto-generated method stub
 		return this.qend_clip;
 	}
-	
+
 	public void setSubjectStartClip(int sstart_clip) {
 		// TODO Auto-generated method stub
 		this.sstart_clip = sstart_clip;
 	}
-	
+
 	public void setSubjectEndClip(int send_clip) {
 		// TODO Auto-generated method stub
 		this.send_clip = send_clip;
 	}
-	
+
 	public int getSubjectStartClip() {
 		// TODO Auto-generated method stub
 		return this.sstart_clip;
 	}
-	
+
 	public int getSubjectEndClip() {
 		// TODO Auto-generated method stub
 		return this.send_clip;
 	}
-	
+
 	public int getClip() {
 		// TODO Auto-generated method stub
 		return this.sstart_clip+this.send_clip;
 	}
-	
+
 	public void setEndToEnd(boolean to_query_start, boolean to_query_end,
 			boolean to_subject_start, boolean to_subject_end) {
 		// TODO Auto-generated method stub
@@ -1543,73 +1861,73 @@ final class TraceableAlignmentSegment extends AlignmentSegment {
 		this.to_end   = to_query_end||to_subject_end;
 		this.end_to_end = to_start&&to_end;
 	}
-	
+
 	public void setToQueryStart(boolean to_query_start) {
 		// TODO Auto-generated method stub
 		this.to_query_start = to_query_start;
 	}
-	
+
 	public void setToQueryEnd(boolean to_query_end) {
 		// TODO Auto-generated method stub
 		this.to_query_end = to_query_end;
 	}
-	
+
 	public void setToSubjectStart(boolean to_subject_start) {
 		// TODO Auto-generated method stub
 		this.to_subject_start = to_subject_start;
 	}
-	
+
 	public void setToSubjectEnd(boolean to_subject_end) {
 		// TODO Auto-generated method stub
 		this.to_subject_end = to_subject_end;
 	}
-	
+
 	public boolean getToQueryStart() {
 		// TODO Auto-generated method stub
 		return this.to_query_start;
 	}
-	
+
 	public boolean getToQueryEnd() {
 		// TODO Auto-generated method stub
 		return this.to_query_end;
 	}
-	
+
 	public boolean getToSubjectStart() {
 		// TODO Auto-generated method stub
 		return this.to_subject_start;
 	}
-	
+
 	public boolean getToSubjectEnd() {
 		// TODO Auto-generated method stub
 		return this.to_subject_end;
 	}
-	
+
 	public void setEndToEnd(boolean end_to_end) {
 		// TODO Auto-generated method stub
 		this.end_to_end = end_to_end;
 	}
-	
+
 	public void setToStart(boolean to_start) {
 		// TODO Auto-generated method stub
 		this.to_start = to_start;
 	}
-	
+
 	public void setToEnd(boolean to_end) {
 		// TODO Auto-generated method stub
 		this.to_end = to_end;
 	}
-	
+
 	public boolean getToStart() {
 		// TODO Auto-generated method stub
 		return this.to_start;
 	}
-	
-	
+
+
 	public boolean getToEnd() {
 		// TODO Auto-generated method stub
 		return this.to_end;
 	}
-	
+
 	public boolean getEndToEnd() {
 		// TODO Auto-generated method stub
 		return this.end_to_end;
@@ -1625,7 +1943,7 @@ final class TraceableAlignmentSegment extends AlignmentSegment {
 	public void setTraceForward(TraceableAlignmentSegment next) {
 		this.next = next;
 	}
-	
+
 	public void setTraceBackward(TraceableAlignmentSegment previous) {
 		this.previous = previous;
 	}
@@ -1639,11 +1957,11 @@ final class TraceableAlignmentSegment extends AlignmentSegment {
 	public void setScore(int score) {
 		this.score = score;
 	}
-	
+
 	public int getScore() {
 		return this.score;
 	}
-	
+
 	public void setObjective(double objective) {
 		this.objective = objective;
 	}
@@ -1651,7 +1969,7 @@ final class TraceableAlignmentSegment extends AlignmentSegment {
 	public void addObjective(double dobj) {
 		this.objective += dobj;
 	}
-	
+
 	public void setMerCount(int mer_count) {
 		this.mer_count = mer_count;
 	}
@@ -1659,7 +1977,7 @@ final class TraceableAlignmentSegment extends AlignmentSegment {
 	public TraceableAlignmentSegment getTraceForward() {
 		return this.next;
 	}
-	
+
 	public TraceableAlignmentSegment getTraceBackward() {
 		return this.previous;
 	}
