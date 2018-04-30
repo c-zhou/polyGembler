@@ -1160,6 +1160,7 @@ public class Anchor extends Executor {
 								final StringBuilder linkSeq = new StringBuilder();
 								final StringBuilder linkContigging = new StringBuilder();
 								String contigStr;
+								int olap;
 								
 								synchronized(lock) {
 									for(TraceableVertex<String> opt_vertex : traceable) {
@@ -1191,7 +1192,13 @@ public class Anchor extends Executor {
 											
 											if(!e.isRealigned()) gfa.realign(e);
 											
-											linkSeq.append(qry_seqs.get(target_seqid).seq_str().substring((int)e.olapR()));
+											olap = (int)e.olapR();
+											if(olap<0) {
+												linkSeq.append(Constants.scaffold_gap_fill);
+												linkSeq.append(qry_seqs.get(target_seqid).seq_str());
+											} else {
+												linkSeq.append(qry_seqs.get(target_seqid).seq_str().substring(olap));
+											}
 											linkContigging.append("->"+target_seqid);
 											linkPlace.add(target_seqid);
 											source_seqid = target_seqid;

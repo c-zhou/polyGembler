@@ -654,6 +654,7 @@ public class GFA {
 		myLogger.info("    intialising assembly graph.");
 
 		String source, target, overlap;
+		int olap;
 		try {
 			BufferedReader br_gfa = Utils.getBufferedReader(graph_file);
 			String line;
@@ -681,16 +682,14 @@ public class GFA {
 				case "S":
 					// this is segment identifier
 					// add this to graph vertex set
-					gfa.addVertex(s[1]    );
-					gfa.addVertex(s[1]+"'");
-					rev.put(s[1], s[1]+"'");
-					rev.put(s[1]+"'", s[1]);
+					gfa.addVertex(s[1]         );
+					gfa.addVertex(rev.get(s[1]));
 					break;
 				case "L":
 					// this is link
 					// add this to graph edge set
-					source = s[1]+(s[2].equals("+")?"":"'");
-					target = s[3]+(s[4].equals("+")?"":"'");
+					source = s[2].equals("+")?s[1]:rev.get(s[1]);
+					target = s[4].equals("+")?s[3]:rev.get(s[3]);
 					overlap = s[5];
 					if(overlap.equals("*")) {
 						// overlap cigar not available?
@@ -704,9 +703,11 @@ public class GFA {
 						OverlapEdge e = gfa.addEdge(source, target);
 						gfa.setEdgeWeight(e, 1.0);
 						gfa.setEdgeCigar(e, overlap);
-						gfa.setEdgeOverlapF(e, Constants.getOlapFromCigar(overlap));
-						gfa.setEdgeOverlapR(e, Constants.getOlapFromCigar(Constants.cgRevCmp(overlap)));
-						gfa.setEdgeOverlap(e, Constants.getOlapFromCigar(overlap));
+						olap = Constants.getOlapFromCigar(overlap);
+						gfa.setEdgeOverlapF(e, olap==0 ? -Constants.scaffold_gap_size : olap);
+						gfa.setEdgeOverlap(e, olap);
+						olap = Constants.getOlapFromCigar(Constants.cgRevCmp(overlap));
+						gfa.setEdgeOverlapR(e, olap==0 ? -Constants.scaffold_gap_size : olap);
 						gfa.setEdgeRealigned(e);
 					}
 					break;
@@ -756,9 +757,11 @@ public class GFA {
 					gfa.setEdgeWeight(e, 1.0);
 					overlap = Constants.cgRevCmp(olapE.cigar);
 					gfa.setEdgeCigar(e, overlap);
-					gfa.setEdgeOverlapF(e, Constants.getOlapFromCigar(overlap));
-					gfa.setEdgeOverlapR(e, Constants.getOlapFromCigar(Constants.cgRevCmp(overlap)));
-					gfa.setEdgeOverlap(e, Constants.getOlapFromCigar(overlap));
+					olap = Constants.getOlapFromCigar(overlap);
+					gfa.setEdgeOverlapF(e, olap==0 ? -Constants.scaffold_gap_size : olap);
+					gfa.setEdgeOverlap(e, olap);
+					olap = Constants.getOlapFromCigar(Constants.cgRevCmp(overlap));
+					gfa.setEdgeOverlapR(e, olap==0 ? -Constants.scaffold_gap_size : olap);
 					gfa.setEdgeRealigned(e);
 					++link_new;
 				}
@@ -809,6 +812,14 @@ public class GFA {
 		return;
 	}
 
+	public OverlapEdge addEdge(String source, String target) {
+		return this.gfa.addEdge(source, target);
+	}
+	
+	public boolean addVertex(String v) {
+		return this.gfa.addVertex(v);
+	}
+	
 	public Set<String> vertexSet() {
 		return this.gfa.vertexSet();
 	}
@@ -891,6 +902,16 @@ public class GFA {
 	
 	public String getEdgeTarget(OverlapEdge e) {
 		return this.gfa.getEdgeTarget(e);
+	}
+
+	public void setEdgeRealigned(OverlapEdge edge) {
+		// TODO Auto-generated method stub
+		gfa.setEdgeRealigned(edge);
+	}
+
+	public void setEdgeWeight(OverlapEdge edge, double weight) {
+		// TODO Auto-generated method stub
+		gfa.setEdgeWeight(edge, weight);
 	}
 
 }

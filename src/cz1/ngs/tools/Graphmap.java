@@ -334,8 +334,9 @@ public class Graphmap extends Executor {
 	private void map_r454() {
 		// TODO Auto-generated method stub
 		gfa = new GFA(subject_file, graph_file);
-		String source, target, seqid;
+		String source, target, seqid, dualSeqStr;
 		Sequence source_seq, target_seq, dualSeq;
+		int olap;
 		Set<String> dualSeqid = new HashSet<String>();
 		try {
 			BufferedWriter bw_out = Utils.getBufferedWriter(out_prefix+".fa");
@@ -346,7 +347,17 @@ public class Graphmap extends Executor {
 				if(dualSeqid.contains(seqid)) continue;
 				source_seq = sub_seqs.get(source);
 				target_seq = sub_seqs.get(target);
-				dualSeq = new Sequence(seqid, source_seq.seq_str()+target_seq.seq_str().substring((int)edge.olapR()));
+				
+				olap = (int)edge.olapR();
+				dualSeqStr = source_seq.seq_str();
+				if(olap<0) {
+					dualSeqStr += Constants.scaffold_gap_fill;
+					dualSeqStr += target_seq.seq_str();
+				} else {
+					dualSeqStr += target_seq.seq_str().substring(olap);
+				}
+				
+				dualSeq = new Sequence(seqid, dualSeqStr);
 				dualSeqid.add(seqid);
 				dualSeqid.add(gfa.getRev(target)+"_"+gfa.getRev(source));
 				bw_out.write(dualSeq.formatOutput());
@@ -634,24 +645,45 @@ public class Graphmap extends Executor {
 							TraversalTraceable traceable_target = search(source, target, m_ins-radius);
 							if(traceable_target!=null) {
 								// so we found a path from source to target
+								// we don't need to do anything
 								synchronized(lock) {
 									++contained_multi;
 								}
-								
 							} else {
 								// we didn't find a path, so we calculate the overlap between them
 								String source_str = sub_seqs.get(source).seq_str();
 								String target_str = sub_seqs.get(target).seq_str();
 								int[] olap = overlap(source_str, target_str);
+								String cigar = cigar(olap);
 								if(olap!=null) {
 									synchronized(lock) {
 										++contained_olap;
 										if(!ddebug) STD_OUT_BUFFER.write(cigar(olap)+"\n");
+										// so we will add a edge between source and target
+										OverlapEdge edge = gfa.addEdge(source, target);
+										edge.setOlapF(Constants.getOlapFromCigar(cigar));
+										edge.setOlapR(Constants.getOlapFromCigar(Constants.cgRevCmp(cigar)));
+										edge.setOlap(Constants.getOlapFromCigar(cigar));
+										edge.setCigar(cigar);
+										gfa.setEdgeWeight(edge, 1.0);
+										gfa.setEdgeRealigned(edge);
 									}
 								} else {
 									synchronized(lock) {
 										++contained_nonolap;
 									}
+									// so what do we do here?
+									// ok we will make it a scaffold
+									// i.e., we will add a edge between source and target of #gap_size 'N'
+									// this is implemented by setting the overlap negative number
+									// TODO: negative overlap introduced, check consistency!!!
+									OverlapEdge edge = gfa.addEdge(source, target);
+									edge.setOlapF(-Constants.scaffold_gap_size);
+									edge.setOlapR(-Constants.scaffold_gap_size);
+									edge.setOlap(0);
+									edge.setCigar("0M");
+									gfa.setEdgeWeight(edge, 1.0);
+									gfa.setEdgeRealigned(edge);
 								}
 							}
 						} catch (Exception e) {
@@ -688,6 +720,31 @@ public class Graphmap extends Executor {
 			myLogger.info("#contained nonolap-edges : "+contained_nonolap/2+"/"+links/2);
 			myLogger.info("################################################################");
 			
+			// write GFA file
+			BufferedWriter bw_out = Utils.getBufferedWriter(out_prefix+".gfa");
+			bw_out.write("H\tVN:Z:1.0\n");
+			final List<String> seqs = new ArrayList<String>(sub_seqs.keySet());
+			Collections.sort(seqs);
+			for(final String seq : seqs) {
+				if(seq.endsWith("'")) continue;
+				bw_out.write("S\t"+seq+"\t*\tLN:i:"+sub_seqs.get(seq).seq_ln()+"\n");
+			}
+			for(OverlapEdge edge : gfa.edgeSet()) {
+				bw_out.write("L\t");
+				source = gfa.getEdgeSource(edge);
+				bw_out.write(source.replace("'", ""));
+				bw_out.write("\t");
+				bw_out.write(source.endsWith("'")?"-":"+");
+				bw_out.write("\t");
+				target = gfa.getEdgeTarget(edge);
+				bw_out.write(target.replace("'", ""));
+				bw_out.write("\t");
+				bw_out.write(target.endsWith("'")?"-":"+");
+				bw_out.write("\t");
+				bw_out.write(edge.cigar());
+				bw_out.write("\n");
+			}
+			bw_out.close();
 		} catch(IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -803,7 +860,7 @@ public class Graphmap extends Executor {
 
 					if(!visited.contains(reached) && // not visited yet
 							(distance=source.getGap()+sub_seqs.get(reached).seq_ln()-
-							outEdge.olapR())<=radius) { // radius limit 
+							Math.max(outEdge.olapR(),0))<=radius) { // radius limit 
 						target = new TraversalTraceable(reached);
 						target.setTraceBackward(source);
 						target.setGap(distance);

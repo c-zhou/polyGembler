@@ -107,6 +107,9 @@ public class Constants {
 	public static final float state_brightness = 0.3f;
 	public static final boolean CHECK = false;
 	
+	public static final int scaffold_gap_size = 100;
+	public static final String scaffold_gap_fill = "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN";
+	
 	public static  Font font16 = new Font("SansSerif", Font.PLAIN, 5);
 	public static  Font font12 = new Font("SansSerif", Font.PLAIN, 12);
 	public static  Font font6 = new Font("SansSerif", Font.PLAIN, 6);

@@ -37,6 +37,7 @@ public class OverlapEdge extends DefaultWeightedEdge {
 	}
 	
 	public void setOlap(double olap) {
+		if(olap<0) throw new RuntimeException("!!!");
 		this.olap = olap;
 	}
 	

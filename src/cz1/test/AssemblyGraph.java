@@ -308,8 +308,9 @@ public class AssemblyGraph {
 		System.out.println(b1);
 		System.out.println(b2);
 		System.out.println(delete+"D"+match+"M"+insert+"I");
-		//if(a_clip>m_clip||)
 		
+		System.out.println(Constants.getOlapFromCigar("-100M"));
+		System.out.println(Constants.getOlapFromCigar(Constants.cgRevCmp("0M")));
 	}
 }
 
