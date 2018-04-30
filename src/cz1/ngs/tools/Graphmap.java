@@ -346,6 +346,14 @@ public class Graphmap extends Executor {
 				dualSeqid.add(gfa.getRev(target)+"_"+gfa.getRev(source));
 				bw_out.write(dualSeq.formatOutput());
 			}
+			for(String vertex : gfa.vertexSet()) {
+				if(gfa.edgesOf(vertex).isEmpty() && 
+						!dualSeqid.contains(vertex)) {
+					dualSeqid.add(vertex);
+					dualSeqid.add(gfa.getRev(vertex));
+					bw_out.write(sub_seqs.get(vertex).formatOutput());
+				}
+			}
 			bw_out.close();
 		} catch(IOException e) {
 			e.printStackTrace();
