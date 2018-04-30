@@ -22,6 +22,9 @@ import java.util.TreeMap;
 
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
+import org.biojava.nbio.core.alignment.template.SequencePair;
+import org.biojava.nbio.core.sequence.DNASequence;
+import org.biojava.nbio.core.sequence.compound.NucleotideCompound;
 import org.w3c.dom.stylesheets.LinkStyle;
 
 import com.google.common.collect.DiscreteDomain;
@@ -32,9 +35,11 @@ import com.google.common.collect.TreeRangeSet;
 import cz1.ngs.model.AlignmentSegment;
 import cz1.ngs.model.GFA;
 import cz1.ngs.model.OverlapEdge;
+import cz1.ngs.model.OverlapResult;
 import cz1.ngs.model.SAMSegment;
 import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
+import cz1.util.Constants;
 import cz1.util.Executor;
 import cz1.util.Utils;
 import htsjdk.samtools.SAMRecord;
@@ -365,7 +370,8 @@ public class Graphmap extends Executor {
 	private final static int m_ins = 5000; // maximum insert size for pe read library
 	private final static int m_lnk = 3;    // minimum #link to confirm a link
 	private final static int m_qual = 20;  // minimum alignment quality
-	private static long exceed_ins = 0, links = 0, contained_single = 0, contained_multi = 0;
+	private static long exceed_ins = 0, links = 0, contained_single = 0, 
+			contained_multi = 0, contained_olap = 0, contained_nonolap = 0;
 			
 	private void map_pe() {
 		// TODO Auto-generated method stub
@@ -631,10 +637,22 @@ public class Graphmap extends Executor {
 								synchronized(lock) {
 									++contained_multi;
 								}
-
+								
 							} else {
 								// we didn't find a path, so we calculate the overlap between them
-
+								String source_str = sub_seqs.get(source).seq_str();
+								String target_str = sub_seqs.get(target).seq_str();
+								int[] olap = overlap(source_str, target_str);
+								if(olap!=null) {
+									synchronized(lock) {
+										++contained_olap;
+										if(!ddebug) STD_OUT_BUFFER.write(cigar(olap)+"\n");
+									}
+								} else {
+									synchronized(lock) {
+										++contained_nonolap;
+									}
+								}
 							}
 						} catch (Exception e) {
 							// TODO Auto-generated catch block
@@ -663,15 +681,97 @@ public class Graphmap extends Executor {
 			myLogger.info("################################################################");
 			myLogger.info("#insert size exceeds "+m_ins+": "+exceed_ins);
 			myLogger.info("#good links: "+linkCount.size()/2);
-			myLogger.info("#parsed/confident links: "+links/2);
-			myLogger.info("#contained single-edges: "+contained_single/2+"/"+links/2);
-			myLogger.info("#contained multi-edges : "+contained_multi/2+"/"+links/2);
+			myLogger.info("#parsed/confident links  : "+links/2);
+			myLogger.info("#contained single-edges  : "+contained_single/2+"/"+links/2);
+			myLogger.info("#contained multi-edges   : "+contained_multi/2+"/"+links/2);
+			myLogger.info("#contained olap-edges    : "+contained_olap/2+"/"+links/2);
+			myLogger.info("#contained nonolap-edges : "+contained_nonolap/2+"/"+links/2);
 			myLogger.info("################################################################");
 			
 		} catch(IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+	}
+
+	protected String cigar(int[] overlap) {
+		// TODO Auto-generated method stub
+		// overlap = [delete, match, insert]
+		String cigar = overlap[1]+"M";
+		if(overlap[0]>0) cigar = overlap[0]+"D"+cigar;
+		if(overlap[2]>0) cigar = cigar+overlap[2]+"I";
+		return cigar;
+	}
+
+	private final static double d_max2 = 50d;
+	private final static double k_dst2 = 10d;
+	private final static double olap_min2 = 30;
+	private final static int default_flank = 50;
+	private final static double m_clip2 = 0.1d;
+	
+	protected int[] overlap(String source, String target) {
+		// TODO Auto-generated method stub
+		// find overlap between source and target nucleotide sequences
+		
+		// so first we find a rough overlap with kmer hits 
+		final Set<String> mer_bank = new HashSet<String>();
+		final int source_ln = source.length();
+		final int target_ln = target.length();
+		final int mln = Math.min(source_ln, target_ln);
+		for(int i=source_ln-mln; i<=source_ln-merK; i++)
+			mer_bank.add(source.substring(i, i+merK));
+		int hits = 0, merC = 0;
+		for(int i=0; i<=mln-merK; i++) {
+			if(mer_bank.contains(target.substring(i, i+merK))) {
+				hits = i;
+				++merC;
+			}
+			if(i-hits>d_max2) break;
+		}
+		
+		// we check the size of overlap
+		if( hits+merK<olap_min2 ) return null;
+		// we check if the density mer hits
+		if( (double)merC/hits<k_dst2 ) return null;
+		
+		// so now we find the rough position
+		// we then run a local alignment to find the precise overlap
+		int a1, a2, b1, b2, a1_flank, a2_flank, b1_flank, b2_flank, aLen;
+		
+		a1 = source_ln-hits;
+		a2 = source_ln;
+		b1 = 0;
+		b2 = hits;
+		
+		a1_flank = Math.max(0, a1-default_flank);
+		a2_flank = source_ln;
+		b1_flank = 0;
+		b2_flank = Math.min(target_ln, b2+default_flank);
+		
+		SequencePair<DNASequence, NucleotideCompound> seqPair = Constants.localPairMatcher(source.substring(a1_flank,a2_flank), target.substring(b1_flank,b2_flank));
+		// what do we do if we don't find overlap?
+		// ignore the link? maybe
+		aLen = seqPair.getLength();
+		if(aLen<olap_min2) return null;
+		
+		a1 = seqPair.getIndexInQueryAt(1);
+		a2 = seqPair.getIndexInQueryAt(aLen);
+		b1 = seqPair.getIndexInTargetAt(1);
+		b2 = seqPair.getIndexInTargetAt(aLen);
+		
+		a1 += a1_flank;
+		a2 += a1_flank;
+		
+		double clip = m_clip2*aLen;
+		int a_clip = source_ln-a2,  b_clip = b1-1;
+		if(a_clip>clip||b_clip>clip) return null;
+		
+		int a_match = a2-a1+1, b_match = b2-b1+1;
+		int match = Math.min(a_match, b_match);
+		int delete = b_clip+Math.max(b_match-match, 0);
+		int insert = a_clip+Math.max(a_match-match, 0);
+		
+		return new int[]{delete, match, insert};
 	}
 
 	protected TraversalTraceable search(final String source_str, final String target_str, final double radius) {
@@ -989,7 +1089,7 @@ public class Graphmap extends Executor {
 		return;
 	}
 
-	private final static double d_max = 100; // max gap size
+	private final static double d_max = 100d; // max gap size
 	private final static int k_min = 10; // min kmer count
 	// assume the sequencing error is 0.15
 	// for k=12
@@ -997,9 +1097,9 @@ public class Graphmap extends Executor {
 	// which means we will see a mer hit per 12-1+1/0.142=18bp
 	// we set it to 24bp for a relaxation
 	private final static int k_dst = 24; // at least one kmer in k_dst bp on average
-	private final static double olap_min = 0.99; // min overlap fraction for containment
-	private final static double collinear_shift = 1.0;
-	private final static double m_clip = 0.2; // max clip size (%) to treat an alignment end-to-end
+	private final static double olap_min = 0.99d; // min overlap fraction for containment
+	private final static double collinear_shift = 1.0d;
+	private final static double m_clip = 0.2d; // max clip size (%) to treat an alignment end-to-end
 
 	// ok, let call this a backup
 	/***

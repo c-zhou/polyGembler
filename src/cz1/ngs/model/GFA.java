@@ -456,7 +456,7 @@ public class GFA {
 		fromSeq_flank = seg.get(fromId).seq_str().substring(a1_flank, a2_flank);
 		toSeq_flank   = seg.get(toId).seq_str().substring  (b1_flank, b2_flank);
 		
-		seqPair = pairMatcher(fromSeq_flank, toSeq_flank);
+		seqPair = Constants.localPairMatcher(fromSeq_flank, toSeq_flank);
 		
 		// alignment coordinates on the flanked sequences
 		aLen = seqPair.getLength();
@@ -497,29 +497,6 @@ public class GFA {
 		rev_edge.setRealigned();
 		
 		return;
-	}
-
-	private static final SimpleGapPenalty penalty = new SimpleGapPenalty(6,1);
-	private static final SubstitutionMatrix<NucleotideCompound> subMat = SubstitutionMatrixHelper.getNuc4_4();
-	
-	private static SequencePair<DNASequence, NucleotideCompound> pairMatcher(String targetSeq, String querySeq) {
-		try {			
-			DNASequence target = new DNASequence(targetSeq, AmbiguityDNACompoundSet.getDNACompoundSet());
-			DNASequence query  = new DNASequence(querySeq, AmbiguityDNACompoundSet.getDNACompoundSet());
-			
-			PairwiseSequenceAligner<DNASequence, NucleotideCompound> aligner = Alignments.getPairwiseAligner(
-					target,
-					query,
-					PairwiseSequenceAlignerType.LOCAL,
-					penalty, 
-					subMat);
-			SequencePair<DNASequence, NucleotideCompound> seqAlnPair = aligner.getPair();
-			return seqAlnPair;
-		} catch (CompoundNotFoundException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
-		return null;
 	}
 	
 	public GraphPath<String, OverlapEdge> getPath(String source, String sink) {

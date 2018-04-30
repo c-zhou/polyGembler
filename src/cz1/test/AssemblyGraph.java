@@ -12,6 +12,9 @@ import java.util.Set;
 
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
+import org.biojava.nbio.core.alignment.template.SequencePair;
+import org.biojava.nbio.core.sequence.DNASequence;
+import org.biojava.nbio.core.sequence.compound.NucleotideCompound;
 import org.jgrapht.GraphPath;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.DirectedWeightedPseudograph;
@@ -23,6 +26,7 @@ import com.google.common.collect.TreeRangeSet;
 
 import cz1.ngs.model.BFSShortestPath;
 import cz1.ngs.model.Sequence;
+import cz1.util.Constants;
 import htsjdk.samtools.Cigar;
 import htsjdk.samtools.CigarElement;
 import htsjdk.samtools.CigarOperator;
@@ -201,7 +205,14 @@ public class AssemblyGraph {
 		}
 		return nL;
 	}
-
+	
+	private final static double d_max2 = 50d;
+	private final static double k_dst2 = 10d;
+	private final static double olap_min2 = 30;
+	private final static int default_flank = 50;
+	private final static int merK = 12;
+	private final static double m_clip2 = 0.1;
+	
 	public static void main(String[] args) {
 		long tic, toc;
 		tic = System.nanoTime();
@@ -231,9 +242,74 @@ public class AssemblyGraph {
 		long a = 1;
 		a <<= 32;
 		a += 2;
-		int i = (int) a;
-		int j = (int) (a>>32);
-		System.out.println(i+" "+j);
+		int i1 = (int) a;
+		int j1 = (int) (a>>32);
+		System.out.println(i1+" "+j1);
+		
+		String source = "ACATCATGTGGTTCGAGGGAGAGTGGCACCTCGTTTGGGGCACGTACACCACACCGGTGTACCGAAGTTTGGATTAGAGGGCCAGAGTTGGGAAGTTTTTGGATGGTTTTCTCTTTTTGTGTATTTATATCTTTTGGTAGCCTTAGTTTTGGCTGGCTCTAGTCTGTTGGAGGACCCGAAGTTTGTAAATAACAGCCGTCGGGCAAATTCTTGTAAATACCTTTTGATATTAATAGATATGCCTAGAATATTATATTGTGATGTTTGGGGTGTTGATGTTGAGTGTGTTTCTTTTAGCCTGTGCACTTAGAGTGGAAGTTTCATCAAAGAGGAGATAGGCGTCACTCTAAGTGTGGCGGTAGCACCCAGTTTACTGCTGTAAGATGTAAGCTTCCGCAGCGTTATATTACGCATATTGTAATAGTTGTCGGAGCAGAAATTGGGGTGTTACAAAGTGGTATCAAAGCATGATTTTGAGGTCCTTATTTTGGGTAATAGAATGAGTTGGGCTCTGTCGCAAGTTAGTATAAGAGCCTATGATTCGAGTCAGCTTAGGGTTCGAGTCAGTCTAAGGTCGTAAGTCGTTCTAACCCAAGTGTTGACCTTGTTGGAGTTGGAGCTGGAGCTGGAGGCCGGACAGAGAACGGGGTACCTTGTCATTCCGTGTATAATCTGTGATTTAATTGTTGCGTAGTATAATTACTACTTGTCATTGCATATATATGCTGATTGTTGATCATATTGGTTTAAGTCGGCTGTTGACATGATGCCTTGCTACTGTTATGCCATGGTTGGGATACCTACCTGATGAATATGATTAACGGTTAGACCCTCGAATTCTAACTTCTAACTTTAAGAAAGCTAACTCAGAATCGCTTGTTCAGCGAGAT";
+		String target = "CGTGTATAATATGTGATTTAATTGTTGCGTAGTATAATTACTACTTGTCATTGCATATATATGCTGATTGTTGGTCATATTGGTTTAAGTCGGCTGTTGACATGATGCCTTGCTACTGTTATGCCATGGTTGGGATACCTACCTGATGAATATGATTAACGGTTAGACCCTCGAATTCTAACTTCTAACTTTAAGAAAGTTTGGATTGTAAGTGTCAAAGCCAAAAGGAAAAATCGTAACCCGAAATGCTTTTGAGTTTCGGGGACGAAACTCTTTTTAAGGAGGGTAGACTGTAACCCCTCGTCTTTCCGATAAGTCTAAGGGTCGGAAAATATATCTTTAGGCTATGACATTCATAAGATGATCTCCCGATATGTCAAGGGAATTTTTATACGGAGGTATAGTTGTCATTAAGCTGCGATCGTTCGTGCCGGTCACGAACCGTAAAATTTTCGACGACGAATTTTCAGCTCGGATTTCCTTAGAAATTGATGATTAGGCATGTTATGACTAAGTATGAACTTGCTGTTTAGTTAAGTTGAAATTGGATGAGCTATAAGAGTCGAAATTTATTTCTGATCGTACACCGCGAAATTTCCGCAGTGTACCGAACCTAGCCCATTTTGGAGCTTTTGACTGGAATAAATTTGTGGTTTCGGAAATTATTCTTT";
+		
+		// so first we find a rough overlap with kmer hits 
+		final Set<String> mer_bank = new HashSet<String>();
+		final int source_ln = source.length();
+		final int target_ln = target.length();
+		final int mln = Math.min(source_ln, target_ln);
+		for(int i=source_ln-mln; i<=source_ln-merK; i++)
+			mer_bank.add(source.substring(i, i+merK));
+		int hits = 0, merC = 0;
+		for(int i=0; i<=mln-merK; i++) {
+			if(mer_bank.contains(target.substring(i, i+merK))) {
+				hits = i;
+				++merC;
+			}
+			if(i-hits>d_max2) break;
+		}
+		
+		
+		int a1, a2, b1, b2, a1_flank, a2_flank, b1_flank, b2_flank, aLen;
+		
+		a1 = source_ln-hits;
+		a2 = source_ln;
+		b1 = 0;
+		b2 = hits;
+		
+		a1_flank = Math.max(0, a1-default_flank);
+		a2_flank = source_ln;
+		b1_flank = 0;
+		b2_flank = Math.min(target_ln, b2+default_flank);
+		
+		SequencePair<DNASequence, NucleotideCompound> seqPair = Constants.localPairMatcher(source.substring(a1_flank,a2_flank), target.substring(b1_flank,b2_flank));
+		// what do we do if we don't find overlap?
+		// ignore the link? maybe
+		aLen = seqPair.getLength();
+		if(aLen<olap_min2) return;
+		
+		a1 = seqPair.getIndexInQueryAt(1);
+		a2 = seqPair.getIndexInQueryAt(aLen);
+		b1 = seqPair.getIndexInTargetAt(1);
+		b2 = seqPair.getIndexInTargetAt(aLen);
+		
+		a1 += a1_flank;
+		a2 += a1_flank;
+		
+		double clip = m_clip2*aLen;
+		int a_clip = source_ln-a2,  b_clip = b1-1;
+		if(a_clip>clip||b_clip>clip) return;
+		
+		int a_match = a2-a1+1, b_match = b2-b1+1;
+		int match = Math.min(a_match, b_match);
+		int delete = b_clip+Math.max(b_match-match, 0);
+		int insert = a_clip+Math.max(a_match-match, 0);
+		
+		System.out.println(seqPair.toString());
+		System.out.println(aLen);
+		System.out.println(a1);
+		System.out.println(a2);
+		System.out.println(b1);
+		System.out.println(b2);
+		System.out.println(delete+"D"+match+"M"+insert+"I");
+		//if(a_clip>m_clip||)
+		
 	}
 }
 

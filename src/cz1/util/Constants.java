@@ -16,6 +16,17 @@ import org.apache.commons.math3.random.RandomGenerator;
 import org.apache.commons.math3.random.Well19937c;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.biojava.nbio.alignment.Alignments;
+import org.biojava.nbio.alignment.SimpleGapPenalty;
+import org.biojava.nbio.alignment.Alignments.PairwiseSequenceAlignerType;
+import org.biojava.nbio.alignment.template.PairwiseSequenceAligner;
+import org.biojava.nbio.core.alignment.matrices.SubstitutionMatrixHelper;
+import org.biojava.nbio.core.alignment.template.SequencePair;
+import org.biojava.nbio.core.alignment.template.SubstitutionMatrix;
+import org.biojava.nbio.core.exceptions.CompoundNotFoundException;
+import org.biojava.nbio.core.sequence.DNASequence;
+import org.biojava.nbio.core.sequence.compound.AmbiguityDNACompoundSet;
+import org.biojava.nbio.core.sequence.compound.NucleotideCompound;
 
 public class Constants {
 	public final static double eps = 1e-12;
@@ -103,6 +114,29 @@ public class Constants {
 	public static int universer_counter = 0;
 	
 	public static int omp_threads = 1;
+	
+	public static final SimpleGapPenalty penalty = new SimpleGapPenalty(6,1);
+	public static final SubstitutionMatrix<NucleotideCompound> subMat = SubstitutionMatrixHelper.getNuc4_4();
+	
+	public static SequencePair<DNASequence, NucleotideCompound> localPairMatcher(String targetSeq, String querySeq) {
+		try {			
+			DNASequence target = new DNASequence(targetSeq, AmbiguityDNACompoundSet.getDNACompoundSet());
+			DNASequence query  = new DNASequence(querySeq, AmbiguityDNACompoundSet.getDNACompoundSet());
+			
+			PairwiseSequenceAligner<DNASequence, NucleotideCompound> aligner = Alignments.getPairwiseAligner(
+					target,
+					query,
+					PairwiseSequenceAlignerType.LOCAL,
+					penalty, 
+					subMat);
+			SequencePair<DNASequence, NucleotideCompound> seqAlnPair = aligner.getPair();
+			return seqAlnPair;
+		} catch (CompoundNotFoundException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		return null;
+	}
 	
 	@SuppressWarnings("unused")
 	private static void check() {
