@@ -328,7 +328,28 @@ public class Graphmap extends Executor {
 
 	private void map_r454() {
 		// TODO Auto-generated method stub
-
+		gfa = new GFA(subject_file, graph_file);
+		String source, target, seqid;
+		Sequence source_seq, target_seq, dualSeq;
+		Set<String> dualSeqid = new HashSet<String>();
+		try {
+			BufferedWriter bw_out = Utils.getBufferedWriter(out_prefix+".fa");
+			for(OverlapEdge edge : gfa.edgeSet()) {
+				source = gfa.getEdgeSource(edge);
+				target = gfa.getEdgeTarget(edge);
+				seqid = source+"_"+target;
+				if(dualSeqid.contains(seqid)) continue;
+				source_seq = sub_seqs.get(source);
+				target_seq = sub_seqs.get(target);
+				dualSeq = new Sequence(seqid, source_seq.seq_str()+target_seq.seq_str().substring((int)edge.olapR()));
+				dualSeqid.add(seqid);
+				dualSeqid.add(gfa.getRev(target)+"_"+gfa.getRev(source));
+				bw_out.write(dualSeq.formatOutput());
+			}
+			bw_out.close();
+		} catch(IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	private final static Map<Long, Integer> linkCount = new HashMap<Long, Integer>();
