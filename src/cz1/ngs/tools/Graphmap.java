@@ -335,7 +335,7 @@ public class Graphmap extends Executor {
 	private final static Map<Long, Double> linkRadius = new HashMap<Long, Double>();
 	private final static int m_ins = 5000; // maximum insert size for pe read library
 	private final static int m_lnk = 3;    // minimum #link to confirm a link
-	private final static int m_qual = 10;  // minimum alignment quality
+	private final static int m_qual = 20;  // minimum alignment quality
 	private static long exceed_ins = 0, links = 0, contained_single = 0, contained_multi = 0;
 			
 	private void map_pe() {
@@ -590,11 +590,30 @@ public class Graphmap extends Executor {
 					@Override
 					public void run() {
 						// TODO Auto-generated method stub
-						TraversalTraceable traceable_target = search(source, target, m_ins-radius);
-						if(traceable_target!=null) {
-							synchronized(lock) {
-								++contained_multi;
+						try {
+							if(ddebug) {
+								synchronized(lock) {
+									STD_OUT_BUFFER.write("#search: "+source+"->"+target+","+(m_ins-radius)+"\n");
+								}
 							}
+							TraversalTraceable traceable_target = search(source, target, m_ins-radius);
+							if(traceable_target!=null) {
+								// so we found a path from source to target
+								synchronized(lock) {
+									++contained_multi;
+								}
+
+							} else {
+								// we didn't find a path, so we calculate the overlap between them
+
+							}
+						} catch (Exception e) {
+							// TODO Auto-generated catch block
+							Thread t = Thread.currentThread();
+							t.getUncaughtExceptionHandler().uncaughtException(t, e);
+							e.printStackTrace();
+							executor.shutdown();
+							System.exit(1);
 						}
 					}
 
