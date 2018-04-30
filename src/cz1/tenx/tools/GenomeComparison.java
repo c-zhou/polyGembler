@@ -119,7 +119,7 @@ public class GenomeComparison extends Executor {
 	}
 
 	BufferedWriter bw_con, bw_1, bw_2;
-	private final static double overlap_frac = 0.9;
+	private final static double overlap_frac = 1.0;
 
 	@Override
 	public void run() {
@@ -232,7 +232,8 @@ public class GenomeComparison extends Executor {
 								for(int j=0; j!=n2; j++) {
 									if( (insec=intersect(mols1[i], mols2[j]))>=overlap_frac ) {
 										bw_con.write(mols1[i].chr_id+":"+mols1[i].chr_start+"-"+mols1[i].chr_end+"\t"+
-												mols2[j].chr_id+":"+mols2[j].chr_start+"-"+mols2[j].chr_end+"\t"+insec+"\n");
+												mols2[j].chr_id+":"+mols2[j].chr_start+"-"+mols2[j].chr_end+"\t"+insec+"\t"+
+												compare(mols1[i], mols2[j])+"\n");
 										m1.add(i);
 										m2.add(j);
 									}
@@ -335,6 +336,70 @@ public class GenomeComparison extends Executor {
 		return b/(double) a;
 	}
 
+	private String compare(Molecule mol1, Molecule mol2) {
+		// TODO Auto-generated method stub
+		final Set<String> rs1 = new HashSet<String>();
+		rs1.addAll(mol1.reads_set);
+		final Set<String> rs2 = new HashSet<String>();
+		rs2.addAll(mol2.reads_set);
+		final List<SAMRecord> r1 = new ArrayList<SAMRecord>(); 
+		for(SAMRecord s : mol1.reads_list) {
+			if(rs1.contains(s.getReadName())) {
+				r1.add(s);
+				rs1.remove(s.getReadName());
+			}
+		}
+		final List<SAMRecord> r2 = new ArrayList<SAMRecord>();
+		for(SAMRecord s : mol2.reads_list) {
+			if(rs2.contains(s.getReadName())) {
+				r2.add(s);
+				rs2.remove(s.getReadName());
+			}
+		}
+		Collections.sort(r1, new SAMReadNameComparator());
+		Collections.sort(r2, new SAMReadNameComparator());
+		int n1 = r1.size(), n2 = r2.size();
+		if(n1!=n2) throw new RuntimeException("!!!");
+		int a12 = 0, a21 = 0, aeq = 0;
+		float as1, as2;
+		SAMRecord s1, s2;
+		for(int i=0; i<n1; i++) {
+			s1 = r1.get(i);
+			s2 = r2.get(i);
+			as1 = s1.getFloatAttribute("AS");
+			as2 = s2.getFloatAttribute("AS");
+			if(as1>as2+10) {
+				++a12;
+			} else if(as1+10<as2) {
+				++a21;
+			} else {
+				++aeq;
+			}
+		}
+		StringBuilder diff = new StringBuilder();
+		for(int i=0; i<n1-1; i++) {
+			diff.append(r1.get(i).getFloatAttribute("AS"));
+			diff.append("/");
+			diff.append(r2.get(i).getFloatAttribute("AS"));
+			diff.append(",");
+		}
+		diff.append(r1.get(n1-1).getFloatAttribute("AS"));
+		diff.append("/");
+		diff.append(r2.get(n2-1).getFloatAttribute("AS"));
+	
+		return n1+"\t"+n2+"\t"+a12+"\t"+a21+"\t"+aeq+"\t"+diff.toString();
+	}
+	
+	private static class SAMReadNameComparator implements Comparator<SAMRecord> {
+		@Override
+		public int compare(SAMRecord r1, SAMRecord r2) {
+			// TODO Auto-generated method stub
+			return r1.getReadName().equals(r2.getReadName()) ? 
+					(r1.getFirstOfPairFlag()?-1:1) : r1.getReadName().compareTo(r2.getReadName());
+		}
+		
+	}
+	
 	private final static int max_gap = 10000;
 	
 	private Molecule[] extractMoleculeFromList(List<SAMRecord> list) {
@@ -355,6 +420,7 @@ public class GenomeComparison extends Executor {
 		int chr_index = record.getReferenceIndex();
 		int chr_pos = record.getAlignmentEnd();
 		Molecule mol = new Molecule();
+		mol.add(record);
 		while(iter.hasNext()) {
 			record = iter.next();
 			if(record.getReferenceIndex()!=chr_index ||

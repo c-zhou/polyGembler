@@ -331,13 +331,13 @@ public class Graphmap extends Executor {
 
 	}
 
-	private final static Map<String, Set<String>> peLink = new HashMap<String, Set<String>>();
 	private final static Map<Long, Integer> linkCount = new HashMap<Long, Integer>();
+	private final static Map<Long, Double> linkRadius = new HashMap<Long, Double>();
 	private final static int m_ins = 5000; // maximum insert size for pe read library
 	private final static int m_lnk = 3;    // minimum #link to confirm a link
 	private final static int m_qual = 10;  // minimum alignment quality
-	private static long exceed_ins = 0;
-	
+	private static long exceed_ins = 0, links = 0, contained_single = 0, contained_multi = 0;
+			
 	private void map_pe() {
 		// TODO Auto-generated method stub
 		gfa = new GFA(subject_file, graph_file);
@@ -387,8 +387,9 @@ public class Graphmap extends Executor {
 									int reflen1  = sub_seqs.get(sam_records[1].getReferenceName()).seq_ln();
 									
 									final String[] refstr = new String[2];
-									
+									double radius;
 									int a, b;
+									
 									if(rev0&&rev1) {
 										//       0                  1
 										// ---------------     -------------
@@ -414,10 +415,12 @@ public class Graphmap extends Executor {
 											// reverse 0
 											refstr[0] = sam_records[0].getReferenceName()+"'";
 											refstr[1] = sam_records[1].getReferenceName();
+											radius = a;
 										} else {
 											// reverse 1
 											refstr[0] = sam_records[1].getReferenceName()+"'";
 											refstr[1] = sam_records[0].getReferenceName();
+											radius = b;
 										}
 									} else if(rev0&&!rev1) {
 										//       0                  1
@@ -441,9 +444,11 @@ public class Graphmap extends Executor {
 										if(a<b) {
 											refstr[0] = sam_records[1].getReferenceName();
 											refstr[1] = sam_records[0].getReferenceName();
+											radius = a;
 										} else {
 											refstr[0] = sam_records[0].getReferenceName()+"'";
 											refstr[1] = sam_records[1].getReferenceName()+"'";
+											radius = b;
 										}
 										
 									} else if(!rev0&&rev1) {
@@ -468,9 +473,11 @@ public class Graphmap extends Executor {
 										if(a<b) {
 											refstr[0] = sam_records[0].getReferenceName();
 											refstr[1] = sam_records[1].getReferenceName();
+											radius = a;
 										} else {
 											refstr[0] = sam_records[1].getReferenceName()+"'";
 											refstr[1] = sam_records[0].getReferenceName()+"'";
+											radius = b;
 										}
 										
 									} else {
@@ -499,9 +506,11 @@ public class Graphmap extends Executor {
 										if(a<b) {
 											refstr[0] = sam_records[1].getReferenceName();
 											refstr[1] = sam_records[0].getReferenceName()+"'";
+											radius = a;
 										} else {
 											refstr[0] = sam_records[0].getReferenceName();
 											refstr[1] = sam_records[1].getReferenceName()+"'";
+											radius = b;
 										}
 									}
 									
@@ -512,8 +521,10 @@ public class Graphmap extends Executor {
 									synchronized(lock) {
 										if(linkCount.containsKey(refind)) {
 											linkCount.put(refind, linkCount.get(refind)+1);
+											linkRadius.put(refind, linkRadius.get(refind)+radius);
 										} else {
 											linkCount.put(refind, 1);
+											linkRadius.put(refind, radius);
 										}
 									}
 									
@@ -523,8 +534,10 @@ public class Graphmap extends Executor {
 									synchronized(lock) {
 										if(linkCount.containsKey(refind)) {
 											linkCount.put(refind, linkCount.get(refind)+1);
+											linkRadius.put(refind, linkRadius.get(refind)+radius);
 										} else {
 											linkCount.put(refind, 1);
+											linkRadius.put(refind, radius);
 										}
 									}
 								} catch (Exception e) {
@@ -553,37 +566,103 @@ public class Graphmap extends Executor {
 			
 			// now we get link counts
 			String source, target;
-			long refind, links = 0, contained = 0;
+			long refind;
+			double radius;
+			this.initial_thread_pool();
 			for(Map.Entry<Long, Integer> entry : linkCount.entrySet()) {
 				if(entry.getValue()<m_lnk) continue;
 				refind = entry.getKey();
 				target = seq_index.getKey((int)  refind     );
 				source = seq_index.getKey((int) (refind>>32));
-				if(!peLink.containsKey(source)) 
-					peLink.put(source, new HashSet<String>());
-				peLink.get(source).add(target);
-				if(gfa.containsEdge(source, target)) ++contained;
+				radius = linkRadius.get(refind)/entry.getValue();
+				
 				++links;
 				if(ddebug) STD_OUT_BUFFER.write("#link: "+source+"->"+target+"\n");
+				if(gfa.containsEdge(source, target)) {
+					++contained_single;
+					continue;
+				}
+				executor.submit(new Runnable() {
+					private String source;
+					private String target;
+					private double radius;
+					
+					@Override
+					public void run() {
+						// TODO Auto-generated method stub
+						TraversalTraceable traceable_target = search(source, target, m_ins-radius);
+						if(traceable_target!=null) {
+							synchronized(lock) {
+								++contained_multi;
+							}
+						}
+					}
+
+					public Runnable init(String source, String target, double radius) {
+						// TODO Auto-generated method stub
+						this.source = source;
+						this.target = target;
+						this.radius = radius;
+						return this;
+					}
+					
+				}.init(source, target, radius));
+				
 			}
+			this.waitFor();
 			STD_OUT_BUFFER.flush();
 			
 			myLogger.info("################################################################");
 			myLogger.info("#insert size exceeds "+m_ins+": "+exceed_ins);
 			myLogger.info("#good links: "+linkCount.size()/2);
 			myLogger.info("#parsed/confident links: "+links/2);
-			myLogger.info("#contained edges: "+contained/2+"/"+links/2);
+			myLogger.info("#contained single-edges: "+contained_single/2+"/"+links/2);
+			myLogger.info("#contained multi-edges : "+contained_multi/2+"/"+links/2);
 			myLogger.info("################################################################");
-			
-			for(Map.Entry<String, Set<String>> entry : peLink.entrySet()) {
-				
-			}
-			
 			
 		} catch(IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+	}
+
+	protected TraversalTraceable search(final String source_str, final String target_str, final double radius) {
+		// TODO Auto-generated method stub
+		// search a path from source to target within a radius using BFS
+		TraversalTraceable source, target, traceable_target;
+		final Queue<TraversalTraceable> queue = new LinkedList<TraversalTraceable>();
+		final Set<String> visited = new HashSet<String>();
+		double distance;
+		String reached;
+		
+		queue.offer(new TraversalTraceable(source_str));
+		traceable_target = null;
+		
+		innerloop:
+			while(!queue.isEmpty()) {
+				source = queue.poll();
+				visited.add(source.getId());
+				
+				for(final OverlapEdge outEdge : gfa.outgoingEdgesOf(source.getId())) {
+					reached = gfa.getEdgeTarget(outEdge);
+					
+					if(reached.equals(target_str)) {
+						// hit
+						traceable_target = new TraversalTraceable(reached);
+						traceable_target.setTraceBackward(source);
+						break innerloop;
+					}
+
+					if(!visited.contains(reached) && // not visited yet
+							(distance=source.getGap()+sub_seqs.get(reached).seq_ln()-
+							outEdge.olapR())<=radius) { // radius limit 
+						target = new TraversalTraceable(reached);
+						target.setTraceBackward(source);
+						target.setGap(distance);
+					}
+				}
+			}
+		return traceable_target;
 	}
 
 	private void hash() {
