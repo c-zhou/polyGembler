@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
@@ -334,6 +335,73 @@ public class Graphmap extends Executor {
 	private void map_r454() {
 		// TODO Auto-generated method stub
 		
+		throw new RuntimeException("yet to be implemented!!!");
+		/***
+		gfa = new GFA(subject_file, graph_file);
+		try {
+			this.initial_thread_pool();
+			for(final String qf : query_file) {
+				final SamReader in1 = factory.open(new File(qf));
+				final SAMRecordIterator iter1 = in1.iterator();
+				List<SAMRecord> sam_records = new ArrayList<SAMRecord>();
+				SAMRecord sam_record = iter1.hasNext()?iter1.next():null;
+				String read_name;
+
+				while(sam_record!=null) {
+					if(sam_record.getNotPrimaryAlignmentFlag()) {
+						sam_record = iter1.hasNext()?iter1.next():null;
+						continue;
+					}
+					if(sam_record.getMappingQuality()>=m_qual)
+						sam_records.add(sam_record);
+					read_name = sam_record.getReadName();
+					while( (sam_record = iter1.hasNext()?iter1.next():null)!=null && 
+							read_name.equals(sam_record.getReadName()) ) {
+						if(!sam_record.getNotPrimaryAlignmentFlag()&&
+								sam_record.getMappingQuality()>=m_qual)
+							sam_records.add(sam_record);
+					}
+					if(sam_records.size()<2) {
+						sam_records.clear();
+						continue;
+					}
+					
+					executor.submit(new Runnable() {
+						private List<SAMRecord> sam_records;
+
+						@Override
+						public void run() {
+							// TODO Auto-generated method stub
+							try {
+								
+							} catch (Exception e) {
+								// TODO Auto-generated catch block
+								Thread t = Thread.currentThread();
+								t.getUncaughtExceptionHandler().uncaughtException(t, e);
+								e.printStackTrace();
+								executor.shutdown();
+								System.exit(1);
+							}
+						}
+
+						public Runnable init(List<SAMRecord> sam_records) {
+							this.sam_records = sam_records;
+							return this;
+						}
+					}.init(sam_records));
+					sam_records = new ArrayList<SAMRecord>();
+				}
+				
+				iter1.close();
+				in1.close();
+			}
+			this.waitFor();
+			
+		} catch(IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		**/
 	}
 	
 	private void dualContig() {
@@ -381,239 +449,19 @@ public class Graphmap extends Executor {
 		}
 	}
 
-	private final static Map<Long, Integer> linkCount = new HashMap<Long, Integer>();
-	private final static Map<Long, Double> linkRadius = new HashMap<Long, Double>();
-	private final static int m_ins = 5000; // maximum insert size for pe read library
+	private final static ConcurrentHashMap<Long, Integer> linkCount = new ConcurrentHashMap<Long, Integer>();
+	private final static ConcurrentHashMap<Long, Double> linkRadius = new ConcurrentHashMap<Long, Double>();
+	private final static int m_ins = 2000; // maximum insert size for pe read library
 	private final static int m_lnk = 3;    // minimum #link to confirm a link
 	private final static int m_qual = 20;  // minimum alignment quality
 	private static long exceed_ins = 0, links = 0, contained_single = 0, 
 			contained_multi = 0, contained_olap = 0, contained_nonolap = 0;
-			
+
 	private void map_pe() {
 		// TODO Auto-generated method stub
 		gfa = new GFA(subject_file, graph_file);
 		try {
-			this.initial_thread_pool();
-			for(final String qf : query_file) {
-				final SamReader in1 = factory.open(new File(qf));
-				final SAMRecordIterator iter1 = in1.iterator();
-				SAMRecord[] sam_records = new SAMRecord[2];
-				SAMRecord sam_record;
-				while(iter1.hasNext()) {
-					sam_record = iter1.next();
-					if(sam_record.getNotPrimaryAlignmentFlag() || 
-							sam_record.getSupplementaryAlignmentFlag())
-						continue;
-					if(sam_record.getFirstOfPairFlag()) 
-						sam_records[0] = sam_record;
-					else sam_records[1] = sam_record;
-					
-					if(sam_records[0]!=null&&sam_records[1]!=null) {
-						
-						executor.submit(new Runnable() {
-							private SAMRecord[] sam_records;
-							
-							@Override
-							public void run() {
-								// TODO Auto-generated method stub
-								try {
-									// so we have a confident read pair aligned to two contigs
-									// check return
-									if(sam_records[0].getReadUnmappedFlag() ||
-											sam_records[1].getReadUnmappedFlag())
-										return;
-									if(!sam_records[0].getReadName().
-											equals(sam_records[1].getReadName()))
-										throw new RuntimeException("!!!");
-									if(sam_records[0].getReferenceIndex().intValue()==
-											sam_records[1].getReferenceIndex().intValue())
-										return;
-									if(sam_records[0].getMappingQuality()<m_qual || 
-											sam_records[1].getMappingQuality()<m_qual)
-										return;
-									
-									boolean rev0 = sam_records[0].getReadNegativeStrandFlag();
-									boolean rev1 = sam_records[1].getReadNegativeStrandFlag();
-									int reflen0  = sub_seqs.get(sam_records[0].getReferenceName()).seq_ln();
-									int reflen1  = sub_seqs.get(sam_records[1].getReferenceName()).seq_ln();
-									
-									final String[] refstr = new String[2];
-									double radius;
-									int a, b;
-									
-									if(rev0&&rev1) {
-										//       0                  1
-										// ---------------     -------------
-										//     <===                <===
-										
-										// reverse 0
-										// ---------------     -------------
-										//     ===>                <===
-										a = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
-										// reverse 1
-										// ---------------     -------------
-										//     <===                ===>
-										b = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
-										
-										if(ddebug)
-											STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
-										if(a>m_ins&&b>m_ins) {
-											synchronized(lock) {++exceed_ins;}
-											return;
-										}
-										if(a<b) {
-											// reverse 0
-											refstr[0] = sam_records[0].getReferenceName()+"'";
-											refstr[1] = sam_records[1].getReferenceName();
-											radius = a;
-										} else {
-											// reverse 1
-											refstr[0] = sam_records[1].getReferenceName()+"'";
-											refstr[1] = sam_records[0].getReferenceName();
-											radius = b;
-										}
-									} else if(rev0&&!rev1) {
-										//       0                  1
-										// ---------------     -------------
-										//     <===                ===>
-										a = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
-										
-										// reverse 0 & reverse1
-										// ---------------     -------------
-										//     ===>                <===
-										b = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
-										
-										if(ddebug)
-											STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
-										if(a>m_ins&&b>m_ins) {
-											synchronized(lock) {++exceed_ins;}
-											return;
-										}
-										
-										if(a<b) {
-											refstr[0] = sam_records[1].getReferenceName();
-											refstr[1] = sam_records[0].getReferenceName();
-											radius = a;
-										} else {
-											refstr[0] = sam_records[0].getReferenceName()+"'";
-											refstr[1] = sam_records[1].getReferenceName()+"'";
-											radius = b;
-										}
-										
-									} else if(!rev0&&rev1) {
-										//       0                  1
-										// ---------------     -------------
-										//     ===>                <===
-										a = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
-										
-										// reverse 0 & reverse1
-										// ---------------     -------------
-										//     <===                ===>
-										b = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
-										
-										if(ddebug)
-											STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
-										if(a>m_ins&&b>m_ins) {
-											synchronized(lock) {++exceed_ins;}
-											return;
-										}
-										
-										if(a<b) {
-											refstr[0] = sam_records[0].getReferenceName();
-											refstr[1] = sam_records[1].getReferenceName();
-											radius = a;
-										} else {
-											refstr[0] = sam_records[1].getReferenceName()+"'";
-											refstr[1] = sam_records[0].getReferenceName()+"'";
-											radius = b;
-										}
-										
-									} else {
-										//       0                  1
-										// ---------------     -------------
-										//     ===>                ===>
-										
-										// reverse 0
-										// ---------------     -------------
-										//     <===                ===>
-										a = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
-										
-										// reverse 1
-										// ---------------     -------------
-										//     ===>                <===
-										b = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
-										
-										if(ddebug)
-											STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
-										if(a>m_ins&&b>m_ins) {
-											synchronized(lock) {++exceed_ins;}
-											return;
-										}
-										
-										if(a<b) {
-											refstr[0] = sam_records[1].getReferenceName();
-											refstr[1] = sam_records[0].getReferenceName()+"'";
-											radius = a;
-										} else {
-											refstr[0] = sam_records[0].getReferenceName();
-											refstr[1] = sam_records[1].getReferenceName()+"'";
-											radius = b;
-										}
-									}
-									
-									long refind;
-									refind  = seq_index.get(refstr[0]);
-									refind <<= 32;
-									refind += seq_index.get(refstr[1]);
-									synchronized(lock) {
-										if(linkCount.containsKey(refind)) {
-											linkCount.put(refind, linkCount.get(refind)+1);
-											linkRadius.put(refind, linkRadius.get(refind)+radius);
-										} else {
-											linkCount.put(refind, 1);
-											linkRadius.put(refind, radius);
-										}
-									}
-									
-									refind  = seq_index.get(symm_seqsn.get(refstr[1]));
-									refind <<= 32;
-									refind += seq_index.get(symm_seqsn.get(refstr[0]));
-									synchronized(lock) {
-										if(linkCount.containsKey(refind)) {
-											linkCount.put(refind, linkCount.get(refind)+1);
-											linkRadius.put(refind, linkRadius.get(refind)+radius);
-										} else {
-											linkCount.put(refind, 1);
-											linkRadius.put(refind, radius);
-										}
-									}
-								} catch (Exception e) {
-									// TODO Auto-generated catch block
-									Thread t = Thread.currentThread();
-									t.getUncaughtExceptionHandler().uncaughtException(t, e);
-									e.printStackTrace();
-									executor.shutdown();
-									System.exit(1);
-								}
-							}
-
-							public Runnable init(SAMRecord[] sam_records) {
-								this.sam_records = sam_records;
-								return this;
-							}
-						}.init(sam_records));
-						sam_records = new SAMRecord[2];
-					}
-				}
-				
-				iter1.close();
-				in1.close();
-			}
-			this.waitFor();
+			this.readLinkCount();
 			
 			// now we get link counts
 			String source, target;
@@ -787,6 +635,249 @@ public class Graphmap extends Executor {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+	}
+
+	private void readLinkCount() {
+		// TODO Auto-generated method stub
+		this.initial_thread_pool();
+		for(final String qf : query_file) {
+			executor.submit(new Runnable() {
+
+				private String query_file;
+
+				@Override
+				public void run() {
+					// TODO Auto-generated method stub
+					try {
+						final SamReader in1 = factory.open(new File(query_file));
+						final SAMRecordIterator iter1 = in1.iterator();
+						SAMRecord[] sam_records = new SAMRecord[2];
+						SAMRecord sam_record;
+						final Map<Long, Integer> linkCount1 = new HashMap<Long, Integer>();
+						final Map<Long, Double> linkRadius1 = new HashMap<Long, Double>();
+						long exceed_ins1 = 0;
+						boolean rev0, rev1;
+						int reflen0, reflen1;
+						final String[] refstr = new String[2];
+						double radius;
+						int a, b;
+						long refind;
+						
+						while(iter1.hasNext()) {
+							
+							sam_record = iter1.next();
+							if(sam_record.getNotPrimaryAlignmentFlag() || 
+									sam_record.getSupplementaryAlignmentFlag())
+								continue;
+							if(sam_record.getFirstOfPairFlag()) 
+								sam_records[0] = sam_record;
+							else sam_records[1] = sam_record;
+
+							if(sam_records[0]!=null&&sam_records[1]!=null) {
+								// so we have a confident read pair aligned to two contigs
+								// check return
+								if(sam_records[0].getReadUnmappedFlag() ||
+										sam_records[1].getReadUnmappedFlag())
+									continue;
+								if(!sam_records[0].getReadName().
+										equals(sam_records[1].getReadName()))
+									throw new RuntimeException("!!!");
+								if(sam_records[0].getReferenceIndex().intValue()==
+										sam_records[1].getReferenceIndex().intValue())
+									continue;
+								if(sam_records[0].getMappingQuality()<m_qual || 
+										sam_records[1].getMappingQuality()<m_qual)
+									continue;
+
+								rev0 = sam_records[0].getReadNegativeStrandFlag();
+								rev1 = sam_records[1].getReadNegativeStrandFlag();
+								reflen0  = sub_seqs.get(sam_records[0].getReferenceName()).seq_ln();
+								reflen1  = sub_seqs.get(sam_records[1].getReferenceName()).seq_ln();
+
+								if(rev0&&rev1) {
+									//       0                  1
+									// ---------------     -------------
+									//     <===                <===
+
+									// reverse 0
+									// ---------------     -------------
+									//     ===>                <===
+									a = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
+									// reverse 1
+									// ---------------     -------------
+									//     <===                ===>
+									b = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
+
+									if(ddebug)
+										STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
+												sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
+									if(a>m_ins&&b>m_ins) {
+										++exceed_ins1;
+										continue;
+									}
+									if(a<b) {
+										// reverse 0
+										refstr[0] = sam_records[0].getReferenceName()+"'";
+										refstr[1] = sam_records[1].getReferenceName();
+										radius = a;
+									} else {
+										// reverse 1
+										refstr[0] = sam_records[1].getReferenceName()+"'";
+										refstr[1] = sam_records[0].getReferenceName();
+										radius = b;
+									}
+								} else if(rev0&&!rev1) {
+									//       0                  1
+									// ---------------     -------------
+									//     <===                ===>
+									a = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
+
+									// reverse 0 & reverse1
+									// ---------------     -------------
+									//     ===>                <===
+									b = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
+
+									if(ddebug)
+										STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
+												sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
+									if(a>m_ins&&b>m_ins) {
+										++exceed_ins1;
+										continue;
+									}
+
+									if(a<b) {
+										refstr[0] = sam_records[1].getReferenceName();
+										refstr[1] = sam_records[0].getReferenceName();
+										radius = a;
+									} else {
+										refstr[0] = sam_records[0].getReferenceName()+"'";
+										refstr[1] = sam_records[1].getReferenceName()+"'";
+										radius = b;
+									}
+
+								} else if(!rev0&&rev1) {
+									//       0                  1
+									// ---------------     -------------
+									//     ===>                <===
+									a = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
+
+									// reverse 0 & reverse1
+									// ---------------     -------------
+									//     <===                ===>
+									b = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
+
+									if(ddebug)
+										STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
+												sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
+									if(a>m_ins&&b>m_ins) {
+										++exceed_ins1;
+										continue;
+									}
+
+									if(a<b) {
+										refstr[0] = sam_records[0].getReferenceName();
+										refstr[1] = sam_records[1].getReferenceName();
+										radius = a;
+									} else {
+										refstr[0] = sam_records[1].getReferenceName()+"'";
+										refstr[1] = sam_records[0].getReferenceName()+"'";
+										radius = b;
+									}
+
+								} else {
+									//       0                  1
+									// ---------------     -------------
+									//     ===>                ===>
+
+									// reverse 0
+									// ---------------     -------------
+									//     <===                ===>
+									a = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
+
+									// reverse 1
+									// ---------------     -------------
+									//     ===>                <===
+									b = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
+
+									if(ddebug)
+										STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
+												sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
+									if(a>m_ins&&b>m_ins) {
+										++exceed_ins1;
+										continue;
+									}
+
+									if(a<b) {
+										refstr[0] = sam_records[1].getReferenceName();
+										refstr[1] = sam_records[0].getReferenceName()+"'";
+										radius = a;
+									} else {
+										refstr[0] = sam_records[0].getReferenceName();
+										refstr[1] = sam_records[1].getReferenceName()+"'";
+										radius = b;
+									}
+								}
+
+								refind  = seq_index.get(refstr[0]);
+								refind <<= 32;
+								refind += seq_index.get(refstr[1]);
+								if(linkCount1.containsKey(refind)) {
+									linkCount1.put(refind, linkCount1.get(refind)+1);
+									linkRadius1.put(refind, linkRadius1.get(refind)+radius);
+								} else {
+									linkCount1.put(refind, 1);
+									linkRadius1.put(refind, radius);
+								}
+
+								refind  = seq_index.get(symm_seqsn.get(refstr[1]));
+								refind <<= 32;
+								refind += seq_index.get(symm_seqsn.get(refstr[0]));
+								if(linkCount1.containsKey(refind)) {
+									linkCount1.put(refind, linkCount1.get(refind)+1);
+									linkRadius1.put(refind, linkRadius1.get(refind)+radius);
+								} else {
+									linkCount1.put(refind, 1);
+									linkRadius1.put(refind, radius);
+								}
+							}
+							Arrays.fill(sam_records, null);
+						}
+						
+						iter1.close();
+						in1.close();
+						
+						for(Map.Entry<Long, Integer> entry : linkCount1.entrySet()) {
+							refind = entry.getKey();
+							if(linkCount.containsKey(refind)) {
+								linkCount.put(refind, linkCount.get(refind)+linkCount1.get(refind));
+								linkRadius.put(refind, linkRadius.get(refind)+linkRadius1.get(refind));
+							} else {
+								linkCount.put(refind, linkCount1.get(refind));
+								linkRadius.put(refind, linkRadius1.get(refind));
+							}
+						}
+						synchronized(lock) {
+							exceed_ins += exceed_ins1;
+						}
+
+					} catch (Exception e) {
+						// TODO Auto-generated catch block
+						Thread t = Thread.currentThread();
+						t.getUncaughtExceptionHandler().uncaughtException(t, e);
+						e.printStackTrace();
+						executor.shutdown();
+						System.exit(1);
+					}
+				}
+
+				public Runnable init(String query_file) {
+					this.query_file = query_file;
+					return this;
+				}
+
+			}.init(qf));
+		}
+		this.waitFor();
 	}
 
 	protected String cigar(int[] overlap) {
