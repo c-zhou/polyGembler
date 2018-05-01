@@ -449,8 +449,8 @@ public class Graphmap extends Executor {
 		}
 	}
 
-	private final static ConcurrentHashMap<Long, Integer> linkCount = new ConcurrentHashMap<Long, Integer>();
-	private final static ConcurrentHashMap<Long, Double> linkRadius = new ConcurrentHashMap<Long, Double>();
+	private final static Map<Long, Integer> linkCount = new HashMap<Long, Integer>();
+	private final static Map<Long, Double> linkRadius = new HashMap<Long, Double>();
 	private final static int m_ins = 2000; // maximum insert size for pe read library
 	private final static int m_lnk = 3;    // minimum #link to confirm a link
 	private final static int m_qual = 20;  // minimum alignment quality
@@ -854,18 +854,17 @@ public class Graphmap extends Executor {
 						
 						iter1.close();
 						in1.close();
-						
-						for(Map.Entry<Long, Integer> entry : linkCount1.entrySet()) {
-							refind = entry.getKey();
-							if(linkCount.containsKey(refind)) {
-								linkCount.put(refind, linkCount.get(refind)+linkCount1.get(refind));
-								linkRadius.put(refind, linkRadius.get(refind)+linkRadius1.get(refind));
-							} else {
-								linkCount.put(refind, linkCount1.get(refind));
-								linkRadius.put(refind, linkRadius1.get(refind));
-							}
-						}
+
 						synchronized(lock) {
+							for(long key : linkCount1.keySet()) {
+								if(linkCount.containsKey(key)) {
+									linkCount.put(key, linkCount.get(key)+linkCount1.get(key));
+									linkRadius.put(key, linkRadius.get(key)+linkRadius1.get(key));
+								} else {
+									linkCount.put(key, linkCount1.get(key));
+									linkRadius.put(key, linkRadius1.get(key));
+								}
+							}
 							exceed_ins += exceed_ins1;
 						}
 
