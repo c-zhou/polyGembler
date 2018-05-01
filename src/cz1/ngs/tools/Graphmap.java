@@ -677,18 +677,23 @@ public class Graphmap extends Executor {
 								// so we have a confident read pair aligned to two contigs
 								// check return
 								if(sam_records[0].getReadUnmappedFlag() ||
-										sam_records[1].getReadUnmappedFlag())
+										sam_records[1].getReadUnmappedFlag()) {
+									Arrays.fill(sam_records, null);
 									continue;
+								}
 								if(!sam_records[0].getReadName().
 										equals(sam_records[1].getReadName()))
 									throw new RuntimeException("!!!");
 								if(sam_records[0].getReferenceIndex().intValue()==
-										sam_records[1].getReferenceIndex().intValue())
+										sam_records[1].getReferenceIndex().intValue()) {
+									Arrays.fill(sam_records, null);
 									continue;
+								}
 								if(sam_records[0].getMappingQuality()<m_qual || 
-										sam_records[1].getMappingQuality()<m_qual)
+										sam_records[1].getMappingQuality()<m_qual) {
+									Arrays.fill(sam_records, null);
 									continue;
-
+								}
 								rev0 = sam_records[0].getReadNegativeStrandFlag();
 								rev1 = sam_records[1].getReadNegativeStrandFlag();
 								reflen0  = sub_seqs.get(sam_records[0].getReferenceName()).seq_ln();
@@ -713,6 +718,7 @@ public class Graphmap extends Executor {
 												sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 									if(a>m_ins&&b>m_ins) {
 										++exceed_ins1;
+										Arrays.fill(sam_records, null);
 										continue;
 									}
 									if(a<b) {
@@ -742,6 +748,7 @@ public class Graphmap extends Executor {
 												sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 									if(a>m_ins&&b>m_ins) {
 										++exceed_ins1;
+										Arrays.fill(sam_records, null);
 										continue;
 									}
 
@@ -771,6 +778,7 @@ public class Graphmap extends Executor {
 												sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 									if(a>m_ins&&b>m_ins) {
 										++exceed_ins1;
+										Arrays.fill(sam_records, null);
 										continue;
 									}
 
@@ -804,6 +812,7 @@ public class Graphmap extends Executor {
 												sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
 									if(a>m_ins&&b>m_ins) {
 										++exceed_ins1;
+										Arrays.fill(sam_records, null);
 										continue;
 									}
 
@@ -839,8 +848,8 @@ public class Graphmap extends Executor {
 									linkCount1.put(refind, 1);
 									linkRadius1.put(refind, radius);
 								}
+								Arrays.fill(sam_records, null);
 							}
-							Arrays.fill(sam_records, null);
 						}
 						
 						iter1.close();
