@@ -333,6 +333,11 @@ public class Graphmap extends Executor {
 
 	private void map_r454() {
 		// TODO Auto-generated method stub
+		
+	}
+	
+	private void dualContig() {
+		// TODO Auto-generated method stub
 		gfa = new GFA(subject_file, graph_file);
 		String source, target, seqid, dualSeqStr;
 		Sequence source_seq, target_seq, dualSeq;
@@ -615,6 +620,7 @@ public class Graphmap extends Executor {
 			long refind;
 			double radius;
 			this.initial_thread_pool();
+			final Set<String> newEdge = new HashSet<String>();
 			for(Map.Entry<Long, Integer> entry : linkCount.entrySet()) {
 				if(entry.getValue()<m_lnk) continue;
 				refind = entry.getKey();
@@ -654,12 +660,14 @@ public class Graphmap extends Executor {
 								String source_str = sub_seqs.get(source).seq_str();
 								String target_str = sub_seqs.get(target).seq_str();
 								int[] olap = overlap(source_str, target_str);
-								String cigar = cigar(olap);
+								
 								if(olap!=null) {
+									String cigar = cigar(olap);
 									synchronized(lock) {
 										++contained_olap;
 										if(!ddebug) STD_OUT_BUFFER.write(cigar(olap)+"\n");
 										// so we will add a edge between source and target
+										/***
 										OverlapEdge edge = gfa.addEdge(source, target);
 										edge.setOlapF(Constants.getOlapFromCigar(cigar));
 										edge.setOlapR(Constants.getOlapFromCigar(Constants.cgRevCmp(cigar)));
@@ -667,23 +675,28 @@ public class Graphmap extends Executor {
 										edge.setCigar(cigar);
 										gfa.setEdgeWeight(edge, 1.0);
 										gfa.setEdgeRealigned(edge);
+										**/
+										newEdge.add(source+" "+target+" "+cigar);
 									}
 								} else {
 									synchronized(lock) {
 										++contained_nonolap;
+										// so what do we do here?
+										// ok we will make it a scaffold
+										// i.e., we will add a edge between source and target of #gap_size 'N'
+										// this is implemented by setting the overlap negative number
+										// TODO: negative overlap introduced, check consistency!!!
+										/***
+										OverlapEdge edge = gfa.addEdge(source, target);
+										edge.setOlapF(-Constants.scaffold_gap_size);
+										edge.setOlapR(-Constants.scaffold_gap_size);
+										edge.setOlap(0);
+										edge.setCigar("0M");
+										gfa.setEdgeWeight(edge, 1.0);
+										gfa.setEdgeRealigned(edge);
+										**/
+										newEdge.add(source+" "+target+" 0M");
 									}
-									// so what do we do here?
-									// ok we will make it a scaffold
-									// i.e., we will add a edge between source and target of #gap_size 'N'
-									// this is implemented by setting the overlap negative number
-									// TODO: negative overlap introduced, check consistency!!!
-									OverlapEdge edge = gfa.addEdge(source, target);
-									edge.setOlapF(-Constants.scaffold_gap_size);
-									edge.setOlapR(-Constants.scaffold_gap_size);
-									edge.setOlap(0);
-									edge.setCigar("0M");
-									gfa.setEdgeWeight(edge, 1.0);
-									gfa.setEdgeRealigned(edge);
 								}
 							}
 						} catch (Exception e) {
@@ -720,7 +733,32 @@ public class Graphmap extends Executor {
 			myLogger.info("#contained nonolap-edges : "+contained_nonolap/2+"/"+links/2);
 			myLogger.info("################################################################");
 			
-			// write GFA file
+			// add new edges to graph
+			String[] s;
+			int olap;
+			OverlapEdge e;
+			for(String edge_str : newEdge) {
+				s = edge_str.split(" ");
+				e = gfa.addEdge(s[0], s[1]);
+				olap = Constants.getOlapFromCigar(s[2]);
+				if(olap==0) {
+					e.setOlapF(-Constants.scaffold_gap_size);
+					e.setOlapR(-Constants.scaffold_gap_size);
+					e.setOlap(0);
+					e.setCigar("0M");
+					gfa.setEdgeWeight(e, 1.0);
+					gfa.setEdgeRealigned(e);
+				} else {
+					e.setOlapF(olap);
+					e.setOlapR(Constants.getOlapFromCigar(Constants.cgRevCmp(s[2])));
+					e.setOlap(olap);
+					e.setCigar(s[2]);
+					gfa.setEdgeWeight(e, 1.0);
+					gfa.setEdgeRealigned(e);
+				}
+			}
+			
+			// write gfa file
 			BufferedWriter bw_out = Utils.getBufferedWriter(out_prefix+".gfa");
 			bw_out.write("H\tVN:Z:1.0\n");
 			final List<String> seqs = new ArrayList<String>(sub_seqs.keySet());
