@@ -665,7 +665,7 @@ public class Graphmap extends Executor {
 						double radius;
 						int a, b;
 						long refind;
-						int match, mismatch, refPos;
+						int match, refPos;
 						String refStr, readStr;
 						SequencePair<DNASequence, NucleotideCompound> seqPair;
 						boolean ambiguous;
@@ -716,7 +716,8 @@ public class Graphmap extends Executor {
 										if(element.getOperator() == CigarOperator.M)
 											match += element.getLength();
 									}
-									mismatch = sam_records[i].getIntegerAttribute("NM");
+									match -= sam_records[i].getIntegerAttribute("NM");
+									
 									
 									readStr = sam_records[i].getReadString();
 									if(rev[1-i]) {
@@ -729,9 +730,11 @@ public class Graphmap extends Executor {
 												substring(refPos, Math.min(refPos+m_ins, reflen[1-i]));
 									}
 									
+									if(refStr.length()<0.8*match) continue;
+									
 									seqPair = Constants.localPairMatcher(refStr, readStr);
 									
-									if(seqPair.getNumIdenticals()>=0.8*(match-mismatch)) {
+									if(seqPair.getNumIdenticals()>=0.8*match) {
 										ambiguous = true;
 										break;
 									}
