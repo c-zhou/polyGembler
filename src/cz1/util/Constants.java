@@ -20,12 +20,14 @@ import org.biojava.nbio.alignment.Alignments;
 import org.biojava.nbio.alignment.SimpleGapPenalty;
 import org.biojava.nbio.alignment.Alignments.PairwiseSequenceAlignerType;
 import org.biojava.nbio.alignment.template.PairwiseSequenceAligner;
+import org.biojava.nbio.core.alignment.matrices.SimpleSubstitutionMatrix;
 import org.biojava.nbio.core.alignment.matrices.SubstitutionMatrixHelper;
 import org.biojava.nbio.core.alignment.template.SequencePair;
 import org.biojava.nbio.core.alignment.template.SubstitutionMatrix;
 import org.biojava.nbio.core.exceptions.CompoundNotFoundException;
 import org.biojava.nbio.core.sequence.DNASequence;
 import org.biojava.nbio.core.sequence.compound.AmbiguityDNACompoundSet;
+import org.biojava.nbio.core.sequence.compound.DNACompoundSet;
 import org.biojava.nbio.core.sequence.compound.NucleotideCompound;
 
 public class Constants {
@@ -119,21 +121,33 @@ public class Constants {
 	public static int omp_threads = 1;
 	
 	public static final SimpleGapPenalty penalty = new SimpleGapPenalty(6,1);
-	public static final SubstitutionMatrix<NucleotideCompound> subMat = SubstitutionMatrixHelper.getNuc4_4();
+	//public static final SubstitutionMatrix<NucleotideCompound> subMat = SubstitutionMatrixHelper.getNuc4_4();
+	// match score 1 and mismatch penalty 4
+	public static final SubstitutionMatrix<NucleotideCompound> subMat = 
+			new SimpleSubstitutionMatrix<NucleotideCompound>(AmbiguityDNACompoundSet.getDNACompoundSet(), (short)1, (short)-4);
 	
-	public static SequencePair<DNASequence, NucleotideCompound> localPairMatcher(String targetSeq, String querySeq) {
+	public static SequencePair<DNASequence, NucleotideCompound> localPairMatcher(String querySeq, String targetSeq) {
 		try {			
-			DNASequence target = new DNASequence(targetSeq, AmbiguityDNACompoundSet.getDNACompoundSet());
+			/***
 			DNASequence query  = new DNASequence(querySeq, AmbiguityDNACompoundSet.getDNACompoundSet());
+			DNASequence target = new DNASequence(targetSeq, AmbiguityDNACompoundSet.getDNACompoundSet());
 			
 			PairwiseSequenceAligner<DNASequence, NucleotideCompound> aligner = Alignments.getPairwiseAligner(
-					target,
 					query,
+					target,
 					PairwiseSequenceAlignerType.LOCAL,
 					penalty, 
 					subMat);
 			SequencePair<DNASequence, NucleotideCompound> seqAlnPair = aligner.getPair();
 			return seqAlnPair;
+			**/
+			
+			return Alignments.getPairwiseAligner(
+					new DNASequence(querySeq, AmbiguityDNACompoundSet.getDNACompoundSet()),
+					new DNASequence(targetSeq, AmbiguityDNACompoundSet.getDNACompoundSet()),
+					PairwiseSequenceAlignerType.LOCAL,
+					penalty, 
+					subMat).getPair();
 		} catch (CompoundNotFoundException e1) {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();

@@ -43,6 +43,8 @@ import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Executor;
 import cz1.util.Utils;
+import htsjdk.samtools.CigarElement;
+import htsjdk.samtools.CigarOperator;
 import htsjdk.samtools.SAMRecord;
 import htsjdk.samtools.SAMRecordIterator;
 import htsjdk.samtools.SamReader;
@@ -455,7 +457,7 @@ public class Graphmap extends Executor {
 	private final static int m_lnk = 3;    // minimum #link to confirm a link
 	private final static int m_qual = 20;  // minimum alignment quality
 	private static long exceed_ins = 0, links = 0, contained_single = 0, 
-			contained_multi = 0, contained_olap = 0, contained_nonolap = 0;
+			contained_multi = 0, contained_olap = 0, contained_nonolap = 0, ambiguous_aln = 0;
 
 	private void map_pe() {
 		// TODO Auto-generated method stub
@@ -579,6 +581,7 @@ public class Graphmap extends Executor {
 			myLogger.info("#contained multi-edges   : "+contained_multi/2+"/"+links/2);
 			myLogger.info("#contained olap-edges    : "+contained_olap/2+"/"+links/2);
 			myLogger.info("#contained nonolap-edges : "+contained_nonolap/2+"/"+links/2);
+			myLogger.info("#ambiguous alignment     : "+ambiguous_aln);
 			myLogger.info("################################################################");
 			
 			// add new edges to graph
@@ -655,13 +658,17 @@ public class Graphmap extends Executor {
 						SAMRecord sam_record;
 						final Map<Long, Integer> linkCount1 = new HashMap<Long, Integer>();
 						final Map<Long, Double> linkRadius1 = new HashMap<Long, Double>();
-						long exceed_ins1 = 0;
-						boolean rev0, rev1;
-						int reflen0, reflen1;
+						long exceed_ins1 = 0, ambiguous_aln1 = 0;
+						final boolean[] rev = new boolean[2];
+						final int[] reflen = new int[2];
 						final String[] refstr = new String[2];
 						double radius;
 						int a, b;
 						long refind;
+						int match, mismatch, refPos;
+						String refStr, readStr;
+						SequencePair<DNASequence, NucleotideCompound> seqPair;
+						boolean ambiguous;
 						
 						while(iter1.hasNext()) {
 							
@@ -694,12 +701,49 @@ public class Graphmap extends Executor {
 									Arrays.fill(sam_records, null);
 									continue;
 								}
-								rev0 = sam_records[0].getReadNegativeStrandFlag();
-								rev1 = sam_records[1].getReadNegativeStrandFlag();
-								reflen0  = sub_seqs.get(sam_records[0].getReferenceName()).seq_ln();
-								reflen1  = sub_seqs.get(sam_records[1].getReferenceName()).seq_ln();
+								rev[0] = sam_records[0].getReadNegativeStrandFlag();
+								rev[1] = sam_records[1].getReadNegativeStrandFlag();
+								reflen[0]  = sub_seqs.get(sam_records[0].getReferenceName()).seq_ln();
+								reflen[1]  = sub_seqs.get(sam_records[1].getReferenceName()).seq_ln();
 
-								if(rev0&&rev1) {
+								// to avoid distortions of the alignment caused by the redundancies
+								// we realign the read pair
+								ambiguous = false;
+								for(int i=0; i<2; i++) {
+									List<CigarElement> cigar = sam_records[i].getCigar().getCigarElements();
+									match = 0;
+									for(CigarElement element : cigar) {
+										if(element.getOperator() == CigarOperator.M)
+											match += element.getLength();
+									}
+									mismatch = sam_records[i].getIntegerAttribute("NM");
+									
+									readStr = sam_records[i].getReadString();
+									if(rev[1-i]) {
+										refPos = sam_records[1-i].getStart();
+										refStr = sub_seqs.get(sam_records[1-i].getReferenceName()).seq_str().
+												substring(Math.max(0, refPos-m_ins), refPos);
+									} else {
+										refPos = sam_records[1-i].getEnd();
+										refStr = sub_seqs.get(sam_records[1-i].getReferenceName()).seq_str().
+												substring(refPos, Math.min(refPos+m_ins, reflen[1-i]));
+									}
+									
+									seqPair = Constants.localPairMatcher(refStr, readStr);
+									
+									if(seqPair.getNumIdenticals()>=0.8*(match-mismatch)) {
+										ambiguous = true;
+										break;
+									}
+								}
+								
+								if(ambiguous) {
+									Arrays.fill(sam_records, null);
+									++ambiguous_aln1;
+									continue;
+								}
+								
+								if(rev[0]&&rev[1]) {
 									//       0                  1
 									// ---------------     -------------
 									//     <===                <===
@@ -707,11 +751,11 @@ public class Graphmap extends Executor {
 									// reverse 0
 									// ---------------     -------------
 									//     ===>                <===
-									a = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
+									a = reflen[0]-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
 									// reverse 1
 									// ---------------     -------------
 									//     <===                ===>
-									b = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
+									b = sam_records[0].getAlignmentEnd()+reflen[1]-sam_records[1].getAlignmentStart()+1;
 
 									if(ddebug)
 										STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
@@ -732,16 +776,16 @@ public class Graphmap extends Executor {
 										refstr[1] = sam_records[0].getReferenceName();
 										radius = b;
 									}
-								} else if(rev0&&!rev1) {
+								} else if(rev[0]&&!rev[1]) {
 									//       0                  1
 									// ---------------     -------------
 									//     <===                ===>
-									a = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
+									a = sam_records[0].getAlignmentEnd()+reflen[1]-sam_records[1].getAlignmentStart()+1;
 
 									// reverse 0 & reverse1
 									// ---------------     -------------
 									//     ===>                <===
-									b = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
+									b = reflen[0]-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
 
 									if(ddebug)
 										STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
@@ -762,16 +806,16 @@ public class Graphmap extends Executor {
 										radius = b;
 									}
 
-								} else if(!rev0&&rev1) {
+								} else if(!rev[0]&&rev[1]) {
 									//       0                  1
 									// ---------------     -------------
 									//     ===>                <===
-									a = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
+									a = reflen[0]-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
 
 									// reverse 0 & reverse1
 									// ---------------     -------------
 									//     <===                ===>
-									b = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
+									b = sam_records[0].getAlignmentEnd()+reflen[1]-sam_records[1].getAlignmentStart()+1;
 
 									if(ddebug)
 										STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
@@ -800,12 +844,12 @@ public class Graphmap extends Executor {
 									// reverse 0
 									// ---------------     -------------
 									//     <===                ===>
-									a = sam_records[0].getAlignmentEnd()+reflen1-sam_records[1].getAlignmentStart()+1;
+									a = sam_records[0].getAlignmentEnd()+reflen[1]-sam_records[1].getAlignmentStart()+1;
 
 									// reverse 1
 									// ---------------     -------------
 									//     ===>                <===
-									b = reflen0-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
+									b = reflen[0]-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
 
 									if(ddebug)
 										STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
@@ -866,6 +910,7 @@ public class Graphmap extends Executor {
 								}
 							}
 							exceed_ins += exceed_ins1;
+							ambiguous_aln += ambiguous_aln1;
 						}
 
 					} catch (Exception e) {

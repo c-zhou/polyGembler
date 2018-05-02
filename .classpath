@@ -30,8 +30,8 @@
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/git/polyGembler/lib/jgrapht-core-1.1.0.jar"/>
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/git/polyGembler/lib/jgrapht-ext-1.1.0.jar"/>
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/git/polyGembler/lib/mhap-2.1.3.jar"/>
+	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/git/polyGembler/lib/slf4j-api-1.7.25.jar"/>
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/git/polyGembler/lib/biojava-alignment-4.2.11.jar"/>
 	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/git/polyGembler/lib/biojava-core-4.2.11.jar"/>
-	<classpathentry kind="lib" path="C:/Users/chenxi.zhou/git/polyGembler/lib/slf4j-api-1.7.25.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
