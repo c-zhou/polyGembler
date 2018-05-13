@@ -204,10 +204,10 @@ public class GenomeComparisonZ extends Executor {
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
+		
 		try {
 			final BAMBarcodeIterator iter1 = new BAMBarcodeIterator(this.in_bam1);
 			final BAMBarcodeIterator iter2 = new BAMBarcodeIterator(this.in_bam2);
-
 			BufferedWriter bw_con = new BufferedWriter(new FileWriter(out_prefix+".txt"));
 			BufferedWriter bw_1 = new BufferedWriter(new FileWriter(out_prefix+".1txt"));
 			BufferedWriter bw_2 = new BufferedWriter(new FileWriter(out_prefix+".2txt"));
@@ -216,9 +216,16 @@ public class GenomeComparisonZ extends Executor {
 				List<SAMRecord[]> bc_records1 = iter1.next();
 				List<SAMRecord[]> bc_records2 = iter2.next();
 
+				if(bc_records1.isEmpty()||bc_records2.isEmpty())
+					throw new RuntimeException("!!!");
+				
+				if(!bc_records1.get(0)[0].getStringAttribute("BX").
+						equals(bc_records2.get(0)[0].getStringAttribute("BX")))
+					throw new RuntimeException("!!!");
+				
 				List<Molecule> mols1 = extractMoleculeFromList(bc_records1);
 				List<Molecule> mols2 = extractMoleculeFromList(bc_records2);
-
+				
 				int n1 = mols1.size(), n2 = mols2.size();
 				Set<Integer> m1 = new HashSet<Integer>();
 				Set<Integer> m2 = new HashSet<Integer>();
