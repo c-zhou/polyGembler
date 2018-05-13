@@ -216,13 +216,6 @@ public class GenomeComparisonZ extends Executor {
 				List<SAMRecord[]> bc_records1 = iter1.next();
 				List<SAMRecord[]> bc_records2 = iter2.next();
 
-				if(bc_records1.isEmpty()||bc_records2.isEmpty())
-					throw new RuntimeException("!!!");
-				
-				if(!bc_records1.get(0)[0].getStringAttribute("BX").
-						equals(bc_records2.get(0)[0].getStringAttribute("BX")))
-					throw new RuntimeException("!!!");
-				
 				List<Molecule> mols1 = extractMoleculeFromList(bc_records1);
 				List<Molecule> mols2 = extractMoleculeFromList(bc_records2);
 				
@@ -323,6 +316,10 @@ public class GenomeComparisonZ extends Executor {
 	
 	private List<Molecule> extractMoleculeFromList(List<SAMRecord[]> list) {
 		// TODO Auto-generated method stub
+		List<Molecule> mols = new ArrayList<Molecule>();
+		
+		if(list.isEmpty()) return mols; 
+		
 		Collections.sort(list, new Comparator<SAMRecord[]>() {
 			@Override
 			public int compare(SAMRecord[] record0, SAMRecord[] record1) {
@@ -333,7 +330,6 @@ public class GenomeComparisonZ extends Executor {
 			}
 		});
 		
-		List<Molecule> mols = new ArrayList<Molecule>();
 		Iterator<SAMRecord[]> iter = list.iterator();
 		SAMRecord[] records = iter.next();
 		int chr_index = records[0].getReferenceIndex();
