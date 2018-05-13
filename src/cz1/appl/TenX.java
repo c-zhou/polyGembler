@@ -4,9 +4,8 @@ import org.apache.log4j.Logger;
 
 import cz1.tenx.tools.BAMstats;
 import cz1.tenx.tools.GenomeComparison;
-import cz1.tenx.tools.GenomeComparisonZ;
 import cz1.tenx.tools.TenXMoleculeStats;
-import cz1.tenx.tools.TenXMoleculeStatsZ;
+import cz1.tenx.tools.GenomeComparisonZ;
 import cz1.tenx.tools.TenXSamtools;
 import cz1.tenx.tools.TenxMoleculeTools;
 
@@ -34,11 +33,6 @@ public class TenX {
 			TenXMoleculeStats tenXMStats = new TenXMoleculeStats();
 			tenXMStats.setParameters(args2);
 			tenXMStats.run();
-			break;
-		case "statsz":
-			TenXMoleculeStatsZ tenXMStatsZ = new TenXMoleculeStatsZ();
-			tenXMStatsZ.setParameters(args2);
-			tenXMStatsZ.run();
 			break;
 		case "bamstats":
 			BAMstats bamStats = new BAMstats();
