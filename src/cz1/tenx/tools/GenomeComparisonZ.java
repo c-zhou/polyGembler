@@ -269,7 +269,7 @@ public class GenomeComparisonZ extends Executor {
 		// TODO Auto-generated method stub
 		
 		int a12 = 0, a21 = 0, aeq = 0;
-		float as1, as2;
+		int as1, as2;
 		SAMRecord[] s1, s2;
 		
 		final List<SAMRecord[]> r1 = mol1.reads_list;
@@ -279,9 +279,9 @@ public class GenomeComparisonZ extends Executor {
 		
 		for(int i=0; i<n1; i++) {
 			s1 = r1.get(i);
-			as1 = s1[0].getFloatAttribute("AS")+s1[1].getFloatAttribute("AS");
+			as1 = s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS");
 			s2 = r2.get(i);
-			as2 = s2[0].getFloatAttribute("AS")+s2[1].getFloatAttribute("AS");
+			as2 = s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS");
 			if(as1>as2) {
 				++a12;
 			} else if(as1<as2) {
@@ -293,17 +293,17 @@ public class GenomeComparisonZ extends Executor {
 		StringBuilder diff = new StringBuilder();
 		for(int i=0; i<n1-1; i++) {
 			s1 = r1.get(i);
-			diff.append(s1[0].getFloatAttribute("AS")+s1[1].getFloatAttribute("AS"));
+			diff.append(s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS"));
 			diff.append("/");
 			s2 = r2.get(i);
-			diff.append(s2[0].getFloatAttribute("AS")+s2[1].getFloatAttribute("AS"));
+			diff.append(s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS"));
 			diff.append(",");
 		}
 		s1 = r1.get(n1-1);
-		diff.append(s1[0].getFloatAttribute("AS")+s1[1].getFloatAttribute("AS"));
+		diff.append(s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS"));
 		diff.append("/");
 		s2 = r2.get(n2-1);
-		diff.append(s2[0].getFloatAttribute("AS")+s2[1].getFloatAttribute("AS"));
+		diff.append(s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS"));
 	
 		return n1+"\t"+n2+"\t"+a12+"\t"+a21+"\t"+aeq+"\t"+diff.toString();
 	}
