@@ -26,6 +26,7 @@ import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 import org.biojava.nbio.core.alignment.template.SequencePair;
 import org.biojava.nbio.core.sequence.DNASequence;
 import org.biojava.nbio.core.sequence.compound.NucleotideCompound;
+import org.jgrapht.alg.ConnectivityInspector;
 import org.w3c.dom.stylesheets.LinkStyle;
 
 import com.google.common.collect.DiscreteDomain;
@@ -459,6 +460,19 @@ public class Graphmap extends Executor {
 	private static long exceed_ins = 0, links = 0, contained_single = 0, 
 			contained_multi = 0, contained_olap = 0, contained_nonolap = 0, ambiguous_aln = 0;
 
+	public void connectivity () {
+		ConnectivityInspector<String,OverlapEdge> conn_inspector = new ConnectivityInspector<String,OverlapEdge>(gfa.gfa());
+		List<Set<String>> conn_sets = conn_inspector.connectedSets();
+		for(Set<String> conn : conn_sets) {
+			long sz = 0;
+			for(String s : conn) {
+				if(!s.endsWith("'"))
+					sz += sub_seqs.get(s).seq_ln();
+			}
+			System.out.println(conn.size()+" "+sz);
+		}
+	}
+	
 	private void map_pe() {
 		// TODO Auto-generated method stub
 		gfa = new GFA(subject_file, graph_file);

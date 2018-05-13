@@ -913,5 +913,9 @@ public class GFA {
 		// TODO Auto-generated method stub
 		gfa.setEdgeWeight(edge, weight);
 	}
-
+	
+	public DirectedWeightedOverlapPseudograph<String> gfa() {
+		// TODO Auto-generated method stub
+		return this.gfa;
+	}
 }
