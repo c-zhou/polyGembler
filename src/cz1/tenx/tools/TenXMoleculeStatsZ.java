@@ -224,13 +224,12 @@ public class TenXMoleculeStatsZ extends Executor {
 			final BAMBarcodeIterator iter = new BAMBarcodeIterator(this.in_bam);
 			BufferedWriter bw_mol = new BufferedWriter(new FileWriter(out_prefix+".mol"));
 
-			int startv, endv, posv, keyv, seql, a;
+			int startv, endv, posv, keyv, seql, count, a;
 			String refv, a0, a1, dnaseq;
 			String[] alleles;
 			NavigableMap<Integer, String[]> mapv;
 			final Map<Integer, Set<Integer>> molv = new HashMap<Integer, Set<Integer>>(); 
 			final StringBuilder os = new StringBuilder();
-			boolean writeout;
 			while(iter.hasNext()) {
 				List<SAMRecord[]> bc_records = iter.next();
 				List<Molecule> mols = extractMoleculeFromList(bc_records);
@@ -276,13 +275,13 @@ public class TenXMoleculeStatsZ extends Executor {
 					
 					os.setLength(0);	
 					os.append(molecule.chr_id);
-					os.append(":");
+					os.append("\t");
 					os.append(molecule.chr_start);
-					os.append("-");
+					os.append("\t");
 					os.append(molecule.chr_end);
-					os.append(" ");
+					os.append("\t");
 					
-					writeout = false;
+					count = 0;
 					final List<Integer> keys = new ArrayList<Integer>(molv.keySet());
 					Collections.sort(keys);
 					for(Integer key : keys) {
@@ -293,11 +292,11 @@ public class TenXMoleculeStatsZ extends Executor {
 							os.append(",");
 							os.append(e);
 							os.append(";");
-							writeout = true;
+							++count;
 						}
 					}
 					
-					if(writeout) {
+					if(count>1) {
 						bw_mol.write(os.toString().replaceAll(";$", ""));
 						bw_mol.write("\n");
 					}
