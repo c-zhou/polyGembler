@@ -282,9 +282,9 @@ public class GenomeComparisonZ extends Executor {
 			as1 = s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS");
 			s2 = r2.get(i);
 			as2 = s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS");
-			if(as1>as2) {
+			if(as1>as2+10) {
 				++a12;
-			} else if(as1<as2) {
+			} else if(as1+10<as2) {
 				++a21;
 			} else {
 				++aeq;

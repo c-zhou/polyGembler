@@ -7,6 +7,7 @@ import cz1.tenx.tools.GenomeComparison;
 import cz1.tenx.tools.TenXMoleculeStats;
 import cz1.tenx.tools.GenomeComparisonZ;
 import cz1.tenx.tools.TenXSamtools;
+import cz1.tenx.tools.TenXVcftools;
 import cz1.tenx.tools.TenxMoleculeTools;
 
 
@@ -54,6 +55,11 @@ public class TenX {
 			tools.setParameters(args2);
 			tools.run();
 			break;
+		case "vcftools":
+			TenXVcftools vcftools = new TenXVcftools();
+			vcftools.setParameters(args2);
+			vcftools.run();
+			break;
 		default:
 			printUsage();
 			throw new RuntimeException("Undefined tool!!!");
@@ -70,6 +76,7 @@ public class TenX {
 						+ " statsz                TenX BAM file molecular statistics.\n"
 						+ " comparez              Compare two TenX data.\n"
 						+ " merge                 Merge molecule file.\n"
+						+ " vcftools              VCF tools.\n"
 						+ " bamstats              TenX BAM file statistics.\n\n");
 	}
 }

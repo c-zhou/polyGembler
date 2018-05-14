@@ -12,6 +12,7 @@ import java.util.Set;
 
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
+import org.apache.commons.math3.stat.inference.TestUtils;
 import org.biojava.nbio.core.alignment.template.SequencePair;
 import org.biojava.nbio.core.sequence.DNASequence;
 import org.biojava.nbio.core.sequence.compound.NucleotideCompound;
@@ -324,6 +325,9 @@ public class AssemblyGraph {
 
 		System.out.println(seqPair2.getNumIdenticals());
 		System.out.println(seqPair2.getNumSimilars());
+		
+		
+		System.out.println(TestUtils.chiSquareTest(new double[]{2d/6,4d/6}, new long[]{200,390}));
 	}
 }
 
