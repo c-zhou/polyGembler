@@ -7,9 +7,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import cz1.util.ArgsEngine;
@@ -222,6 +224,7 @@ public class GenomeComparisonZ extends Executor {
 				int n1 = mols1.size(), n2 = mols2.size();
 				Set<Integer> m1 = new HashSet<Integer>();
 				Set<Integer> m2 = new HashSet<Integer>();
+				// this is for homologous molecules
 				for(int i=0; i!=n1; i++) {
 					for(int j=0; j!=n2; j++) {
 						if( homologous(mols1.get(i), mols2.get(j)) ) {
@@ -233,13 +236,20 @@ public class GenomeComparisonZ extends Executor {
 						}
 					}
 				}
+
+				// this is for non-homologous molecules
+				Map<String, SAMRecord[]> bc_map1 = new HashMap<String, SAMRecord[]>();
+				Map<String, SAMRecord[]> bc_map2 = new HashMap<String, SAMRecord[]>();
+				for(SAMRecord[] records : bc_records1) bc_map1.put(records[0].getReadName(), records);
+				for(SAMRecord[] records : bc_records2) bc_map2.put(records[0].getReadName(), records);
+				
 				for(int i=0; i!=n1; i++) {
 					if(!m1.contains(i)) 
-						bw_1.write(mols1.get(i).chr_id+":"+mols1.get(i).chr_start+"-"+mols1.get(i).chr_end+"\n");
+						bw_1.write(mols1.get(i).chr_id+":"+mols1.get(i).chr_start+"-"+mols1.get(i).chr_end+"\t"+compare(mols1.get(i), bc_map2)+"\n");
 				}
 				for(int i=0; i!=n2; i++) {
 					if(!m2.contains(i)) 
-						bw_2.write(mols2.get(i).chr_id+":"+mols2.get(i).chr_start+"-"+mols2.get(i).chr_end+"\n");
+						bw_2.write(mols2.get(i).chr_id+":"+mols2.get(i).chr_start+"-"+mols2.get(i).chr_end+"\t"+compare(mols2.get(i), bc_map1)+"\n");
 				}
 			}
 
@@ -253,7 +263,7 @@ public class GenomeComparisonZ extends Executor {
 			e.printStackTrace();
 		}
 	}
-	
+
 	private boolean homologous(Molecule mol1, Molecule mol2) {
 		// TODO Auto-generated method stub
 		List<String> r1 = mol1.reads_set;
@@ -264,7 +274,34 @@ public class GenomeComparisonZ extends Executor {
 				return false;
 		return true;
 	}
+	
+	private final static int softmax = 10;
+	
+	private String compare(Molecule mol, Map<String, SAMRecord[]> records) {
+		// TODO Auto-generated method stub
+		int a12 = 0, a21 = 0, aeq = 0;
+		int as1, as2;
+		SAMRecord[] s1, s2;
+		final List<SAMRecord[]> r = mol.reads_list;
+		int n = r.size();
 
+		for(int i=0; i<n; i++) {
+			s1 = r.get(i);
+			as1 = s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS");
+			s2 = records.containsKey(s1[0].getReadName()) ? records.get(s1[0].getReadName()) : null;
+			as2 = s2==null ? 0 : s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS");
+			if(as1>as2+softmax) {
+				++a12;
+			} else if(as1+softmax<as2) {
+				++a21;
+			} else {
+				++aeq;
+			}
+		}
+		
+		return n+"\t"+a12+"\t"+a21+"\t"+aeq;
+	}
+	
 	private String compare(Molecule mol1, Molecule mol2) {
 		// TODO Auto-generated method stub
 		
@@ -282,9 +319,9 @@ public class GenomeComparisonZ extends Executor {
 			as1 = s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS");
 			s2 = r2.get(i);
 			as2 = s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS");
-			if(as1>as2+10) {
+			if(as1>as2+softmax) {
 				++a12;
-			} else if(as1+10<as2) {
+			} else if(as1+softmax<as2) {
 				++a21;
 			} else {
 				++aeq;
