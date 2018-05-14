@@ -82,7 +82,7 @@ public class TenXVcftools extends Executor {
 			}
 			configure();
 			if (myArgsEngine.getBoolean("-o")) {
-				this.vcf_out = myArgsEngine.getString("-i");
+				this.vcf_out = myArgsEngine.getString("-o");
 			} else {
 				printUsage();
 				throw new IllegalArgumentException("Please specify the output VCF file.");
@@ -130,9 +130,11 @@ public class TenXVcftools extends Executor {
 			
 			final long[] allele_depth = new long[2];
 			final double[] chisq_p = new double[this.ploidy-1];
+			double pval;
+			long ada;
 			
 			while( (line=br_vcf.readLine())!=null ) {
-				if(line.startsWith("##")) {
+				if(line.startsWith("#")) {
 					bw_vcf.write(line+"\n");
 					continue;
 				}
@@ -142,16 +144,20 @@ public class TenXVcftools extends Executor {
 				ref   = s[3];
 				alt   = s[4];
 				qual  = s[5];
-				if(alt.contains(",")) continue;
+				if(alt.contains(",")||Double.parseDouble(qual)<20) continue;
 				s = s[9].split(":");
 				allele_depth[0] = Long.parseLong(s[4]);
 				allele_depth[1] = Long.parseLong(s[6]);
 				
+				ada = allele_depth[0]+allele_depth[1];
+				if(allele_depth[0]<5||allele_depth[1]<5||ada<30||ada>500) continue;
+
 				for(int z=0; z<this.ploidy-1; z++) 
 					chisq_p[z] = TestUtils.chiSquareTest(config[z], allele_depth);
 				
-				if(StatUtils.max(chisq_p)>=0.01)
-					bw_vcf.write(chrom+"\t"+pos+"\t.\t"+ref+"\t"+alt+"\t"+qual+"\t.\t.\tAD\t"+s[4]+","+s[6]+"\n");
+				pval = StatUtils.max(chisq_p);
+				if(pval>=0.05)
+					bw_vcf.write(chrom+"\t"+pos+"\t.\t"+ref+"\t"+alt+"\t"+qual+"\t.\tPV="+String.format("%.3f", pval)+"\tAD\t"+s[4]+","+s[6]+"\n");
 			}
 			bw_vcf.close();
 			br_vcf.close();
