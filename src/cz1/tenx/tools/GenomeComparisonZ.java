@@ -168,7 +168,7 @@ public class GenomeComparisonZ extends Executor {
 	
 	private class Molecule {
 		private List<String> reads_set;
-		private List<SAMRecord> reads_list;
+		private List<SAMRecord[]> reads_list;
 		private String chr_id = null;
 		private int chr_start = -1;
 		private int chr_end = -1;
@@ -176,24 +176,26 @@ public class GenomeComparisonZ extends Executor {
 
 		public Molecule() {
 			this.reads_set = new ArrayList<String>();
-			this.reads_list = new ArrayList<SAMRecord>();
+			this.reads_list = new ArrayList<SAMRecord[]>();
 		}
 
-		public void add(SAMRecord record) {
+		public void add(SAMRecord[] record) {
 			this.reads_list.add(record);
-			this.reads_set.add(record.getReadName());
+			this.reads_set.add(record[0].getReadName());
 		}
 
 		public void construct() {
 			// TODO Auto-generated method stub
-			this.chr_id = this.reads_list.get(0).getReferenceName();
+			this.chr_id = this.reads_list.get(0)[0].getReferenceName();
 			int chr_start = Integer.MAX_VALUE;
 			int chr_end   = Integer.MIN_VALUE;
-			for(SAMRecord record : this.reads_list) {
-				if(record.getAlignmentStart()<chr_start)
-					chr_start = record.getAlignmentStart();	
-				if(record.getAlignmentEnd()>chr_end)
-					chr_end   = record.getAlignmentEnd();
+			for(SAMRecord[] records : this.reads_list) {
+				for(SAMRecord record : records) {
+					if(record.getAlignmentStart()<chr_start)
+						chr_start = record.getAlignmentStart();	
+					if(record.getAlignmentEnd()>chr_end)
+						chr_end   = record.getAlignmentEnd();
+				}
 			}
 			this.chr_start = chr_start-1;
 			this.chr_end   = chr_end;
@@ -240,10 +242,15 @@ public class GenomeComparisonZ extends Executor {
 				Map<String, SAMRecord[]> bc_map2 = new HashMap<String, SAMRecord[]>();
 				for(SAMRecord[] records : bc_records1) bc_map1.put(records[0].getReadName(), records);
 				for(SAMRecord[] records : bc_records2) bc_map2.put(records[0].getReadName(), records);
-				for(int i=0; i!=n1; i++) 
-					bw_1.write(mols1.get(i).chr_id+":"+mols1.get(i).chr_start+"-"+mols1.get(i).chr_end+"\t"+compare(mols1.get(i), bc_map2)+"\n");
-				for(int i=0; i!=n2; i++) 
-					bw_2.write(mols2.get(i).chr_id+":"+mols2.get(i).chr_start+"-"+mols2.get(i).chr_end+"\t"+compare(mols2.get(i), bc_map1)+"\n");
+				
+				for(int i=0; i!=n1; i++) {
+					if(!m1.contains(i)) 
+						bw_1.write(mols1.get(i).chr_id+":"+mols1.get(i).chr_start+"-"+mols1.get(i).chr_end+"\t"+compare(mols1.get(i), bc_map2)+"\n");
+				}
+				for(int i=0; i!=n2; i++) {
+					if(!m2.contains(i)) 
+						bw_2.write(mols2.get(i).chr_id+":"+mols2.get(i).chr_start+"-"+mols2.get(i).chr_end+"\t"+compare(mols2.get(i), bc_map1)+"\n");
+				}
 			}
 
 			iter1.close();
@@ -274,16 +281,15 @@ public class GenomeComparisonZ extends Executor {
 		// TODO Auto-generated method stub
 		int a12 = 0, a21 = 0, aeq = 0;
 		int as1, as2;
-		SAMRecord s1, s2;
-		final List<SAMRecord> r = mol.reads_list;
+		SAMRecord[] s1, s2;
+		final List<SAMRecord[]> r = mol.reads_list;
 		int n = r.size();
 
 		for(int i=0; i<n; i++) {
 			s1 = r.get(i);
-			as1 = s1.getIntegerAttribute("AS");
-			s2 = records.containsKey(s1.getReadName()) ? 
-					records.get(s1.getReadName())[s1.getFirstOfPairFlag()?0:1] : null;
-			as2 = s2==null ? 0 : s2.getIntegerAttribute("AS");
+			as1 = s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS");
+			s2 = records.containsKey(s1[0].getReadName()) ? records.get(s1[0].getReadName()) : null;
+			as2 = s2==null ? 0 : s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS");
 			if(as1>as2+softmax) {
 				++a12;
 			} else if(as1+softmax<as2) {
@@ -301,21 +307,18 @@ public class GenomeComparisonZ extends Executor {
 		
 		int a12 = 0, a21 = 0, aeq = 0;
 		int as1, as2;
-		SAMRecord s1, s2;
+		SAMRecord[] s1, s2;
 		
-		final List<SAMRecord> r1 = mol1.reads_list;
-		final List<SAMRecord> r2 = mol2.reads_list;
+		final List<SAMRecord[]> r1 = mol1.reads_list;
+		final List<SAMRecord[]> r2 = mol2.reads_list;
 		int n1 = r1.size(), n2 = r2.size();
 		if(n1!=n2) throw new RuntimeException("!!!");
 		
-		int[][] as = new int[n1][2];
 		for(int i=0; i<n1; i++) {
 			s1 = r1.get(i);
-			as1 = s1.getIntegerAttribute("AS");
+			as1 = s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS");
 			s2 = r2.get(i);
-			as2 = s2.getIntegerAttribute("AS");
-			as[i][0] = as1;
-			as[i][1] = as2;
+			as2 = s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS");
 			if(as1>as2+softmax) {
 				++a12;
 			} else if(as1+softmax<as2) {
@@ -324,40 +327,22 @@ public class GenomeComparisonZ extends Executor {
 				++aeq;
 			}
 		}
-		
-		int k = 0;
-		boolean f = false;
-		while(true&&k<n1) {
-			if(as[k][0]>as[k][1]+softmax) {
-				f = true;
-				break;
-			} else if(as[k][0]+softmax<as[k][1]) {
-				f = false;
-				break;
-			}
-			++k;
-		}
-		int swap = 0;
-		for(int i=k+1; i<n1; i++) {
-			if(as[i][0]>as[i][1]+softmax&&!f||
-					as[i][0]+softmax<as[i][1]&&f) {
-				f = !f;
-				++swap;
-			}
-		}
-		
 		StringBuilder diff = new StringBuilder();
 		for(int i=0; i<n1-1; i++) {
-			diff.append(as[i][0]);
+			s1 = r1.get(i);
+			diff.append(s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS"));
 			diff.append("/");
-			diff.append(as[i][1]);
+			s2 = r2.get(i);
+			diff.append(s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS"));
 			diff.append(",");
 		}
-		diff.append(as[n1-1][0]);
+		s1 = r1.get(n1-1);
+		diff.append(s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS"));
 		diff.append("/");
-		diff.append(as[n2-1][1]);
-		
-		return n1+"\t"+n2+"\t"+a12+"\t"+a21+"\t"+aeq+"\t"+swap+"\t"+diff.toString();
+		s2 = r2.get(n2-1);
+		diff.append(s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS"));
+	
+		return n1+"\t"+n2+"\t"+a12+"\t"+a21+"\t"+aeq+"\t"+diff.toString();
 	}
 	
 	private double middlePoint(SAMRecord[] record) {
@@ -366,46 +351,39 @@ public class GenomeComparisonZ extends Executor {
 				Math.max(record[0].getAlignmentEnd(), record[1].getAlignmentEnd()))/2;
 	}
 	
-	private List<Molecule> extractMoleculeFromList(List<SAMRecord[]> list2) {
+	private List<Molecule> extractMoleculeFromList(List<SAMRecord[]> list) {
 		// TODO Auto-generated method stub
 		List<Molecule> mols = new ArrayList<Molecule>();
 		
-		if(list2.isEmpty()) return mols; 
+		if(list.isEmpty()) return mols; 
 		
-		final List<SAMRecord> list = new ArrayList<SAMRecord>();
-		for(SAMRecord[] records : list2) {
-			list.add(records[0]);
-			list.add(records[1]);
-		}
-		
-		Collections.sort(list, new Comparator<SAMRecord>() {
+		Collections.sort(list, new Comparator<SAMRecord[]>() {
 			@Override
-			public int compare(SAMRecord record0, SAMRecord record1) {
+			public int compare(SAMRecord[] record0, SAMRecord[] record1) {
 				// TODO Auto-generated method stub
-				int f = record0.getReferenceIndex().intValue()-
-						record1.getReferenceIndex().intValue();
-				return f==0 ? Double.compare(record0.getAlignmentStart(), record1.getAlignmentStart()) : f;
+				int f = record0[0].getReferenceIndex().intValue()-
+						record1[0].getReferenceIndex().intValue();
+				return f==0 ? Double.compare(middlePoint(record0), middlePoint(record1)) : f;
 			}
 		});
 		
-		Iterator<SAMRecord> iter = list.iterator();
-		SAMRecord record = iter.next();
-		int chr_index = record.getReferenceIndex();
-		double chr_pos = record.getAlignmentEnd();
-		
+		Iterator<SAMRecord[]> iter = list.iterator();
+		SAMRecord[] records = iter.next();
+		int chr_index = records[0].getReferenceIndex();
+		double chr_pos = middlePoint(records);
 		Molecule mol = new Molecule();
-		mol.add(record);
+		mol.add(records);
 		while(iter.hasNext()) {
-			record = iter.next();
-			if(record.getReferenceIndex()!=chr_index ||
-					record.getAlignmentStart()-chr_pos>max_gap) {
+			records = iter.next();
+			if(records[0].getReferenceIndex()!=chr_index ||
+					middlePoint(records)-chr_pos>max_gap) {
 				mol.construct();
 				if(mol.mol_sz>=min_mol&&mol.reads_set.size()*abc_per>=mol.mol_sz) mols.add(mol);
 				mol = new Molecule();		
 			}
-			chr_index = record.getReferenceIndex();
-			chr_pos = record.getAlignmentEnd();
-			mol.add(record);
+			chr_index = records[0].getReferenceIndex();
+			chr_pos = middlePoint(records);
+			mol.add(records);
 		}
 		mol.construct();
 		if(mol.mol_sz>=min_mol&&mol.reads_set.size()*abc_per>=mol.mol_sz) mols.add(mol);
