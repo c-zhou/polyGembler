@@ -236,7 +236,7 @@ public class GenomeComparisonZ extends Executor {
 		
 		try {
 			refSequence1 = Sequence.parseFastaFileAsMap(in_ref1);
-			refSequence2 = Sequence.parseFastaFileAsMap(in_ref1);
+			refSequence2 = Sequence.parseFastaFileAsMap(in_ref2);
 			
 			final BAMBarcodeIterator iter1 = new BAMBarcodeIterator(this.in_bam1);
 			final BAMBarcodeIterator iter2 = new BAMBarcodeIterator(this.in_bam2);
