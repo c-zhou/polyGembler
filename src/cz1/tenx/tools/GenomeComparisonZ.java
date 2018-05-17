@@ -353,19 +353,32 @@ public class GenomeComparisonZ extends Executor {
 		final String chrSeq1 = refSequence1.get(r1.get(0)[0].getReferenceName()).seq_str();
 		final String chrSeq2 = refSequence2.get(r2.get(0)[0].getReferenceName()).seq_str();
 		
+		int alnS1, alnE1, alnS2, alnE2;
 		for(int i=0; i<n1; i++) {
 			s1 = r1.get(i);
 			as1 = s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS");
-			et1 = levDistanceInstance.apply(chrSeq1.substring(s1[0].getAlignmentStart()-1,s1[0].getAlignmentEnd()), 
-					s1[0].getReadString())+
-					levDistanceInstance.apply(chrSeq1.substring(s1[1].getAlignmentStart()-1,s1[1].getAlignmentEnd()), 
-							s1[1].getReadString());
+			alnS1 = s1[0].getAlignmentStart();
+			alnE1 = s1[0].getAlignmentEnd();
+			alnS2 = s1[1].getAlignmentStart();
+			alnE2 = s1[1].getAlignmentEnd();
+			et1 = levDistanceInstance.apply(chrSeq1.substring(alnS1-1,alnE1), 
+					s1[0].getReadString().substring(s1[0].getReadPositionAtReferencePosition(alnS1)-1,
+							s1[0].getReadPositionAtReferencePosition(alnE1)))+
+					levDistanceInstance.apply(chrSeq1.substring(alnS2-1,alnE2), 
+							s1[1].getReadString().substring(s1[1].getReadPositionAtReferencePosition(alnS2)-1,
+									s1[1].getReadPositionAtReferencePosition(alnE2)));
 			s2 = r2.get(i);
 			as2 = s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS");
-			et2 = levDistanceInstance.apply(chrSeq2.substring(s2[0].getAlignmentStart()-1,s2[0].getAlignmentEnd()), 
-					s2[0].getReadString())+
-					levDistanceInstance.apply(chrSeq2.substring(s2[1].getAlignmentStart()-1,s2[1].getAlignmentEnd()), 
-							s2[1].getReadString());
+			alnS1 = s2[0].getAlignmentStart();
+			alnE1 = s2[0].getAlignmentEnd();
+			alnS2 = s2[1].getAlignmentStart();
+			alnE2 = s2[1].getAlignmentEnd();
+			et2 = levDistanceInstance.apply(chrSeq2.substring(alnS1-1,alnE1), 
+					s2[0].getReadString().substring(s2[0].getReadPositionAtReferencePosition(alnS1)-1,
+							s2[0].getReadPositionAtReferencePosition(alnE1)))+
+					levDistanceInstance.apply(chrSeq2.substring(alnS2-1,alnE2), 
+							s2[1].getReadString().substring(s2[1].getReadPositionAtReferencePosition(alnS2)-1,
+									s2[1].getReadPositionAtReferencePosition(alnE2)));
 			
 			as[i][0] = as1;
 			as[i][1] = as2;
