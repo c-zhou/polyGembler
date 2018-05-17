@@ -328,7 +328,7 @@ public class GenomeComparisonZ extends Executor {
 		
 		int k = 0;
 		boolean f = false;
-		while(true) {
+		while(true&&k<n1) {
 			if(as[k][0]>as[k][1]+softmax) {
 				f = true;
 				break;
