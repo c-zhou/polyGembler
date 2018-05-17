@@ -242,15 +242,10 @@ public class GenomeComparisonZ extends Executor {
 				Map<String, SAMRecord[]> bc_map2 = new HashMap<String, SAMRecord[]>();
 				for(SAMRecord[] records : bc_records1) bc_map1.put(records[0].getReadName(), records);
 				for(SAMRecord[] records : bc_records2) bc_map2.put(records[0].getReadName(), records);
-				
-				for(int i=0; i!=n1; i++) {
-					if(!m1.contains(i)) 
-						bw_1.write(mols1.get(i).chr_id+":"+mols1.get(i).chr_start+"-"+mols1.get(i).chr_end+"\t"+compare(mols1.get(i), bc_map2)+"\n");
-				}
-				for(int i=0; i!=n2; i++) {
-					if(!m2.contains(i)) 
-						bw_2.write(mols2.get(i).chr_id+":"+mols2.get(i).chr_start+"-"+mols2.get(i).chr_end+"\t"+compare(mols2.get(i), bc_map1)+"\n");
-				}
+				for(int i=0; i!=n1; i++) 
+					bw_1.write(mols1.get(i).chr_id+":"+mols1.get(i).chr_start+"-"+mols1.get(i).chr_end+"\t"+compare(mols1.get(i), bc_map2)+"\n");
+				for(int i=0; i!=n2; i++) 
+					bw_2.write(mols2.get(i).chr_id+":"+mols2.get(i).chr_start+"-"+mols2.get(i).chr_end+"\t"+compare(mols2.get(i), bc_map1)+"\n");
 			}
 
 			iter1.close();
@@ -314,11 +309,14 @@ public class GenomeComparisonZ extends Executor {
 		int n1 = r1.size(), n2 = r2.size();
 		if(n1!=n2) throw new RuntimeException("!!!");
 		
+		int[][] as = new int[n1][2];
 		for(int i=0; i<n1; i++) {
 			s1 = r1.get(i);
 			as1 = s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS");
 			s2 = r2.get(i);
 			as2 = s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS");
+			as[i][0] = as1;
+			as[i][1] = as2;
 			if(as1>as2+softmax) {
 				++a12;
 			} else if(as1+softmax<as2) {
@@ -327,22 +325,40 @@ public class GenomeComparisonZ extends Executor {
 				++aeq;
 			}
 		}
+		
+		int k = 0;
+		boolean f = false;
+		while(true) {
+			if(as[k][0]>as[k][1]+softmax) {
+				f = true;
+				break;
+			} else if(as[k][0]+softmax<as[k][1]) {
+				f = false;
+				break;
+			}
+			++k;
+		}
+		int swap = 0;
+		for(int i=k+1; i<n1; i++) {
+			if(as[k][0]>as[k][1]+softmax&&!f||
+					as[k][0]+softmax<as[k][1]&&f) {
+				f = !f;
+				++swap;
+			}
+		}
+		
 		StringBuilder diff = new StringBuilder();
 		for(int i=0; i<n1-1; i++) {
-			s1 = r1.get(i);
-			diff.append(s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS"));
+			diff.append(as[i][0]);
 			diff.append("/");
-			s2 = r2.get(i);
-			diff.append(s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS"));
+			diff.append(as[i][1]);
 			diff.append(",");
 		}
-		s1 = r1.get(n1-1);
-		diff.append(s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS"));
+		diff.append(as[n1-1][0]);
 		diff.append("/");
-		s2 = r2.get(n2-1);
-		diff.append(s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS"));
-	
-		return n1+"\t"+n2+"\t"+a12+"\t"+a21+"\t"+aeq+"\t"+diff.toString();
+		diff.append(as[n2-1][1]);
+		
+		return n1+"\t"+n2+"\t"+a12+"\t"+a21+"\t"+aeq+"\t"+swap+"\t"+diff.toString();
 	}
 	
 	private double middlePoint(SAMRecord[] record) {
