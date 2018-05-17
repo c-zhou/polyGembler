@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.text.similarity.LevenshteinDistance;
+
+import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
 import htsjdk.samtools.SAMRecord;
@@ -26,6 +29,8 @@ public class GenomeComparisonZ extends Executor {
 	
 	private String in_bam1;
 	private String in_bam2;
+	private String in_ref1;
+	private String in_ref2;
 	private String out_prefix;
 	
 	@Override
@@ -35,6 +40,8 @@ public class GenomeComparisonZ extends Executor {
 				"\n\nUsage is as follows:\n"
 						+ " -i1/--input-bam1    Input BAM file 1.\n"
 						+ " -i2/--input-bam2    Input BAM file 2.\n"
+						+ " -r1/--input-ref1    Input reference genome 1.\n"
+						+ " -r2/--input-ref2    Input reference genome 2.\n"
 						+ " -o/--out-prefix     Output file prefix.\n\n");
 	}
 
@@ -50,6 +57,8 @@ public class GenomeComparisonZ extends Executor {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-i1", "--input-bam1", true);
 			myArgsEngine.add("-i2", "--input-bam2", true);
+			myArgsEngine.add("-r1", "--input-ref1", true);
+			myArgsEngine.add("-r2", "--input-ref2", true);
 			myArgsEngine.add("-o", "--out-prefix", true);
 			myArgsEngine.parse(args);
 		}
@@ -66,6 +75,20 @@ public class GenomeComparisonZ extends Executor {
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your BAM file.");
+		}
+		
+		if (myArgsEngine.getBoolean("-r1")) {
+			in_ref1 = myArgsEngine.getString("-r1");
+		} else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify your reference file.");
+		}
+		
+		if (myArgsEngine.getBoolean("-r2")) {
+			in_ref2 = myArgsEngine.getString("-r2");
+		} else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify your reference file.");
 		}
 		
 		if (myArgsEngine.getBoolean("-o")) {
@@ -203,11 +226,18 @@ public class GenomeComparisonZ extends Executor {
 		}
 	}
 	
+
+	private Map<String, Sequence> refSequence1;
+	private Map<String, Sequence> refSequence2;
+	
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
 		
 		try {
+			refSequence1 = Sequence.parseFastaFileAsMap(in_ref1);
+			refSequence2 = Sequence.parseFastaFileAsMap(in_ref1);
+			
 			final BAMBarcodeIterator iter1 = new BAMBarcodeIterator(this.in_bam1);
 			final BAMBarcodeIterator iter2 = new BAMBarcodeIterator(this.in_bam2);
 			BufferedWriter bw_con = new BufferedWriter(new FileWriter(out_prefix+".txt"));
@@ -275,7 +305,8 @@ public class GenomeComparisonZ extends Executor {
 		return true;
 	}
 	
-	private final static int softmax = 10;
+	private final static int asoftmax = 10;
+	private final static int esoftmax = 3;
 	
 	private String compare(Molecule mol, Map<String, SAMRecord[]> records) {
 		// TODO Auto-generated method stub
@@ -290,9 +321,9 @@ public class GenomeComparisonZ extends Executor {
 			as1 = s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS");
 			s2 = records.containsKey(s1[0].getReadName()) ? records.get(s1[0].getReadName()) : null;
 			as2 = s2==null ? 0 : s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS");
-			if(as1>as2+softmax) {
+			if(as1>as2+asoftmax) {
 				++a12;
-			} else if(as1+softmax<as2) {
+			} else if(as1+asoftmax<as2) {
 				++a21;
 			} else {
 				++aeq;
@@ -302,11 +333,13 @@ public class GenomeComparisonZ extends Executor {
 		return n+"\t"+a12+"\t"+a21+"\t"+aeq;
 	}
 	
+	private final static LevenshteinDistance levDistanceInstance = new LevenshteinDistance();
+	
 	private String compare(Molecule mol1, Molecule mol2) {
 		// TODO Auto-generated method stub
 		
-		int a12 = 0, a21 = 0, aeq = 0;
-		int as1, as2;
+		int a12 = 0, a21 = 0, aeq = 0, e12 = 0, e21 = 0, eeq = 0;
+		int as1, as2, et1, et2;
 		SAMRecord[] s1, s2;
 		
 		final List<SAMRecord[]> r1 = mol1.reads_list;
@@ -314,35 +347,114 @@ public class GenomeComparisonZ extends Executor {
 		int n1 = r1.size(), n2 = r2.size();
 		if(n1!=n2) throw new RuntimeException("!!!");
 		
+		int[][] as = new int[n1][2]; //alignment score
+		int[][] et = new int[n1][2]; //edit distance
+		
+		final String chrSeq1 = refSequence1.get(r1.get(0)[0].getReferenceName()).seq_str();
+		final String chrSeq2 = refSequence2.get(r2.get(0)[0].getReferenceName()).seq_str();
+		
 		for(int i=0; i<n1; i++) {
 			s1 = r1.get(i);
 			as1 = s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS");
+			et1 = levDistanceInstance.apply(chrSeq1.substring(s1[0].getAlignmentStart()-1,s1[0].getAlignmentEnd()), 
+					s1[0].getReadString())+
+					levDistanceInstance.apply(chrSeq1.substring(s1[1].getAlignmentStart()-1,s1[1].getAlignmentEnd()), 
+							s1[1].getReadString());
 			s2 = r2.get(i);
 			as2 = s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS");
-			if(as1>as2+softmax) {
+			et2 = levDistanceInstance.apply(chrSeq2.substring(s2[0].getAlignmentStart()-1,s2[0].getAlignmentEnd()), 
+					s2[0].getReadString())+
+					levDistanceInstance.apply(chrSeq2.substring(s2[1].getAlignmentStart()-1,s2[1].getAlignmentEnd()), 
+							s2[1].getReadString());
+			
+			as[i][0] = as1;
+			as[i][1] = as2;
+			et[i][0] = et1;
+			et[i][1] = et2;
+			
+			if(as1>as2+asoftmax) {
 				++a12;
-			} else if(as1+softmax<as2) {
+			} else if(as1+asoftmax<as2) {
 				++a21;
 			} else {
 				++aeq;
 			}
+			if(et1+esoftmax<et2) {
+				++e12;
+			} else if(et1>et2+esoftmax) {
+				++e21;
+			} else {
+				++eeq;
+			}
 		}
-		StringBuilder diff = new StringBuilder();
+		
+		int k = 0;
+		boolean f = false;
+		while(true&&k<n1) {
+			if(as[k][0]>as[k][1]+asoftmax) {
+				f = true;
+				break;
+			} else if(as[k][0]+asoftmax<as[k][1]) {
+				f = false;
+				break;
+			}
+			++k;
+		}
+		int aswap = 0;
+		for(int i=k+1; i<n1; i++) {
+			if(as[i][0]>as[i][1]+asoftmax&&!f||
+					as[i][0]+asoftmax<as[i][1]&&f) {
+				f = !f;
+				++aswap;
+			}
+		}
+		
+		k = 0;
+		f = false;
+		while(true&&k<n1) {
+			if(et[k][0]+esoftmax<et[k][1]) {
+				f = true;
+				break;
+			} else if(et[k][0]>et[k][1]+esoftmax) {
+				f = false;
+				break;
+			}
+			++k;
+		}
+		int eswap = 0;
+		for(int i=k+1; i<n1; i++) {
+			if(et[k][0]+esoftmax<et[k][1]&&!f||
+					et[k][0]>et[k][1]+esoftmax&&f) {
+				f = !f;
+				++eswap;
+			}
+		}
+		
+		StringBuilder adiff = new StringBuilder();
 		for(int i=0; i<n1-1; i++) {
-			s1 = r1.get(i);
-			diff.append(s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS"));
-			diff.append("/");
-			s2 = r2.get(i);
-			diff.append(s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS"));
-			diff.append(",");
+			adiff.append(as[i][0]);
+			adiff.append("/");
+			adiff.append(as[i][1]);
+			adiff.append(",");
 		}
-		s1 = r1.get(n1-1);
-		diff.append(s1[0].getIntegerAttribute("AS")+s1[1].getIntegerAttribute("AS"));
-		diff.append("/");
-		s2 = r2.get(n2-1);
-		diff.append(s2[0].getIntegerAttribute("AS")+s2[1].getIntegerAttribute("AS"));
-	
-		return n1+"\t"+n2+"\t"+a12+"\t"+a21+"\t"+aeq+"\t"+diff.toString();
+		adiff.append(as[n1-1][0]);
+		adiff.append("/");
+		adiff.append(as[n2-1][1]);
+		
+		StringBuilder ediff = new StringBuilder();
+		for(int i=0; i<n1-1; i++) {
+			ediff.append(et[i][0]);
+			ediff.append("/");
+			ediff.append(et[i][1]);
+			ediff.append(",");
+		}
+		ediff.append(et[n1-1][0]);
+		ediff.append("/");
+		ediff.append(et[n2-1][1]);
+		
+		return n1+"\t"+n2+"\t|\t"+
+			e12+"\t"+e21+"\t"+eeq+"\t"+eswap+"\t"+ediff.toString()+"\t|\t"+
+			a12+"\t"+a21+"\t"+aeq+"\t"+aswap+"\t"+adiff.toString();
 	}
 	
 	private double middlePoint(SAMRecord[] record) {
