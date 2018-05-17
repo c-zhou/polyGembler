@@ -340,8 +340,8 @@ public class GenomeComparisonZ extends Executor {
 		}
 		int swap = 0;
 		for(int i=k+1; i<n1; i++) {
-			if(as[k][0]>as[k][1]+softmax&&!f||
-					as[k][0]+softmax<as[k][1]&&f) {
+			if(as[i][0]>as[i][1]+softmax&&!f||
+					as[i][0]+softmax<as[i][1]&&f) {
 				f = !f;
 				++swap;
 			}
