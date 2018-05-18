@@ -436,8 +436,8 @@ public class GenomeComparisonZ extends Executor {
 		}
 		int eswap = 0;
 		for(int i=k+1; i<n1; i++) {
-			if(et[k][0]+esoftmax<et[k][1]&&!f||
-					et[k][0]>et[k][1]+esoftmax&&f) {
+			if(et[i][0]+esoftmax<et[i][1]&&!f||
+					et[i][0]>et[i][1]+esoftmax&&f) {
 				f = !f;
 				++eswap;
 			}
