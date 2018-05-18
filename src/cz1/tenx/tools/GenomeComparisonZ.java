@@ -306,7 +306,7 @@ public class GenomeComparisonZ extends Executor {
 	}
 	
 	private final static int asoftmax = 10;
-	private final static int esoftmax = 3;
+	private final static int esoftmax = 0;
 	
 	private String compare(Molecule mol, Map<String, SAMRecord[]> records) {
 		// TODO Auto-generated method stub
