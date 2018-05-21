@@ -6,6 +6,7 @@ import cz1.tenx.tools.BAMstats;
 import cz1.tenx.tools.GenomeComparison;
 import cz1.tenx.tools.TenXMoleculeStats;
 import cz1.tenx.tools.TenXMoleculeStatsZ;
+import cz1.tenx.tools.TenXMoleculeStatsZZ;
 import cz1.tenx.tools.GenomeComparisonZ;
 import cz1.tenx.tools.TenXSamtools;
 import cz1.tenx.tools.TenXVcftools;
@@ -40,6 +41,11 @@ public class TenX {
 			TenXMoleculeStatsZ tenXMStatsZ = new TenXMoleculeStatsZ();
 			tenXMStatsZ.setParameters(args2);
 			tenXMStatsZ.run();
+			break;
+		case "statszz":
+			TenXMoleculeStatsZZ tenXMStatsZZ = new TenXMoleculeStatsZZ();
+			tenXMStatsZZ.setParameters(args2);
+			tenXMStatsZZ.run();
 			break;
 		case "bamstats":
 			BAMstats bamStats = new BAMstats();

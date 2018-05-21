@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -26,9 +27,10 @@ import htsjdk.samtools.SamReader;
 import htsjdk.samtools.SamReaderFactory;
 import htsjdk.samtools.ValidationStringency;
 
-public class TenXMoleculeStatsZ extends Executor {
-	
-	private String in_bam;
+public class TenXMoleculeStatsZZ extends Executor {
+
+	private String in_bam1;
+	private String in_bam2;
 	private String in_vcf;
 	private String out_prefix;
 	
@@ -37,7 +39,8 @@ public class TenXMoleculeStatsZ extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " -i/--input-bam      Input BAM file.\n"
+						+ " -i1/--input-bam1    Input BAM file 1.\n"
+						+ " -i2/--input-bam2    Input BAM file 2.\n"
 						+ " -x/--variants       Input VCF file.\n"
 						+ " -o/--out-prefix     Output file prefix.\n\n");
 	}
@@ -52,14 +55,22 @@ public class TenXMoleculeStatsZ extends Executor {
 
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
-			myArgsEngine.add("-i", "--input-bam", true);
+			myArgsEngine.add("-i1", "--input-bam1", true);
+			myArgsEngine.add("-i2", "--input-bam2", true);
 			myArgsEngine.add("-x", "--variants", true);
 			myArgsEngine.add("-o", "--out-prefix", true);
 			myArgsEngine.parse(args);
 		}
 
-		if (myArgsEngine.getBoolean("-i")) {
-			in_bam = myArgsEngine.getString("-i");
+		if (myArgsEngine.getBoolean("-i1")) {
+			in_bam1 = myArgsEngine.getString("-i1");
+		} else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify your BAM file.");
+		}
+
+		if (myArgsEngine.getBoolean("-i2")) {
+			in_bam2 = myArgsEngine.getString("-i2");
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your BAM file.");
@@ -88,6 +99,8 @@ public class TenXMoleculeStatsZ extends Executor {
 	private final static double min_qual = 20;
 	private final static double max_ins  = 1000;
 	private final static int max_gap = 10000;
+	private static final int min_mol = 10000;
+	private static final int abc_per = 10000;
 	
 	private class BAMBarcodeIterator {
 		private final SamReader samReader;
@@ -169,17 +182,21 @@ public class TenXMoleculeStatsZ extends Executor {
 	}
 	
 	private class Molecule {
+		private List<String> reads_set;
 		private List<SAMRecord[]> reads_list;
 		private String chr_id = null;
 		private int chr_start = -1;
 		private int chr_end = -1;
+		private int mol_sz = -1;
 
 		public Molecule() {
+			this.reads_set = new ArrayList<String>();
 			this.reads_list = new ArrayList<SAMRecord[]>();
 		}
 
 		public void add(SAMRecord[] record) {
 			this.reads_list.add(record);
+			this.reads_set.add(record[0].getReadName());
 		}
 
 		public void construct() {
@@ -197,15 +214,29 @@ public class TenXMoleculeStatsZ extends Executor {
 			}
 			this.chr_start = chr_start-1;
 			this.chr_end   = chr_end;
+			this.mol_sz    = chr_end-chr_start;
 		}
 	}
+	
+	private final static class Variant {
+		private final String refA;
+		private final String altA;
+		private final int altPos;
+		
+		public Variant(final String refA, final String altA, final int altPos) {
+			this.refA   = refA;
+			this.altA   = altA;
+			this.altPos = altPos;
+		}
+	}
+	
+	private final static Map<String, TreeMap<Integer, Variant>> variants = new HashMap<String, TreeMap<Integer, Variant>>();
 	
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
 		
 		try {
-			final Map<String, TreeMap<Integer, String[]>> variants = new HashMap<String, TreeMap<Integer, String[]>>();
 			final BufferedReader br_vcf = Utils.getBufferedReader(in_vcf);
 			String line;
 			String[] s;
@@ -213,106 +244,158 @@ public class TenXMoleculeStatsZ extends Executor {
 				if(line.startsWith("#")) continue;
 				s = line.split("\\s+");
 				if(!variants.containsKey(s[0]))
-					variants.put(s[0], new TreeMap<Integer, String[]>());
-				variants.get(s[0]).put(Integer.parseInt(s[1]), new String[]{s[3],s[4]});
+					variants.put(s[0], new TreeMap<Integer, Variant>());
+				variants.get(s[0]).put(Integer.parseInt(s[1]), new Variant(s[3], s[4], Integer.parseInt(s[2])));
 			}
 			br_vcf.close();
 			myLogger.info("Variants loaded from "+in_vcf);
 			for(String key : variants.keySet()) 
 				myLogger.info(key+"-"+variants.get(key).size());
 			
-			final BAMBarcodeIterator iter = new BAMBarcodeIterator(this.in_bam);
-			BufferedWriter bw_mol = new BufferedWriter(new FileWriter(out_prefix+".mol"));
+			final BAMBarcodeIterator iter1 = new BAMBarcodeIterator(this.in_bam1);
+			final BAMBarcodeIterator iter2 = new BAMBarcodeIterator(this.in_bam2);
+			BufferedWriter bw_con = new BufferedWriter(new FileWriter(out_prefix+".txt"));
+			
+			while(iter1.hasNext()&&iter2.hasNext()) {
+				List<SAMRecord[]> bc_records1 = iter1.next();
+				List<SAMRecord[]> bc_records2 = iter2.next();
 
-			int startv, endv, posv, keyv, seql, count, a;
-			String refv, a0, a1, dnaseq;
-			String[] alleles;
-			final int[] A = new int[2];
-			NavigableMap<Integer, String[]> mapv;
-			final Map<Integer, Set<Integer>> molv = new HashMap<Integer, Set<Integer>>(); 
-			final StringBuilder os = new StringBuilder();
-			while(iter.hasNext()) {
-				List<SAMRecord[]> bc_records = iter.next();
-				List<Molecule> mols = extractMoleculeFromList(bc_records);
+				List<Molecule> mols1 = extractMoleculeFromList(bc_records1);
+				List<Molecule> mols2 = extractMoleculeFromList(bc_records2);
 				
-				for(final Molecule molecule : mols) {
-					final List<SAMRecord[]> samList = molecule.reads_list;
-					molv.clear();
-					
-					for(final SAMRecord[] sams : samList) {
-						for(final SAMRecord sam : sams) {
-							refv   = sam.getReferenceName();
-							startv = sam.getAlignmentStart();
-							endv   = sam.getAlignmentEnd();
-							dnaseq = sam.getReadString();
-							seql   = dnaseq.length();
-							mapv   = variants.get(refv).subMap(startv, true, endv, true);
-							for(final Map.Entry<Integer, String[]> mv : mapv.entrySet()) {
-								keyv = mv.getKey();
-								posv = sam.getReadPositionAtReferencePosition(keyv)-1;
-								if(posv>0) {
-									alleles = mv.getValue();
-									if(alleles[0].length()<alleles[1].length()) {
-										a0 = alleles[1];
-										a1 = alleles[0];
-										A[0] = 1;
-										A[1] = 0;
-									} else {
-										a0 = alleles[0];
-										a1 = alleles[1];	
-										A[0] = 0;
-										A[1] = 1;
-									}
-									a = -1;
-									if(dnaseq.substring(posv, Math.min(posv+a0.length(), seql)).equals(a0)) {
-										a = A[0];
-									} else if(dnaseq.substring(posv, Math.min(posv+a1.length(), seql)).equals(a1)) {
-										a = A[1];
-									}
-									if(a!=-1) {
-										if(!molv.containsKey(keyv)) molv.put(keyv, new HashSet<Integer>());
-										molv.get(keyv).add(a);
-									}
-								}
-							}
+				int n1 = mols1.size(), n2 = mols2.size();
+				// this is for homologous molecules
+				for(int i=0; i!=n1; i++) {
+					for(int j=0; j!=n2; j++) {
+						if( homologous(mols1.get(i), mols2.get(j)) ) {
+							bw_con.write(mols1.get(i).chr_id+":"+mols1.get(i).chr_start+"-"+mols1.get(i).chr_end+"\t"+
+									mols2.get(j).chr_id+":"+mols2.get(j).chr_start+"-"+mols2.get(j).chr_end+"\t1.0\t"+
+									compare(mols1.get(i), mols2.get(j))+"\n");
 						}
-					}
-					
-					os.setLength(0);	
-					os.append(molecule.chr_id);
-					os.append("\t");
-					os.append(molecule.chr_start);
-					os.append("\t");
-					os.append(molecule.chr_end);
-					os.append("\t");
-					
-					count = 0;
-					final List<Integer> keys = new ArrayList<Integer>(molv.keySet());
-					Collections.sort(keys);
-					for(Integer key : keys) {
-						Set<Integer> ale = molv.get(key);
-						if(ale.size()>1) continue;
-						for(Integer e : ale) {
-							os.append(key);
-							os.append(",");
-							os.append(e);
-							os.append(";");
-							++count;
-						}
-					}
-					
-					if(count>1) {
-						bw_mol.write(os.toString().replaceAll(";$", ""));
-						bw_mol.write("\n");
 					}
 				}
 			}
-
-			iter.close();
-			bw_mol.close();
+			
+			iter1.close();
+			iter2.close();
+			bw_con.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+	
+	private String compare(Molecule mol1, Molecule mol2) {
+		// TODO Auto-generated method stub
+		final List<SAMRecord[]> r1 = mol1.reads_list;
+		final List<SAMRecord[]> r2 = mol2.reads_list;
+		int n1 = r1.size(), n2 = r2.size();
+		if(n1!=n2) throw new RuntimeException("!!!");
+	
+		int startv1, endv1, startv2, endv2, refposv, altposv, keyv, seql, a;
+		String refv, a0, a1, dnaseq;
+		SAMRecord[] sams1, sams2;
+		SAMRecord sam1, sam2;
+		NavigableMap<Integer, Variant> mapv;
+		Variant var;
+		final int[] A = new int[2], count = new int[3], alnpos = new int[2];
+		
+		int c1 = 0, c2 = 0, c = 0;
+		
+		final StringBuilder diff = new StringBuilder();
+		for(int i=0; i<n1; i++) {
+			sams1 = r1.get(i);
+			sams2 = r2.get(i);
+			
+			Arrays.fill(count, 0);
+			
+			for(int j=0; j<2; j++) {
+				sam1 = sams1[j];
+				sam2 = sams2[j];
+				
+				refv   = sam1.getReferenceName();
+				dnaseq = sam1.getReadString();
+				seql   = dnaseq.length();
+				
+				startv1 = sam1.getAlignmentStart();
+				endv1   = sam1.getAlignmentEnd();
+				startv2 = sam2.getAlignmentStart();
+				endv2   = sam2.getAlignmentEnd();
+				
+				mapv   = variants.get(refv).subMap(startv1, true, endv1, true);
+				
+				for(final Map.Entry<Integer, Variant> mv : mapv.entrySet()) {
+					keyv = mv.getKey();
+					var     = mv.getValue();
+					altposv = var.altPos;
+					
+					if(altposv<startv2||altposv>endv2) 
+						continue;
+					
+					refposv = sam1.getReadPositionAtReferencePosition(keyv)-1;
+					altposv = sam2.getReadPositionAtReferencePosition(altposv)-1;
+					
+					if(refposv==0&&var.refA.equals(".")) {
+						++count[0];
+					} else if(altposv==0&&var.altA.equals(".")) {
+						++count[1];
+					} else if(!var.refA.equals(".")&&!var.altA.equals(".")){
+						if(var.refA.length()<var.altA.length()) {
+							a0 = var.altA;
+							a1 = var.refA;
+							A[0] = 1;
+							A[1] = 0;
+							alnpos[0] = altposv;
+							alnpos[1] = refposv;
+						} else {
+							a0 = var.refA;
+							a1 = var.altA;
+							A[0] = 0;
+							A[1] = 1;
+							alnpos[0] = refposv;
+							alnpos[1] = altposv;
+						}
+						
+						a = 2;
+						if(dnaseq.substring(alnpos[0], Math.min(alnpos[0]+a0.length(), seql)).equals(a0)) {
+							a = A[0];
+						} else if(dnaseq.substring(alnpos[1], Math.min(alnpos[1]+a1.length(), seql)).equals(a1)) {
+							a = A[1];
+						}
+						++count[a];
+					} else {
+						++count[2];
+					}
+				}
+			}
+			
+			if(count[0]>count[1]) {
+				++c1;
+			} else if(count[0]<count[1]) {
+				++c2;
+			} else {
+				++c;
+			}
+			
+			diff.append(count[0]);
+			diff.append("/");
+			diff.append(count[1]);
+			diff.append("/");
+			diff.append(count[2]);
+			diff.append(",");
+		}
+		
+		return n1+"\t"+n2+"\t"+c1+"\t"+c2+"\t"+c+"\t"+diff.toString().replaceAll(",$", "");
+	}
+
+	private boolean homologous(Molecule mol1, Molecule mol2) {
+		// TODO Auto-generated method stub
+		List<String> r1 = mol1.reads_set;
+		List<String> r2 = mol2.reads_set;
+		if(r1.size()!=r2.size()) return false;
+		for(int i=0; i<r1.size(); i++)
+			if(!r1.get(i).equals(r2.get(i)))
+				return false;
+		return true;
 	}
 	
 	private double middlePoint(SAMRecord[] record) {
@@ -321,6 +404,7 @@ public class TenXMoleculeStatsZ extends Executor {
 				Math.max(record[0].getAlignmentEnd(), record[1].getAlignmentEnd()))/2;
 	}
 	
+
 	private List<Molecule> extractMoleculeFromList(List<SAMRecord[]> list) {
 		// TODO Auto-generated method stub
 		List<Molecule> mols = new ArrayList<Molecule>();
@@ -348,7 +432,7 @@ public class TenXMoleculeStatsZ extends Executor {
 			if(records[0].getReferenceIndex()!=chr_index ||
 					middlePoint(records)-chr_pos>max_gap) {
 				mol.construct();
-				mols.add(mol);
+				if(mol.mol_sz>=min_mol&&mol.reads_set.size()*abc_per>=mol.mol_sz) mols.add(mol);
 				mol = new Molecule();		
 			}
 			chr_index = records[0].getReferenceIndex();
@@ -356,7 +440,7 @@ public class TenXMoleculeStatsZ extends Executor {
 			mol.add(records);
 		}
 		mol.construct();
-		mols.add(mol);
+		if(mol.mol_sz>=min_mol&&mol.reads_set.size()*abc_per>=mol.mol_sz) mols.add(mol);
 		
 		return mols;
 	}
