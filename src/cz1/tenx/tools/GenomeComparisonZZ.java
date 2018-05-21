@@ -240,12 +240,15 @@ public class GenomeComparisonZZ extends Executor {
 			final BufferedReader br_vcf = Utils.getBufferedReader(in_vcf);
 			String line;
 			String[] s;
+			long pcount = 0;
 			while( (line=br_vcf.readLine())!=null ) {
 				if(line.startsWith("#")) continue;
 				s = line.split("\\s+");
 				if(!variants.containsKey(s[0]))
 					variants.put(s[0], new TreeMap<Integer, Variant>());
 				variants.get(s[0]).put(Integer.parseInt(s[1]), new Variant(s[3], s[4], Integer.parseInt(s[2])));
+				++pcount;
+				if(pcount%1000000==0) myLogger.info(pcount+" variants loaded into memory.");
 			}
 			br_vcf.close();
 			myLogger.info("Variants loaded from "+in_vcf);
