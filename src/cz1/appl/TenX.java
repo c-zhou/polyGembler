@@ -6,7 +6,7 @@ import cz1.tenx.tools.BAMstats;
 import cz1.tenx.tools.GenomeComparison;
 import cz1.tenx.tools.TenXMoleculeStats;
 import cz1.tenx.tools.TenXMoleculeStatsZ;
-import cz1.tenx.tools.TenXMoleculeStatsZZ;
+import cz1.tenx.tools.GenomeComparisonZZ;
 import cz1.tenx.tools.GenomeComparisonZ;
 import cz1.tenx.tools.TenXSamtools;
 import cz1.tenx.tools.TenXVcftools;
@@ -42,11 +42,6 @@ public class TenX {
 			tenXMStatsZ.setParameters(args2);
 			tenXMStatsZ.run();
 			break;
-		case "statszz":
-			TenXMoleculeStatsZZ tenXMStatsZZ = new TenXMoleculeStatsZZ();
-			tenXMStatsZZ.setParameters(args2);
-			tenXMStatsZZ.run();
-			break;
 		case "bamstats":
 			BAMstats bamStats = new BAMstats();
 			bamStats.setParameters(args2);
@@ -61,6 +56,11 @@ public class TenX {
 			GenomeComparisonZ genomeComparisonZ = new GenomeComparisonZ();
 			genomeComparisonZ.setParameters(args2);
 			genomeComparisonZ.run();
+			break;
+		case "comparezz":
+			GenomeComparisonZZ genomeComparisonZZ = new GenomeComparisonZZ();
+			genomeComparisonZZ.setParameters(args2);
+			genomeComparisonZZ.run();
 			break;
 		case "merge":
 			TenxMoleculeTools tools = new TenxMoleculeTools();
@@ -87,6 +87,7 @@ public class TenX {
 						+ " compare               Compare two TenX data.\n"
 						+ " statsz                TenX BAM file molecular statistics.\n"
 						+ " comparez              Compare two TenX data.\n"
+						+ " comparezz             Compare two TenX data.\n"
 						+ " merge                 Merge molecule file.\n"
 						+ " vcftools              VCF tools.\n"
 						+ " bamstats              TenX BAM file statistics.\n\n");

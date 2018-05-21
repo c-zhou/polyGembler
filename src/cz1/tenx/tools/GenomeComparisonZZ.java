@@ -27,7 +27,7 @@ import htsjdk.samtools.SamReader;
 import htsjdk.samtools.SamReaderFactory;
 import htsjdk.samtools.ValidationStringency;
 
-public class TenXMoleculeStatsZZ extends Executor {
+public class GenomeComparisonZZ extends Executor {
 
 	private String in_bam1;
 	private String in_bam2;
