@@ -250,7 +250,7 @@ public class TenXMoleculeStatsZ extends Executor {
 							for(final Map.Entry<Integer, String[]> mv : mapv.entrySet()) {
 								keyv = mv.getKey();
 								posv = sam.getReadPositionAtReferencePosition(keyv)-1;
-								if(posv>0) {
+								if(posv>=0) {
 									alleles = mv.getValue();
 									if(alleles[0].length()<alleles[1].length()) {
 										a0 = alleles[1];
