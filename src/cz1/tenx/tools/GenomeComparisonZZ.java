@@ -337,10 +337,10 @@ public class GenomeComparisonZZ extends Executor {
 					refposv = sam1.getReadPositionAtReferencePosition(keyv)-1;
 					altposv = sam2.getReadPositionAtReferencePosition(altposv)-1;
 					
-					if(refposv<0&&var.refA.equals(".")) {
-						++count[0];
-					} else if(altposv<0&&var.altA.equals(".")) {
-						++count[1];
+					if(refposv<0) {
+						if(var.refA.equals(".")) ++count[0];
+					} else if(altposv<0) {
+						if(var.altA.equals(".")) ++count[1];
 					} else if(!var.refA.equals(".")&&!var.altA.equals(".")){
 						if(var.refA.length()<var.altA.length()) {
 							a0 = var.altA;
