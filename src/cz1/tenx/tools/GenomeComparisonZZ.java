@@ -313,14 +313,12 @@ public class GenomeComparisonZZ extends Executor {
 			
 			Arrays.fill(count, 0);
 			
-			diff.append("==>"+i);
-			
 			for(int j=0; j<2; j++) {
 				sam1 = sams1[j];
 				sam2 = sams2[j];
 				
-				diff.append(sam1.getSAMString()+"\n");
-				diff.append(sam2.getSAMString()+"\n");
+				diff.append(sam1.getSAMString());
+				diff.append(sam2.getSAMString());
 				
 				refv   = sam1.getReferenceName();
 				dnaseq = sam1.getReadString();
@@ -406,7 +404,6 @@ public class GenomeComparisonZZ extends Executor {
 				++c;
 			}
 			
-			diff.append(" | ");
 			diff.append(count[0]);
 			diff.append("/");
 			diff.append(count[1]);
