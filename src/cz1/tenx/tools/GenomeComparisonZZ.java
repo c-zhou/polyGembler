@@ -342,7 +342,7 @@ public class GenomeComparisonZZ extends Executor {
 					refposv = sam1.getReadPositionAtReferencePosition(keyv)-1;
 					altposv = sam2.getReadPositionAtReferencePosition(altposv)-1;
 					
-					diff.append(keyv+" "+var.refA+" "+var.altA+" "+altposv+"; vv1,"+refposv+"; vv2,"+altposv+" | ");
+					diff.append(keyv+" "+var.refA+" "+var.altA+" "+var.altPos+"; vv1,"+refposv+"; vv2,"+altposv+" | ");
 					
 					if(refposv<0) {
 						if(var.refA.equals(".")) ++count[0];
@@ -410,6 +410,7 @@ public class GenomeComparisonZZ extends Executor {
 			diff.append("/");
 			diff.append(count[2]);
 			// diff.append(",");
+			diff.append("\n");
 		}
 		
 		// return n1+"\t"+n2+"\t"+c1+"\t"+c2+"\t"+c+"\t"+diff.toString().replaceAll(",$", "");
