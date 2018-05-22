@@ -348,9 +348,9 @@ public class GenomeComparisonZZ extends Executor {
 				sam2 = sams2[j];
 				
 				diff.append(sam1.getSAMString());
-				diff.append(chrSeq1.substring(sam1.getAlignmentStart()-1, sam1.getAlignmentEnd()));
+				diff.append(chrSeq1.substring(sam1.getAlignmentStart()-1, sam1.getAlignmentEnd())+"\n");
 				diff.append(sam2.getSAMString());
-				diff.append(chrSeq2.substring(sam2.getAlignmentStart()-1, sam2.getAlignmentEnd()));
+				diff.append(chrSeq2.substring(sam2.getAlignmentStart()-1, sam2.getAlignmentEnd())+"\n");
 				
 				refv   = sam1.getReferenceName();
 				dnaseq = sam1.getReadString();
