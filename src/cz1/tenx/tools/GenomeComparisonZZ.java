@@ -305,15 +305,22 @@ public class GenomeComparisonZZ extends Executor {
 		int c1 = 0, c2 = 0, c = 0;
 		
 		final StringBuilder diff = new StringBuilder();
+		diff.append("==========>\n");
+		
 		for(int i=0; i<n1; i++) {
 			sams1 = r1.get(i);
 			sams2 = r2.get(i);
 			
 			Arrays.fill(count, 0);
 			
+			diff.append("==>"+i);
+			
 			for(int j=0; j<2; j++) {
 				sam1 = sams1[j];
 				sam2 = sams2[j];
+				
+				diff.append(sam1.getSAMString()+"\n");
+				diff.append(sam2.getSAMString()+"\n");
 				
 				refv   = sam1.getReferenceName();
 				dnaseq = sam1.getReadString();
@@ -337,11 +344,19 @@ public class GenomeComparisonZZ extends Executor {
 					refposv = sam1.getReadPositionAtReferencePosition(keyv)-1;
 					altposv = sam2.getReadPositionAtReferencePosition(altposv)-1;
 					
+					diff.append(keyv+" "+var.refA+" "+var.altA+" "+altposv+"; vv1,"+refposv+"; vv2,"+altposv+" | ");
+					
 					if(refposv<0) {
 						if(var.refA.equals(".")) ++count[0];
+						
+						diff.append("0");
+						
 					} else if(altposv<0) {
 						if(var.altA.equals(".")) ++count[1];
-					} else if(!var.refA.equals(".")&&!var.altA.equals(".")){
+						
+						diff.append("1");
+						
+					} else if(!var.refA.equals(".")&&!var.altA.equals(".")) {
 						if(var.refA.length()<var.altA.length()) {
 							a0 = var.altA;
 							a1 = var.refA;
@@ -365,9 +380,21 @@ public class GenomeComparisonZZ extends Executor {
 							a = A[1];
 						}
 						++count[a];
+						
+						diff.append(a);
+						diff.append(" | ");
+						
+						diff.append(a0+","+dnaseq.substring(alnpos[0], Math.min(alnpos[0]+a0.length(), seql)));
+						diff.append("; ");
+						diff.append(a1+","+dnaseq.substring(alnpos[1], Math.min(alnpos[1]+a1.length(), seql)));
+						
 					} else {
 						++count[2];
+						
+						diff.append("2");
 					}
+					
+					diff.append("\n");
 				}
 			}
 			
@@ -379,15 +406,18 @@ public class GenomeComparisonZZ extends Executor {
 				++c;
 			}
 			
+			diff.append(" | ");
 			diff.append(count[0]);
 			diff.append("/");
 			diff.append(count[1]);
 			diff.append("/");
 			diff.append(count[2]);
-			diff.append(",");
+			// diff.append(",");
 		}
 		
-		return n1+"\t"+n2+"\t"+c1+"\t"+c2+"\t"+c+"\t"+diff.toString().replaceAll(",$", "");
+		// return n1+"\t"+n2+"\t"+c1+"\t"+c2+"\t"+c+"\t"+diff.toString().replaceAll(",$", "");
+		
+		return n1+"\t"+n2+"\t"+c1+"\t"+c2+"\t"+c+"\n"+diff.toString();
 	}
 
 	private boolean homologous(Molecule mol1, Molecule mol2) {
@@ -443,7 +473,7 @@ public class GenomeComparisonZZ extends Executor {
 			mol.add(records);
 		}
 		mol.construct();
-		if(mol.mol_sz>=min_mol&&mol.reads_set.size()*abc_per>=mol.mol_sz) mols.add(mol);
+		if(mol.mol_sz>=min_mol&&mol.reads_set.size()*abc_per>=mol.mol_sz&&!mol.chr_id.equals("Chr00")) mols.add(mol);
 		
 		return mols;
 	}
