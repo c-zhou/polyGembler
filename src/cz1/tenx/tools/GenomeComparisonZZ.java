@@ -18,6 +18,7 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 
+import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
 import cz1.util.Utils;
@@ -31,6 +32,8 @@ public class GenomeComparisonZZ extends Executor {
 
 	private String in_bam1;
 	private String in_bam2;
+	private String in_ref1;
+	private String in_ref2;
 	private String in_vcf;
 	private String out_prefix;
 	
@@ -41,6 +44,8 @@ public class GenomeComparisonZZ extends Executor {
 				"\n\nUsage is as follows:\n"
 						+ " -i1/--input-bam1    Input BAM file 1.\n"
 						+ " -i2/--input-bam2    Input BAM file 2.\n"
+						+ " -r1/--input-ref1    Input reference genome 1.\n"
+						+ " -r2/--input-ref2    Input reference genome 2.\n"
 						+ " -x/--variants       Input VCF file.\n"
 						+ " -o/--out-prefix     Output file prefix.\n\n");
 	}
@@ -57,6 +62,8 @@ public class GenomeComparisonZZ extends Executor {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-i1", "--input-bam1", true);
 			myArgsEngine.add("-i2", "--input-bam2", true);
+			myArgsEngine.add("-r1", "--input-ref1", true);
+			myArgsEngine.add("-r2", "--input-ref2", true);
 			myArgsEngine.add("-x", "--variants", true);
 			myArgsEngine.add("-o", "--out-prefix", true);
 			myArgsEngine.parse(args);
@@ -76,6 +83,20 @@ public class GenomeComparisonZZ extends Executor {
 			throw new IllegalArgumentException("Please specify your BAM file.");
 		}
 
+		if (myArgsEngine.getBoolean("-r1")) {
+			in_ref1 = myArgsEngine.getString("-r1");
+		} else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify your reference file.");
+		}
+		
+		if (myArgsEngine.getBoolean("-r2")) {
+			in_ref2 = myArgsEngine.getString("-r2");
+		} else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify your reference file.");
+		}
+		
 		if (myArgsEngine.getBoolean("-x")) {
 			in_vcf = myArgsEngine.getString("-x");
 		} else {
@@ -231,12 +252,18 @@ public class GenomeComparisonZZ extends Executor {
 	}
 	
 	private final static Map<String, TreeMap<Integer, Variant>> variants = new HashMap<String, TreeMap<Integer, Variant>>();
+
+	private Map<String, Sequence> refSequence1;
+	private Map<String, Sequence> refSequence2;
 	
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
 		
 		try {
+			refSequence1 = Sequence.parseFastaFileAsMap(in_ref1);
+			refSequence2 = Sequence.parseFastaFileAsMap(in_ref2);
+			
 			final BufferedReader br_vcf = Utils.getBufferedReader(in_vcf);
 			String line;
 			String[] s;
@@ -304,6 +331,9 @@ public class GenomeComparisonZZ extends Executor {
 		
 		int c1 = 0, c2 = 0, c = 0;
 		
+		final String chrSeq1 = refSequence1.get(r1.get(0)[0].getReferenceName()).seq_str();
+		final String chrSeq2 = refSequence2.get(r2.get(0)[0].getReferenceName()).seq_str();
+		
 		final StringBuilder diff = new StringBuilder();
 		diff.append("==========>\n");
 		
@@ -318,7 +348,9 @@ public class GenomeComparisonZZ extends Executor {
 				sam2 = sams2[j];
 				
 				diff.append(sam1.getSAMString());
+				diff.append(chrSeq1.substring(sam1.getAlignmentStart()-1, sam1.getAlignmentEnd()));
 				diff.append(sam2.getSAMString());
+				diff.append(chrSeq2.substring(sam2.getAlignmentStart()-1, sam2.getAlignmentEnd()));
 				
 				refv   = sam1.getReferenceName();
 				dnaseq = sam1.getReadString();
