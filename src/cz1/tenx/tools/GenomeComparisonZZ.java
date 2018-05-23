@@ -397,7 +397,7 @@ public class GenomeComparisonZZ extends Executor {
 							
 						} else {
 							if(sim(var.altA, dnaseq2.substring(altposv, Math.min(altposv+var.altA.length(), seql)))) 
-								++count[1];
+								count[1] += var.altA.length();
 							else
 								++count[2];
 
@@ -415,7 +415,7 @@ public class GenomeComparisonZZ extends Executor {
 							
 						} else {
 							if(sim(var.refA, dnaseq1.substring(refposv, Math.min(refposv+var.refA.length(), seql)))) 
-								++count[0];
+								count[0] += var.refA.length();
 							else
 								++count[2];	
 
@@ -450,11 +450,14 @@ public class GenomeComparisonZZ extends Executor {
 						a = 2;
 						if(sim(a0, dnaseq[0].substring(alnpos[0], Math.min(alnpos[0]+a0.length(), seql)))) {
 							a = A[0];
+							count[a] += a0.length();
 						} else if(sim(a1, dnaseq[1].substring(alnpos[1], Math.min(alnpos[1]+a1.length(), seql)))) {
 							a = A[1];
+							count[a] += a1.length();
+						} else {
+							a = 2; 
+							++count[2];		
 						}
-						++count[a];
-						
 						diff.append(a);
 						diff.append(" | ");
 						

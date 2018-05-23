@@ -94,7 +94,7 @@ public class MUMmerUtils {
 		return seq_buf.toString();
 	}
 	
-	private final static int min_gap = 5;
+	private final static int min_gap = 1;
 	
 	private static void variantMerger(String var_in, String ref_in1, String ref_in2, String var_out) {
 		// TODO Auto-generated method stub
@@ -133,8 +133,8 @@ public class MUMmerUtils {
 					tmp_pos1 = Integer.parseInt(s[1]);
 					tmp_pos2 = Integer.parseInt(s[2]);
 					
-					if( Math.abs(pos1.get(pos1.size()-1)-tmp_pos1)-s[3].length()<min_gap && 
-							Math.abs(pos2.get(pos2.size()-1)-tmp_pos2)-s[4].length()<min_gap &&
+					if( Math.abs(pos1.get(pos1.size()-1)-tmp_pos1)-s[3].length()<=min_gap && 
+							Math.abs(pos2.get(pos2.size()-1)-tmp_pos2)-s[4].length()<=min_gap &&
 							Integer.parseInt(s[5])==frm)  {
 						pos1.add(tmp_pos1);
 						pos2.add(tmp_pos2);
