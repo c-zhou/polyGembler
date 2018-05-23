@@ -371,6 +371,7 @@ public class GenomeComparisonZZ extends Executor {
 				
 				fwdaln  = sam1.getReadNegativeStrandFlag()==sam2.getReadNegativeStrandFlag();
 				
+				myLogger.info(refv+":"+startv1+"-"+endv1);
 				mapv   = variants.get(refv).subMap(startv1, true, endv1, true);
 				
 				for(final Map.Entry<Integer, Variant> mv : mapv.entrySet()) {
