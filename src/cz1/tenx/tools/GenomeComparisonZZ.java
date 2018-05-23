@@ -390,29 +390,41 @@ public class GenomeComparisonZZ extends Executor {
 					diff.append(keyv+" "+var.refA+" "+var.altA+" "+var.altPos+"; vv1,"+refposv+"; vv2,"+altposv+" | ");
 					
 					if(var.refA.equals(".")) {
-						if(refposv<0&&sim(var.altA, dnaseq2.substring(altposv, Math.min(altposv+var.altA.length(), seql)))) 
-							++count[1];
-						else
+						if(refposv>=0 || altposv<0) {
 							++count[2];
-						
-						diff.append(1);
-						diff.append(" | ");
-						
-						diff.append(".,.");
-						diff.append("; ");
-						diff.append(var.altA+","+dnaseq2.substring(altposv, Math.min(altposv+var.altA.length(), seql)));
+							diff.append(2);
+							
+						} else {
+							if(sim(var.altA, dnaseq2.substring(altposv, Math.min(altposv+var.altA.length(), seql)))) 
+								++count[1];
+							else
+								++count[2];
+
+							diff.append(1);
+							diff.append(" | ");
+
+							diff.append(".,.");
+							diff.append("; ");
+							diff.append(var.altA+","+dnaseq2.substring(altposv, Math.min(altposv+var.altA.length(), seql)));
+						}
 					} else if(var.altA.equals(".")) {
-						if(altposv<0&&sim(var.refA, dnaseq1.substring(refposv, Math.min(refposv+var.refA.length(), seql)))) 
-							++count[0];
-						else
-							++count[2];	
-						
-						diff.append(0);
-						diff.append(" | ");
-						
-						diff.append(var.refA+","+dnaseq1.substring(refposv, Math.min(refposv+var.refA.length(), seql)));
-						diff.append("; ");
-						diff.append(".,.");
+						if(altposv>=0 || refposv<0) {
+							++count[2];
+							diff.append(2);
+							
+						} else {
+							if(sim(var.refA, dnaseq1.substring(refposv, Math.min(refposv+var.refA.length(), seql)))) 
+								++count[0];
+							else
+								++count[2];	
+
+							diff.append(0);
+							diff.append(" | ");
+
+							diff.append(var.refA+","+dnaseq1.substring(refposv, Math.min(refposv+var.refA.length(), seql)));
+							diff.append("; ");
+							diff.append(".,.");
+						}
 					} else if(altposv>=0 && refposv>=0) {
 						if(var.refA.length()<var.altA.length()) {
 							a0 = var.altA;
