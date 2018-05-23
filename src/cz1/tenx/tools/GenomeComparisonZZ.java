@@ -332,7 +332,7 @@ public class GenomeComparisonZZ extends Executor {
 		SAMRecord sam1, sam2;
 		NavigableMap<Integer, Variant> mapv;
 		Variant var;
-		boolean revcmp;
+		boolean fwdaln;
 		final int[] A = new int[2], count = new int[3], alnpos = new int[2];
 		final String[] dnaseq = new String[2];
 		
@@ -369,15 +369,15 @@ public class GenomeComparisonZZ extends Executor {
 				startv2 = sam2.getAlignmentStart();
 				endv2   = sam2.getAlignmentEnd();
 				
-				revcmp  = sam1.getReadNegativeStrandFlag()==sam2.getReadNegativeStrandFlag();
+				fwdaln  = sam1.getReadNegativeStrandFlag()==sam2.getReadNegativeStrandFlag();
 				
 				mapv   = variants.get(refv).subMap(startv1, true, endv1, true);
 				
 				for(final Map.Entry<Integer, Variant> mv : mapv.entrySet()) {
 					keyv = mv.getKey();
-					var     = mv.getValue();
+					var  = mv.getValue();
 					
-					if(var.rev!=revcmp) continue;
+					if(var.rev==fwdaln) continue;
 					
 					altposv = var.altPos;
 					
