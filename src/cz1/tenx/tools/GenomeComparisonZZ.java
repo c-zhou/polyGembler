@@ -362,7 +362,7 @@ public class GenomeComparisonZZ extends Executor {
 				refv    = sam1.getReferenceName();
 				dnaseq1 = sam1.getReadString();
 				dnaseq2 = sam2.getReadString();
-				seql    = dnaseq[0].length();
+				seql    = dnaseq1.length();
 				
 				startv1 = sam1.getAlignmentStart();
 				endv1   = sam1.getAlignmentEnd();
