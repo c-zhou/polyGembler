@@ -242,12 +242,14 @@ public class GenomeComparisonZZ extends Executor {
 	private final static class Variant {
 		private final String refA;
 		private final String altA;
+		private final boolean rev;
 		private final int altPos;
 		
-		public Variant(final String refA, final String altA, final int altPos) {
+		public Variant(final String refA, final String altA, final int altPos, final boolean rev) {
 			this.refA   = refA;
 			this.altA   = altA;
 			this.altPos = altPos;
+			this.rev    = rev;
 		}
 	}
 	
@@ -273,14 +275,14 @@ public class GenomeComparisonZZ extends Executor {
 				s = line.split("\\s+");
 				if(!variants.containsKey(s[0]))
 					variants.put(s[0], new TreeMap<Integer, Variant>());
-				variants.get(s[0]).put(Integer.parseInt(s[1]), new Variant(s[3], s[4], Integer.parseInt(s[2])));
+				variants.get(s[0]).put(Integer.parseInt(s[1]), new Variant(s[3], s[4], Integer.parseInt(s[2]), s[5].equals("1")?false:true));
 				++pcount;
 				if(pcount%1000000==0) myLogger.info(pcount+" variants loaded into memory.");
 			}
 			br_vcf.close();
 			myLogger.info("Variants loaded from "+in_vcf);
 			for(String key : variants.keySet()) 
-				myLogger.info(key+"-"+variants.get(key).size());
+				myLogger.info(key+": "+variants.get(key).size());
 			
 			final BAMBarcodeIterator iter1 = new BAMBarcodeIterator(this.in_bam1);
 			final BAMBarcodeIterator iter2 = new BAMBarcodeIterator(this.in_bam2);
@@ -309,6 +311,9 @@ public class GenomeComparisonZZ extends Executor {
 			iter1.close();
 			iter2.close();
 			bw_con.close();
+			
+			myLogger.info("#forward molecule, "+fwd_homo);
+			myLogger.info("#reverse molecule, "+rev_homo);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -322,12 +327,14 @@ public class GenomeComparisonZZ extends Executor {
 		if(n1!=n2) throw new RuntimeException("!!!");
 	
 		int startv1, endv1, startv2, endv2, refposv, altposv, keyv, seql, a;
-		String refv, a0, a1, dnaseq;
+		String refv, a0, a1, dnaseq1, dnaseq2;
 		SAMRecord[] sams1, sams2;
 		SAMRecord sam1, sam2;
 		NavigableMap<Integer, Variant> mapv;
 		Variant var;
+		boolean revcmp;
 		final int[] A = new int[2], count = new int[3], alnpos = new int[2];
+		final String[] dnaseq = new String[2];
 		
 		int c1 = 0, c2 = 0, c = 0;
 		
@@ -352,20 +359,26 @@ public class GenomeComparisonZZ extends Executor {
 				diff.append(sam2.getSAMString());
 				diff.append(chrSeq2.substring(sam2.getAlignmentStart()-1, sam2.getAlignmentEnd())+"\n");
 				
-				refv   = sam1.getReferenceName();
-				dnaseq = sam1.getReadString();
-				seql   = dnaseq.length();
+				refv    = sam1.getReferenceName();
+				dnaseq1 = sam1.getReadString();
+				dnaseq2 = sam2.getReadString();
+				seql    = dnaseq[0].length();
 				
 				startv1 = sam1.getAlignmentStart();
 				endv1   = sam1.getAlignmentEnd();
 				startv2 = sam2.getAlignmentStart();
 				endv2   = sam2.getAlignmentEnd();
 				
+				revcmp  = sam1.getReadNegativeStrandFlag()==sam2.getReadNegativeStrandFlag();
+				
 				mapv   = variants.get(refv).subMap(startv1, true, endv1, true);
 				
 				for(final Map.Entry<Integer, Variant> mv : mapv.entrySet()) {
 					keyv = mv.getKey();
 					var     = mv.getValue();
+					
+					if(var.rev!=revcmp) continue;
+					
 					altposv = var.altPos;
 					
 					if(altposv<startv2||altposv>endv2) 
@@ -376,17 +389,31 @@ public class GenomeComparisonZZ extends Executor {
 					
 					diff.append(keyv+" "+var.refA+" "+var.altA+" "+var.altPos+"; vv1,"+refposv+"; vv2,"+altposv+" | ");
 					
-					if(refposv<0) {
-						if(var.refA.equals(".")) ++count[0];
+					if(var.refA.equals(".")) {
+						if(refposv<0&&sim(var.altA, dnaseq2.substring(altposv, Math.min(altposv+var.altA.length(), seql)))) 
+							++count[1];
+						else
+							++count[2];
 						
-						diff.append("0");
+						diff.append(1);
+						diff.append(" | ");
 						
-					} else if(altposv<0) {
-						if(var.altA.equals(".")) ++count[1];
+						diff.append(".,.");
+						diff.append("; ");
+						diff.append(var.altA+","+dnaseq2.substring(altposv, Math.min(altposv+var.altA.length(), seql)));
+					} else if(var.altA.equals(".")) {
+						if(altposv<0&&sim(var.refA, dnaseq1.substring(refposv, Math.min(refposv+var.refA.length(), seql)))) 
+							++count[0];
+						else
+							++count[2];	
 						
-						diff.append("1");
+						diff.append(0);
+						diff.append(" | ");
 						
-					} else if(!var.refA.equals(".")&&!var.altA.equals(".")) {
+						diff.append(var.refA+","+dnaseq1.substring(refposv, Math.min(refposv+var.refA.length(), seql)));
+						diff.append("; ");
+						diff.append(".,.");
+					} else if(altposv>=0 && refposv>=0) {
 						if(var.refA.length()<var.altA.length()) {
 							a0 = var.altA;
 							a1 = var.refA;
@@ -394,6 +421,8 @@ public class GenomeComparisonZZ extends Executor {
 							A[1] = 0;
 							alnpos[0] = altposv;
 							alnpos[1] = refposv;
+							dnaseq[0] = dnaseq2;
+							dnaseq[1] = dnaseq1;
 						} else {
 							a0 = var.refA;
 							a1 = var.altA;
@@ -401,12 +430,14 @@ public class GenomeComparisonZZ extends Executor {
 							A[1] = 1;
 							alnpos[0] = refposv;
 							alnpos[1] = altposv;
+							dnaseq[0] = dnaseq1;
+							dnaseq[1] = dnaseq2;
 						}
 						
 						a = 2;
-						if(dnaseq.substring(alnpos[0], Math.min(alnpos[0]+a0.length(), seql)).equals(a0)) {
+						if(sim(a0, dnaseq[0].substring(alnpos[0], Math.min(alnpos[0]+a0.length(), seql)))) {
 							a = A[0];
-						} else if(dnaseq.substring(alnpos[1], Math.min(alnpos[1]+a1.length(), seql)).equals(a1)) {
+						} else if(sim(a1, dnaseq[1].substring(alnpos[1], Math.min(alnpos[1]+a1.length(), seql)))) {
 							a = A[1];
 						}
 						++count[a];
@@ -414,13 +445,11 @@ public class GenomeComparisonZZ extends Executor {
 						diff.append(a);
 						diff.append(" | ");
 						
-						diff.append(a0+","+dnaseq.substring(alnpos[0], Math.min(alnpos[0]+a0.length(), seql)));
+						diff.append(var.refA+","+dnaseq1.substring(refposv, Math.min(refposv+var.refA.length(), seql)));
 						diff.append("; ");
-						diff.append(a1+","+dnaseq.substring(alnpos[1], Math.min(alnpos[1]+a1.length(), seql)));
-						
+						diff.append(var.altA+","+dnaseq2.substring(altposv, Math.min(altposv+var.altA.length(), seql)));
 					} else {
 						++count[2];
-						
 						diff.append("2");
 					}
 					
@@ -450,15 +479,45 @@ public class GenomeComparisonZZ extends Executor {
 		return n1+"\t"+n2+"\t"+c1+"\t"+c2+"\t"+c+"\n"+diff.toString();
 	}
 
+	private final static double min_simularity = 0.8;
+	
+	private boolean sim(String target, String query) {
+		// TODO Auto-generated method stub
+		int n = Math.min(target.length(), query.length());
+		if(n==0) return false;
+		int eq = 0;
+		for(int i=0; i<n; i++) {
+			if(target.charAt(i)==query.charAt(i)) 
+				++eq;
+		}
+		return eq>=min_simularity*n;
+	}
+
+	private static long fwd_homo = 0;
+	private static long rev_homo = 0;
+	
 	private boolean homologous(Molecule mol1, Molecule mol2) {
 		// TODO Auto-generated method stub
 		List<String> r1 = mol1.reads_set;
 		List<String> r2 = mol2.reads_set;
-		if(r1.size()!=r2.size()) return false;
-		for(int i=0; i<r1.size(); i++)
-			if(!r1.get(i).equals(r2.get(i)))
-				return false;
-		return true;
+		int n = r1.size();
+		if(n!=r2.size()) return false;
+		boolean h1 = true, h2 = true;
+		for(int i=0; i<n; i++) {
+			if(!r1.get(i).equals(r2.get(i))) {
+				h1 = false;
+				break;
+			}
+		}
+		for(int i=0; i<n; i++) {
+			if(!r1.get(i).equals(r2.get(n-1-i))) {
+				h2 = false;
+				break;
+			}
+		}
+		if(h1) ++fwd_homo;
+		if(h2) ++rev_homo;
+		return h1||h2;
 	}
 	
 	private double middlePoint(SAMRecord[] record) {
