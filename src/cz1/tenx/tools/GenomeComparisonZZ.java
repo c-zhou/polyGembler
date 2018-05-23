@@ -567,7 +567,7 @@ public class GenomeComparisonZZ extends Executor {
 			if(records[0].getReferenceIndex()!=chr_index ||
 					middlePoint(records)-chr_pos>max_gap) {
 				mol.construct();
-				if(mol.mol_sz>=min_mol&&mol.reads_set.size()*abc_per>=mol.mol_sz) mols.add(mol);
+				if(mol.mol_sz>=min_mol&&mol.reads_set.size()*abc_per>=mol.mol_sz&&!mol.chr_id.equals("Chr00")) mols.add(mol);
 				mol = new Molecule();		
 			}
 			chr_index = records[0].getReferenceIndex();
