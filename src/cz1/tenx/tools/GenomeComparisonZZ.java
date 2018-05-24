@@ -361,7 +361,7 @@ public class GenomeComparisonZZ extends Executor {
 				if(!sam1.getReadName().equals(sam2.getReadName()))
 					throw new RuntimeException("!!!");
 				
-				prefix = "@FASTQ | "+sam1.getReadName()+" | "+j+" | "+mol;
+				prefix = "@FASTQ | "+sam1.getReadName()+" | "+j+" | "+(dirc==1?"FWD":"REV")+" | "+mol;
 				
 				diff.append(sam1.getSAMString());
 				diff.append(chrSeq1.substring(sam1.getAlignmentStart()-1, sam1.getAlignmentEnd())+"\n");
