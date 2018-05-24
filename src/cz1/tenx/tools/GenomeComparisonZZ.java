@@ -337,7 +337,8 @@ public class GenomeComparisonZZ extends Executor {
 		final int[] A = new int[2], count = new int[3], alnpos = new int[2];
 		final String[] dnaseq = new String[2];
 		
-		int c1 = 0, c2 = 0, c = 0;
+		int c1 = 0, c2 = 0, c0 = 0;
+		int count1 = 0, count2 = 0, count0 = 0;
 		
 		final String chrSeq1 = refSequence1.get(r1.get(0)[0].getReferenceName()).seq_str();
 		final String chrSeq2 = refSequence2.get(r2.get(0)[0].getReferenceName()).seq_str();
@@ -487,8 +488,12 @@ public class GenomeComparisonZZ extends Executor {
 			} else if(count[0]<count[1]) {
 				++c2;
 			} else {
-				++c;
+				++c0;
 			}
+			
+			count1 += count[0];
+			count2 += count[1];
+			count0 += count[2];
 			
 			diff.append(count[0]);
 			diff.append("/");
@@ -501,7 +506,7 @@ public class GenomeComparisonZZ extends Executor {
 		
 		// return n1+"\t"+n2+"\t"+c1+"\t"+c2+"\t"+c+"\t"+diff.toString().replaceAll(",$", "");
 		
-		return n1+"\t"+n2+"\t"+c1+"\t"+c2+"\t"+c+"\n"+diff.toString();
+		return n1+"\t"+n2+"\t"+c1+"\t"+c2+"\t"+c0+"\t"+count1+"\t"+count2+"\t"+count0+"\n"+diff.toString();
 	}
 
 	private final static double min_simularity = 0.9;
