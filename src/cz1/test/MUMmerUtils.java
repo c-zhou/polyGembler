@@ -218,10 +218,8 @@ public class MUMmerUtils {
 				alt = s[4];
 				
 				while(line_fb!=null) {
-					if(line_fb.startsWith("#")) {
+					while(!line_fb.startsWith(chr)) 
 						line_fb = br_fb.readLine();
-						continue;
-					}
 					s = line_fb.trim().split("\\s+");
 					p = Integer.parseInt(s[1]);
 					if(!chr.equals(s[0])||p>position) break;
@@ -257,10 +255,8 @@ public class MUMmerUtils {
 				alt = s[4];
 				
 				while(line_fb!=null) {
-					if(line_fb.startsWith("#")) {
+					while(!line_fb.startsWith(chr)) 
 						line_fb = br_fb.readLine();
-						continue;
-					}
 					s = line_fb.trim().split("\\s+");
 					p = Integer.parseInt(s[1]);
 					if(!chr.equals(s[0])||p>position) break;
@@ -281,6 +277,8 @@ public class MUMmerUtils {
 			e.printStackTrace();
 		}
 	}
+	
+	
 	
 	public static void main(String[] args) {
 		switch(args[0].toLowerCase()) {
