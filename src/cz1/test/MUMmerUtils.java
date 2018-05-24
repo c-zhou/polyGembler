@@ -194,8 +194,51 @@ public class MUMmerUtils {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
-		
+	}
+	
+	private static void variantComparator(String freebayes_file, String mummer_file, String var_out) {
+		// TODO Auto-generated method stub
+		try {
+			BufferedReader br_fb = new BufferedReader(new InputStreamReader(new FileInputStream(new File(freebayes_file))));
+			BufferedReader br_mm = new BufferedReader(new InputStreamReader(new FileInputStream(new File(mummer_file))));
+			BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(new File(var_out))));
+			String line_fb = br_fb.readLine(), line_mm = br_mm.readLine();
+			String[] s;
+			String chr, ref, alt;
+			int position, p;
+			String info;
+			
+			while( line_mm!=null ) {
+				s = line_mm.trim().split("\\s+");
+				chr = s[0];
+				position = Integer.parseInt(s[1]);
+				ref = s[3];
+				alt = s[4];
+				info = s[9];
+						
+				while(line_fb!=null) {
+					if(line_fb.startsWith("#")) {
+						line_fb = br_fb.readLine();
+						continue;
+					}
+					s = line_fb.trim().split("\\s+");
+					p = Integer.parseInt(s[1]);
+					if(!chr.equals(s[0])||p>position) break;
+					else if(p==position) 
+						bw.write(chr+"\t"+position+"\t"+ref+"\t"+alt+"\t"+info.split(":")[3]+"\n");
+					else line_fb = br_fb.readLine();
+				}
+				
+				line_mm = br_mm.readLine();
+			}
+			
+			bw.close();
+			br_mm.close();
+			br_fb.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 	
 	public static void main(String[] args) {
@@ -211,6 +254,12 @@ public class MUMmerUtils {
 			// args: reference seq2
 			// args: output file
 			variantMerger(args[1], args[2], args[3], args[4]);
+			break;
+		case "comparator":
+			// args: input variants
+			// args: input MUMmer variants
+			// args: output file
+			variantComparator(args[1], args[2], args[3]);
 			break;
 		default:
 			throw new RuntimeException("!!!");	
