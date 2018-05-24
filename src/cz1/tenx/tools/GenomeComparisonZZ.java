@@ -460,12 +460,12 @@ public class GenomeComparisonZZ extends Executor {
 						if(sim1&&!sim2) {
 							a = A[0];
 							count[a] += a0.length();
-						} else if(sim2&&!sim1) {
+						} else if(!sim1&&sim2) {
 							a = A[1];
 							count[a] += a1.length();
 						} else {
 							a = 2; 
-							++count[2];		
+							++count[2];
 						}
 						diff.append(a);
 						diff.append(" | ");
@@ -504,7 +504,7 @@ public class GenomeComparisonZZ extends Executor {
 		return n1+"\t"+n2+"\t"+c1+"\t"+c2+"\t"+c+"\n"+diff.toString();
 	}
 
-	private final static double min_simularity = 0.8;
+	private final static double min_simularity = 0.9;
 	
 	private boolean sim(String target, String query) {
 		// TODO Auto-generated method stub
