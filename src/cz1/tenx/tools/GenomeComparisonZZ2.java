@@ -212,7 +212,8 @@ public class GenomeComparisonZZ2 extends Executor {
 				SAMRecord[] records1 = iter1.next();
 				SAMRecord[] records2 = iter2.next();	
 				if(records1==null||records2==null||
-						!records1[0].getReferenceName().equals(records2[0].getReferenceName())) 
+						!records1[0].getReferenceName().equals(records2[0].getReferenceName())||
+						records1[0].getReferenceName().equals("Chr00")) 
 					continue;
 				if(!records1[0].getReadName().equals(records2[0].getReadName()))
 					throw new RuntimeException("!!!");
