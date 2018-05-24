@@ -301,7 +301,7 @@ public class GenomeComparisonZZ extends Executor {
 				for(int i=0; i!=n1; i++) {
 					for(int j=0; j!=n2; j++) {
 						if( (h=homologous(mols1.get(i), mols2.get(j)))!=0 ) {
-							bw_con.write(mols1.get(i).chr_id+":"+mols1.get(i).chr_start+"-"+mols1.get(i).chr_end+"\t"+
+							bw_con.write("@MOLECULE | "+mols1.get(i).chr_id+":"+mols1.get(i).chr_start+"-"+mols1.get(i).chr_end+"\t"+
 									mols2.get(j).chr_id+":"+mols2.get(j).chr_start+"-"+mols2.get(j).chr_end+"\t1.0\t"+
 									compare(mols1.get(i), mols2.get(j), h)+"\n");
 						}
