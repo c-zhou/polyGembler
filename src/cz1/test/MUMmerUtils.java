@@ -198,11 +198,11 @@ public class MUMmerUtils {
 		}
 	}
 	
-	private static void variantComparator(String freebayes_file1, String freebayes_file2, String mummer_file, String var_out) {
+	private static void variantComparator(String freebayes_file1, String freebayes_file2, String mummer_file1, String mummer_file2, String var_out) {
 		// TODO Auto-generated method stub
 		try {
 			BufferedReader br_fb = new BufferedReader(new InputStreamReader(new FileInputStream(new File(freebayes_file1))));
-			BufferedReader br_mm = new BufferedReader(new InputStreamReader(new FileInputStream(new File(mummer_file))));
+			BufferedReader br_mm = new BufferedReader(new InputStreamReader(new FileInputStream(new File(mummer_file1))));
 			BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(new File(var_out))));
 			String[] s;
 			String chr, ref, alt;
@@ -241,7 +241,7 @@ public class MUMmerUtils {
 			
 			
 			br_fb = new BufferedReader(new InputStreamReader(new FileInputStream(new File(freebayes_file2))));
-			br_mm = new BufferedReader(new InputStreamReader(new FileInputStream(new File(mummer_file))));
+			br_mm = new BufferedReader(new InputStreamReader(new FileInputStream(new File(mummer_file2))));
 			line_fb = br_fb.readLine();
 			line_mm = br_mm.readLine();
 			while( line_mm!=null ) {
@@ -299,9 +299,10 @@ public class MUMmerUtils {
 		case "comparator":
 			// args: input variants 1
 			// args: input variants 2
-			// args: input MUMmer variants
+			// args: input MUMmer variants 1
+			// args: input MUMmer variants 2
 			// args: output file
-			variantComparator(args[1], args[2], args[3], args[4]);
+			variantComparator(args[1], args[2], args[3], args[4], args[5]);
 			break;
 		default:
 			throw new RuntimeException("!!!");	
