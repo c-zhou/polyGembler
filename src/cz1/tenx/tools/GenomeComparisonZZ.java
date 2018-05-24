@@ -361,7 +361,7 @@ public class GenomeComparisonZZ extends Executor {
 				if(!sam1.getReadName().equals(sam2.getReadName()))
 					throw new RuntimeException("!!!");
 				
-				prefix = "@FASTQ|"+sam1.getReadName()+" | "+j+" | "+mol;
+				prefix = "@FASTQ | "+sam1.getReadName()+" | "+j+" | "+mol;
 				
 				diff.append(sam1.getSAMString());
 				diff.append(chrSeq1.substring(sam1.getAlignmentStart()-1, sam1.getAlignmentEnd())+"\n");
@@ -398,7 +398,7 @@ public class GenomeComparisonZZ extends Executor {
 					diff.append(prefix+" | "+keyv+" "+var.altPos+" | "+var.refA+" "+var.altA+" | vv1,"+refposv+"; vv2,"+altposv+" | ");
 					
 					if(var.refA.equals(".")) {
-						if(refposv>=0 || altposv<0) {
+						if(altposv<0) {
 							++count[2];
 							diff.append(2);
 							
@@ -416,7 +416,7 @@ public class GenomeComparisonZZ extends Executor {
 							diff.append(var.altA+","+dnaseq2.substring(altposv, Math.min(altposv+var.altA.length(), seql)));
 						}
 					} else if(var.altA.equals(".")) {
-						if(altposv>=0 || refposv<0) {
+						if(refposv<0) {
 							++count[2];
 							diff.append(2);
 							
