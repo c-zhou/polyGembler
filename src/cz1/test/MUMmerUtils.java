@@ -12,8 +12,10 @@ import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import cz1.ngs.model.Sequence;
 
@@ -196,26 +198,25 @@ public class MUMmerUtils {
 		}
 	}
 	
-	private static void variantComparator(String freebayes_file, String mummer_file, String var_out) {
+	private static void variantComparator(String freebayes_file1, String freebayes_file2, String mummer_file, String var_out) {
 		// TODO Auto-generated method stub
 		try {
-			BufferedReader br_fb = new BufferedReader(new InputStreamReader(new FileInputStream(new File(freebayes_file))));
+			BufferedReader br_fb = new BufferedReader(new InputStreamReader(new FileInputStream(new File(freebayes_file1))));
 			BufferedReader br_mm = new BufferedReader(new InputStreamReader(new FileInputStream(new File(mummer_file))));
 			BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(new File(var_out))));
-			String line_fb = br_fb.readLine(), line_mm = br_mm.readLine();
 			String[] s;
 			String chr, ref, alt;
 			int position, p;
-			String info;
 			
+			String line_fb = br_fb.readLine(), line_mm = br_mm.readLine();
+			final Set<Integer> sets = new HashSet<Integer>(); 
 			while( line_mm!=null ) {
 				s = line_mm.trim().split("\\s+");
 				chr = s[0];
 				position = Integer.parseInt(s[1]);
 				ref = s[3];
 				alt = s[4];
-				info = s[9];
-						
+				
 				while(line_fb!=null) {
 					if(line_fb.startsWith("#")) {
 						line_fb = br_fb.readLine();
@@ -224,17 +225,57 @@ public class MUMmerUtils {
 					s = line_fb.trim().split("\\s+");
 					p = Integer.parseInt(s[1]);
 					if(!chr.equals(s[0])||p>position) break;
-					else if(p==position) 
-						bw.write(chr+"\t"+position+"\t"+ref+"\t"+alt+"\t"+info.split(":")[3]+"\n");
-					else line_fb = br_fb.readLine();
+					line_fb = br_fb.readLine();
+                    if(p==position) {
+                        bw.write("NSP306\t"+chr+"\t"+position+"\t"+ref+"\t"+alt+"\t"+s[9].split(":")[3]+"\n");
+                    	sets.add(position);
+                    	break;
+                    }
 				}
 				
 				line_mm = br_mm.readLine();
 			}
-			
-			bw.close();
 			br_mm.close();
 			br_fb.close();
+	
+			
+			
+			br_fb = new BufferedReader(new InputStreamReader(new FileInputStream(new File(freebayes_file2))));
+			br_mm = new BufferedReader(new InputStreamReader(new FileInputStream(new File(mummer_file))));
+			line_fb = br_fb.readLine();
+			line_mm = br_mm.readLine();
+			while( line_mm!=null ) {
+				s = line_mm.trim().split("\\s+");
+				line_mm = br_mm.readLine();
+				
+				if(sets.contains(Integer.parseInt(s[1])))
+					continue;
+				
+				chr = s[0];
+				position = Integer.parseInt(s[2]);
+				ref = s[3];
+				alt = s[4];
+				
+				while(line_fb!=null) {
+					if(line_fb.startsWith("#")) {
+						line_fb = br_fb.readLine();
+						continue;
+					}
+					s = line_fb.trim().split("\\s+");
+					p = Integer.parseInt(s[1]);
+					if(!chr.equals(s[0])||p>position) break;
+					line_fb = br_fb.readLine();
+                    if(p==position) {
+                        bw.write("NSP323\t"+chr+"\t"+position+"\t"+ref+"\t"+alt+"\t"+s[9].split(":")[3]+"\n");
+                    	sets.add(position);
+                    	break;
+                    }
+				}
+			}
+			br_mm.close();
+			br_fb.close();
+		
+			bw.close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -256,10 +297,11 @@ public class MUMmerUtils {
 			variantMerger(args[1], args[2], args[3], args[4]);
 			break;
 		case "comparator":
-			// args: input variants
+			// args: input variants 1
+			// args: input variants 2
 			// args: input MUMmer variants
 			// args: output file
-			variantComparator(args[1], args[2], args[3]);
+			variantComparator(args[1], args[2], args[3], args[4]);
 			break;
 		default:
 			throw new RuntimeException("!!!");	
