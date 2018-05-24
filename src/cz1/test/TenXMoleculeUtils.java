@@ -23,15 +23,17 @@ public class TenXMoleculeUtils {
 			final Map<String, Map<String, int[]>> depthStats = new HashMap<String, Map<String, int[]>>();
 			Map<String, int[]> stats;
 			int[] stat;
+			int a;
 			while( (line=br.readLine())!=null ) {
-				s = line.split("|");
-				chr = s[4].trim().split("\\s+")[0];
+				s = line.split("\\|");
+				chr = s[4].trim().split(":")[0];
 				if(!depthStats.containsKey(chr)) depthStats.put(chr, new HashMap<String, int[]>());
 				stats = depthStats.get(chr);
 				position = s[6].trim();
 				if(!stats.containsKey(position)) stats.put(position, new int[2]);
 				stat = stats.get(position);
-				++stat[Integer.parseInt(s[9])];
+				a = Integer.parseInt(s[9].trim());
+				if(a<2) ++stat[a];
 			}
 			br.close();
 			

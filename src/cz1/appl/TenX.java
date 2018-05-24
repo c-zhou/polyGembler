@@ -7,6 +7,7 @@ import cz1.tenx.tools.GenomeComparison;
 import cz1.tenx.tools.TenXMoleculeStats;
 import cz1.tenx.tools.TenXMoleculeStatsZ;
 import cz1.tenx.tools.GenomeComparisonZZ;
+import cz1.tenx.tools.GenomeComparisonZZ2;
 import cz1.tenx.tools.GenomeComparisonZ;
 import cz1.tenx.tools.TenXSamtools;
 import cz1.tenx.tools.TenXVcftools;
@@ -58,7 +59,7 @@ public class TenX {
 			genomeComparisonZ.run();
 			break;
 		case "comparezz":
-			GenomeComparisonZZ genomeComparisonZZ = new GenomeComparisonZZ();
+			GenomeComparisonZZ2 genomeComparisonZZ = new GenomeComparisonZZ2();
 			genomeComparisonZZ.setParameters(args2);
 			genomeComparisonZZ.run();
 			break;
