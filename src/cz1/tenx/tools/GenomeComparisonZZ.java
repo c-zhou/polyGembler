@@ -295,14 +295,15 @@ public class GenomeComparisonZZ extends Executor {
 				List<Molecule> mols1 = extractMoleculeFromList(bc_records1);
 				List<Molecule> mols2 = extractMoleculeFromList(bc_records2);
 				
+				int h;
 				int n1 = mols1.size(), n2 = mols2.size();
 				// this is for homologous molecules
 				for(int i=0; i!=n1; i++) {
 					for(int j=0; j!=n2; j++) {
-						if( homologous(mols1.get(i), mols2.get(j)) ) {
+						if( (h=homologous(mols1.get(i), mols2.get(j)))!=0 ) {
 							bw_con.write(mols1.get(i).chr_id+":"+mols1.get(i).chr_start+"-"+mols1.get(i).chr_end+"\t"+
 									mols2.get(j).chr_id+":"+mols2.get(j).chr_start+"-"+mols2.get(j).chr_end+"\t1.0\t"+
-									compare(mols1.get(i), mols2.get(j))+"\n");
+									compare(mols1.get(i), mols2.get(j), h)+"\n");
 						}
 					}
 				}
@@ -319,7 +320,7 @@ public class GenomeComparisonZZ extends Executor {
 		}
 	}
 	
-	private String compare(Molecule mol1, Molecule mol2) {
+	private String compare(Molecule mol1, Molecule mol2, int dirc) {
 		// TODO Auto-generated method stub
 		final List<SAMRecord[]> r1 = mol1.reads_list;
 		final List<SAMRecord[]> r2 = mol2.reads_list;
@@ -327,7 +328,7 @@ public class GenomeComparisonZZ extends Executor {
 		if(n1!=n2) throw new RuntimeException("!!!");
 	
 		int startv1, endv1, startv2, endv2, refposv, altposv, keyv, seql, a;
-		String refv, a0, a1, dnaseq1, dnaseq2;
+		String refv, a0, a1, dnaseq1, dnaseq2, prefix;
 		SAMRecord[] sams1, sams2;
 		SAMRecord sam1, sam2;
 		NavigableMap<Integer, Variant> mapv;
@@ -341,18 +342,26 @@ public class GenomeComparisonZZ extends Executor {
 		final String chrSeq1 = refSequence1.get(r1.get(0)[0].getReferenceName()).seq_str();
 		final String chrSeq2 = refSequence2.get(r2.get(0)[0].getReferenceName()).seq_str();
 		
+		final String mol = mol1.chr_id+":"+mol1.chr_start+"-"+mol1.chr_end+" | "+
+				mol2.chr_id+":"+mol2.chr_start+"-"+mol2.chr_end;
+		
 		final StringBuilder diff = new StringBuilder();
 		diff.append("==========>\n");
 		
 		for(int i=0; i<n1; i++) {
 			sams1 = r1.get(i);
-			sams2 = r2.get(i);
+			sams2 = r2.get(dirc==1?i:(n1-1-i));
 			
 			Arrays.fill(count, 0);
 			
 			for(int j=0; j<2; j++) {
 				sam1 = sams1[j];
 				sam2 = sams2[j];
+				
+				if(!sam1.getReadName().equals(sam2.getReadName()))
+					throw new RuntimeException("!!!");
+				
+				prefix = "@FASTQ|"+sam1.getReadName()+" | "+j+" | "+mol;
 				
 				diff.append(sam1.getSAMString());
 				diff.append(chrSeq1.substring(sam1.getAlignmentStart()-1, sam1.getAlignmentEnd())+"\n");
@@ -370,8 +379,6 @@ public class GenomeComparisonZZ extends Executor {
 				endv2   = sam2.getAlignmentEnd();
 				
 				fwdaln  = sam1.getReadNegativeStrandFlag()==sam2.getReadNegativeStrandFlag();
-				
-				myLogger.info(refv+":"+startv1+"-"+endv1);
 				mapv   = variants.get(refv).subMap(startv1, true, endv1, true);
 				
 				for(final Map.Entry<Integer, Variant> mv : mapv.entrySet()) {
@@ -388,7 +395,7 @@ public class GenomeComparisonZZ extends Executor {
 					refposv = sam1.getReadPositionAtReferencePosition(keyv)-1;
 					altposv = sam2.getReadPositionAtReferencePosition(altposv)-1;
 					
-					diff.append(keyv+" "+var.refA+" "+var.altA+" "+var.altPos+"; vv1,"+refposv+"; vv2,"+altposv+" | ");
+					diff.append(prefix+" | "+keyv+" "+var.altPos+" | "+var.refA+" "+var.altA+" | vv1,"+refposv+"; vv2,"+altposv+" | ");
 					
 					if(var.refA.equals(".")) {
 						if(refposv>=0 || altposv<0) {
@@ -512,12 +519,15 @@ public class GenomeComparisonZZ extends Executor {
 	private static long fwd_homo = 0;
 	private static long rev_homo = 0;
 	
-	private boolean homologous(Molecule mol1, Molecule mol2) {
+	private int homologous(Molecule mol1, Molecule mol2) {
 		// TODO Auto-generated method stub
+		// return: 0, non-homologous
+		//         1, forward
+		//         2, reverse
 		List<String> r1 = mol1.reads_set;
 		List<String> r2 = mol2.reads_set;
 		int n = r1.size();
-		if(n!=r2.size()) return false;
+		if(n!=r2.size()) return 0;
 		boolean h1 = true, h2 = true;
 		for(int i=0; i<n; i++) {
 			if(!r1.get(i).equals(r2.get(i))) {
@@ -533,7 +543,9 @@ public class GenomeComparisonZZ extends Executor {
 		}
 		if(h1) ++fwd_homo;
 		if(h2) ++rev_homo;
-		return h1||h2;
+		if(h1) return  1;
+		if(h2) return -1;
+		return 0;
 	}
 	
 	private double middlePoint(SAMRecord[] record) {
