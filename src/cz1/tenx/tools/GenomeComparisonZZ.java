@@ -333,7 +333,7 @@ public class GenomeComparisonZZ extends Executor {
 		SAMRecord sam1, sam2;
 		NavigableMap<Integer, Variant> mapv;
 		Variant var;
-		boolean fwdaln;
+		boolean fwdaln, sim1, sim2;
 		final int[] A = new int[2], count = new int[3], alnpos = new int[2];
 		final String[] dnaseq = new String[2];
 		
@@ -401,14 +401,14 @@ public class GenomeComparisonZZ extends Executor {
 						if(altposv<0) {
 							++count[2];
 							diff.append(2);
-							
 						} else {
-							if(sim(var.altA, dnaseq2.substring(altposv, Math.min(altposv+var.altA.length(), seql)))) 
+							if(sim(var.altA, dnaseq2.substring(altposv, Math.min(altposv+var.altA.length(), seql)))) {
 								count[1] += var.altA.length();
-							else
+								diff.append(1);
+							} else {
 								++count[2];
-
-							diff.append(1);
+								diff.append(2);
+							}
 							diff.append(" | ");
 
 							diff.append(".,.");
@@ -419,14 +419,14 @@ public class GenomeComparisonZZ extends Executor {
 						if(refposv<0) {
 							++count[2];
 							diff.append(2);
-							
 						} else {
-							if(sim(var.refA, dnaseq1.substring(refposv, Math.min(refposv+var.refA.length(), seql)))) 
+							if(sim(var.refA, dnaseq1.substring(refposv, Math.min(refposv+var.refA.length(), seql)))) { 
 								count[0] += var.refA.length();
-							else
-								++count[2];	
-
-							diff.append(0);
+								diff.append(0);
+							} else {
+								++count[2];
+								diff.append(2);
+							}
 							diff.append(" | ");
 
 							diff.append(var.refA+","+dnaseq1.substring(refposv, Math.min(refposv+var.refA.length(), seql)));
@@ -454,11 +454,13 @@ public class GenomeComparisonZZ extends Executor {
 							dnaseq[1] = dnaseq2;
 						}
 						
+						sim1 = sim(a0, dnaseq[0].substring(alnpos[0], Math.min(alnpos[0]+a0.length(), seql)));
+						sim2 = sim(a1, dnaseq[1].substring(alnpos[1], Math.min(alnpos[1]+a1.length(), seql)));
 						a = 2;
-						if(sim(a0, dnaseq[0].substring(alnpos[0], Math.min(alnpos[0]+a0.length(), seql)))) {
+						if(sim1&&!sim2) {
 							a = A[0];
 							count[a] += a0.length();
-						} else if(sim(a1, dnaseq[1].substring(alnpos[1], Math.min(alnpos[1]+a1.length(), seql)))) {
+						} else if(sim2&&!sim1) {
 							a = A[1];
 							count[a] += a1.length();
 						} else {
