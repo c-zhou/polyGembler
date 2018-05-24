@@ -214,7 +214,7 @@ public class GenomeComparisonZZ2 extends Executor {
 				if(records1==null||records2==null||
 						!records1[0].getReferenceName().equals(records2[0].getReferenceName())) 
 					continue;
-				if(records1[0].getReadName().equals(records2[0].getReadName()))
+				if(!records1[0].getReadName().equals(records2[0].getReadName()))
 					throw new RuntimeException("!!!");
 				compare(records1, records2);
 			}
