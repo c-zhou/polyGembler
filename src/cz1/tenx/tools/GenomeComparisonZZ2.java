@@ -226,7 +226,7 @@ public class GenomeComparisonZZ2 extends Executor {
 			int[] dp;
 			for(String keyStr : depthStats.keySet()) {
 				dp = depthStats.get(keyStr);
-				bw_con.write(keyStr+"\t"+dp[0]+"\t"+dp[1]+"\t");
+				bw_con.write(keyStr+"\t"+dp[0]+"\t"+dp[1]+"\n");
 			}
 			bw_con.close();
 		} catch (IOException e) {
