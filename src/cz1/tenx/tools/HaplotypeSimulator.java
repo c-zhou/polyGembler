@@ -99,6 +99,7 @@ public class HaplotypeSimulator extends Executor {
 				s = line.split("\\s+");
 				pos = Integer.parseInt(s[1])-1;
 				if(pos<=pos_prev) continue;
+				pos_prev = pos;
 				s2 = s[4].split(",");
 				final String[] alleles = new String[1+s2.length];
 				alleles[0] = s[3];
