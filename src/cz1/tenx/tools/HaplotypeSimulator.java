@@ -87,7 +87,7 @@ public class HaplotypeSimulator extends Executor {
 			BufferedReader br_vcf = Utils.getBufferedReader(vcf_in);
 			String line;
 			String[] s, s2;
-			int pos, pos_prev = -1, refz, offset = 0, h;
+			int pos, refz, offset = 0, h;
 			
 			BufferedWriter bw_hap = Utils.getBufferedWriter(out_f+".hap");
 			bw_hap.write("#CHROM\tPOS\tID\tREF\tALT");
@@ -98,8 +98,7 @@ public class HaplotypeSimulator extends Executor {
 				if(line.startsWith("#")) continue;
 				s = line.split("\\s+");
 				pos = Integer.parseInt(s[1])-1;
-				if(pos<=pos_prev) continue;
-				pos_prev = pos;
+				if(pos<offset) continue;
 				s2 = s[4].split(",");
 				final String[] alleles = new String[1+s2.length];
 				alleles[0] = s[3];
