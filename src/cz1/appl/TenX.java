@@ -8,6 +8,7 @@ import cz1.tenx.tools.TenXMoleculeStats;
 import cz1.tenx.tools.TenXMoleculeStatsZ;
 import cz1.tenx.tools.GenomeComparisonZZ;
 import cz1.tenx.tools.GenomeComparisonZZ2;
+import cz1.tenx.tools.HaplotypeSimulator;
 import cz1.tenx.tools.GenomeComparisonZ;
 import cz1.tenx.tools.TenXSamtools;
 import cz1.tenx.tools.TenXVcftools;
@@ -73,6 +74,11 @@ public class TenX {
 			vcftools.setParameters(args2);
 			vcftools.run();
 			break;
+		case "hsimulator":
+			HaplotypeSimulator simulator = new HaplotypeSimulator();
+			simulator.setParameters(args2);
+			simulator.run();
+			break;
 		default:
 			printUsage();
 			throw new RuntimeException("Undefined tool!!!");
@@ -91,6 +97,7 @@ public class TenX {
 						+ " comparezz             Compare two TenX data.\n"
 						+ " merge                 Merge molecule file.\n"
 						+ " vcftools              VCF tools.\n"
-						+ " bamstats              TenX BAM file statistics.\n\n");
+						+ " bamstats              TenX BAM file statistics.\n"
+						+ " hsimulator            Haplotype simulator. \n\n");
 	}
 }

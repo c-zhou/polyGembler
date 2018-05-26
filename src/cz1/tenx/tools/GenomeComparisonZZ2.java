@@ -5,6 +5,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -318,6 +319,37 @@ public class GenomeComparisonZZ2 extends Executor {
 		}
 	}
 	
+
+	private static void merge(String in, String out) {
+		String[] files = in.split(":");
+		String line;
+		String[] s;
+		try {
+			BufferedWriter bw = Utils.getBufferedWriter(out);
+			BufferedReader[] brs = new BufferedReader[files.length];
+			for(int i=0; i<files.length; i++) 
+				brs[i] = Utils.getBufferedReader(files[i]);
+			final int[] dp = new int[2];
+			while((line=brs[0].readLine())!=null) {
+				Arrays.fill(dp, 0);
+				s = line.split("\\s+");
+				dp[0] += Integer.parseInt(s[6]);
+				dp[1] += Integer.parseInt(s[7]);
+				for(int i=1; i<files.length; i++) {
+					line = brs[i].readLine();
+					s = line.split("\\s+");
+					dp[0] += Integer.parseInt(s[6]);
+					dp[1] += Integer.parseInt(s[7]);	
+				}
+				bw.write(s[0]+"\t"+s[1]+"\t"+s[2]+"\t"+s[3]+"\t"+s[4]+"\t"+s[5]+"\t"+dp[0]+"\t"+dp[1]+"\n");
+			}
+			bw.close();
+			for(int i=0; i<files.length; i++) brs[i].close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
 
 	private final static double min_simularity = 0.9;
 	
