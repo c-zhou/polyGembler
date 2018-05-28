@@ -30,6 +30,11 @@ public class TenXVcftools extends Executor {
 					"\n\nUsage is as follows:\n"
 							+ " -i/--in-vcf         Input VCF file.\n"
 							+ " -p/--ploidy         Ploidy. \n"
+							+ " -minD/--min-depth   Minimum total allele depth (default 0).\n"
+							+ " -maxD/--max-depth   Maximum total allele depth (default no limit).\n"
+							+ " -minA/--min-ad      Minimum allele depth (default 5).\n"
+							+ " -minQ/--min-qual    Minimum variant quality (default 20).\n"
+							+ " -pval/--pvalue      p-value threshold for Chi-square test (default 0.05).\n"
 							+ " -o/--out-vcf        Output VCF file.\n\n");	
 			break;
 		default:
@@ -39,7 +44,12 @@ public class TenXVcftools extends Executor {
 	
 	private String vcf_in;
 	private String vcf_out;
-	private int ploidy = 6;
+	private int ploidy = 2;
+	private int minD = 0;
+	private int maxD = Integer.MAX_VALUE;
+	private int minA = 5;
+	private int minQ = 0;
+	private double pVal = 0.05d;
 	private double[][] config = null;
 	
 	@Override
@@ -68,6 +78,11 @@ public class TenXVcftools extends Executor {
 				myArgsEngine = new ArgsEngine();
 				myArgsEngine.add("-i", "--in-vcf", true);
 				myArgsEngine.add("-p", "--ploidy", true);
+				myArgsEngine.add("-minD", "--min-depth", true);
+				myArgsEngine.add("-maxD", "--max-depth", true);
+				myArgsEngine.add("-minA", "--min-ad", true);
+				myArgsEngine.add("-minQ", "--min-qual", true);
+				myArgsEngine.add("-pval", "--pvalue", true);
 				myArgsEngine.add("-o", "--out-vcf", true);
 				myArgsEngine.parse(args2);
 			}
@@ -77,10 +92,32 @@ public class TenXVcftools extends Executor {
 				printUsage();
 				throw new IllegalArgumentException("Please specify the input VCF file.");
 			}
+			
 			if (myArgsEngine.getBoolean("-p")) {
 				this.ploidy = Integer.parseInt(myArgsEngine.getString("-p"));
 			}
 			configure();
+			
+			if (myArgsEngine.getBoolean("-minD")) {
+				this.minD = Integer.parseInt(myArgsEngine.getString("-minD"));
+			}
+			
+			if (myArgsEngine.getBoolean("-maxD")) {
+				this.maxD = Integer.parseInt(myArgsEngine.getString("-maxD"));
+			}
+			
+			if (myArgsEngine.getBoolean("-minA")) {
+				this.minA = Integer.parseInt(myArgsEngine.getString("-minA"));
+			}
+			
+			if (myArgsEngine.getBoolean("-minQ")) {
+				this.minQ = Integer.parseInt(myArgsEngine.getString("-minQ"));
+			}
+			
+			if (myArgsEngine.getBoolean("-pval")) {
+				this.pVal = Double.parseDouble(myArgsEngine.getString("-pval"));
+			}
+			
 			if (myArgsEngine.getBoolean("-o")) {
 				this.vcf_out = myArgsEngine.getString("-o");
 			} else {
@@ -144,19 +181,19 @@ public class TenXVcftools extends Executor {
 				ref   = s[3];
 				alt   = s[4];
 				qual  = s[5];
-				if(alt.contains(",")||Double.parseDouble(qual)<20) continue;
+				if(alt.contains(",")||Double.parseDouble(qual)<minQ) continue;
 				s = s[9].split(":");
 				allele_depth[0] = Long.parseLong(s[4]);
 				allele_depth[1] = Long.parseLong(s[6]);
 				
 				ada = allele_depth[0]+allele_depth[1];
-				if(allele_depth[0]<5||allele_depth[1]<5||ada<30||ada>500) continue;
+				if(allele_depth[0]<minA||allele_depth[1]<minA||ada<minD||ada>maxD) continue;
 
 				for(int z=0; z<this.ploidy-1; z++) 
 					chisq_p[z] = TestUtils.chiSquareTest(config[z], allele_depth);
 				
 				pval = StatUtils.max(chisq_p);
-				if(pval>=0.05)
+				if(pval>=pVal)
 					bw_vcf.write(chrom+"\t"+pos+"\t.\t"+ref+"\t"+alt+"\t"+qual+"\t.\tPV="+String.format("%.3f", pval)+"\tAD\t"+s[4]+","+s[6]+"\n");
 			}
 			bw_vcf.close();

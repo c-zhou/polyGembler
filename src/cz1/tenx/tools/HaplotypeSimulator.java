@@ -128,6 +128,8 @@ public class HaplotypeSimulator extends Executor {
 					haps[i].append(alleles[h]);
 					bw_hap.write("\t"+h);
 				}
+				bw_hap.write("\n");
+				
 				offset = pos+refz;
 			}
 			// append subsequence to the hapseq end
