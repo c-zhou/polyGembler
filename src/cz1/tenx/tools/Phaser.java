@@ -45,7 +45,7 @@ public class Phaser extends Executor {
 						+" -nosa/--no-sa                Do not run simulated annealing.\n"
 						+" -x/--max-iter                Maxmium rounds for EM optimization (default 1000).\n"
 						+" -ex/--experiment-id          Common prefix of haplotype files for this experiment.\n"
-						+" -@/--num-threads              Number of threads to use (default 1).\n"
+						+" -@/--num-threads             Number of threads to use (default 1).\n"
 						+" -o/--prefix                  Output file location.\n\n"
 				);
 	}
@@ -168,7 +168,7 @@ public class Phaser extends Executor {
 							for(int i=0; i<max_iter; i++) {
 								hmm.train();
 								loglik1 = hmm.loglik();
-								if(loglik1>loglik && 
+								if(loglik1>=loglik && 
 										(loglik-loglik1)/loglik<1e-6) 
 									break;
 								loglik = loglik1;
