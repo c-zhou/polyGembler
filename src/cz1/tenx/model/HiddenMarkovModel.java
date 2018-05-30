@@ -1,6 +1,7 @@
 package cz1.tenx.model;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,37 +40,53 @@ public class HiddenMarkovModel {
 	
 	private FB[] forward, backward;
 	
-	public static void main(String[] args) {
-		Constants.ploidy(6);
-		HiddenMarkovModel hmm = new HiddenMarkovModel(
-				"C:\\Users\\chenxi.zhou\\Desktop\\10x_phasing\\data\\440166_tanzania_306_pos_sorted_bam_realigned_filtered_chr01_0_377261.vcf",
-				"C:\\Users\\chenxi.zhou\\Desktop\\10x_phasing\\data\\tanzania.barcoded.sorted.Chr01.0.278868.mol",
-				"Chr01");
+	protected String rangeChr = null;
+	protected int rangeLowerBound = Integer.MIN_VALUE;
+	protected int rangeUpperBound = Integer.MAX_VALUE;
+	
+	protected boolean simulated_annealing = true;
+	
+	public HiddenMarkovModel(String vcf_file,
+			String dat_file,
+			String rangeChr) {
+		this(vcf_file, dat_file, rangeChr, true);
 	}
 	
 	public HiddenMarkovModel(String vcf_file,
 			String dat_file,
-			String dat_range) {
-		this.setDataRange(dat_range);
+			String rangeChr,
+			boolean use_sa) {
+		this(vcf_file, dat_file, rangeChr, Integer.MIN_VALUE, Integer.MAX_VALUE, use_sa);
+	}
+	
+	public HiddenMarkovModel(String vcf_file,
+			String dat_file,
+			String rangeChr,
+			int rangeLowerBound,
+			int rangeUpperBound) {
+		this(vcf_file, dat_file, rangeChr, rangeLowerBound, rangeUpperBound, true);
+	}
+	
+	public HiddenMarkovModel(String vcf_file,
+			String dat_file,
+			String rangeChr,
+			int rangeLowerBound,
+			int rangeUpperBound,
+			boolean use_sa) {
+		this.rangeChr = rangeChr;
+		this.rangeLowerBound = rangeLowerBound;
+		this.rangeUpperBound = rangeUpperBound;
+		this.simulated_annealing = use_sa;
 		this.setVariantDataFile(vcf_file);
 		this.setDataEntryFile(dat_file);
 		this.bfrac();
 		this.makeBWT();
-		this.makeSA();
-		for(int i=0; i<200; i++) this.train();
-		for(int i=0; i<M; i++) {
-			if(this.trainLoci.contains(i)) {
-				double[][] probs = this.emissProbs[i].probsMat; // Px2
-				System.out.print(Utils.fixedLengthPaddingString(i+":", 8)+"\t");
-				for(int j=0; j<Constants._ploidy_H; j++) 
-					System.out.print(String.format("%.3f", probs[j][0])+"\t");
-				System.out.println();	
-			}
-		}
+		if(this.simulated_annealing) this.makeSA();
 	}
-
-	private void train() {
+	
+	public void train() {
 		// TODO Auto-generated method stub
+		if(this.isNullModel()) throw new RuntimeException("cannot train a null HMM model!!!");
 		iteration++;
 		myLogger.info("###################");
 		myLogger.info("train: "+iteration);
@@ -90,24 +107,12 @@ public class HiddenMarkovModel {
 		this.EM();
 		tic[k++] = System.nanoTime();
 		myLogger.info("EM algorithm "+(tic[k-1]-tic[k-2])+"ns");
-		this.SA();
-		tic[k++] = System.nanoTime();
-		myLogger.info("simulated annealing "+(tic[k-1]-tic[k-2])+"ns");
+		if(this.simulated_annealing) {
+			this.SA();
+			tic[k++] = System.nanoTime();
+			myLogger.info("simulated annealing "+(tic[k-1]-tic[k-2])+"ns");
+		}
 		return;
-	}
-
-	protected String rangeChr = null;
-	protected int rangeLowerBound = Integer.MIN_VALUE;
-	protected int rangeUpperBound = Integer.MAX_VALUE;
-	
-	private void setDataRange(String dat_range) {
-		// TODO Auto-generated method stub
-		String[] s = dat_range.split(":");
-		rangeChr = s[0];
-		if(s.length==1) return;
-		s = s[1].split("-");
-		rangeLowerBound = Integer.parseInt(s[0]);
-		rangeUpperBound = Integer.parseInt(s[1]);
 	}
 
 	// <K,V> = <Index,Position>
@@ -978,6 +983,11 @@ public class HiddenMarkovModel {
 		// TODO Auto-generated method stub
 		return this.M;
 	}
+	
+	public int noLoci() {
+		// TODO Auto-generated method stub
+		return this.trainLoci.size();
+	}
 
 	public DataEntry[] de() {
 		// TODO Auto-generated method stub
@@ -1010,5 +1020,33 @@ public class HiddenMarkovModel {
 			for(FB bw : backward) probability += bw.probability;
 			return probability;
 		}
+	}
+
+	public void write(String out) {
+		// TODO Auto-generated method stub
+		try {
+			BufferedWriter bw = Utils.getBufferedWriter(out);
+			bw.write("##"+this.loglik()+"\n");
+			for(int i=0; i<M; i++) {
+				if(this.trainLoci.contains(i)) {
+					double[][] probs = this.emissProbs[i].probsMat; // Px2
+					Variant variant = variants[i];
+					bw.write(String.format("%1$12s", variant.position)+"\t"+
+							variant.refAllele+"\t"+variant.altAllele);
+					for(int j=0; j<Constants._ploidy_H; j++) 
+						bw.write("\t"+(probs[j][0]<0.5?0:1));
+					bw.write("\n");	
+				}
+			}
+			bw.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	public boolean isNullModel() {
+		// TODO Auto-generated method stub
+		return this.trainLoci.isEmpty();
 	}
 }

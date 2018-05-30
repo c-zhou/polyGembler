@@ -28,6 +28,8 @@ import com.google.common.collect.TreeRangeSet;
 import cz1.ngs.model.BFSShortestPath;
 import cz1.ngs.model.Sequence;
 import cz1.util.Constants;
+import cz1.util.JohnsonTrotter;
+import cz1.util.Utils;
 import htsjdk.samtools.Cigar;
 import htsjdk.samtools.CigarElement;
 import htsjdk.samtools.CigarOperator;
@@ -328,6 +330,39 @@ public class AssemblyGraph {
 		
 		
 		System.out.println(TestUtils.chiSquareTest(new double[]{2d/6,4d/6}, new long[]{200,390}));
+	
+		
+		int rangeUpperBound = 103;
+		int rangeLowerBound = 1;
+		int overlap = 1;
+		int block = 10;
+		int nB = (int) Math.ceil((double)(rangeUpperBound-rangeLowerBound+1-overlap)/(block-overlap));
+		int[][] dataB = new int[nB][2];
+		for(int i=0; i<nB; i++) {
+			int from = rangeLowerBound+i*(block-overlap);
+			dataB[i] = new int[]{from, from+block};
+		}
+		Utils.print(dataB);
+		
+		final List<String> aaa = new ArrayList<String>();
+		aaa.add("aaa");
+		aaa.add(null);
+		aaa.add("bbb");
+		aaa.add("ccc");
+		System.out.println(aaa.size());
+		
+		System.out.println();
+		int[][] jtPerm = JohnsonTrotter.perm(6);
+		Utils.print(jtPerm);
+		
+		int[] p = new int[]{1,2,3,4,5,6};
+		int tmp;
+		for(int i=0; i<jtPerm.length; i++) {
+			tmp = p[jtPerm[i][0]];
+			p[jtPerm[i][0]] = p[jtPerm[i][1]];
+			p[jtPerm[i][1]] = tmp;
+			Utils.print(p);
+		}
 	}
 }
 

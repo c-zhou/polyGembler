@@ -276,6 +276,15 @@ public class Constants {
 		_haplotype_z = ploidy*2;
 	}
 	
+	public static void seeding(long s) {
+		seed = s;
+		setRandomGenerator();
+	}
+
+	public static void seeding() {
+		seeding(System.nanoTime());
+	}
+	
 	public final static Pattern cgPat = Pattern.compile("([0-9]+)([MIDNSHPX=])");
 	
 	public static String cgRev(String overlap) {

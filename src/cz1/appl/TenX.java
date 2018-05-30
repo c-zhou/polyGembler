@@ -9,6 +9,7 @@ import cz1.tenx.tools.TenXMoleculeStatsZ;
 import cz1.tenx.tools.GenomeComparisonZZ;
 import cz1.tenx.tools.GenomeComparisonZZ2;
 import cz1.tenx.tools.HaplotypeSimulator;
+import cz1.tenx.tools.Phaser;
 import cz1.tenx.tools.GenomeComparisonZ;
 import cz1.tenx.tools.TenXSamtools;
 import cz1.tenx.tools.TenXVcftools;
@@ -79,6 +80,11 @@ public class TenX {
 			simulator.setParameters(args2);
 			simulator.run();
 			break;
+		case "phaser":
+			Phaser phaser = new Phaser();
+			phaser.setParameters(args2);
+			phaser.run();
+			break;
 		default:
 			printUsage();
 			throw new RuntimeException("Undefined tool!!!");
@@ -98,6 +104,7 @@ public class TenX {
 						+ " merge                 Merge molecule file.\n"
 						+ " vcftools              VCF tools.\n"
 						+ " bamstats              TenX BAM file statistics.\n"
-						+ " hsimulator            Haplotype simulator. \n\n");
+						+ " hsimulator            Haplotype simulator. \n"
+						+ " phaser                10x molecule phasing. \n\n");
 	}
 }
