@@ -175,6 +175,7 @@ public class Phaser extends Executor {
 							}
 							logLik[b][r] = loglik1;
 							hmm.write(out_prefix+"/"+expr_id+"_"+b+"_"+r+".tmp");
+							hmm.print();
 							noLoci[b] = hmm.noLoci();
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();

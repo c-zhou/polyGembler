@@ -114,7 +114,10 @@ public class HiddenMarkovModel {
 		}
 		return;
 	}
-
+	
+	// this implements a MCL to detect molecule clusters
+	
+	
 	// <K,V> = <Index,Position>
 	protected BidiMap<Integer, Integer> varidx = new DualHashBidiMap<Integer, Integer>();
 	protected Variant[] variants = null;
@@ -319,6 +322,13 @@ public class HiddenMarkovModel {
 							probs[j][1]*emiss[k][1];
 				}
 			}
+			double[] ll = new double[Constants._ploidy_H];
+			for(int j=0; j<Constants._ploidy_H; j++) {
+				for(int k=0; k<M; k++) 
+					ll[j] += Math.log(weightedProbs[k][j]);
+			}
+			Utils.print(ll);
+			System.out.println("aaa");
 		}
 		return;
 	}
@@ -1042,6 +1052,24 @@ public class HiddenMarkovModel {
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
+		}
+	}
+	
+	public void print() {
+		// TODO Auto-generated method stub
+		myLogger.info("##"+this.loglik()+"\n");
+		final StringBuilder os = new StringBuilder();
+		for(int i=0; i<M; i++) {
+			if(this.trainLoci.contains(i)) {
+				double[][] probs = this.emissProbs[i].probsMat; // Px2
+				Variant variant = variants[i];
+				os.setLength(0);
+				os.append(String.format("%1$12s", variant.position)+"\t"+
+						variant.refAllele+"\t"+variant.altAllele);
+				for(int j=0; j<Constants._ploidy_H; j++) 
+					os.append("\t"+String.format("%.3f", probs[j][0]));
+			}
+			myLogger.info(os.toString());
 		}
 	}
 
