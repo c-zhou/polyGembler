@@ -202,6 +202,11 @@ public class Phaser extends Executor {
 							hmm.print();
 							noLoci[b] = hmm.noLoci();
 						} catch (Exception e) {
+							myLogger.error("##########ERROR MESSAGE##########");
+							myLogger.error(vcf_file);
+							myLogger.error(dat_file);
+							myLogger.error(rangeChr+":"+dataB[b][0]+"-"+dataB[b][1]);
+							myLogger.error("########END ERROR MESSAGE########");
 							Thread t = Thread.currentThread();
 							t.getUncaughtExceptionHandler().uncaughtException(t, e);
 							e.printStackTrace();
