@@ -16,7 +16,6 @@ import cz1.util.Constants;
 import cz1.util.Executor;
 import cz1.util.JohnsonTrotter;
 import cz1.util.Utils;
-import sun.swing.StringUIClientPropertyKey;
 
 public class Phaser extends Executor {
 
