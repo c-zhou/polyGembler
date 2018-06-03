@@ -5,6 +5,9 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -12,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.collections4.BidiMap;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.stat.StatUtils;
@@ -19,6 +23,8 @@ import org.apache.commons.math3.stat.inference.TestUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import cz1.algebra.matrix.SparseMatrix;
+import cz1.graph.cluster.MarkovClustering;
 import cz1.util.Algebra;
 import cz1.util.Constants;
 import cz1.util.Utils;
@@ -44,19 +50,21 @@ public class HiddenMarkovModel {
 	protected int rangeLowerBound = Integer.MIN_VALUE;
 	protected int rangeUpperBound = Integer.MAX_VALUE;
 	
-	protected boolean simulated_annealing = true;
+	protected boolean clustering = true;
+	protected boolean simulated_annealing = false;
 	
 	public HiddenMarkovModel(String vcf_file,
 			String dat_file,
 			String rangeChr) {
-		this(vcf_file, dat_file, rangeChr, true);
+		this(vcf_file, dat_file, rangeChr, true, false);
 	}
 	
 	public HiddenMarkovModel(String vcf_file,
 			String dat_file,
 			String rangeChr,
+			boolean use_clus,
 			boolean use_sa) {
-		this(vcf_file, dat_file, rangeChr, Integer.MIN_VALUE, Integer.MAX_VALUE, use_sa);
+		this(vcf_file, dat_file, rangeChr, Integer.MIN_VALUE, Integer.MAX_VALUE, use_clus, use_sa);
 	}
 	
 	public HiddenMarkovModel(String vcf_file,
@@ -64,7 +72,7 @@ public class HiddenMarkovModel {
 			String rangeChr,
 			int rangeLowerBound,
 			int rangeUpperBound) {
-		this(vcf_file, dat_file, rangeChr, rangeLowerBound, rangeUpperBound, true);
+		this(vcf_file, dat_file, rangeChr, rangeLowerBound, rangeUpperBound, true, false);
 	}
 	
 	public HiddenMarkovModel(String vcf_file,
@@ -72,13 +80,16 @@ public class HiddenMarkovModel {
 			String rangeChr,
 			int rangeLowerBound,
 			int rangeUpperBound,
+			boolean use_clus,
 			boolean use_sa) {
 		this.rangeChr = rangeChr;
 		this.rangeLowerBound = rangeLowerBound;
 		this.rangeUpperBound = rangeUpperBound;
+		this.clustering = use_clus;
 		this.simulated_annealing = use_sa;
 		this.setVariantDataFile(vcf_file);
 		this.setDataEntryFile(dat_file);
+		if(this.clustering) this.makeMCL();
 		this.bfrac();
 		this.makeBWT();
 		if(this.simulated_annealing) this.makeSA();
@@ -114,9 +125,6 @@ public class HiddenMarkovModel {
 		}
 		return;
 	}
-	
-	// this implements a MCL to detect molecule clusters
-	
 	
 	// <K,V> = <Index,Position>
 	protected BidiMap<Integer, Integer> varidx = new DualHashBidiMap<Integer, Integer>();
@@ -175,7 +183,8 @@ public class HiddenMarkovModel {
 				for(String entry : s) {
 					s2 = entry.split(",");
 					position = Integer.parseInt(s2[0]);
-					if(position<rangeLowerBound||position>rangeUpperBound) continue;
+					if(position<rangeLowerBound||position>rangeUpperBound||!varidx.containsValue(position))
+						continue;
 					index.add(varidx.getKey(position));
 					allele.add(Integer.parseInt(s2[1]));
 				}
@@ -230,15 +239,11 @@ public class HiddenMarkovModel {
 		int maxPval;
 		bfrac = new double[M];
 		for(int i=0; i<M; i++) {
-			if(depth[i][0]+depth[i][1]<minD) continue;
 			for(int z=0; z<ploidy-1; z++) 
 				chisq_p[z] = TestUtils.chiSquareTest(config[z], depth[i]);
 			maxPval = Algebra.maxIndex(chisq_p);
-			if(chisq_p[maxPval]>=minP) {
-				// a locus to train
-				trainLoci.add(i);
-				bfrac[i] = config[maxPval][1];
-			}
+			bfrac[i] = config[maxPval][1];
+			trainLoci.add(i);	
 		}
 		myLogger.info("#Loci: "+trainLoci.size()+"/"+M);
 		final StringBuilder os = new StringBuilder();
@@ -260,7 +265,7 @@ public class HiddenMarkovModel {
 		// TODO Auto-generated method stub
 		this.emissProbs = new EP[M];
 		for(int i=0; i<M; i++)
-			emissProbs[i] = new EP(bfrac[i]);
+			emissProbs[i] = new EP(i);
 
 		this.forward = new FB[N];
 		for(int i=0; i<N; i++) 
@@ -278,6 +283,126 @@ public class HiddenMarkovModel {
 					this.dp[i].probs.length,
 					Constants._ploidy_H);
 		return;
+	}
+	
+	/**
+	for(int i=0; i<this.M; i++) { 
+		dpCrossRef.put(i, new HashSet<Integer>());
+	}
+	for(int i=0; i<this.N; i++) {
+		final Set<Integer> indexSet = this.dp[i].index.values();
+		for(int j : indexSet) dpCrossRef.get(j).add(i);
+	}
+	**/
+	
+	private final Map<Integer, Integer> initMolClus = new HashMap<Integer, Integer>();
+	
+	// this implements a MCL to detect molecule clusters
+	private void makeMCL() {
+		SparseMatrix dpAdj = new SparseMatrix(N, N);
+		
+		if(false) {
+			double oldVal;
+			int softenax;
+			DataEntry dp1;
+			Set<Integer> markers, molecules;
+			for(int i=0; i<N; i++) {
+				dp1 = this.dp[i];
+				markers = dp1.index.values();
+				for(int marker : markers) {
+					softenax = dp1.softenAlleleIndex(marker);
+					molecules = this.dpCrossRef.get(marker);
+					for(int molecule : molecules) {
+						if(i==molecule) continue; 
+						if(this.dp[molecule].softenAlleleIndex(marker)==softenax) {
+							oldVal = dpAdj.get(i, molecule);
+							dpAdj.set(i, molecule, oldVal+1);
+							dpAdj.set(molecule, i, oldVal+1);
+						}
+					}
+				}
+			}
+		} else {
+			DataEntry dp1, dp2;
+			Set<Integer> m1, m2;
+			Collection<Integer> comm;
+			int match, mismatch;
+			for(int i=0; i<N; i++) {
+				dp1 = this.dp[i];
+				m1 = dp1.index.values();
+				for(int j=0; j<N; j++) {
+					dp2 = this.dp[j];
+					m2 = dp2.index.values();
+					comm = CollectionUtils.intersection(m1, m2);
+					if(comm.isEmpty()) continue;
+					match = 0;
+					mismatch = 0;
+					for(int k : comm) {
+						if(dp1.probs[dp1.index.getKey(k)][0]==dp2.probs[dp2.index.getKey(k)][0]) {
+							++match;
+						} else {
+							++mismatch;
+						}
+					}
+					if(match>=3&&mismatch==0) {
+						dpAdj.set(i, j, match);
+						dpAdj.set(j, i, match);
+					}
+				}
+			}
+		}
+		myLogger.info("MCL sparse matrix construction done.");
+		
+		try {
+			BufferedWriter bw = Utils.getBufferedWriter("c:\\users\\chenxi.zhou\\desktop\\aa.txt");
+			double d;
+			for(int i=0; i<N; i++) {
+				for(int j=0; j<N; j++) {
+					d = dpAdj.get(i, j);
+					if(d>0) 
+						bw.write(i+"\t"+j+"\t"+d+"\n");
+				}
+			}
+			bw.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		MarkovClustering mcl = new MarkovClustering(dpAdj, 1e-6, 2, 1, 1e-6);
+		mcl.run();
+		myLogger.info("MCL converged. "+mcl.progress());
+		
+		// now interpret MCL clusters
+		mcl.parse();
+		
+		List<Set<Integer>> clusters = mcl.getCluster();
+ 		myLogger.info("MCL parsed.");
+	
+		// only keep the #ploidy largest clusters
+		if(clusters.size()<Constants._ploidy_H) {
+			myLogger.warn("initial graph based assignment failed!!! Use random initialisation.");
+			return;
+		}
+		Collections.sort(clusters, new Comparator<Set<Integer>>() {
+
+			@Override
+			public int compare(Set<Integer> set0, Set<Integer> set1) {
+				// TODO Auto-generated method stub
+				return numMarkers(set1)-numMarkers(set0);
+			}
+
+			private int numMarkers(Set<Integer> set) {
+				// TODO Auto-generated method stub
+				int n=0;
+				for(int i : set) n+=dp[i].n();
+				return n;
+			}
+		});
+		
+		for(int i=0; i<Constants._ploidy_H; i++) {
+			Set<Integer> clus = clusters.get(i);
+			for(int j : clus) initMolClus.put(j, i);
+		}
 	}
 	
 	private DataEntry[] SAdp;
@@ -322,17 +447,15 @@ public class HiddenMarkovModel {
 							probs[j][1]*emiss[k][1];
 				}
 			}
-			double[] ll = new double[Constants._ploidy_H];
-			for(int j=0; j<Constants._ploidy_H; j++) {
-				for(int k=0; k<M; k++) 
-					ll[j] += Math.log(weightedProbs[k][j]);
-			}
-			Utils.print(ll);
-			System.out.println("aaa");
 		}
 		return;
 	}
 
+	private void makeForward() {
+		// TODO Auto-generated method stub
+		this.makeForward(dp, forward);
+	}
+	
 	private void makeForward(DataEntry[] dp, FB[] forward) {
 		// TODO Auto-generated method stub
 		for(int i=0; i<N; i++) {
@@ -344,18 +467,18 @@ public class HiddenMarkovModel {
 			for(int j=1; j<M; j++) {
 				for(int k=0; k<Constants._ploidy_H; k++) 
 					probsMat[j][k] = probsMat[j-1][k]*probs[j][k];	
-				forward[i].scale(j);	
+				forward[i].scale(j);
 			}
 			forward[i].probability(StatUtils.sum(probsMat[M-1]));
 		}
 		return;
 	}
-	
-	private void makeForward() {
-		// TODO Auto-generated method stub
-		this.makeForward(dp, forward);
-	}
 
+	private void makeBackward() {
+		// TODO Auto-generated method stub
+		this.makeBackward(dp, backward);
+	}
+	
 	private void makeBackward(DataEntry[] dp, FB[] backward) {
 		// TODO Auto-generated method stub
 		for(int i=0; i<N; i++) {
@@ -363,20 +486,18 @@ public class HiddenMarkovModel {
 			double[][] probs = dp[i].weightedProbs; // MxP
 			double[][] probsMat = backward[i].probsMat; // MxP
 
-			System.arraycopy(probs[M-1], 0, probsMat[M-1], 0, Constants._ploidy_H);
+			Arrays.fill(probsMat[M-1], 1.);
 			for(int j=M-2; j>=0; j--) {
 				for(int k=0; k<Constants._ploidy_H; k++) 
-					probsMat[j][k] = probsMat[j+1][k]*probs[j][k];	
+					probsMat[j][k] = probsMat[j+1][k]*probs[j+1][k];	
 				backward[i].scale(j);	
 			}
-			backward[i].probability(StatUtils.sum(probsMat[0]));
+			double ll = 0.;
+			for(int j=0; j<Constants._ploidy_H; j++) 
+				ll+=probsMat[0][j]*probs[0][j];
+			backward[i].probability(ll);
 		}
 		return;
-	}
-	
-	private void makeBackward() {
-		// TODO Auto-generated method stub
-		this.makeBackward(dp, backward);
 	}
 	
 	private void checkFW() {
@@ -406,8 +527,10 @@ public class HiddenMarkovModel {
 			double[][] emiss_count = this.emissProbs[i].pseudo(); // Px2
 			crossRef = this.dpCrossRef.get(i);
 			for(int j : crossRef) {
+				
 				fw1 = this.forward[j];
 				bw1 = this.backward[j];
+				
 				dp1 = dp[j];
 				z = dp1.index.getKey(i);
 				
@@ -430,9 +553,9 @@ public class HiddenMarkovModel {
 					// ideal way but dangerous
 					exp = Math.exp(exp_c);
 					for(int k=0; k<Constants._ploidy_H; k++) {
-						coeff = fw1.probsMat[z][k]*bw1.probsMat[z][k];
+						coeff = fw1.probsMat[z][k]*bw1.probsMat[z][k]*exp;
 						for(int w=0; w<2; w++) 
-							emiss_count[k][w] += coeff*dp1.probs[z][w]*exp;
+							emiss_count[k][w] += coeff*dp1.probs[z][w];
 					}
 				}
 			}
@@ -441,8 +564,8 @@ public class HiddenMarkovModel {
 		}
 	}
 
-	private static double temperature =  100;
-	private static double coolingRate = 0.01;
+	private double temperature =  100;
+	private double coolingRate = 0.01;
 	
 	private void SA() {
 		// TODO Auto-generated method stub
@@ -607,10 +730,10 @@ public class HiddenMarkovModel {
 		return -1;
 	}
 
-	private static double shinkage = 0.5d;
+	private double shinkage = 0.5d;
 	
 	public class EP {
-		protected final double bfrac;
+		protected final double baf; // B-allele frequency
 		protected double[][] probsMat;
 		protected double[][] count;
 		protected boolean logspace;
@@ -621,7 +744,7 @@ public class HiddenMarkovModel {
 			// TODO Auto-generated constructor stub
 			this.probsMat = probsMat;
 			this.logspace = logspace;
-			this.bfrac = bfrac;
+			this.baf = bfrac;
 			if( logspace ) this.setNormalspace();
 			this.count = new double[Constants._ploidy_H][2];
 		}
@@ -645,7 +768,7 @@ public class HiddenMarkovModel {
 			for(int i=0; i<Constants._ploidy_H; i++)
 				probs[i] = this.probsMat[i][0];
 			Arrays.sort(probs);
-			int pivot = (int) Math.round(Constants._ploidy_H*bfrac);
+			int pivot = (int) Math.round(Constants._ploidy_H*baf);
 			
 			if(pivot==0&&probs[0]>0.5 ||
 					pivot==Constants._ploidy_H&&
@@ -671,29 +794,60 @@ public class HiddenMarkovModel {
 		}
 		
 		public EP clone() {
-			return new EP(this.bfrac, false);
+			return new EP(this.baf);
 		}
 		
-		public EP(double bfrac, boolean prior) {
+		public EP(double bfrac) {
 			// TODO Auto-generated constructor stub
-			this.bfrac = bfrac;
+			this.baf = bfrac;
 			this.probsMat = new double[Constants._ploidy_H][2];
-			if(prior) this.prior();
+			this.logspace = false;
+			this.count = new double[Constants._ploidy_H][2];
+		}
+		
+		public EP(final int i, boolean prior) {
+			// TODO Auto-generated constructor stub
+			this.baf = bfrac[i];
+			this.probsMat = new double[Constants._ploidy_H][2];
+			if(prior) this.prior(i);
 			this.logspace = false;
 			this.count = new double[Constants._ploidy_H][2];
 		}
 
-		public EP(double bfrac) {
+		public EP(final int i) {
 			// TODO Auto-generated constructor stub
-			this(bfrac, true);
+			this(i, true);
 		}
 
-		protected void prior() {
+		protected void prior(final int mInd) {
 			// TODO Auto-generated method stub
-			for(int i=0; i<Constants._ploidy_H; i++) {
-				Dirichlet diri = new Dirichlet(new double[]{1-bfrac, bfrac}, 
-						Constants._mu_theta_e);
-				this.probsMat[i] = ArrayUtils.toPrimitive(diri.sample());
+			Dirichlet diri = new Dirichlet(new double[]{1-baf, baf}, 
+					Constants._mu_theta_e);
+			if(initMolClus.isEmpty()) {
+				// random initialisation using baf
+				for(int i=0; i<Constants._ploidy_H; i++) {
+					this.probsMat[i] = ArrayUtils.toPrimitive(diri.sample());
+				}
+			} else {
+				// initialisation using initial assignment
+				Set<Integer> indivs = dpCrossRef.get(mInd);
+				for(int i=0; i<Constants._ploidy_H; i++) {
+					final int[] a = new int[2];
+					for(int j : indivs) {
+						if(initMolClus.containsKey(j)&&initMolClus.get(j)==i) 
+							++a[dp[j].probs[dp[j].index.getKey(mInd)][1]==soften?0:1];
+					}
+					double s = a[0]+a[1];
+					if(s==0) {
+						this.probsMat[i] = ArrayUtils.toPrimitive(diri.sample());
+						continue;
+					}
+					double b = a[1]/s;
+					if(b==0) b = 0.001;
+					if(b==1) b = 0.999;
+					this.probsMat[i] = ArrayUtils.toPrimitive(new Dirichlet(new double[]{1-b, b}, 
+							Constants._mu_theta_e).sample());
+				}
 			}
 		}
 
@@ -733,8 +887,8 @@ public class HiddenMarkovModel {
 			for(int i=1; i<_i_; i++) {
 				//Arrays.fill(count[i], 
 				//		1.0/this.allele.length*Constants._mu_theta_m);
-				count[i][0] = (1-bfrac)*Constants._pseudo_[1];
-				count[i][1] = bfrac*Constants._pseudo_[1];
+				count[i][0] = (1-baf)*Constants._pseudo_[1];
+				count[i][1] = baf*Constants._pseudo_[1];
 			}
 			return count;
 		}
@@ -909,7 +1063,7 @@ public class HiddenMarkovModel {
 		}
 	}
 	
-	protected final double soften = 5e-3;
+	protected final double soften = 1e-16;
 	protected class DataEntry { // data entry
 		// <K,V>=<Index,MarkerIndex>
 		final BidiMap<Integer, Integer> index;
@@ -924,6 +1078,11 @@ public class HiddenMarkovModel {
 			this.fillIndexMap(index);
 		}
 		
+		public int n() {
+			// TODO Auto-generated method stub
+			return this.probs.length;
+		}
+
 		public DataEntry(final BidiMap<Integer, Integer> index,
 				final double[][] probs) {
 			this.index = index;
@@ -950,6 +1109,11 @@ public class HiddenMarkovModel {
 				probs[i][1-allele[i]] =   soften;
 			}
 			return probs;
+		}
+		
+		private int softenAlleleIndex(int markerIndex) {
+			// TODO Auto-generated method stub
+			return this.probs[this.index.getKey(markerIndex)][0]==soften?0:1;
 		}
 	}
 	

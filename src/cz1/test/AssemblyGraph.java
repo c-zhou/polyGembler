@@ -28,6 +28,7 @@ import com.google.common.collect.TreeRangeSet;
 import cz1.ngs.model.BFSShortestPath;
 import cz1.ngs.model.Sequence;
 import cz1.util.Constants;
+import cz1.util.Dirichlet;
 import cz1.util.JohnsonTrotter;
 import cz1.util.Utils;
 import htsjdk.samtools.Cigar;
@@ -363,6 +364,11 @@ public class AssemblyGraph {
 			p[jtPerm[i][1]] = tmp;
 			Utils.print(p);
 		}
+		
+		double baf = 0.999;
+		Dirichlet diri = new Dirichlet(new double[]{1-baf, baf}, 
+				Constants._mu_theta_e);
+		System.out.println(diri.sample()[0]);
 	}
 }
 
