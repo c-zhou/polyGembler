@@ -16,6 +16,7 @@ import cz1.util.Constants;
 import cz1.util.Executor;
 import cz1.util.JohnsonTrotter;
 import cz1.util.Utils;
+import sun.swing.StringUIClientPropertyKey;
 
 public class Phaser extends Executor {
 
@@ -534,6 +535,8 @@ public class Phaser extends Executor {
 		}
 		logLik = new double[nB][repeat];
 		noLoci = new int[nB];
+		for(int i=0; i<nB; i++) 
+			myLogger.error("#"+String.format("%04d", i)+" | "+rangeChr+":"+dataB[i][0]+"-"+dataB[i][1]);
 		return;
 	}
 
