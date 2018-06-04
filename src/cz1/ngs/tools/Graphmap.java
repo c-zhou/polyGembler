@@ -469,7 +469,7 @@ public class Graphmap extends Executor {
 				if(!s.endsWith("'"))
 					sz += sub_seqs.get(s).seq_ln();
 			}
-			System.out.println(conn.size()+" "+sz);
+			myLogger.info(conn.size()+" "+sz);
 		}
 	}
 	

@@ -89,6 +89,7 @@ public class HiddenMarkovModel {
 		this.simulated_annealing = use_sa;
 		this.setVariantDataFile(vcf_file);
 		this.setDataEntryFile(dat_file);
+		if(this.isNullModel()) return;
 		if(this.clustering) this.makeMCL();
 		this.bfrac();
 		this.makeBWT();
@@ -365,7 +366,8 @@ public class HiddenMarkovModel {
 	
 		// only keep the #ploidy largest clusters
 		if(clusters.size()<Constants._ploidy_H) {
-			myLogger.warn("initial graph based assignment failed!!! Use random initialisation.");
+			myLogger.warn("initial graph based assignment failed!!! Use random initialisation. "+
+					this.rangeChr+":"+this.rangeLowerBound+"-"+this.rangeUpperBound);
 			return;
 		}
 		Collections.sort(clusters, new Comparator<Set<Integer>>() {

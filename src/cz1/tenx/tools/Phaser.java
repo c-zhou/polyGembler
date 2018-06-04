@@ -527,10 +527,11 @@ public class Phaser extends Executor {
 	private void makeDataBlock() {
 		// TODO Auto-generated method stub
 		int nB = (int) Math.ceil((double)(rangeUpperBound-rangeLowerBound+1-overlap)/(block-overlap));
+		if(nB<1) nB = 1;
 		dataB = new int[nB][2];
 		for(int i=0; i<nB; i++) {
 			int from = rangeLowerBound+i*(block-overlap);
-			dataB[i] = new int[]{from, from+block};
+			dataB[i] = new int[]{from, Math.min(rangeUpperBound, from+block)};
 		}
 		logLik = new double[nB][repeat];
 		noLoci = new int[nB];
@@ -547,6 +548,8 @@ public class Phaser extends Executor {
 			s = s[1].split("-");
 			rangeLowerBound = Integer.parseInt(s[0]);
 			rangeUpperBound = Integer.parseInt(s[1]);
+			if(rangeLowerBound<rangeUpperBound) 
+				throw new RuntimeException("invalid data range!!!");
 		} else {
 			rangeLowerBound = Integer.MAX_VALUE;
 			rangeUpperBound = Integer.MIN_VALUE;
