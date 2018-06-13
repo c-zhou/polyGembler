@@ -576,6 +576,7 @@ public class Graphmap extends Executor {
 						os.append(" ");
 						os.append(s);
 					}
+					os.append("; ");
 				}
 				myLogger.info(os.toString());
 				myLogger.info("-----------------------------------------");
