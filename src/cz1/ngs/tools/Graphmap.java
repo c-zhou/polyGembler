@@ -576,8 +576,9 @@ public class Graphmap extends Executor {
 						os.append(" ");
 						os.append(s);
 					}
-					myLogger.info(os.toString());
 				}
+				myLogger.info(os.toString());
+				myLogger.info("-----------------------------------------");
 				
 				nearest = visitor.pollFirstEntry();
 				distance = nearest.getKey();
