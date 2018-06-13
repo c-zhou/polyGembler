@@ -59,7 +59,7 @@ public class Graphmap extends Executor {
 	private final static int buffSize8Mb = 8388608;
 	private final static Writer STD_OUT_BUFFER = USE_OS_BUFFER ? 
 			new BufferedWriter(new OutputStreamWriter(System.out), buffSize8Mb) : new OutputStreamWriter(System.out);
-	private static enum Task {hash, map, zzz};
+	private static enum Task {hash, map, dist, zzz};
 	private static enum Library {pe, r454, long3, tenx};
 	private Task task_list = Task.zzz;
 
@@ -71,6 +71,7 @@ public class Graphmap extends Executor {
 			myLogger.info(
 					"\n\nChoose a task from listed:\n"
 							+ " hash                    Create and save hash table.\n"
+							+ " dist                    Build distance matrix from assembly graph. \n"
 							+ " map                     Run graphmap to map sequences to an assembly graph.\n"
 							+ "\n");
 			break;
@@ -82,9 +83,33 @@ public class Graphmap extends Executor {
 							+ " -x/--max-mer-count      Maxmium mer count (no limit).\n"
 							+ " -t/--threads            Threads to use (default 1). \n"
 							+ "                         The maximum number of threads to use will be the number of BAM files.\n"
+							+ " -d/--debug              Debugging mode will have extra information printed out.\n"
+							+ " -dd/--debug-debug       Debugging mode will have more information printed out than -d mode.\n"
 							+ " -o/--out                Prefix of the output files.\n"
 							+ "\n");
 			break;
+			
+		case dist:
+			myLogger.info(
+					"\n\nUsage is as follows:\n"
+							+ " -s/--subject            The FASTA file contain subject/reference sequences. \n"
+							+ " -g/--graph              Assembly graph (GFA) format. Currently, the program only accept \n"
+							+ "                         the assembly graph format used by the assembler SPAdes (de-bruijn \n"
+							+ "                         graph) or CANU (overlap). For assembly graphs in other formats: \n"
+							+ "                         1. for contigs generated with de-bruijn graph, please ignore this \n"
+							+ "                         option and provide k-mer size, the program is able to rebuild the \n"
+							+ "                         assembly graph from contigs; and, \n"
+							+ "                         2. for contigs generated with overlapping algorithms, please convert \n"
+							+ "                         assembly graph to the format used by CANU.\n"
+							+ "                         NOTE: it is possible to run the program without an assembly graph, \n"
+							+ "                         however, the assembly might be less accurate.\n"
+							+ " -r/--radius             Only node pairs with distance no greater that radius will be calculated (default 10000).\n"
+							+ " -d/--debug              Debugging mode will have extra information printed out.\n"
+							+ " -dd/--debug-debug       Debugging mode will have more information printed out than -d mode.\n"
+							+ " -o/--out                Prefix of the output files.\n"
+							+ "\n");
+			break;
+		
 		case map:
 			myLogger.info(
 					"\n\nUsage is as follows:\n"
@@ -101,6 +126,7 @@ public class Graphmap extends Executor {
 							+ "                         assembly graph to the format used by CANU.\n"
 							+ "                         NOTE: it is possible to run the program without an assembly graph, \n"
 							+ "                         however, the assembly might be less accurate.\n"
+							+ " -r/--radius             Only node pairs with distance no greater that radius will be calculated (default 10000).\n"
 							+ " -k/--kmer-size          K-mer size (no greater than 16, default 12).\n"
 							+ " -H/--hash-table         Hash table. If provided will load hash table from the file instead of \n"
 							+ "                         reconstruct it.\n"
@@ -127,7 +153,8 @@ public class Graphmap extends Executor {
 	private int maxC = Integer.MAX_VALUE-1;
 	private boolean debug = false;
 	private boolean ddebug = false;
-
+	private double radius = 10000;
+	
 	@Override
 	public void setParameters(String[] args) {
 		// TODO Auto-generated method stub
@@ -160,6 +187,7 @@ public class Graphmap extends Executor {
 			myArgsEngine.add("-k", "--kmer-size", true);
 			myArgsEngine.add("-H", "--hash-table", true);
 			myArgsEngine.add("-x", "--max-mer-count", true);
+			myArgsEngine.add("-r", "--radius", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-d", "--debug", false);
 			myArgsEngine.add("-dd", "--debug-debug", false);
@@ -210,6 +238,17 @@ public class Graphmap extends Executor {
 		case hash:
 
 			break;
+		case dist:
+			if (myArgsEngine.getBoolean("-g")) {
+				this.graph_file = myArgsEngine.getString("-g");
+			} else {
+				printUsage();
+				throw new IllegalArgumentException("Please specify the map file.");
+			}
+			if (myArgsEngine.getBoolean("-r")) {
+				this.radius = Double.parseDouble(myArgsEngine.getString("-r"));
+			}
+			break;
 		case map:
 
 			if (myArgsEngine.getBoolean("-q")) {
@@ -240,16 +279,13 @@ public class Graphmap extends Executor {
 				printUsage();
 				throw new IllegalArgumentException("Please specify the read library.");
 			}
-
-			if (myArgsEngine.getBoolean("-g")) {
-				this.graph_file = myArgsEngine.getString("-g");
-			} else {
-				printUsage();
-				throw new IllegalArgumentException("Please specify the map file.");
-			}
-
+			
 			if (myArgsEngine.getBoolean("-H")) {
 				this.hash_file = myArgsEngine.getString("-H");
+			}
+			
+			if (myArgsEngine.getBoolean("-r")) {
+				this.radius = Double.parseDouble(myArgsEngine.getString("-r"));
 			}
 			break;
 		default:
@@ -311,6 +347,9 @@ public class Graphmap extends Executor {
 			break;
 		case hash:
 			this.hash(true);
+			break;
+		case dist:
+			this.makeDistanceMat();
 			break;
 		case map:
 			switch(this.library) {
@@ -420,12 +459,11 @@ public class Graphmap extends Executor {
 		}
 	}
 	
-	private final static int max_gap = 10000;
 	private void map_tenx() {
 		// TODO Auto-generated method stub	
-		Map<String, Map<String, Double>> distMat = this.makeDistanceMat(max_gap);
+		Map<String, Map<String, Double>> distMat = this.makeDistanceMat(radius);
 		
-		if(debug) {
+		if(ddebug) {
 			StringBuilder logger = new StringBuilder();
 			for(Map.Entry<String, Map<String, Double>> entry : distMat.entrySet()) {
 				logger.setLength(0);
@@ -479,7 +517,32 @@ public class Graphmap extends Executor {
 		 **/
 	}
 	
-	private Map<String, Map<String, Double>> makeDistanceMat(final int radius) {
+	private void makeDistanceMat() {
+		// TODO Auto-generated method stub
+		Map<String, Map<String, Double>> distMat = this.makeDistanceMat(radius);
+		try {
+			BufferedWriter bw = Utils.getBufferedWriter(this.out_prefix+".dist");
+			StringBuilder logger = new StringBuilder();
+			for(Map.Entry<String, Map<String, Double>> entry : distMat.entrySet()) {
+				logger.setLength(0);
+				logger.append(entry.getKey());
+				for(Map.Entry<String, Double> entry2 : entry.getValue().entrySet()) {
+					logger.append("\t");
+					logger.append(entry2.getKey());
+					logger.append(",");
+					logger.append((int) entry2.getValue().doubleValue());
+				}
+				logger.append("\n");
+				bw.write(logger.toString());
+			}
+			bw.close();
+		} catch(IOException e) {
+			e.printStackTrace();
+		}
+		return;
+	}
+	
+	private Map<String, Map<String, Double>> makeDistanceMat(final double radius) {
 		// TODO Auto-generated method stub
 		final Map<String, Map<String, Double>> distMat = new HashMap<String, Map<String, Double>>();
 		Map.Entry<Double, Set<String>> nearest;
@@ -490,6 +553,8 @@ public class Graphmap extends Executor {
 		final TreeMap<Double, Set<String>> visitor = new TreeMap<Double, Set<String>>();
 		
 		for(final String sourceV : gfa.vertexSet()) {
+			if(ddebug) myLogger.info("calulate distance array for "+sourceV);
+			
 			visited.clear();
 			
 			final Set<String> root = new HashSet<String>();
