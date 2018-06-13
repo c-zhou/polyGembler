@@ -163,11 +163,14 @@ public class Graphmap extends Executor {
 			throw new IllegalArgumentException("\n\nPlease use the above arguments/options.\n\n");
 		}
 
-		switch(args[0].toUpperCase()) {
-		case "HASH":
+		switch(args[0].toLowerCase()) {
+		case "hash":
 			this.task_list = Task.hash;
 			break;
-		case "MAP":
+		case "dist":
+			this.task_list = Task.dist;
+			break;
+		case "map":
 			this.task_list = Task.map;
 			break;
 		default:
