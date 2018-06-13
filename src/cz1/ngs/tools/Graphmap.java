@@ -568,6 +568,17 @@ public class Graphmap extends Executor {
 			
 			while(!visitor.isEmpty()) {
 				// poll this nearst node
+				
+				StringBuilder os = new StringBuilder();
+				for(Map.Entry<Double, Set<String>> entry : visitor.entrySet()) {
+					os.append(entry.getKey());
+					for(String s : entry.getValue()) {
+						os.append(" ");
+						os.append(s);
+					}
+					myLogger.info(os.toString());
+				}
+				
 				nearest = visitor.pollFirstEntry();
 				distance = nearest.getKey();
 				neighbors = nearest.getValue();
