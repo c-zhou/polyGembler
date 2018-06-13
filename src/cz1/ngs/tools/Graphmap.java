@@ -60,7 +60,7 @@ public class Graphmap extends Executor {
 	private final static Writer STD_OUT_BUFFER = USE_OS_BUFFER ? 
 			new BufferedWriter(new OutputStreamWriter(System.out), buffSize8Mb) : new OutputStreamWriter(System.out);
 	private static enum Task {hash, map, zzz};
-	private static enum Library {pe, r454, long3};
+	private static enum Library {pe, r454, long3, tenx};
 	private Task task_list = Task.zzz;
 
 	@Override
@@ -90,7 +90,7 @@ public class Graphmap extends Executor {
 					"\n\nUsage is as follows:\n"
 							+ " -s/--subject            The FASTA file contain subject/reference sequences. \n"
 							+ " -q/--query              The FASTA/FASTQ/BAM file contain query sequences to map. \n"
-							+ " -l/--library            The read library type (pe, 454 or long).\n"
+							+ " -l/--library            The read library type (pe, 454, long or tenx).\n"
 							+ " -g/--graph              Assembly graph (GFA) format. Currently, the program only accept \n"
 							+ "                         the assembly graph format used by the assembler SPAdes (de-bruijn \n"
 							+ "                         graph) or CANU (overlap). For assembly graphs in other formats: \n"
@@ -230,6 +230,9 @@ public class Graphmap extends Executor {
 				case "long":
 					this.library = Library.long3;
 					break;
+				case "tenx":
+					this.library = Library.tenx;
+					break;
 				default:
 					throw new IllegalArgumentException("Please specify the read library.");
 				}
@@ -299,6 +302,7 @@ public class Graphmap extends Executor {
 				symm_seqsn.put(seq+"'", seq);
 			}
 		}
+		gfa = new GFA(subject_file, graph_file);
 		
 		switch(this.task_list) {
 
@@ -319,6 +323,9 @@ public class Graphmap extends Executor {
 			case long3:
 				this.map_long3();
 				break;
+			case tenx:
+				this.map_tenx();
+				break;
 			default:
 				throw new RuntimeException("!!!");
 			}
@@ -334,6 +341,195 @@ public class Graphmap extends Executor {
 			.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
 					SamReaderFactory.Option.VALIDATE_CRC_CHECKSUMS)
 			.validationStringency(ValidationStringency.SILENT);
+
+	private class BAMBarcodeIterator {
+		private final SamReader samReader;
+		private final SAMRecordIterator iter;
+		private SAMRecord samRecord = null;
+		
+		public BAMBarcodeIterator(String bam_file) {
+			this.samReader = factory.open(new File(bam_file));
+			this.iter = this.samReader.iterator();
+			this.samRecord = iter.hasNext() ? iter.next() : null;
+		}
+		
+		public boolean hasNext() {
+			return samRecord != null;
+		}
+		
+		public List<SAMRecord[]> next() {
+			
+			if(!this.hasNext()) throw new RuntimeException("!!!");
+			
+			List<SAMRecord[]> bc_records = new ArrayList<SAMRecord[]>();
+			String bc = samRecord.getStringAttribute("BX");
+			
+			String sn;
+			SAMRecord[] records = new SAMRecord[2];
+			
+			while( samRecord!=null && samRecord.getStringAttribute("BX").equals(bc) ) {
+				sn = samRecord.getReadName();
+				
+				if( !samRecord.getReadUnmappedFlag() &&
+						!samRecord.getNotPrimaryAlignmentFlag()&&
+						!samRecord.getSupplementaryAlignmentFlag() ) {
+					if(samRecord.getFirstOfPairFlag())
+						records[0] = samRecord;
+					else if(samRecord.getSecondOfPairFlag())
+						records[1] = samRecord;
+					else
+						throw new RuntimeException("!!!");
+				}
+				
+				while( (samRecord = iter.hasNext() ? iter.next() : null)!=null && samRecord.getReadName().equals(sn)) {
+					if( !samRecord.getReadUnmappedFlag() &&
+							!samRecord.getNotPrimaryAlignmentFlag()&&
+							!samRecord.getSupplementaryAlignmentFlag() ) {
+						if(samRecord.getFirstOfPairFlag())
+							records[0] = samRecord;
+						else if(samRecord.getSecondOfPairFlag())
+							records[1] = samRecord;
+						else
+							throw new RuntimeException("!!!");
+					}
+				}
+
+				if(records[0]!=null && records[1]!=null) {
+					if(records[0].getInferredInsertSize()+records[1].getInferredInsertSize()!=0)
+						throw new RuntimeException("!!!");
+					if(Math.abs(records[0].getInferredInsertSize())<=m_ins && 
+							records[0].getMappingQuality()+records[1].getMappingQuality()>=m_qual) {
+						bc_records.add(records);
+					}
+				}
+				
+				records = new SAMRecord[2];
+			}
+			
+			return bc_records;
+		}
+		
+		public void close() {
+			try {
+				this.iter.close();
+				this.samReader.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+	}
+	
+	private final static int max_gap = 10000;
+	private void map_tenx() {
+		// TODO Auto-generated method stub	
+		Map<String, Map<String, Double>> distMat = this.makeDistanceMat(max_gap);
+		
+		if(debug) {
+			StringBuilder logger = new StringBuilder();
+			for(Map.Entry<String, Map<String, Double>> entry : distMat.entrySet()) {
+				logger.setLength(0);
+				logger.append(entry.getKey());
+				for(Map.Entry<String, Double> entry2 : entry.getValue().entrySet()) {
+					logger.append("\t");
+					logger.append(entry2.getKey());
+					logger.append(",");
+					logger.append((int) entry2.getValue().doubleValue());
+				}
+				myLogger.info(logger.toString());
+			}
+		}
+		
+		/***
+		this.initial_thread_pool();
+		for(final String qf : query_file) {
+			executor.submit(new Runnable() {
+
+				private String query_file;
+
+				@Override
+				public void run() {
+					// TODO Auto-generated method stub
+					try {
+						final BAMBarcodeIterator iter1 = new BAMBarcodeIterator(query_file);
+						while(iter1.hasNext()) {
+							List<SAMRecord[]> bc_records1 = iter1.next();
+							
+							
+						}
+						iter1.close();
+					} catch (Exception e) {
+						// TODO Auto-generated catch block
+						Thread t = Thread.currentThread();
+						t.getUncaughtExceptionHandler().uncaughtException(t, e);
+						e.printStackTrace();
+						executor.shutdown();
+						System.exit(1);
+					}
+				}
+
+				public Runnable init(String query_file) {
+					this.query_file = query_file;
+					return this;
+				}
+
+			}.init(qf));
+		}
+		this.waitFor();
+		 **/
+	}
+	
+	private Map<String, Map<String, Double>> makeDistanceMat(final int radius) {
+		// TODO Auto-generated method stub
+		final Map<String, Map<String, Double>> distMat = new HashMap<String, Map<String, Double>>();
+		Map.Entry<Double, Set<String>> nearest;
+		Set<String> neighbors;
+		final Set<String> visited = new HashSet<String>();
+		double distance, d;
+		String reached;
+		final TreeMap<Double, Set<String>> visitor = new TreeMap<Double, Set<String>>();
+		
+		for(final String sourceV : gfa.vertexSet()) {
+			visited.clear();
+			
+			final Set<String> root = new HashSet<String>();
+			root.add(sourceV);
+			// offer root node
+			visitor.put(.0, root);
+			final Map<String, Double> dist = new HashMap<String, Double>();
+			
+			while(!visitor.isEmpty()) {
+				// poll this nearst node
+				nearest = visitor.pollFirstEntry();
+				distance = nearest.getKey();
+				neighbors = nearest.getValue();
+				
+				for(final String neighbor : neighbors) {
+					visited.add(neighbor);
+					
+					for(final OverlapEdge outEdge : gfa.outgoingEdgesOf(neighbor)) {
+						reached = gfa.getEdgeTarget(outEdge);
+						if(!visited.contains(reached)) { // not visited yet 
+							d  = distance-outEdge.olapF();
+							if(d<=radius) dist.put(reached, Math.max(.0, d));
+							else continue;
+							d += sub_seqs.get(reached).seq_ln();
+							if(visitor.containsKey(d)) {
+								visitor.get(d).add(reached);
+							} else {
+								final Set<String> node = new HashSet<String>();
+								node.add(reached);
+								visitor.put(d, node);
+							}
+						}
+					}
+				}
+			}
+			distMat.put(sourceV, dist);
+		}
+		
+		return distMat;
+	}
 
 	private void map_r454() {
 		// TODO Auto-generated method stub
@@ -475,7 +671,6 @@ public class Graphmap extends Executor {
 	
 	private void map_pe() {
 		// TODO Auto-generated method stub
-		gfa = new GFA(subject_file, graph_file);
 		try {
 			this.readLinkCount();
 			
@@ -1475,7 +1670,7 @@ public class Graphmap extends Executor {
 
 	private void map_long3() {
 		// TODO Auto-generated method stub
-		gfa = new GFA(subject_file, graph_file);
+		
 		if(this.hash_file==null) {
 			this.hash();
 		} else {

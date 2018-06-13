@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
@@ -26,6 +27,8 @@ import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 
 import cz1.ngs.model.BFSShortestPath;
+import cz1.ngs.model.DirectedWeightedOverlapPseudograph;
+import cz1.ngs.model.OverlapEdge;
 import cz1.ngs.model.Sequence;
 import cz1.util.Constants;
 import cz1.util.Dirichlet;
@@ -369,6 +372,90 @@ public class AssemblyGraph {
 		Dirichlet diri = new Dirichlet(new double[]{1-baf, baf}, 
 				Constants._mu_theta_e);
 		System.out.println(diri.sample()[0]);
+	
+		
+
+		final DirectedWeightedOverlapPseudograph<String> gfa = 
+				new DirectedWeightedOverlapPseudograph<String>(OverlapEdge.class);
+		gfa.addVertex("a");
+		gfa.addVertex("b");
+		gfa.addVertex("c");
+		gfa.addVertex("d");
+		gfa.addVertex("e");
+		gfa.addVertex("f");
+		
+		OverlapEdge edge;
+		edge = gfa.addEdge("a","b");
+		edge.setOlapF(1);
+		edge = gfa.addEdge("a","c");
+		edge.setOlapF(2);
+		edge = gfa.addEdge("b","d");
+		edge.setOlapF(3);
+		edge = gfa.addEdge("c","e");
+		edge.setOlapF(2);
+		edge = gfa.addEdge("c","f");
+		edge.setOlapF(3);
+		edge = gfa.addEdge("a","f");
+		edge.setOlapF(1);
+		
+		Map<String, Integer> len = new HashMap<String, Integer>();
+		len.put("a", 10);
+		len.put("b", 99);
+		len.put("c", 8);
+		len.put("d", 7);
+		len.put("e", 10);
+		len.put("f", 8);
+		
+		final Map<String, Map<String, Double>> distMat = new HashMap<String, Map<String, Double>>();
+		Map.Entry<Double, Set<String>> nearest;
+		Set<String> neighbors;
+		final Set<String> visited = new HashSet<String>();
+		double distance, d;
+		String reached;
+		final TreeMap<Double, Set<String>> visitor = new TreeMap<Double, Set<String>>();
+		
+		final double radius = 3.5;
+		
+		for(final String sourceV : gfa.vertexSet()) {
+			visited.clear();
+			
+			final Set<String> root = new HashSet<String>();
+			root.add(sourceV);
+			// offer root node
+			visitor.put(.0, root);
+			final Map<String, Double> dist = new HashMap<String, Double>();
+			
+			while(!visitor.isEmpty()) {
+				// poll this nearst node
+				nearest = visitor.pollFirstEntry();
+				distance = nearest.getKey();
+				neighbors = nearest.getValue();
+				
+				for(final String neighbor : neighbors) {
+					visited.add(neighbor);
+					
+					for(final OverlapEdge outEdge : gfa.outgoingEdgesOf(neighbor)) {
+						reached = gfa.getEdgeTarget(outEdge);
+						if(!visited.contains(reached)) { // not visited yet 
+							d  = distance-outEdge.olapF();
+							if(d<=radius) dist.put(reached, Math.max(.0, d));
+							else continue;
+							d += len.get(reached);
+							if(visitor.containsKey(d)) {
+								visitor.get(d).add(reached);
+							} else {
+								final Set<String> node = new HashSet<String>();
+								node.add(reached);
+								visitor.put(d, node);
+							}
+						}
+					}
+				}
+			}
+			distMat.put(sourceV, dist);
+		}
+		
+		System.out.println();
 	}
 }
 
