@@ -551,19 +551,24 @@ public class Graphmap extends Executor {
 		Map.Entry<Double, Set<String>> nearest;
 		Set<String> neighbors;
 		final Set<String> visited = new HashSet<String>();
-		double distance, d;
+		double distance, d, d1;
 		String reached;
 		final TreeMap<Double, Set<String>> visitor = new TreeMap<Double, Set<String>>();
+		final Map<String, Double> distPool = new HashMap<String, Double>();
 		
 		for(final String sourceV : gfa.vertexSet()) {
 			if(ddebug) myLogger.info("calulate distance array for "+sourceV);
 			
-			visited.clear();
-			
 			final Set<String> root = new HashSet<String>();
 			root.add(sourceV);
+			
 			// offer root node
+			visited.clear();
 			visitor.put(.0, root);
+			
+			distPool.clear();
+			distPool.put(sourceV, .0);
+			
 			final Map<String, Double> dist = new HashMap<String, Double>();
 			
 			while(!visitor.isEmpty()) {
@@ -595,6 +600,20 @@ public class Graphmap extends Executor {
 							if(d<=radius) dist.put(reached, Math.max(.0, d));
 							else continue;
 							d += sub_seqs.get(reached).seq_ln();
+							
+							if(distPool.containsKey(reached)) {
+								if( (d1=distPool.get(reached))<=d ) {
+									continue;
+								} else {
+									final Set<String> node = visitor.get(d1);
+									if(!node.contains(reached))
+										throw new RuntimeException("!!!");
+									node.remove(reached);
+									if(node.isEmpty()) visitor.remove(d1);
+								}
+							}
+							
+							distPool.put(reached, d);
 							if(visitor.containsKey(d)) {
 								visitor.get(d).add(reached);
 							} else {
