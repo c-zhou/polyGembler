@@ -342,6 +342,7 @@ public class Graphmap extends Executor {
 			}
 		}
 		gfa = new GFA(subject_file, graph_file);
+		stats(gfa);
 		
 		switch(this.task_list) {
 
@@ -366,7 +367,7 @@ public class Graphmap extends Executor {
 				this.map_long3();
 				break;
 			case tenx:
-				this.map_tenx();
+				//this.map_tenx();
 				break;
 			default:
 				throw new RuntimeException("!!!");
@@ -376,6 +377,12 @@ public class Graphmap extends Executor {
 			throw new RuntimeException("!!!");
 		}
 		return;
+	}
+
+	private void stats(GFA gfa) {
+		// TODO Auto-generated method stub
+		for(String v : gfa.vertexSet())
+			myLogger.info("degree "+v+": "+gfa.incomingEdgesOf(v).size()+" "+gfa.outgoingEdgesOf(v).size());
 	}
 
 	final static SamReaderFactory factory =
