@@ -360,7 +360,8 @@ public class HiddenMarkovModel {
 			}
 		}
 		myLogger.info("MCL sparse matrix construction done.");
-		
+	
+		/***
 		try {
 			BufferedWriter bw = Utils.getBufferedWriter("c:/users/chenxi.zhou/desktop/aa.txt");
 			for(int i=0; i<N; i++) 
@@ -372,11 +373,12 @@ public class HiddenMarkovModel {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
+		**/
 		
 		MarkovClustering mcl = new MarkovClustering(dpAdj, 1e-6, 2, 1, 1e-6);
 		mcl.run();
 		
+		/***
 		try {
 			BufferedWriter bw = Utils.getBufferedWriter("c:/users/chenxi.zhou/desktop/bb.txt");
 			for(int i=0; i<N; i++) {
@@ -390,7 +392,7 @@ public class HiddenMarkovModel {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
+		**/
 		myLogger.info("MCL converged. "+mcl.progress());
 		
 		// now interpret MCL clusters
