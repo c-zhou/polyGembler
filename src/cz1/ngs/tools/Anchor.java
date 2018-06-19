@@ -227,11 +227,17 @@ public class Anchor extends Executor {
 
 	@Override
 	public void run() {
-		// this.run1();
-		this.run2();
+		this.run1();
+		// this.run2();
+		// this.run3();
 	}
 	
-	public void run2() {
+	private void run1() {
+		// TODO Auto-generated method stub
+		
+	}
+
+	public void run3() {
 		sub_seqs = Sequence.parseFastaFileAsMap(subject_file);
 		qry_seqs = Sequence.parseFastaFileWithRevCmpAsMap(query_file);
 		
@@ -702,7 +708,7 @@ public class Anchor extends Executor {
 	}
 	
 	
-	public void run1() {
+	public void run2() {
 		// TODO Auto-generated method stub
 
 		// read assembly graph file

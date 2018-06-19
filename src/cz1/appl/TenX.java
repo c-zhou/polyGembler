@@ -3,6 +3,7 @@ package cz1.appl;
 import org.apache.log4j.Logger;
 
 import cz1.tenx.tools.BAMstats;
+import cz1.tenx.tools.FragmentUtils;
 import cz1.tenx.tools.GenomeComparison;
 import cz1.tenx.tools.TenXMoleculeStats;
 import cz1.tenx.tools.TenXMoleculeStatsZ;
@@ -85,6 +86,11 @@ public class TenX {
 			phaser.setParameters(args2);
 			phaser.run();
 			break;
+		case "fragutil":
+			FragmentUtils fragUtil = new FragmentUtils();
+			fragUtil.setParameters(args2);
+			fragUtil.run();
+			break;
 		default:
 			printUsage();
 			throw new RuntimeException("Undefined tool!!!");
@@ -105,6 +111,7 @@ public class TenX {
 						+ " vcftools              VCF tools.\n"
 						+ " bamstats              TenX BAM file statistics.\n"
 						+ " hsimulator            Haplotype simulator. \n"
+						+ " fragUtil              Fragment utils. \n"
 						+ " phaser                10x molecule phasing. \n\n");
 	}
 }

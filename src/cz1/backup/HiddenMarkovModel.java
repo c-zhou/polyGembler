@@ -1,4 +1,4 @@
-package cz1.tenx.model;
+package cz1.backup;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -89,9 +89,9 @@ public class HiddenMarkovModel {
 		this.simulated_annealing = use_sa;
 		this.setVariantDataFile(vcf_file);
 		this.setDataEntryFile(dat_file);
-		this.bfrac();
 		if(this.isNullModel()) return;
 		if(this.clustering) this.makeMCL();
+		this.bfrac();
 		this.makeBWT();
 		if(this.simulated_annealing) this.makeSA();
 	}
@@ -130,32 +130,28 @@ public class HiddenMarkovModel {
 	// <K,V> = <Index,Position>
 	protected BidiMap<Integer, Integer> varidx = new DualHashBidiMap<Integer, Integer>();
 	protected Variant[] variants = null;
-	private int var_start = -1, var_end = -1;
 	private void setVariantDataFile(String vcf_file) {
 		// TODO Auto-generated method stub
 		try {
 			BufferedReader br = Utils.getBufferedReader(vcf_file);
 			String line;
 			String[] s;
-			int position, index = 0;
+			int position;
 			final List<Variant> variants = new ArrayList<Variant>();
 			while( (line=br.readLine())!=null ){
 				if(line.startsWith("#")) continue;
-				++index; // update variant index
 				s = line.split("\\s+");
 				if(!s[0].equals(rangeChr)) continue;
 				position = Integer.parseInt(s[1]);
 				if(position<rangeLowerBound) continue;
 				if(position>rangeUpperBound) break;
-				variants.add(new Variant(index, s[3], s[4]));
+				variants.add(new Variant(position, s[3], s[4]));
 			}
 			br.close();
 			this.variants = new Variant[variants.size()];
 			variants.toArray(this.variants);
 			this.M = this.variants.length;
 			for(int i=0; i<M; i++) varidx.put(i, this.variants[i].position);
-			var_start = this.variants[ 0 ].position;
-			var_end   = this.variants[M-1].position;
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -171,29 +167,27 @@ public class HiddenMarkovModel {
 			BufferedReader br = Utils.getBufferedReader(dat_file);
 			final List<DataEntry> dp = new ArrayList<DataEntry>();
 			String line;
-			String[] s;
+			String[] s, s2;
+			int position;
 			final List<Integer> index = new ArrayList<Integer>();
 			final List<Integer> allele = new ArrayList<Integer>();
 			int[] index_arr, allele_arr;
-			int entryCount = 0, n, starti;
+			int entryCount = 0;
 			while( (line=br.readLine())!=null ) {
 				s = line.split("\\s+");
-				if(!s[1].split(":")[0].equals(rangeChr)) continue;
-				n = s.length;
-				if(Integer.parseInt(s[n-3]+s[n-2].length())<var_start) 
-					continue;
-				if(Integer.parseInt(s[5])>var_end) break;
+				if(!s[0].equals(rangeChr)) continue;
+				if(Integer.parseInt(s[2])<rangeLowerBound) continue;
+				if(Integer.parseInt(s[1])>rangeUpperBound) break;
+				s = s[3].split(";");
 				index.clear();
 				allele.clear();
-				for(int i=5; i<n-2; i+=2) {
-					starti = Integer.parseInt(s[i]);
-					for(char c : s[i+1].toCharArray()) {
-						if(starti>=var_start&&starti<=var_end) {
-							index.add(varidx.getKey(starti));
-							allele.add(c-'0');
-						}
-						++starti;
-					}
+				for(String entry : s) {
+					s2 = entry.split(",");
+					position = Integer.parseInt(s2[0]);
+					if(position<rangeLowerBound||position>rangeUpperBound||!varidx.containsValue(position))
+						continue;
+					index.add(varidx.getKey(position));
+					allele.add(Integer.parseInt(s2[1]));
 				}
 				if(index.size()<2) continue;
 				index_arr  = ArrayUtils.toPrimitive( index.toArray(new Integer[ index.size()]));
@@ -222,8 +216,8 @@ public class HiddenMarkovModel {
 	
 	final Set<Integer> trainLoci = new HashSet<Integer>();
 	protected double[] bfrac = null;
-	protected final static int minD = 0;
-	protected final static double minP = 0.00;
+	protected final static int minD = 10;
+	protected final static double minP = 0.05;
 	
 	protected void bfrac() {
 		// TODO Auto-generated method stub
@@ -351,8 +345,7 @@ public class HiddenMarkovModel {
 							++mismatch;
 						}
 					}
-					//if(match>=3&&mismatch==0) {
-					if(mismatch==0) {
+					if(match>=3&&mismatch==0) {
 						dpAdj.set(i, j, match);
 						dpAdj.set(j, i, match);
 					}
@@ -361,36 +354,8 @@ public class HiddenMarkovModel {
 		}
 		myLogger.info("MCL sparse matrix construction done.");
 		
-		try {
-			BufferedWriter bw = Utils.getBufferedWriter("c:/users/chenxi.zhou/desktop/aa.txt");
-			for(int i=0; i<N; i++) 
-				for(int j=i; j<N; j++) 
-					if(dpAdj.get(i, j)>0) 
-						bw.write(i+"\t"+j+"\t"+dpAdj.get(i, j)+"\n");
-			bw.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		
-		
 		MarkovClustering mcl = new MarkovClustering(dpAdj, 1e-6, 2, 1, 1e-6);
 		mcl.run();
-		
-		try {
-			BufferedWriter bw = Utils.getBufferedWriter("c:/users/chenxi.zhou/desktop/bb.txt");
-			for(int i=0; i<N; i++) {
-				bw.write(""+dpAdj.get(i, 0));
-				for(int j=1; j<N; j++) 
-					bw.write("\t"+dpAdj.get(i, j));
-				bw.write("\n");
-			}
-			bw.close();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		
 		myLogger.info("MCL converged. "+mcl.progress());
 		
 		// now interpret MCL clusters

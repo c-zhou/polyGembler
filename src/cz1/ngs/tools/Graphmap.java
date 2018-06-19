@@ -367,7 +367,7 @@ public class Graphmap extends Executor {
 				this.map_long3();
 				break;
 			case tenx:
-				//this.map_tenx();
+				this.map_tenx();
 				break;
 			default:
 				throw new RuntimeException("!!!");

@@ -548,7 +548,7 @@ public class Phaser extends Executor {
 			s = s[1].split("-");
 			rangeLowerBound = Integer.parseInt(s[0]);
 			rangeUpperBound = Integer.parseInt(s[1]);
-			if(rangeLowerBound<rangeUpperBound) 
+			if(rangeLowerBound>rangeUpperBound) 
 				throw new RuntimeException("invalid data range!!!");
 		} else {
 			rangeLowerBound = Integer.MAX_VALUE;
