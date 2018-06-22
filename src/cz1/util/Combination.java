@@ -5,19 +5,20 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.lang3.ArrayUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.log4j.Logger;
 import org.paukov.combinatorics.Factory;
 import org.paukov.combinatorics.Generator;
 import org.paukov.combinatorics.ICombinatoricsVector;
 
+import cz1.tenx.model.HiddenMarkovModel;
+
 public class Combination {
 
-	private final static Logger logger = LogManager.getLogger(Combination.class.getName());
+	private final static Logger myLogger = Logger.getLogger(Combination.class);
 	
 	public static ArrayList<List<Character>> combination(Character[]  elements, int K){
 		if(K > elements.length){
-			logger.error("Invalid input, K > N");
+			myLogger.error("Invalid input, K > N");
 			System.exit(1);
 		}
 		// Create the initial vector
@@ -34,7 +35,7 @@ public class Combination {
 	
 	public static ArrayList<List<Integer>> combination(Integer[]  elements, int K){
 		if(K > elements.length){
-			logger.error("Invalid input, K > N");
+			myLogger.error("Invalid input, K > N");
 			System.exit(1);
 		}
 		// Create the initial vector
@@ -51,7 +52,7 @@ public class Combination {
 	
 	public static ArrayList<List<String>> combination(String[]  elements, int K){
 		if(K > elements.length){
-			logger.error("Invalid input, K > N");
+			myLogger.error("Invalid input, K > N");
 			System.exit(1);
 		}
 		// Create the initial vector
@@ -95,7 +96,7 @@ public class Combination {
 	public static ArrayList<List<Character>> combination(List<Character>  elements, int K){
 		int N = elements.size();
 		if(K > N){
-			logger.error("Invalid input, K > N");
+			myLogger.error("Invalid input, K > N");
 			System.exit(1);
 		}
 		Character[] elements_array = new Character[N];
@@ -106,7 +107,7 @@ public class Combination {
 	public static ArrayList<List<Character>> combination(Set<Character>  elements, int K){
 		int N = elements.size();
 		if(K > N){
-			logger.error("Invalid input, K > N");
+			myLogger.error("Invalid input, K > N");
 			System.exit(1);
 		}
 		Character[] elements_array = new Character[N];

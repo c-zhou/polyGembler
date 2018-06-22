@@ -21,8 +21,7 @@ import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.stat.StatUtils;
 import org.apache.commons.math3.stat.inference.TestUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.log4j.Logger;
 
 import cz1.algebra.matrix.SparseMatrix;
 import cz1.graph.cluster.KMedoids;
@@ -34,8 +33,8 @@ import cz1.util.Utils;
 import cz1.util.Dirichlet;
 
 public class HiddenMarkovModel {
-	private final static Logger myLogger = LogManager.getLogger(HiddenMarkovModel.class.getName());
-
+	protected final static Logger myLogger = Logger.getLogger(HiddenMarkovModel.class);
+	
 	protected final static Runtime runtime = Runtime.getRuntime();
 
 	protected int iteration = 0;
@@ -57,6 +56,9 @@ public class HiddenMarkovModel {
 	protected boolean simulated_annealing = false;
 
 	protected int[] haps = null;
+	
+	protected boolean  debug = false;
+	protected boolean ddebug = false;
 	
 	public HiddenMarkovModel(String vcf_file,
 			String dat_file,
@@ -87,11 +89,25 @@ public class HiddenMarkovModel {
 			int rangeUpperBound,
 			boolean use_clus,
 			boolean use_sa) {
+		this(vcf_file, dat_file, rangeChr, rangeLowerBound, rangeUpperBound, use_clus, use_sa, false, false);
+	}
+	
+	public HiddenMarkovModel(String vcf_file,
+			String dat_file,
+			String rangeChr,
+			int rangeLowerBound,
+			int rangeUpperBound,
+			boolean use_clus,
+			boolean use_sa,
+			boolean debug,
+			boolean ddebug) {
 		this.rangeChr = rangeChr;
 		this.rangeLowerBound = rangeLowerBound;
 		this.rangeUpperBound = rangeUpperBound;
 		this.clustering = use_clus;
 		this.simulated_annealing = use_sa;
+		this.debug = debug;
+		this.ddebug = ddebug;
 		this.setDataEntryFile(vcf_file, dat_file);
 		if(this.isNullModel()) return;
 		if(this.clustering) this.makeMCL();
@@ -281,20 +297,21 @@ public class HiddenMarkovModel {
 			this.bfrac = ArrayUtils.toPrimitive(bfrac.toArray(new Double[this.M]));
 			this.haps   = new int[N];
 			
-			myLogger.info("#Loci: "+this.M+"/"+M);
-			final StringBuilder os = new StringBuilder();
-			for(int i=0; i<this.M; i++) {
-				os.setLength(0);
-				os.append(Utils.fixedLengthPaddingString(""+this.variants[i].position, 8));
-				os.append(": ");
-				os.append(Utils.fixedLengthPaddingString(""+depth[i][0], 3));
-				os.append(",");
-				os.append(Utils.fixedLengthPaddingString(""+depth[i][1], 3));
-				os.append("\t");
-				os.append(String.format("%.3f", this.bfrac[i]));
-				myLogger.info(os.toString());
+			myLogger.info("Data entry loaded. #Loci: "+this.M+"/"+M);
+			if(debug) {	
+				final StringBuilder os = new StringBuilder();
+				for(int i=0; i<this.M; i++) {
+					os.setLength(0);
+					os.append(Utils.fixedLengthPaddingString(""+this.variants[i].position, 8));
+					os.append(": ");
+					os.append(Utils.fixedLengthPaddingString(""+depth[i][0], 3));
+					os.append(",");
+					os.append(Utils.fixedLengthPaddingString(""+depth[i][1], 3));
+					os.append("\t");
+					os.append(String.format("%.3f", this.bfrac[i]));
+					myLogger.info(os.toString());
+				}
 			}
-			myLogger.info("Data entry loaded.");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -359,6 +376,13 @@ public class HiddenMarkovModel {
 			for(int i=0; i<N; i++) 
 				hapcombs.add(getHapFromRead(clusters.get(i)));
 			
+			if(ddebug) { 
+				myLogger.info("####haplotypes ");
+				for(int i=0; i<N; i++) {
+					printHaps(hapcombs.get(i));
+				}
+			}
+			
 			dpAdj = getSimularityMatrix(hapcombs);
 			
 			/***
@@ -416,9 +440,10 @@ public class HiddenMarkovModel {
 				clusters2.add(elements);
 			}
 			
+			int n = clusters2.size();
 			myLogger.info("Error correction");
 			errorCorrection(clusters2);
-			myLogger.info("Error correction done.");
+			myLogger.info("Error correction done. "+(clusters2.size()-n)+" singletons.");
 			
 			if(equals(clusters, clusters2)) break;
 			
@@ -466,8 +491,11 @@ public class HiddenMarkovModel {
 			placed.add(maxz);
 		}
 		for(int i=0; i<Constants._ploidy_H; i++) haplos.get(i).addAll(clusters.get(seeds[i]));
-		myLogger.info("####seeding haplotypes");
-		for(final int i : seeds) printHaps(hapcombs.get(i));
+		
+		if(debug) {
+			myLogger.info("####seeding haplotypes");
+			for(final int i : seeds) printHaps(hapcombs.get(i));
+		}
 		
 		// now we have seeds
 		// calculate similarities between seeds and 'super blocks' 
@@ -496,13 +524,16 @@ public class HiddenMarkovModel {
 			placed.add(maxi);
 			this.getSimilarityMatrix(similarity, hapcombs, seeds[maxz], maxz, placed);
 		
-		
-			myLogger.info("####haplotypes merged "+(++merged));
-			for(final int i : seeds) printHaps(hapcombs.get(i));
+			if(ddebug) {
+				myLogger.info("####haplotypes merged "+(++merged));
+				for(final int i : seeds) printHaps(hapcombs.get(i));
+			}
 		}
 		
-		myLogger.info("####greedy initialisation");
-		for(final int i : seeds) printHaps(hapcombs.get(i));
+		if(debug) {
+			myLogger.info("####greedy initialisation");
+			for(final int i : seeds) printHaps(hapcombs.get(i));
+		}
 		
 		for(int i=0; i<Constants._ploidy_H; i++) {
 			Set<Integer> haplo = haplos.get(i);
@@ -719,16 +750,21 @@ public class HiddenMarkovModel {
 				for(final int k : dp1.index.values())
 					clusCov[i][k] = true;
 			}
-			StringBuilder os = new StringBuilder();
-			os.append("####cluster ");
-			os.append(String.format("%1$3s", i));
-			os.append(":");
 			for(int j=0; j<M; j++) {
-				os.append(" ");
-				os.append(clusCov[i][j]?1:0);
 				if(clusCov[i][j]) ++cluSize[i];
 			}
-			myLogger.info(os.toString());
+
+			if(ddebug) {
+				StringBuilder os = new StringBuilder();
+				os.append("####cluster ");
+				os.append(String.format("%1$3s", i));
+				os.append(":");
+				for(int j=0; j<M; j++) {
+					os.append(" ");
+					os.append(clusCov[i][j]?1:0);
+				}
+				myLogger.info(os.toString());
+			}
 		}
 	}
 
@@ -782,8 +818,6 @@ public class HiddenMarkovModel {
 		}
 		for(final int i : mismatch) hap.put(i, 9);	
 	
-		printHaps(hap);
-		
 		return hap;
 	}
 	
@@ -902,7 +936,7 @@ public class HiddenMarkovModel {
 		// TODO Auto-generated method stub
 		if(iteration==0) return;
 
-		System.out.println(this.loglik()+"---"+this.loglik1());
+		myLogger.info(this.loglik()+"---"+this.loglik1());
 		for(int i=0; i<this.forward.length; i++) {
 			double r = Math.abs(this.forward[i].probability-
 					this.backward[i].probability);

@@ -44,6 +44,8 @@ public class Phaser extends Executor {
 	private boolean clustering = true;
 	private String ground_truth = null;
 	private int minD = 1;
+	private boolean  debug = false;
+	private boolean ddebug = false;
 	
 	private static enum Task {makeb, phase, pileup, zzz, eval};
 	private Task task = Task.zzz;
@@ -69,7 +71,7 @@ public class Phaser extends Executor {
 							+" -b/--block-size              Block size (default 100000).\n"
 							+" -olap/--overlap-size         Overlap size (default 10000).\n"
 							+" -r/--range                   Data range (chr/chr:start-end).\n"
-							+" -d/--depth                   Minimum depth to make a block (default 1).\n"
+							+" -x/--depth                   Minimum depth to make a block (default 1).\n"
 							+" -o/--prefix                  Output file location.\n\n"
 					);
 			break;
@@ -83,10 +85,12 @@ public class Phaser extends Executor {
 							+" -a/--repeat                  Repeats (default 10).\n"
 							+" -sa/--simulated-annealing    Run simulated annealing.\n"
 							+" -no-clus/--no-clustering     Do not run pre-clustering.\n"
-							+" -x/--max-iter                Maxmium rounds for EM optimization (default 1000).\n"
+							+" -it/--max-iter               Maxmium rounds for EM optimization (default 1000).\n"
 							+" -ex/--experiment-id          Common prefix of haplotype files for this experiment.\n"
 							+" -@/--num-threads             Number of threads to use (default 1).\n"
 							+" -rs/--random-seed            Random seed.\n"
+							+" -d/--debug                   Debugging mode will have extra information printed out.\n"
+							+" -dd/--debug-debug            Debugging mode will have more information printed out than -d mode.\n"
 							+" -o/--prefix                  Output file location.\n\n"
 					);
 			break;
@@ -153,17 +157,19 @@ public class Phaser extends Executor {
 			myArgsEngine.add("-olap", "--overlap-size", true);
 			myArgsEngine.add("-p", "--ploidy", true);
 			myArgsEngine.add("-r", "--range", true);
-			myArgsEngine.add("-d", "--depth", true);
+			myArgsEngine.add("-x", "--depth", true);
 			myArgsEngine.add("-a", "--repeat", true);
 			myArgsEngine.add("-sa", "--simulated-annealing", false);
 			myArgsEngine.add("-no-clus", "--no-clustering", false);
-			myArgsEngine.add("-x", "--max-iter", true);
+			myArgsEngine.add("-it", "--max-iter", true);
 			myArgsEngine.add("-ex", "--experiment-id", true);
 			myArgsEngine.add("-@", "--num-threads", true);
 			myArgsEngine.add("-rs", "--random-seed", true);
 			myArgsEngine.add("-hap", "--haplotypes", true);
 			myArgsEngine.add("-f", "--file-location", true);
 			myArgsEngine.add("-i", "--input-file", true);
+			myArgsEngine.add("-d", "--debug", false);
+			myArgsEngine.add("-dd", "--debug-debug", false);
 			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.parse(args2);
 		}
@@ -188,8 +194,8 @@ public class Phaser extends Executor {
 				this.block = Integer.parseInt(myArgsEngine.getString("-b"));
 			}
 			
-			if(myArgsEngine.getBoolean("-d")) {
-				this.minD = Integer.parseInt(myArgsEngine.getString("-d"));
+			if(myArgsEngine.getBoolean("-x")) {
+				this.minD = Integer.parseInt(myArgsEngine.getString("-x"));
 			}
 
 			if(myArgsEngine.getBoolean("-olap")) {
@@ -248,8 +254,8 @@ public class Phaser extends Executor {
 				this.clustering = false;
 			}
 
-			if(myArgsEngine.getBoolean("-x")) {
-				this.max_iter = Integer.parseInt(myArgsEngine.getString("-x"));
+			if(myArgsEngine.getBoolean("-it")) {
+				this.max_iter = Integer.parseInt(myArgsEngine.getString("-it"));
 			}
 
 			if(myArgsEngine.getBoolean("-ex")) {
@@ -265,6 +271,15 @@ public class Phaser extends Executor {
 			
 			if(myArgsEngine.getBoolean("-rs")) {
 				Constants.seeding(Long.parseLong(myArgsEngine.getString("-rs")));
+			}
+			
+			if (myArgsEngine.getBoolean("-d")) {
+				this.debug = true;
+			}
+
+			if (myArgsEngine.getBoolean("-dd")) {
+				this.debug  = true;
+				this.ddebug = true;
 			}
 			
 			if(myArgsEngine.getBoolean("-o")) {
@@ -477,9 +492,8 @@ public class Phaser extends Executor {
 					// TODO Auto-generated method stub
 					try {
 						HiddenMarkovModel hmm = new HiddenMarkovModel(vcf_file, dat_file, rangeChr,
-								rangeLowerBound, rangeUpperBound, clustering, simulated_annealing);
+								rangeLowerBound, rangeUpperBound, clustering, simulated_annealing, debug, ddebug);
 						if(hmm.isNullModel()) return;
-						hmm.print();
 						hmm.train();
 						double loglik = hmm.loglik(), loglik1 = 0;
 						for(int i=0; i<max_iter; i++) {
@@ -491,7 +505,6 @@ public class Phaser extends Executor {
 							loglik = loglik1;
 						}
 						hmm.write(out_prefix+"/"+expr_id+"_"+rangeChr+"~"+rangeLowerBound+"-"+rangeUpperBound+"_"+r+".tmp");
-						hmm.print();
 					} catch (Exception e) {
 						myLogger.error("##########ERROR MESSAGE##########");
 						myLogger.error(vcf_file);

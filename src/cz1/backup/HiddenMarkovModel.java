@@ -20,8 +20,7 @@ import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.stat.StatUtils;
 import org.apache.commons.math3.stat.inference.TestUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.log4j.Logger;
 
 import cz1.algebra.matrix.SparseMatrix;
 import cz1.graph.cluster.MarkovClustering;
@@ -31,7 +30,7 @@ import cz1.util.Utils;
 import cz1.util.Dirichlet;
 
 public class HiddenMarkovModel {
-	private final static Logger myLogger = LogManager.getLogger(HiddenMarkovModel.class.getName());
+	private final static Logger myLogger = Logger.getLogger(HiddenMarkovModel.class);
 	
 	protected final static Runtime runtime = Runtime.getRuntime();
 	

@@ -19,8 +19,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.distribution.BetaDistribution;
 import org.apache.commons.math3.stat.StatUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.log4j.Logger;
 
 import cz1.hmm.data.DataEntry;
 import cz1.hmm.tools.VCFtools;
@@ -33,7 +32,7 @@ import cz1.util.Permutation;
 import cz1.util.Dirichlet;
 
 public abstract class HiddenMarkovModel {
-	private final static Logger logger = LogManager.getLogger(HiddenMarkovModel.class.getName());
+	protected final static Logger myLogger = Logger.getLogger(HiddenMarkovModel.class);
 	
 	protected final static Runtime runtime = Runtime.getRuntime();
 	
@@ -295,7 +294,7 @@ public abstract class HiddenMarkovModel {
 			for(int j=0; j<tp_i.length; j++)
 				for(int k=0; k<tp_i[j].length; k++)
 					if(j!=k) cumR+=tp_i[j][k];
-			logger.info("********** sep "+i+" "+cumR/(tp_i.length-1));
+			myLogger.info("********** sep "+i+" "+cumR/(tp_i.length-1));
 		}
 	}
 

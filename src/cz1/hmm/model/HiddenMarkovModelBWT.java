@@ -26,8 +26,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.distribution.BetaDistribution;
 import org.apache.commons.math3.distribution.EnumeratedIntegerDistribution;
 import org.apache.commons.math3.stat.StatUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.log4j.Logger;
 
 import cz1.breeding.data.FullSiblings;
 import cz1.hmm.data.DataEntry;
@@ -41,7 +40,6 @@ import cz1.util.Dirichlet;
 import cz1.util.Constants.Field;
 
 public class HiddenMarkovModelBWT extends HiddenMarkovModel {
-	private final static Logger logger = LogManager.getLogger(HiddenMarkovModelBWT.class.getName());
 	private FB[] forward, backward;
 	
 	// ----founder haplotypes coefficients----
@@ -106,32 +104,32 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 	
 	public void train() {
 		iteration++;
-		logger.info("###################");
-		logger.info("train: "+iteration);
+		myLogger.info("###################");
+		myLogger.info("train: "+iteration);
 		long[] tic = new long[10];
 		int k=0;
 		tic[k++] = System.nanoTime();
 		this.makeForward();
 		tic[k++] = System.nanoTime();
-		logger.info("forward done "+(tic[k-1]-tic[k-2])+"ns");
+		myLogger.info("forward done "+(tic[k-1]-tic[k-2])+"ns");
 		this.makeBackward();
 		tic[k++] = System.nanoTime();
-		logger.info("backward done "+(tic[k-1]-tic[k-2])+"ns");
+		myLogger.info("backward done "+(tic[k-1]-tic[k-2])+"ns");
 		this.checkFW();
 		tic[k++] = System.nanoTime();
 		this.EM();
 		tic[k++] = System.nanoTime();
-		logger.info("EM algorithm "+(tic[k-1]-tic[k-2])+"ns");
+		myLogger.info("EM algorithm "+(tic[k-1]-tic[k-2])+"ns");
 		this.makeCompoundEP();
 		tic[k++] = System.nanoTime();
-		logger.info("make compound ep "+(tic[k-1]-tic[k-2])+"ns");
+		myLogger.info("make compound ep "+(tic[k-1]-tic[k-2])+"ns");
 		this.makeCompoundTP();
 		tic[k++] = System.nanoTime();
-		logger.info("make compound tp "+(tic[k-1]-tic[k-2])+"ns");
+		myLogger.info("make compound tp "+(tic[k-1]-tic[k-2])+"ns");
 		//this.makeViterbi();
 		this.updateDP();
 		tic[k++] = System.nanoTime();
-		logger.info("update dp "+(tic[k-1]-tic[k-2])+"ns");
+		myLogger.info("update dp "+(tic[k-1]-tic[k-2])+"ns");
 		this.printExpTrain();
 		return;
 	}
@@ -672,15 +670,15 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 		//for(Viterbi vb: this.vb) probability += vb.probability;
 		//logger.info(" log-likelihood "+probability);
 		if(iteration==0)
-			logger.info(" hmm initialised.");
+			myLogger.info(" hmm initialised.");
 		else {
 			for(FB fw : this.forward) probability += fw.probability;
-			logger.info(" log-likelihood "+probability);
+			myLogger.info(" log-likelihood "+probability);
 		}
 
 		if(detail) {
 			this.makeViterbi();
-			logger.info("Viterbi path:");
+			myLogger.info("Viterbi path:");
 			for(int i=0; i<this.sample.length; i++) {
 				String[] path = this.vb[i].path_str;
 				List<String[]> path_s = new ArrayList<String[]>();
@@ -693,7 +691,7 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 					System.out.println();
 				}
 			}
-			logger.info("Emission probability:");
+			myLogger.info("Emission probability:");
 			for(int i=0; i<this.emissProbs.length; i++) {
 				double[][] emissProbs = this.emissProbs[i].probsMat;
 				String[] allele = this.emissProbs[i].allele;
@@ -706,7 +704,7 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 				}
 				System.out.println();
 			}
-			logger.info("Transition probability:");
+			myLogger.info("Transition probability:");
 			for(int i=0; i<this.transProbs.length; i++) {
 				double[][] transProbs = this.transProbs[i].probsMat;
 				System.out.print("Marker "+(i+1)+"|\t\t");

@@ -14,8 +14,7 @@ import java.util.regex.Pattern;
 import org.apache.commons.math3.distribution.BetaDistribution;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.apache.commons.math3.random.Well19937c;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.log4j.Logger;
 import org.biojava.nbio.alignment.Alignments;
 import org.biojava.nbio.alignment.SimpleGapPenalty;
 import org.biojava.nbio.alignment.Alignments.PairwiseSequenceAlignerType;
@@ -104,8 +103,8 @@ public class Constants {
 	
 	public final static String scaff_collapsed_str = "____";
 
-	private final static Logger logger = 
-			LogManager.getLogger(Constants.class.getName());
+	private final static Logger myLogger = Logger.getLogger(Constants.class);
+	
 	public static final float state_brightness = 0.3f;
 	public static final boolean CHECK = false;
 	
@@ -158,7 +157,7 @@ public class Constants {
 	@SuppressWarnings("unused")
 	private static void check() {
 		if(_haplotype_z<_ploidy_H)
-			logger.error("Haplotypes should NOT "
+			myLogger.error("Haplotypes should NOT "
 					+ "be less than ploidy. Program halted.");
 		return;
 	}

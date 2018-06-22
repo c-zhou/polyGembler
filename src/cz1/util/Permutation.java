@@ -5,14 +5,13 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.lang3.ArrayUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.log4j.Logger;
 import org.paukov.combinatorics.Factory;
 import org.paukov.combinatorics.Generator;
 import org.paukov.combinatorics.ICombinatoricsVector;
 
 public class Permutation {
-	private final static Logger logger = LogManager.getLogger(Permutation.class.getName());
+	private final static Logger myLogger = Logger.getLogger(Permutation.class);
 	
 	public static ArrayList<List<Character>> permutation(Character[]  elements){
 		// Create the initial vector
@@ -94,14 +93,14 @@ public class Permutation {
 	
 	public static long factorial(int n){
 		if(n<0) {
-			logger.error("Can NOT factorial a negative number. Program halted.");
+			myLogger.error("Can NOT factorial a negative number. Program halted.");
 			System.exit(1);
 		}
 		if(n==0) return 1;
 		long f=1;
 		for(int k=1; k<=n; k++) {
 			if(Long.MAX_VALUE/f<n) { 
-				logger.error("Factorial out of range (larger than "
+				myLogger.error("Factorial out of range (larger than "
 						+ Long.MAX_VALUE+"). Program halted.");
 				System.exit(1);
 			}

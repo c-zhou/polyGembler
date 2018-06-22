@@ -108,7 +108,7 @@ public class Anchor extends Executor {
 
 	private int num_threads = Runtime.getRuntime().availableProcessors();
 	private String out_prefix = null;
-	private boolean debug = false;
+	private boolean debug  = false;
 	private boolean ddebug = false;
 
 	@Override
