@@ -368,6 +368,7 @@ public class HiddenMarkovModel {
 		final List<Map<Integer, Integer>> hapcombs = new ArrayList<Map<Integer,Integer>>();
 		int N;
 		SparseMatrix dpAdj = null;
+		boolean recalc = true;
 		
 		for(int iter=0; iter<=maxIter; iter++) {
 			N = clusters.size();
@@ -445,12 +446,22 @@ public class HiddenMarkovModel {
 			errorCorrection(clusters2);
 			myLogger.info("Error correction done. "+(clusters2.size()-n)+" singletons.");
 			
-			if(equals(clusters, clusters2)) break;
+			if(equals(clusters, clusters2)) {
+				recalc = false;
+				break;
+			}
 			
 			clusters = clusters2;
 			myLogger.info("####MCL round "+iter+", #clusters="+clusters.size());
 		}
 
+		if(recalc) {
+			N = clusters.size();
+			hapcombs.clear();
+			for(int i=0; i<N; i++) 
+				hapcombs.add(getHapFromRead(clusters.get(i)));
+		}
+		
 		// loci covered by each cluster
 		int n = clusters.size();
 		final boolean[][] clusCov = new boolean[n][M];
