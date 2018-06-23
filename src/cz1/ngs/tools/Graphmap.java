@@ -471,6 +471,14 @@ public class Graphmap extends Executor {
 	
 	private void map_tenx() {
 		// TODO Auto-generated method stub	
+		for(final String vtx : gfa.vertexSet()) {
+			if(gfa.inDegreeOf(vtx)>3 || 
+					gfa.outDegreeOf(vtx)>3) {
+				gfa.removeAllEdges(gfa.incomingEdgesOf(vtx));
+				gfa.removeAllEdges(gfa.outgoingEdgesOf(vtx));
+			}
+		}
+		
 		Map<String, Map<String, Double>> distMat = this.makeDistanceMat(radius);
 		
 		if(ddebug) {

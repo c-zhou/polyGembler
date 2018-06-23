@@ -2,6 +2,7 @@ package cz1.ngs.model;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -917,5 +918,26 @@ public class GFA {
 	public DirectedWeightedOverlapPseudograph<String> gfa() {
 		// TODO Auto-generated method stub
 		return this.gfa;
+	}
+
+	public void removeEdge(OverlapEdge e) {
+		// TODO Auto-generated method stub
+		this.gfa.removeEdge(e);
+		
+	}
+	
+	public void removeAllEdges(Collection<OverlapEdge> edges) {
+		// TODO Auto-generated method stub
+		this.gfa.removeAllEdges(edges);
+	}
+
+	public int inDegreeOf(String v) {
+		// TODO Auto-generated method stub
+		return this.gfa.inDegreeOf(v);
+	}
+
+	public int outDegreeOf(String v) {
+		// TODO Auto-generated method stub
+		return this.gfa.outDegreeOf(v);
 	}
 }
