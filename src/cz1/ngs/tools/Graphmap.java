@@ -343,13 +343,15 @@ public class Graphmap extends Executor {
 		}
 		gfa = new GFA(subject_file, graph_file);
 		
+		final Set<OverlapEdge> complexEdges = new HashSet<OverlapEdge>();
 		for(final String vtx : gfa.vertexSet()) {
 			if(gfa.inDegreeOf(vtx)>3 || 
 					gfa.outDegreeOf(vtx)>3) {
-				gfa.removeAllEdges(gfa.incomingEdgesOf(vtx));
-				gfa.removeAllEdges(gfa.outgoingEdgesOf(vtx));
+				complexEdges.addAll(gfa.incomingEdgesOf(vtx));
+				complexEdges.addAll(gfa.outgoingEdgesOf(vtx));
 			}
 		}
+		gfa.removeAllEdges(complexEdges);
 		
 		stats(gfa);
 		
