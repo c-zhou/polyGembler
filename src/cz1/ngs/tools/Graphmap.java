@@ -342,6 +342,15 @@ public class Graphmap extends Executor {
 			}
 		}
 		gfa = new GFA(subject_file, graph_file);
+		
+		for(final String vtx : gfa.vertexSet()) {
+			if(gfa.inDegreeOf(vtx)>3 || 
+					gfa.outDegreeOf(vtx)>3) {
+				gfa.removeAllEdges(gfa.incomingEdgesOf(vtx));
+				gfa.removeAllEdges(gfa.outgoingEdgesOf(vtx));
+			}
+		}
+		
 		stats(gfa);
 		
 		switch(this.task_list) {
@@ -382,7 +391,7 @@ public class Graphmap extends Executor {
 	private void stats(GFA gfa) {
 		// TODO Auto-generated method stub
 		for(String v : gfa.vertexSet())
-			myLogger.info("degree "+v+": "+gfa.incomingEdgesOf(v).size()+" "+gfa.outgoingEdgesOf(v).size());
+			myLogger.info("degree "+v+": "+gfa.inDegreeOf(v)+" "+gfa.outDegreeOf(v));
 	}
 
 	final static SamReaderFactory factory =
@@ -471,14 +480,6 @@ public class Graphmap extends Executor {
 	
 	private void map_tenx() {
 		// TODO Auto-generated method stub	
-		for(final String vtx : gfa.vertexSet()) {
-			if(gfa.inDegreeOf(vtx)>3 || 
-					gfa.outDegreeOf(vtx)>3) {
-				gfa.removeAllEdges(gfa.incomingEdgesOf(vtx));
-				gfa.removeAllEdges(gfa.outgoingEdgesOf(vtx));
-			}
-		}
-		
 		Map<String, Map<String, Double>> distMat = this.makeDistanceMat(radius);
 		
 		if(ddebug) {
