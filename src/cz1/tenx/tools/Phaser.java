@@ -980,7 +980,7 @@ public class Phaser extends Executor {
 		// TODO Auto-generated method stub
 		// load variants data
 		try {
-			BufferedReader br = Utils.getBufferedReader(out_prefix+"/"+expr_id+"_"+i+"_0.tmp");
+			BufferedReader br = Utils.getBufferedReader(file_location+"/"+expr_id+"_"+i+"_0.tmp");
 			String line;
 			String[] s;
 			while( (line=br.readLine())!=null ) {
