@@ -687,13 +687,14 @@ public class Phaser extends Executor {
 					if(block.end>block_end) block_end = block.end;
 				}
 
+				
 				final List<int[][]> pileupData = new ArrayList<int[][]>();
 				pileupData.add(phasedData.get(0));
 				// TODO parallelise this, say run it in a hierarchical process
 				for(int i=1; i<phasedData.size(); i++) {
-					if(pileupData.get(i-1)==null||phasedData.get(i)==null) continue;
+					//if(pileupData.get(i-1)==null||phasedData.get(i)==null) continue;
 
-					final int[][] lastPhase = pileupData.get(i-1);
+					final int[][] lastPhase = pileupData.get(pileupData.size()-1);
 					final Set<Integer> lastPos = new HashSet<Integer>();
 					for(int j : lastPhase[Constants._ploidy_H])
 						lastPos.add(j);
@@ -704,9 +705,16 @@ public class Phaser extends Executor {
 					thisPos.retainAll(lastPos);
 					final int z = thisPos.size();
 					if(z<10) {
-						//TODO fix this problem
-						bw.close();
-						throw new RuntimeException("Overlap too small!!!"); 
+						myLogger.info("Overlap too small. Split phased block.");
+						writeBlock(bw, pileupData, block_chr, block_start, 
+								lastPhase[Constants._ploidy_H][lastPhase[0].length-1]);
+						final int len = thisPhase[0].length-z;
+						final int[][] slicedPhase = new int[Constants._ploidy_H+1][len];
+						for(int j=0; j<thisPhase.length; j++) 
+							System.arraycopy(thisPhase[j], z, slicedPhase[j], 0, len);
+						pileupData.clear();
+						pileupData.add(slicedPhase);
+						block_start = slicedPhase[Constants._ploidy_H][0];
 					}
 					final int[][] lastOlapPhase = new int[Constants._ploidy_H+1][z];
 					int w, v;
@@ -747,20 +755,8 @@ public class Phaser extends Executor {
 
 					pileupData.add(thisSwapPhase);
 				}
-
-				bw.write("BLOCK: "+block_chr+"\t"+block_start+"\t"+block_end+"\n");
-				for(int i=0; i<pileupData.size(); i++) {
-					int[][] phase = pileupData.get(i);
-					for(int j=0; j<phase[0].length; j++) {
-						bw.write(block_chr+"\t"+
-								String.format("%1$12s", phase[Constants._ploidy_H][j])+"\t"+
-								variants.get(block_chr).get(phase[Constants._ploidy_H][j]));
-						for(int k=0; k<Constants._ploidy_H; k++) 
-							bw.write("\t"+(phase[k][j]==-1?"-":phase[k][j]));
-						bw.write("\n");	
-					}
-				}
-				bw.write("********\n");
+				
+				writeBlock(bw, pileupData, block_chr, block_start, block_end);
 			}
 			bw.close();
 		} catch (IOException e) {
@@ -769,6 +765,28 @@ public class Phaser extends Executor {
 		}
 
 		return;	
+	}
+
+	private void writeBlock(final BufferedWriter bw, 
+			final List<int[][]> pileupData,
+			final String block_chr, 
+			final int block_start, 
+			final int block_end) throws IOException {
+		// TODO Auto-generated method stub
+		if(pileupData.isEmpty()) return;
+		bw.write("BLOCK: "+block_chr+"\t"+block_start+"\t"+block_end+"\n");
+		for(int i=0; i<pileupData.size(); i++) {
+			int[][] phase = pileupData.get(i);
+			for(int j=0; j<phase[0].length; j++) {
+				bw.write(block_chr+"\t"+
+						String.format("%1$12s", phase[Constants._ploidy_H][j])+"\t"+
+						variants.get(block_chr).get(phase[Constants._ploidy_H][j]));
+				for(int k=0; k<Constants._ploidy_H; k++) 
+					bw.write("\t"+(phase[k][j]==-1?"-":phase[k][j]));
+				bw.write("\n");	
+			}
+		}
+		bw.write("********\n");
 	}
 
 	private void runEval() {
@@ -802,7 +820,7 @@ public class Phaser extends Executor {
 				final List<int[]> true_hap = new ArrayList<int[]>();
 				final List<int[]> phas_hap = new ArrayList<int[]>();
 
-				while( (line=br.readLine())!=null && !line.equals("********")) {
+				while( (line=br.readLine())!=null && !line.startsWith("****")) {
 					s = line.trim().split("\\s+");
 					pos = Integer.parseInt(s[1]);
 					if(true_haps.containsKey(s[0])&&
@@ -997,8 +1015,8 @@ public class Phaser extends Executor {
 		int[][][] data = null;
 		for(int j=0; j<repeat; j++) {
 			try {
-				if(new File(out_prefix+"/"+expr_id+"_"+i+"_"+j+".tmp").exists()) {
-					BufferedReader br = Utils.getBufferedReader(out_prefix+"/"+expr_id+"_"+i+"_"+j+".tmp");
+				if(new File(file_location+"/"+expr_id+"_"+i+"_"+j+".tmp").exists()) {
+					BufferedReader br = Utils.getBufferedReader(file_location+"/"+expr_id+"_"+i+"_"+j+".tmp");
 					String line;
 					String[] s;
 					int n = 0;
