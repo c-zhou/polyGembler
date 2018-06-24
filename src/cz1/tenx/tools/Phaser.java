@@ -420,7 +420,7 @@ public class Phaser extends Executor {
 			int n, vstart, vend;
 			while( (line=br_dat.readLine())!=null ) {
 				s = line.split("\\s+");
-				if(!s[1].split(":")[0].equals(rangeChr)) continue;
+				//if(!s[1].split(":")[0].equals(rangeChr)) continue;
 				n = s.length;
 				vstart = Integer.parseInt(s[5]);
 				vend   = Integer.parseInt(s[n-3])+s[n-2].length()-1;

@@ -192,7 +192,7 @@ public class HiddenMarkovModel {
 			int n, starti;
 			while( (line=br_dat.readLine())!=null ) {
 				s = line.split("\\s+");
-				if(!s[1].split(":")[0].equals(rangeChr)) continue;
+				//if(!s[1].split(":")[0].equals(rangeChr)) continue;
 				n = s.length;
 				if(Integer.parseInt(s[n-3])+s[n-2].length()-1<var_start) 
 					continue;
@@ -242,13 +242,13 @@ public class HiddenMarkovModel {
 			final List<Variant> variants = new ArrayList<Variant>();
 			final List<Double> bfrac = new ArrayList<Double>();
 			final Set<Integer> noTrainLoci = new HashSet<Integer>();
-			final int[] newidx = new int[M]; 
+			final BidiMap<Integer, Integer> oldnewidx = new DualHashBidiMap<Integer, Integer>();
 			for(int i=0; i<M; i++) {
 				if(depth[i][0]==0||depth[i][1]==0||depth[i][0]+depth[i][1]<minD) {
 					noTrainLoci.add(i);
 					continue;
 				}
-				newidx[i] = variants.size();
+				oldnewidx.put(i, variants.size());
 				variants.add(variant_list.get(i));
 				for(int z=0; z<ploidy-1; z++) 
 					chisq_p[z] = TestUtils.chiSquareTest(config[z], depth[i]);
@@ -273,7 +273,7 @@ public class HiddenMarkovModel {
 					k = 0;
 					for(int j : vals) {
 						w = dp1.index.getKey(j);
-						indexz[k]  = newidx[j];
+						indexz[k]  = oldnewidx.get(j);
 						allelez[k] = dp1.probs[w][0]>dp1.probs[w][1]?0:1;
 						++k;
 					}
@@ -304,9 +304,9 @@ public class HiddenMarkovModel {
 					os.setLength(0);
 					os.append(Utils.fixedLengthPaddingString(""+this.variants[i].position, 8));
 					os.append(": ");
-					os.append(Utils.fixedLengthPaddingString(""+depth[i][0], 3));
+					os.append(Utils.fixedLengthPaddingString(""+depth[oldnewidx.getKey(i)][0], 3));
 					os.append(",");
-					os.append(Utils.fixedLengthPaddingString(""+depth[i][1], 3));
+					os.append(Utils.fixedLengthPaddingString(""+depth[oldnewidx.getKey(i)][1], 3));
 					os.append("\t");
 					os.append(String.format("%.3f", this.bfrac[i]));
 					myLogger.info(os.toString());

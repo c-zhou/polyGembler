@@ -342,7 +342,8 @@ public class Graphmap extends Executor {
 			}
 		}
 		gfa = new GFA(subject_file, graph_file);
-		
+
+		/***
 		final Set<OverlapEdge> complexEdges = new HashSet<OverlapEdge>();
 		for(final String vtx : gfa.vertexSet()) {
 			if(gfa.inDegreeOf(vtx)>3 || 
@@ -352,7 +353,7 @@ public class Graphmap extends Executor {
 			}
 		}
 		gfa.removeAllEdges(complexEdges);
-		
+		***/
 		stats(gfa);
 		
 		switch(this.task_list) {

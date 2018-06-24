@@ -222,7 +222,7 @@ public class Anchor extends Executor {
 	private final static int clip_penalty = 1;
 	private final static int hc_gap  = 50000;
 	private final static int max_cov = 127;
-	
+
 	private final static Object lock = new Object();
 
 	@Override
@@ -231,16 +231,106 @@ public class Anchor extends Executor {
 		// this.run2();
 		// this.run3();
 	}
-	
+
 	private void run1() {
 		// TODO Auto-generated method stub
+
+		// read assembly graph file
+		final GFA gfa = new GFA(query_file, asm_graph);
+		qry_seqs = gfa.getSequenceMap();
+		sub_seqs = Sequence.parseFastaFileAsMap(subject_file);
+
+		myLogger.info("  GFA vertices: "+gfa.vertexSet().size());
+		myLogger.info("  GFA edges   : "+gfa.edgeSet().size()  );
+
+		// read alignment file and place the query sequences
+		final Map<String, Set<SAMSegment>> initPlace = new HashMap<String, Set<SAMSegment>>();
+		final Map<String, List<SAMSegment>> initPseudoAssembly = new HashMap<String, List<SAMSegment>>();
+		for(String sub_seq : sub_seqs.keySet()) initPseudoAssembly.put(sub_seq, new ArrayList<SAMSegment>());
+
+		try {
+			final SamReaderFactory factory =
+					SamReaderFactory.makeDefault()
+					.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
+							SamReaderFactory.Option.VALIDATE_CRC_CHECKSUMS)
+					.validationStringency(ValidationStringency.SILENT);
+			final SamReader in1 = factory.open(new File(align_file));
+			final SAMRecordIterator iter1 = in1.iterator();
+
+			String qry;
+			int qry_ln;
+			double min_aln;
+			final List<SAMSegment> buff = new ArrayList<SAMSegment>();
+			SAMRecord rc = iter1.next();
+
+			while(rc!=null) {
+				qry = rc.getReadName();
+				qry_ln = qry_seqs.get(qry).seq_ln();			
+
+				buff.clear();
+				if(!rc.getReadUnmappedFlag())
+					buff.add(SAMSegment.samRecord(rc, true, qry_ln));
+
+				while( (rc=iter1.next())!=null
+						&&
+						rc.getReadName().equals(qry) ) {
+					buff.add(SAMSegment.samRecord(rc, true, qry_ln));
+				}
+
+				if(buff.isEmpty()) continue;
+
+				min_aln = 0.9*buff.get(0).qlength();
+
+				// keep alignment fragment that has qual>0
+				Set<SAMSegment> init_f = new HashSet<SAMSegment>();
+				Set<SAMSegment> init_r = new HashSet<SAMSegment>();
+				for(SAMSegment record : buff) {
+					if(record.qual()==0&&record.qlength()<min_aln) 
+						continue;
+					if(record.qseqid().equals(qry)) 
+						init_f.add(record);
+					else init_r.add(record);
+					initPseudoAssembly.get(record.sseqid()).add(record);
+				}
+				if(!init_f.isEmpty()) initPlace.put(qry,     init_f);
+				if(!init_r.isEmpty()) initPlace.put(qry+"'", init_r);
+			}
+			iter1.close();
+			in1.close();
 		
+			String source, target;
+			Set<SAMSegment> sourcePlacement, targetPlacement;
+			for(final OverlapEdge edge : gfa.edgeSet()) {
+				source = gfa.getEdgeSource(edge);
+				target = gfa.getEdgeTarget(edge);
+				sourcePlacement = initPlace.get(source);
+				targetPlacement = initPlace.get(target);
+				
+				
+			}
+		
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		
+		
+		try {
+			BufferedWriter bw_fa = Utils.getBufferedWriter(this.out_prefix+".fa2");
+			BufferedWriter bw_map = Utils.getBufferedWriter(this.out_prefix+".map2");
+
+			bw_fa.close();
+			bw_map.close();
+		} catch(IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 	public void run3() {
 		sub_seqs = Sequence.parseFastaFileAsMap(subject_file);
 		qry_seqs = Sequence.parseFastaFileWithRevCmpAsMap(query_file);
-		
+
 		// find 'N/n's in subject/reference sequences
 		// which could have impact on parsing the blast records
 		final Map<String, TreeRangeSet<Integer>> sub_gaps = new HashMap<String, TreeRangeSet<Integer>>();
@@ -268,7 +358,7 @@ public class Anchor extends Executor {
 			// initialise an array list for each reference chromosome
 			anchored_records.put(seq_sn, new ArrayList<SAMSegment>());
 		}
-		
+
 		// parse blast records
 		// blast records buffer
 		final List<SAMSegment> buff = new ArrayList<SAMSegment>();
@@ -287,14 +377,14 @@ public class Anchor extends Executor {
 					.validationStringency(ValidationStringency.SILENT);
 			final SamReader in1 = factory.open(new File(align_file));
 			final SAMRecordIterator iter1 = in1.iterator();
-			
+
 			SAMRecord rc = iter1.next();
 			SAMSegment primary_record, secondary_record;
 			String qry;
 			double qry_ln, aln_frac;
 
 			while(rc!=null) {
-				
+
 				qry = rc.getReadName();
 				qry_ln = qry_seqs.get(qry).seq_ln();			
 
@@ -309,7 +399,7 @@ public class Anchor extends Executor {
 				}
 
 				if(buff.isEmpty()) continue;
-				
+
 				sel_recs.clear();
 				// merge collinear records
 				for(String sub : sub_seqs.keySet()) {
@@ -355,7 +445,7 @@ public class Anchor extends Executor {
 							}
 							ranges.add(range);
 						}
-					
+
 					// find collinear alignment segments that can be merged
 					// more accurate but slower
 					Collections.sort(tmp_records, new AlignmentSegment.SubjectCoordinationComparator());
@@ -366,7 +456,7 @@ public class Anchor extends Executor {
 						primary_record = tmp_records.get(i);
 						pqstart = primary_record.true_qstart();
 						pqend   = primary_record.true_qend();
-						
+
 						for(int j=i+1; j<tmp_records.size(); j++) {
 							secondary_record = tmp_records.get(j);
 							// we need to check if they are two copies that are close to each other
@@ -375,13 +465,13 @@ public class Anchor extends Executor {
 							// if the overlap is greater than 90%, we regard them as different copies
 							sqstart = secondary_record.true_qstart();
 							sqend   = secondary_record.true_qend();
-							
+
 							olap = 0;
 							if(pqstart<=sqstart) olap = Math.max(0, pqend-sqstart);
 							if(pqstart> sqstart) olap = Math.max(0, sqend-pqstart);
-							
+
 							if( (double)olap/(pqend-pqstart+1)>=0.9||(double)olap/(sqend-sqstart+1)>=0.9 ) continue;
-							
+
 							// now we check if they two are collinear
 							double max_shift = collinear_shift*
 									Math.min(primary_record.qlength(), secondary_record.qlength());
@@ -429,7 +519,7 @@ public class Anchor extends Executor {
 								int qend = Math.max(primary_record.true_qend(), secondary_record.true_qend());
 								int sstart = Math.min(primary_record.true_sstart(), secondary_record.true_sstart());
 								int send = Math.max(primary_record.true_send(), secondary_record.true_send());
-								
+
 								// replace primary record with merged record
 								// delete secondary record
 								SAMSegment merged_record = primary_record.forward()?
@@ -480,7 +570,7 @@ public class Anchor extends Executor {
 
 			iter1.close();
 			in1.close();
-			
+
 			for(Map.Entry<String, List<SAMSegment>> entry : anchored_records.entrySet()) {
 				System.out.println(entry.getKey()+": "+entry.getValue().size());
 			}
@@ -706,8 +796,8 @@ public class Anchor extends Executor {
 			e.printStackTrace();
 		}
 	}
-	
-	
+
+
 	public void run2() {
 		// TODO Auto-generated method stub
 
@@ -819,7 +909,7 @@ public class Anchor extends Executor {
 		final Set<String> linkPlace  = new HashSet<String>();
 		final Set<String> contigging = new HashSet<String>();
 		final List<Contig> linkSeqStr = new ArrayList<Contig>();
-		
+
 		this.initial_thread_pool();
 		for(String sub_seq : sub_seqs.keySet()) {
 
@@ -827,7 +917,7 @@ public class Anchor extends Executor {
 					new Runnable() {
 
 						String sub_seq = null;
-						
+
 						@Override
 						public void run() {
 							// TODO Auto-generated method stub
@@ -837,8 +927,8 @@ public class Anchor extends Executor {
 								myLogger.info(">>>>>>>>>>>>>"+sub_seq+"<<<<<<<<<<<<<<<<");
 
 								final List<SAMSegment> seqBySubAll = initPseudoAssembly.get(sub_seq);
-								
-								
+
+
 								final int sub_ln = sub_seqs.get(sub_seq).seq_ln();
 								// this is to calculate the coverage on the subject sequence
 								// we are going to skip certain regions if the coverage is too high
@@ -850,12 +940,12 @@ public class Anchor extends Executor {
 									int a = sams.sstart()-1, b = sams.send();
 									for(int w = a; w<b; w++) sub_cvg[w]++;
 								}
-								
+
 								int lowCvg = 0;
 								for(int w=0; w<sub_ln; w++) {
 									if(sub_cvg[w]<=max_cov) ++lowCvg; 
 								}
-									
+
 								// we filter out high-coverage/highly-repetitive regions
 								// >max_cov x
 								final List<SAMSegment> seqBySubLowCov = new ArrayList<SAMSegment>();
@@ -869,11 +959,11 @@ public class Anchor extends Executor {
 										seqPool.add(sams.qseqid());
 									}
 								}
-								
+
 								myLogger.info(sub_seq+" highly-repetitive regions: "+(sub_ln-lowCvg)+"/"+sub_ln+"bp,"+
 										(seqBySubAll.size()-seqBySubLowCov.size())+"/"+seqBySubAll.size()+
 										" alignment records filtered out due to high coverage(>"+max_cov+")");
-								
+
 								final Set<SAMSegment> contained = new HashSet<SAMSegment>();
 								final Set<SAMSegment> placed    = new HashSet<SAMSegment>();
 
@@ -886,9 +976,9 @@ public class Anchor extends Executor {
 								TraceableVertex<String> root_vertex, source_vertex, target_vertex;
 								Deque<SAMSegment> deque = new ArrayDeque<SAMSegment>();
 								final List<TraceableVertex<String>> traceable = new ArrayList<TraceableVertex<String>>();
-								
+
 								int distance;
-								
+
 								Collections.sort(seqBySubLowCov, new AlignmentSegment.SubjectCoordinationComparator());
 								int nSeq = seqBySubLowCov.size();
 								for(int i=0; i<nSeq; i++) {
@@ -934,9 +1024,9 @@ public class Anchor extends Executor {
 
 										for(OverlapEdge out : outgoing) {
 											target_seqid = gfa.getEdgeTarget(out);
-											
+
 											if(!seqPool.contains(target_seqid)) continue;
-											
+
 											if(!initPlace.containsKey(target_seqid))
 												continue;
 											target_seqs = initPlace.get(target_seqid);
@@ -956,7 +1046,7 @@ public class Anchor extends Executor {
 
 												if(!razor.containsVertex(target_vertex)) 
 													razor.addVertex(target_vertex);
-												
+
 												if(razor.containsEdge(source_vertex, target_vertex))
 													continue;
 
@@ -980,7 +1070,7 @@ public class Anchor extends Executor {
 												edge_score = qry_seqs.get(source_seqid).seq_ln()+
 														qry_seqs.get(target_seqid).seq_ln()-
 														gfa.getEdge(source_seqid, target_seqid).olap();
-												
+
 												edge.setScore(edge_score);
 
 												deque.push(target_seq);
@@ -1045,10 +1135,10 @@ public class Anchor extends Executor {
 											// this is not right because graph edges are immutable?
 											// target_vertex = razor.getEdgeTarget(out);
 											target_vertex = razv_map.get(razor.getEdgeTarget(out).getId());
-											
+
 											/***
 											target_samseg = target_vertex.getSAMSegment();
-											
+
 											// in order to avoid recursive placement in repetitive regions 
 											// we need the new contig to expand the contigging on the reference genome
 											target_range = Range.closed(target_samseg.sstart(), 
@@ -1056,15 +1146,15 @@ public class Anchor extends Executor {
 											if(source_sinterval.encloses(target_range)) continue;
 											target_sinterval = source_vertex.getSIntervalCopy();
 											target_sinterval.add(target_range);
-											***/
+											 ***/
 											/***
 											if(countIntervalCoverage(target_vertex.getSInterval())
 													> countIntervalCoverage(target_sinterval))
 												// if target vertex has been visited
 												// and the reference covered is greater
 												continue;
-											***/
-											
+											 ***/
+
 											target_score = target_vertex.getScore();
 											target_penalty = target_vertex.getPenalty();
 											target_ws = target_score-target_penalty;
@@ -1098,7 +1188,7 @@ public class Anchor extends Executor {
 											opt_vertex  = source_vertex;
 
 											if(ddebug) {
-												
+
 												String trace = opt_vertex.toString()+":"+
 														opt_vertex.getSAMSegment().sstart()+"-"+
 														opt_vertex.getSAMSegment().send()+"("+
@@ -1122,7 +1212,7 @@ public class Anchor extends Executor {
 
 									Set<TraceableVertex<String>> optx = new HashSet<TraceableVertex<String>>();
 									optx.add(opt_vertex);
-									
+
 									while( (opt_vertex = opt_vertex.getBackTrace())!=null ) optx.add(opt_vertex);
 
 									for(TraceableVertex<String> v : optx) placed.add(v.getSAMSegment());
@@ -1140,7 +1230,7 @@ public class Anchor extends Executor {
 
 								if(debug) {
 									myLogger.info("<<<<<<<<<<<<<"+sub_seq+">>>>>>>>>>>>>>>>");
-								
+
 									for(TraceableVertex<String> opt_vertex : traceable) {
 
 										double score = opt_vertex.getScore();
@@ -1167,20 +1257,20 @@ public class Anchor extends Executor {
 								final StringBuilder linkContigging = new StringBuilder();
 								String contigStr;
 								int olap;
-								
+
 								synchronized(lock) {
 									for(TraceableVertex<String> opt_vertex : traceable) {
-										
+
 										List<TraceableVertex<String>> opt_vertices = new ArrayList<TraceableVertex<String>>();
 										opt_vertices.add(opt_vertex);
 										while( (opt_vertex = opt_vertex.getBackTrace())!=null ) opt_vertices.add(opt_vertex);
-										
+
 										if(opt_vertices.size()==1)
 											// this is a singleton
 											continue;
-										
+
 										Collections.reverse(opt_vertices);
-										
+
 										opt_vertex = opt_vertices.get(0);
 										source_seqid = opt_vertex.getId();
 										linkSeq.setLength(0);
@@ -1188,16 +1278,16 @@ public class Anchor extends Executor {
 										linkContigging.setLength(0);
 										linkContigging.append(source_seqid);
 										linkPlace.add(source_seqid);
-										
+
 										for(int k=1; k<opt_vertices.size(); k++) {
-											
+
 											opt_vertex = opt_vertices.get(k);
 											target_seqid = opt_vertex.getId();
-												
+
 											OverlapEdge e = gfa.getEdge(source_seqid, target_seqid);
-											
+
 											if(!e.isRealigned()) gfa.realign(e);
-											
+
 											olap = (int)e.olapR();
 											if(olap<0) {
 												linkSeq.append(Constants.scaffold_gap_fill);
@@ -1209,7 +1299,7 @@ public class Anchor extends Executor {
 											linkPlace.add(target_seqid);
 											source_seqid = target_seqid;
 										}
-										
+
 										contigStr = linkContigging.toString();
 										if(contigging.contains(contigStr)) continue;
 										linkSeqStr.add(new Contig(linkSeq.toString(),contigStr));
@@ -1230,11 +1320,11 @@ public class Anchor extends Executor {
 							this.sub_seq = sub_seq;
 							return this;
 						}
-						
+
 					}.init(sub_seq));
 		}
 		this.waitFor();
-		
+
 		try {
 			BufferedWriter bw_fa = Utils.getBufferedWriter(this.out_prefix+".fa2");
 			BufferedWriter bw_map = Utils.getBufferedWriter(this.out_prefix+".map2");
@@ -1247,7 +1337,7 @@ public class Anchor extends Executor {
 					return c2.seqStr.length()-c1.seqStr.length();
 				}
 			});
-			
+
 			int scaf = 1;
 			for(Contig seq : linkSeqStr) {
 				bw_fa.write(Sequence.formatOutput("contig"+String.format("%08d", scaf), seq.seqStr, 80));
@@ -1286,11 +1376,11 @@ public class Anchor extends Executor {
 			if(source.equals(target)) return true;
 		return false;
 	}
-	
+
 	private class Contig {
 		final String components;
 		final String seqStr;
-		
+
 		public Contig(String seqStr, String components) {
 			this.seqStr = seqStr;
 			this.components = components;
