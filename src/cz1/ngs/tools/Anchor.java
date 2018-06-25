@@ -307,8 +307,8 @@ public class Anchor extends Executor {
 						for(final SAMSegment t : targetPlacement) {
 							if(s.sseqid().equals(t.sseqid()) &&
 									(d=AlignmentSegment.sdistance(s, t))<=max_dist) {
-								a = s.sseqid()+"_"+s.sstart()+s.send();
-								b = t.sseqid()+"_"+t.sstart()+t.send();
+								a = s.sseqid()+"_"+s.sstart()+"-"+s.send();
+								b = t.sseqid()+"_"+t.sstart()+"-"+t.send();
 								removal = false;
 								break outerloop;
 							}
