@@ -360,7 +360,7 @@ public class Anchor extends Executor {
 			}
 		
 			gfa.removeAllEdges(edgeToRemove);
-			gfa.writeGFA(this.out_prefix+"/trimmed.gfa");
+			gfa.writeGFA(this.out_prefix+".gfa2");
 			
 			final List<GFAPath> paths = new ArrayList<GFAPath>();
 			int rpos;
@@ -928,7 +928,7 @@ public class Anchor extends Executor {
 		}
 	}
 
-	private final static int min_ext = 50; //minimum extension for contigging
+	private final static int min_ext = 100; //minimum extension for contigging
 	
 	public void run2() {
 		// TODO Auto-generated method stub
@@ -1002,7 +1002,6 @@ public class Anchor extends Executor {
 			e.printStackTrace();
 		}
 		
-		/***
 		String source, target;
 		Set<SAMSegment> sourcePlacement, targetPlacement;
 		boolean removal;
@@ -1050,8 +1049,7 @@ public class Anchor extends Executor {
 		}
 	
 		gfa.removeAllEdges(edgeToRemove);
-		gfa.writeGFA(this.out_prefix+"/trimmed.gfa");
-		***/
+		gfa.writeGFA(this.out_prefix+".gfa2");
 		
 		final Set<String> linkPlace  = new HashSet<String>();
 		final Set<String> contigging = new HashSet<String>();
