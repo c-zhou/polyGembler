@@ -292,21 +292,38 @@ public class Anchor extends Executor {
 			String source, target;
 			Set<SAMSegment> sourcePlacement, targetPlacement;
 			boolean removal;
+			int slen, olap;
 			final Set<OverlapEdge> edgeToRemove = new HashSet<OverlapEdge>();
 			for(final OverlapEdge edge : gfa.edgeSet()) {
 				source = gfa.getEdgeSource(edge);
 				target = gfa.getEdgeTarget(edge);
 				sourcePlacement = initPlace.containsKey(source)?initPlace.get(source):null;
 				targetPlacement = initPlace.containsKey(target)?initPlace.get(target):null;
-				if(sourcePlacement==null||targetPlacement==null) continue;
+				if(sourcePlacement==null||targetPlacement==null) {
+					if(ddebug) myLogger.info(source+"->"+target+": "+true+ " | "+ 
+							(sourcePlacement==null?source+"=null":"") +" "+
+							(targetPlacement==null?target+"=null":"") );
+					edgeToRemove.add(edge);
+					continue;
+				}
 				removal = true;
+				olap = (int) edge.olap();
+				slen = qry_seqs.get(source).seq_ln();
+				
 				String a = null, b = null;
 				int d = -1;
 				outerloop:
 					for(final SAMSegment s : sourcePlacement) {
+						if(s.qlength()-Math.max(s.qend()-(slen-olap), 0)<min_len)
+							continue;
+						
 						for(final SAMSegment t : targetPlacement) {
+							if(t.qlength()-Math.max(olap-t.qstart(), 0)<min_len)
+								continue;
+							
 							if(s.sseqid().equals(t.sseqid()) &&
 									(d=AlignmentSegment.sdistance(s, t))<=max_dist) {
+								
 								a = s.sseqid()+"_"+s.sstart()+"-"+s.send();
 								b = t.sseqid()+"_"+t.sstart()+"-"+t.send();
 								removal = false;
