@@ -1,6 +1,5 @@
 package cz1.ngs.tools;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
@@ -15,15 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.swing.JFrame;
-
-import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.TreeBidiMap;
-import org.jgraph.JGraph;
-import org.jgrapht.Graph;
-import org.jgrapht.ext.JGraphModelAdapter;
 import org.jgrapht.graph.DirectedWeightedPseudograph;
-import org.jgrapht.traverse.BreadthFirstIterator;
 
 import com.google.common.collect.DiscreteDomain;
 import com.google.common.collect.Range;
@@ -31,7 +23,6 @@ import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
 
 import cz1.ngs.model.AlignmentSegment;
-import cz1.ngs.model.Blast6Segment;
 import cz1.ngs.model.GFA;
 import cz1.ngs.model.OverlapEdge;
 import cz1.ngs.model.SAMSegment;
@@ -209,15 +200,18 @@ public class Anchor extends Executor {
 		}
 	}
 
-	private final static int max_clip = 30; // maximum clip of query alignment allowed
-	private final static int gap_buff = 30; // buffer size for subject/reference sequences gap clips
-	private final static int min_gap  = 10; // take this if estimated gap size is smaller than this
+	private final static int max_clip = 30;  // maximum clip of query alignment allowed
+	private final static int gap_buff = 30;  // buffer size for subject/reference sequences gap clips
+	private final static int min_len  = 100; // minimum alignment length
+	private final static int min_gap  = 10;  // take this if estimated gap size is smaller than this
 	private final static int max_gap  = 100; // take this if estimated gap size is larger than this
 	private Map<String, Sequence> qry_seqs;
 	private Map<String, Sequence> sub_seqs;
 	private Map<String, TreeRangeSet<Integer>> sub_gaps;
 	private static List<SAMSegment> sam_records;
-
+	
+	private final static int max_dist  = 100000;
+	
 	private final static int match_score  = 1;
 	private final static int clip_penalty = 1;
 	private final static int hc_gap  = 50000;
@@ -259,7 +253,6 @@ public class Anchor extends Executor {
 
 			String qry;
 			int qry_ln;
-			double min_aln;
 			final List<SAMSegment> buff = new ArrayList<SAMSegment>();
 			SAMRecord rc = iter1.next();
 
@@ -279,13 +272,11 @@ public class Anchor extends Executor {
 
 				if(buff.isEmpty()) continue;
 
-				min_aln = 0.9*buff.get(0).qlength();
-
-				// keep alignment fragment that has qual>0
 				Set<SAMSegment> init_f = new HashSet<SAMSegment>();
 				Set<SAMSegment> init_r = new HashSet<SAMSegment>();
 				for(SAMSegment record : buff) {
-					if(record.qual()==0&&record.qlength()<min_aln) 
+					if("Chr00".equals(record.sseqid())) continue;
+					if(record.qlength()<min_alen) 
 						continue;
 					if(record.qseqid().equals(qry)) 
 						init_f.add(record);
@@ -300,29 +291,34 @@ public class Anchor extends Executor {
 		
 			String source, target;
 			Set<SAMSegment> sourcePlacement, targetPlacement;
+			boolean removal;
+			final Set<OverlapEdge> edgeToRemove = new HashSet<OverlapEdge>();
 			for(final OverlapEdge edge : gfa.edgeSet()) {
 				source = gfa.getEdgeSource(edge);
 				target = gfa.getEdgeTarget(edge);
-				sourcePlacement = initPlace.get(source);
-				targetPlacement = initPlace.get(target);
-				
-				
+				if(ddebug) myLogger.info(source+"->"+edge);
+				sourcePlacement = initPlace.containsKey(source)?initPlace.get(source):null;
+				targetPlacement = initPlace.containsKey(target)?initPlace.get(target):null;
+				if(sourcePlacement==null||targetPlacement==null) continue;
+				removal = true;
+				outerloop:
+					for(final SAMSegment s : sourcePlacement) {
+						for(final SAMSegment t : targetPlacement) {
+							if(s.sseqid().equals(t.sseqid()) &&
+									Math.abs(AlignmentSegment.sdistance(s, t))<=max_dist) {
+								removal = false;
+								break outerloop;
+							}
+						}
+					}
+				if(removal) edgeToRemove.add(edge);
 			}
 		
+			gfa.removeAllEdges(edgeToRemove);
+			gfa.writeGFA(this.out_prefix+"/trimmed.gfa");
+			
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		
-		
-		
-		try {
-			BufferedWriter bw_fa = Utils.getBufferedWriter(this.out_prefix+".fa2");
-			BufferedWriter bw_map = Utils.getBufferedWriter(this.out_prefix+".map2");
-
-			bw_fa.close();
-			bw_map.close();
-		} catch(IOException e) {
 			e.printStackTrace();
 		}
 	}

@@ -1,8 +1,11 @@
 package cz1.ngs.model;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -939,5 +942,41 @@ public class GFA {
 	public int outDegreeOf(String v) {
 		// TODO Auto-generated method stub
 		return this.gfa.outDegreeOf(v);
+	}
+
+	public void writeGFA(String outFile) {
+		// TODO Auto-generated method stub
+		try {
+			BufferedWriter bw_out = Utils.getBufferedWriter(outFile);
+	
+			String source, target;
+			bw_out.write("H\tVN:Z:1.0\n");
+			final List<String> seqs = new ArrayList<String>(this.seg.keySet());
+			Collections.sort(seqs);
+			for(final String seq : seqs) {
+				if(seq.endsWith("'")) continue;
+				bw_out.write("S\t"+seq+"\t*\tLN:i:"+seg.get(seq).seq_ln()+"\n");
+			}
+			for(OverlapEdge edge : gfa.edgeSet()) {
+				bw_out.write("L\t");
+				source = gfa.getEdgeSource(edge);
+				bw_out.write(source.replace("'", ""));
+				bw_out.write("\t");
+				bw_out.write(source.endsWith("'")?"-":"+");
+				bw_out.write("\t");
+				target = gfa.getEdgeTarget(edge);
+				bw_out.write(target.replace("'", ""));
+				bw_out.write("\t");
+				bw_out.write(target.endsWith("'")?"-":"+");
+				bw_out.write("\t");
+				bw_out.write(edge.cigar());
+				bw_out.write("\n");
+			}
+			
+			bw_out.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 }
