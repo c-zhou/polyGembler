@@ -296,22 +296,26 @@ public class Anchor extends Executor {
 			for(final OverlapEdge edge : gfa.edgeSet()) {
 				source = gfa.getEdgeSource(edge);
 				target = gfa.getEdgeTarget(edge);
-				if(ddebug) myLogger.info(source+"->"+edge);
 				sourcePlacement = initPlace.containsKey(source)?initPlace.get(source):null;
 				targetPlacement = initPlace.containsKey(target)?initPlace.get(target):null;
 				if(sourcePlacement==null||targetPlacement==null) continue;
 				removal = true;
+				String a = null, b = null;
+				int d = -1;
 				outerloop:
 					for(final SAMSegment s : sourcePlacement) {
 						for(final SAMSegment t : targetPlacement) {
 							if(s.sseqid().equals(t.sseqid()) &&
-									Math.abs(AlignmentSegment.sdistance(s, t))<=max_dist) {
+									(d=AlignmentSegment.sdistance(s, t))<=max_dist) {
+								a = s.sseqid()+"_"+s.sstart()+s.send();
+								b = t.sseqid()+"_"+t.sstart()+t.send();
 								removal = false;
 								break outerloop;
 							}
 						}
 					}
 				if(removal) edgeToRemove.add(edge);
+				if(ddebug) myLogger.info(source+"->"+target+": "+removal+ " | "+d+" | "+a+","+b);
 			}
 		
 			gfa.removeAllEdges(edgeToRemove);
