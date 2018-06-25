@@ -928,6 +928,8 @@ public class Anchor extends Executor {
 		}
 	}
 
+	private final static int min_ext = 50; //minimum extension for contigging
+	
 	public void run2() {
 		// TODO Auto-generated method stub
 
@@ -1000,6 +1002,7 @@ public class Anchor extends Executor {
 			e.printStackTrace();
 		}
 		
+		/***
 		String source, target;
 		Set<SAMSegment> sourcePlacement, targetPlacement;
 		boolean removal;
@@ -1048,7 +1051,8 @@ public class Anchor extends Executor {
 	
 		gfa.removeAllEdges(edgeToRemove);
 		gfa.writeGFA(this.out_prefix+"/trimmed.gfa");
-
+		***/
+		
 		final Set<String> linkPlace  = new HashSet<String>();
 		final Set<String> contigging = new HashSet<String>();
 		final List<Contig> linkSeqStr = new ArrayList<Contig>();
@@ -1241,18 +1245,18 @@ public class Anchor extends Executor {
 									root_vertex.setScore(qry_seqs.get(root_seqid).seq_ln());
 									root_vertex.setPenalty(0);
 									root_vertex.setStatus(true);
-									// root_vertex.setSInterval(root_seq.sstart(), root_seq.send());
+									root_vertex.setSInterval(root_seq.sstart(), root_seq.send());
 
 									bidiQ.put(0L, root_vertex);
 									double max_ws = Double.NEGATIVE_INFINITY,
 											source_penalty, target_penalty, source_score, target_score, 
 											penalty, score, target_ws, source_ws, ws;
-									int source_ln;
+									int source_ln, cvg;
 									Set<TraceableEdge> out_edges;
 									TraceableVertex<String> opt_vertex = null;
-									// RangeSet<Integer> source_sinterval, target_sinterval;
-									// SAMSegment target_samseg;
-									// Range<Integer> target_range;
+									RangeSet<Integer> target_sinterval;
+									SAMSegment target_samseg;
+									Range<Integer> target_range;
 									long sizeQ;
 									boolean isLeaf;
 
@@ -1269,34 +1273,31 @@ public class Anchor extends Executor {
 										source_score = source_vertex.getScore()-source_ln;
 										source_penalty = source_vertex.getPenalty();
 										source_ws = source_score-source_penalty;
-										// source_sinterval = source_vertex.getSInterval();
-
+										
 										isLeaf = true;
 										out_edges = razor.outgoingEdgesOf(source_vertex);
 										for(TraceableEdge out : out_edges) {
-											// this is not right because graph edges are immutable?
-											// target_vertex = razor.getEdgeTarget(out);
+											//**** this is not right because graph edges are immutable?
+											//**** target_vertex = razor.getEdgeTarget(out);
 											target_vertex = razv_map.get(razor.getEdgeTarget(out).getId());
 
-											/***
 											target_samseg = target_vertex.getSAMSegment();
 
 											// in order to avoid recursive placement in repetitive regions 
 											// we need the new contig to expand the contigging on the reference genome
 											target_range = Range.closed(target_samseg.sstart(), 
 													target_samseg.send()).canonical(DiscreteDomain.integers());
-											if(source_sinterval.encloses(target_range)) continue;
 											target_sinterval = source_vertex.getSIntervalCopy();
 											target_sinterval.add(target_range);
-											 ***/
-											/***
-											if(countIntervalCoverage(target_vertex.getSInterval())
-													> countIntervalCoverage(target_sinterval))
+											cvg = countIntervalCoverage(target_sinterval);
+											
+											if(cvg<countIntervalCoverage(source_vertex.getSInterval())+min_ext||
+													cvg<=countIntervalCoverage(target_vertex.getSInterval()))
+												// if no significant improvement on coverage
 												// if target vertex has been visited
 												// and the reference covered is greater
 												continue;
-											 ***/
-
+											
 											target_score = target_vertex.getScore();
 											target_penalty = target_vertex.getPenalty();
 											target_ws = target_score-target_penalty;
@@ -1318,7 +1319,7 @@ public class Anchor extends Executor {
 											target_vertex.setScore(score);
 											target_vertex.setPenalty(penalty);
 											target_vertex.setStatus(true);
-											// target_vertex.setSInterval(target_sinterval);
+											target_vertex.setSInterval(target_sinterval);
 
 											bidiQ.put(sizeQ++, target_vertex);
 										}
