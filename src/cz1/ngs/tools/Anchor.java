@@ -31,6 +31,7 @@ import cz1.ngs.model.GFA;
 import cz1.ngs.model.OverlapEdge;
 import cz1.ngs.model.SAMSegment;
 import cz1.ngs.model.Sequence;
+import cz1.ngs.model.TraceableAlignmentSegment;
 import cz1.ngs.model.TraceableDirectedWeightedPseudograph;
 import cz1.ngs.model.TraceableEdge;
 import cz1.ngs.model.TraceableVertex;
@@ -184,19 +185,22 @@ public class Anchor extends Executor {
 		}
 	}
 
-	private final static int max_clip = 30;  // maximum clip of query alignment allowed
+	private final static int max_clip = 100;  // maximum clip of query alignment allowed
 	private final static int gap_buff = 30;  // buffer size for subject/reference sequences gap clips
 	private final static int min_len  = 100; // minimum alignment length
 	private final static int min_gap  = 10;  // take this if estimated gap size is smaller than this
 	private final static int max_gap  = 100; // take this if estimated gap size is larger than this
 	private final static int min_ext  = 30;  // minimum extension for contigging
+	private final static double m_clip = 0.1d; // max clip size (%) to treat an alignment end-to-end
+	private final static double olap_min = 0.99d; // min overlap fraction for containment
+	
 	private Map<String, Sequence> qry_seqs;
 	private Map<String, Sequence> sub_seqs;
 	private Map<String, TreeRangeSet<Integer>> sub_gaps;
 	private static List<SAMSegment> sam_records;
-	
+
 	private final static int max_dist  = 100000;
-	
+
 	private final static int match_score  = 1;
 	private final static int clip_penalty = 1;
 	private final static int hc_gap  = 100000;
@@ -265,12 +269,12 @@ public class Anchor extends Executor {
 			String qry;
 			int qry_ln;
 			double thres_ln;
-			
+
 			while(rc!=null) {
 
 				qry = rc.getReadName();			
 				qry_ln = qry_seqs.get(qry).seq_ln();
-				
+
 				buff.clear();
 				if(!rc.getReadUnmappedFlag())
 					buff.add(SAMSegment.samRecord(rc, true, qry_ln));
@@ -419,14 +423,14 @@ public class Anchor extends Executor {
 					// add to sel_recs
 					sel_recs.addAll(tmp_records);
 				}
-				
+
 				if(sel_recs.isEmpty()) continue;
-				
+
 				Collections.sort(sel_recs, new SAMSegment.SegmentSizeComparator());
 				primary_record = sel_recs.get(0);
 				thres_ln = primary_record.qlength()*this.min_frac;
 				anchored_records.get(primary_record.sseqid()).add(primary_record);
-				
+
 				for(int i=1; i<sel_recs.size(); i++) {
 					secondary_record = sel_recs.get(i);
 					if(secondary_record.qlength()>=thres_ln)
@@ -447,10 +451,164 @@ public class Anchor extends Executor {
 				}
 			}
 
-			if(this.ddebug) {
-				return;
-			}
+			myLogger.info("####process each reference chromosome");
 			
+			this.initial_thread_pool();
+			for(String sub_seq : sub_seqs.keySet()) {
+
+				this.executor.submit(new Runnable() {
+
+					String sub_seq = null;
+
+					@Override
+					public void run() {
+						// TODO Auto-generated method stub
+						try {
+							if(sub_seq.equals("Chr00")) return;
+
+							// make traceable alignment segments from SAM segments
+							final List<TraceableAlignmentSegment> alignments = new ArrayList<TraceableAlignmentSegment>();
+							TraceableAlignmentSegment alignment;
+							int qry_ln, qstart, qend, sstart, send;
+							double clip;
+							for(final SAMSegment record : anchored_records.get(sub_seq)) {
+								qstart = record.qstart();
+								qend   = record.qend();
+								sstart = record.sstart();
+								send   = record.send();
+								alignment = new TraceableAlignmentSegment(record.qseqid(), record.sseqid(), 
+										qstart, qend, sstart, send);
+								// check if this is end-to-end alignment
+								qry_ln = qry_seqs.get(record.qseqid()).seq_ln();
+								clip = Math.min(max_clip, qry_ln*m_clip);
+								alignment.setEndToEnd(qstart<=clip, qend+clip>=qry_ln, false, false);
+								alignment.setClip(qstart-1, qry_ln-qend, Integer.MAX_VALUE, Integer.MAX_VALUE);
+								alignment.calcScore();
+								alignments.add(alignment);	
+							}
+							
+							Collections.sort(alignments, new TraceableAlignmentSegment.SubjectCoordinationComparator());
+							
+							// we remove containment
+							TraceableAlignmentSegment source_as, target_as;
+							int source_sstart, source_send, target_sstart, target_send;
+							int asz = alignments.size();
+							boolean sEndToEnd, qEndToEnd;
+							outerloop:
+								for(int w=0; w<asz; w++) {
+									source_as = alignments.get(w);
+									if(source_as==null) continue;
+									source_sstart = source_as.sstart();
+									source_send   = source_as.send();
+									sEndToEnd     = source_as.getToQueryStart()&&source_as.getToQueryEnd();
+									innerloop:
+										for(int z=w+1; z<asz; z++) {
+											target_as = alignments.get(z);
+											if(target_as==null) continue;
+											target_sstart = target_as.sstart();
+											target_send   = target_as.send();
+											qEndToEnd     = target_as.getToQueryStart()&&target_as.getToQueryEnd();
+
+											if(target_sstart>source_send) continue outerloop;
+											
+											if(sEndToEnd&&source_sstart<=target_sstart&&source_send>=target_send) {
+												// target is contained
+												alignments.set(z, null);
+												continue innerloop;
+											} 
+											
+											if(qEndToEnd&&target_sstart<=source_sstart&&target_send>=source_send) {
+												// source is contained
+												alignments.set(w, null);
+												continue outerloop;
+											}
+									}
+								}
+
+							final List<TraceableAlignmentSegment> selected = new ArrayList<TraceableAlignmentSegment>();
+							for(TraceableAlignmentSegment as : alignments) if(as!=null) selected.add(as);
+							
+							if(ddebug) {
+								synchronized(lock) {
+									myLogger.info("containment removed placement #entry "+sub_seq+": "+selected.size());
+									for(TraceableAlignmentSegment seg : selected) myLogger.info(seg.toString());
+								}
+							}
+							
+							
+						} catch (Exception e) {
+							Thread t = Thread.currentThread();
+							t.getUncaughtExceptionHandler().uncaughtException(t, e);
+							e.printStackTrace();
+							executor.shutdown();
+							System.exit(1);
+						}
+					}
+
+					public Runnable init(String sub_seq) {
+						// TODO Auto-generated method stub
+						this.sub_seq = sub_seq;
+						return this;
+					}
+
+				}.init(sub_seq));
+			}
+			this.waitFor();
+
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+
+
+
+
+
+
+
+
+
+
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/******
 			final BufferedWriter bw_map = Utils.getBufferedWriter(out_prefix+".map");
 			final BufferedWriter bw_fa = Utils.getBufferedWriter(out_prefix+".fa");
 			final Set<String> anchored_seqs = new HashSet<String>();
@@ -671,6 +829,8 @@ public class Anchor extends Executor {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		
+*****/
 	}
 
 	public void run2() {
@@ -706,7 +866,7 @@ public class Anchor extends Executor {
 			int qry_ln;
 			final List<SAMSegment> buff = new ArrayList<SAMSegment>();
 			SAMRecord rc = iter1.next();
-					
+
 			while(rc!=null) {
 				qry = rc.getReadName();
 				qry_ln = qry_seqs.get(qry).seq_ln();		
@@ -744,14 +904,14 @@ public class Anchor extends Executor {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
+
 		String source, target;
 		Set<SAMSegment> sourcePlacement, targetPlacement;
 		boolean removal;
 		String pairkey;
 		int slen, olap;
 		final Set<OverlapEdge> edgeToRemove = new HashSet<OverlapEdge>();
-		
+
 		for(final OverlapEdge edge : gfa.edgeSet()) {
 			source = gfa.getEdgeSource(edge);
 			target = gfa.getEdgeTarget(edge);
@@ -768,7 +928,7 @@ public class Anchor extends Executor {
 			removal = true;
 			olap = (int) edge.olap();
 			slen = qry_seqs.get(source).seq_ln();
-			
+
 			String a = null, b = null;
 			int d = -1;
 			for(final SAMSegment s : sourcePlacement) {
@@ -790,10 +950,10 @@ public class Anchor extends Executor {
 			if(removal) edgeToRemove.add(edge);
 			if(ddebug) myLogger.info(pairkey+": "+removal+ " | "+d+" | "+a+","+b);
 		}
-	
+
 		gfa.removeAllEdges(edgeToRemove);
 		gfa.writeGFA(this.out_prefix+".gfa2");
-		
+
 		final Set<String> linkPlace  = new HashSet<String>();
 		final Set<String> contigging = new HashSet<String>();
 		final List<Contig> linkSeqStr = new ArrayList<Contig>();
@@ -801,326 +961,278 @@ public class Anchor extends Executor {
 		this.initial_thread_pool();
 		for(String sub_seq : sub_seqs.keySet()) {
 
-			this.executor.submit(
-					new Runnable() {
+			this.executor.submit(new Runnable() {
 
-						String sub_seq = null;
+				String sub_seq = null;
 
-						@Override
-						public void run() {
-							// TODO Auto-generated method stub
-							try {
+				@Override
+				public void run() {
+					// TODO Auto-generated method stub
+					try {
 
-								if(sub_seq.equals("Chr00")) return;
-								myLogger.info(">>>>>>>>>>>>>"+sub_seq+"<<<<<<<<<<<<<<<<");
+						if(sub_seq.equals("Chr00")) return;
+						myLogger.info(">>>>>>>>>>>>>"+sub_seq+"<<<<<<<<<<<<<<<<");
 
-								final List<SAMSegment> seqBySubAll = initPseudoAssembly.get(sub_seq);
+						final List<SAMSegment> seqBySubAll = initPseudoAssembly.get(sub_seq);
 
 
-								final int sub_ln = sub_seqs.get(sub_seq).seq_ln();
-								// this is to calculate the coverage on the subject sequence
-								// we are going to skip certain regions if the coverage is too high
-								// say the average coverage is greater than max_cov
-								int[] sub_cvg = new int[sub_ln]; 
+						final int sub_ln = sub_seqs.get(sub_seq).seq_ln();
+						// this is to calculate the coverage on the subject sequence
+						// we are going to skip certain regions if the coverage is too high
+						// say the average coverage is greater than max_cov
+						int[] sub_cvg = new int[sub_ln]; 
 
-								// we calculate the coverage across the reference chromosome
-								for(SAMSegment sams : seqBySubAll) {
-									int a = sams.sstart()-1, b = sams.send();
-									for(int w = a; w<b; w++) sub_cvg[w]++;
-								}
+						// we calculate the coverage across the reference chromosome
+						for(SAMSegment sams : seqBySubAll) {
+							int a = sams.sstart()-1, b = sams.send();
+							for(int w = a; w<b; w++) sub_cvg[w]++;
+						}
 
-								int lowCvg = 0;
-								for(int w=0; w<sub_ln; w++) {
-									if(sub_cvg[w]<=max_cov) ++lowCvg; 
-								}
+						int lowCvg = 0;
+						for(int w=0; w<sub_ln; w++) {
+							if(sub_cvg[w]<=max_cov) ++lowCvg; 
+						}
 
-								// we filter out high-coverage/highly-repetitive regions
-								// >max_cov x
-								final List<SAMSegment> seqBySubLowCov = new ArrayList<SAMSegment>();
-								final Set<String> seqPool = new HashSet<String>();
-								for(SAMSegment sams : seqBySubAll) {
-									int a = sams.sstart()-1, b = sams.send();
-									double cov = 0d;
-									for(int w=a; w<b; w++) cov += sub_cvg[w];
-									if(cov/(b-a)<=max_cov) {
-										seqBySubLowCov.add(sams);
-										seqPool.add(sams.qseqid());
-									}
-								}
+						// we filter out high-coverage/highly-repetitive regions
+						// >max_cov x
+						final List<SAMSegment> seqBySubLowCov = new ArrayList<SAMSegment>();
+						final Set<String> seqPool = new HashSet<String>();
+						for(SAMSegment sams : seqBySubAll) {
+							int a = sams.sstart()-1, b = sams.send();
+							double cov = 0d;
+							for(int w=a; w<b; w++) cov += sub_cvg[w];
+							if(cov/(b-a)<=max_cov) {
+								seqBySubLowCov.add(sams);
+								seqPool.add(sams.qseqid());
+							}
+						}
 
-								myLogger.info(sub_seq+" highly-repetitive regions: "+(sub_ln-lowCvg)+"/"+sub_ln+"bp,"+
-										(seqBySubAll.size()-seqBySubLowCov.size())+"/"+seqBySubAll.size()+
-										" alignment records filtered out due to high coverage(>"+max_cov+")");
+						myLogger.info(sub_seq+" highly-repetitive regions: "+(sub_ln-lowCvg)+"/"+sub_ln+"bp,"+
+								(seqBySubAll.size()-seqBySubLowCov.size())+"/"+seqBySubAll.size()+
+								" alignment records filtered out due to high coverage(>"+max_cov+")");
 
-								final Set<SAMSegment> contained = new HashSet<SAMSegment>();
-								final Set<SAMSegment> placed    = new HashSet<SAMSegment>();
+						final Set<SAMSegment> contained = new HashSet<SAMSegment>();
+						final Set<SAMSegment> placed    = new HashSet<SAMSegment>();
 
-								double edge_penalty, edge_score;
-								SAMSegment root_seq, source_seq, target_seq;
-								Set<SAMSegment> target_seqs;
-								Set<OverlapEdge> outgoing;
-								TraceableEdge edge;
-								String root_seqid, source_seqid, target_seqid;
-								TraceableVertex<String> root_vertex, source_vertex, target_vertex;
-								Deque<SAMSegment> deque = new ArrayDeque<SAMSegment>();
-								final List<TraceableVertex<String>> traceable = new ArrayList<TraceableVertex<String>>();
+						double edge_penalty, edge_score;
+						SAMSegment root_seq, source_seq, target_seq;
+						Set<SAMSegment> target_seqs;
+						Set<OverlapEdge> outgoing;
+						TraceableEdge edge;
+						String root_seqid, source_seqid, target_seqid;
+						TraceableVertex<String> root_vertex, source_vertex, target_vertex;
+						Deque<SAMSegment> deque = new ArrayDeque<SAMSegment>();
+						final List<TraceableVertex<String>> traceable = new ArrayList<TraceableVertex<String>>();
 
-								int distance;
+						int distance;
 
-								Collections.sort(seqBySubLowCov, new AlignmentSegment.SubjectCoordinationComparator());
-								int nSeq = seqBySubLowCov.size();
-								for(int i=0; i<nSeq; i++) {
+						Collections.sort(seqBySubLowCov, new AlignmentSegment.SubjectCoordinationComparator());
+						int nSeq = seqBySubLowCov.size();
+						for(int i=0; i<nSeq; i++) {
 
-									root_seq = seqBySubLowCov.get(i);
-									root_seqid = root_seq.qseqid();
+							root_seq = seqBySubLowCov.get(i);
+							root_seqid = root_seq.qseqid();
 
-									if(placed.contains(root_seq)) 
+							if(placed.contains(root_seq)) 
+								continue;
+
+							final TraceableDirectedWeightedPseudograph<String> razor = 
+									new TraceableDirectedWeightedPseudograph<String>(TraceableEdge.class);
+
+							// final ListenableDirectedWeightedGraph<TraceableVertex<String>, DefaultWeightedEdge> razor = 
+							//		new ListenableDirectedWeightedGraph<TraceableVertex<String>, DefaultWeightedEdge>(DefaultWeightedEdge.class);
+
+							// JGraphModelAdapter<TraceableVertex<String>, DefaultWeightedEdge> jgAdapter = 
+							//		 new JGraphModelAdapter<TraceableVertex<String>, DefaultWeightedEdge>(razor);
+
+							// JGraph jgraph = new JGraph(jgAdapter);
+
+							deque.clear();
+							deque.push(root_seq);
+							contained.clear();
+
+							while(!deque.isEmpty()) {
+
+								source_seq = deque.pop();
+								source_seqid = source_seq.qseqid();
+
+								if(contained.contains(source_seq))
+									continue;
+								contained.add(source_seq);
+
+								source_vertex = new TraceableVertex<String>(source_seqid);
+								source_vertex.setSAMSegment(source_seq);
+
+								if(!razor.containsVertex(source_vertex))
+									razor.addVertex(source_vertex);
+
+								outgoing = gfa.outgoingEdgesOf(source_seqid);
+
+								for(OverlapEdge out : outgoing) {
+									target_seqid = gfa.getEdgeTarget(out);
+
+									if(!seqPool.contains(target_seqid)) continue;
+
+									if(!initPlace.containsKey(target_seqid))
 										continue;
+									target_seqs = initPlace.get(target_seqid);
 
-									final TraceableDirectedWeightedPseudograph<String> razor = 
-											new TraceableDirectedWeightedPseudograph<String>(TraceableEdge.class);
+									distance = Integer.MAX_VALUE;
+									target_seq = null;
+									for(SAMSegment seq : target_seqs) {
+										int d = AlignmentSegment.sdistance(source_seq, seq);	
+										if(d<distance) {
+											distance = d;
+											target_seq = seq;
+										}
+									}
+									if(distance<=hc_gap) {
+										target_vertex = new TraceableVertex<String>(target_seqid);
+										target_vertex.setSAMSegment(target_seq);
 
-									// final ListenableDirectedWeightedGraph<TraceableVertex<String>, DefaultWeightedEdge> razor = 
-									//		new ListenableDirectedWeightedGraph<TraceableVertex<String>, DefaultWeightedEdge>(DefaultWeightedEdge.class);
+										if(!razor.containsVertex(target_vertex)) 
+											razor.addVertex(target_vertex);
 
-									// JGraphModelAdapter<TraceableVertex<String>, DefaultWeightedEdge> jgAdapter = 
-									//		 new JGraphModelAdapter<TraceableVertex<String>, DefaultWeightedEdge>(razor);
-
-									// JGraph jgraph = new JGraph(jgAdapter);
-
-									deque.clear();
-									deque.push(root_seq);
-									contained.clear();
-
-									while(!deque.isEmpty()) {
-
-										source_seq = deque.pop();
-										source_seqid = source_seq.qseqid();
-
-										if(contained.contains(source_seq))
+										if(razor.containsEdge(source_vertex, target_vertex))
 											continue;
-										contained.add(source_seq);
 
-										source_vertex = new TraceableVertex<String>(source_seqid);
-										source_vertex.setSAMSegment(source_seq);
+										edge = razor.addEdge(source_vertex, target_vertex);
+										// calculate edge weight
+										// higher weight edges are those,
 
-										if(!razor.containsVertex(source_vertex))
-											razor.addVertex(source_vertex);
-
-										outgoing = gfa.outgoingEdgesOf(source_seqid);
-
-										for(OverlapEdge out : outgoing) {
-											target_seqid = gfa.getEdgeTarget(out);
-
-											if(!seqPool.contains(target_seqid)) continue;
-
-											if(!initPlace.containsKey(target_seqid))
-												continue;
-											target_seqs = initPlace.get(target_seqid);
-
-											distance = Integer.MAX_VALUE;
-											target_seq = null;
-											for(SAMSegment seq : target_seqs) {
-												int d = AlignmentSegment.sdistance(source_seq, seq);	
-												if(d<distance) {
-													distance = d;
-													target_seq = seq;
-												}
-											}
-											if(distance<=hc_gap) {
-												target_vertex = new TraceableVertex<String>(target_seqid);
-												target_vertex.setSAMSegment(target_seq);
-
-												if(!razor.containsVertex(target_vertex)) 
-													razor.addVertex(target_vertex);
-
-												if(razor.containsEdge(source_vertex, target_vertex))
-													continue;
-
-												edge = razor.addEdge(source_vertex, target_vertex);
-												// calculate edge weight
-												// higher weight edges are those,
-
-												/****
+										/****
 												//       1.  large/long alignment segments vertices
 												// TODO: 2*. small gaps on the reference
 												edge_weight = qry_seqs.get(source_seqid).seq_ln()+
 												qry_seqs.get(target_seqid).seq_ln()-
 												gfa.getEdge(source_seqid, target_seqid).olap();
-												 **/
+										 **/
 
-												// TODO: 1*. large/long alignment segments vertices
-												//       2.  small gaps on the reference
-												edge_penalty = AlignmentSegment.sdistance(source_seq, target_seq);
-												edge.setPenalty(edge_penalty);
+										// TODO: 1*. large/long alignment segments vertices
+										//       2.  small gaps on the reference
+										edge_penalty = AlignmentSegment.sdistance(source_seq, target_seq);
+										edge.setPenalty(edge_penalty);
 
-												edge_score = qry_seqs.get(source_seqid).seq_ln()+
-														qry_seqs.get(target_seqid).seq_ln()-
-														gfa.getEdge(source_seqid, target_seqid).olap();
+										edge_score = qry_seqs.get(source_seqid).seq_ln()+
+												qry_seqs.get(target_seqid).seq_ln()-
+												gfa.getEdge(source_seqid, target_seqid).olap();
 
-												edge.setScore(edge_score);
+										edge.setScore(edge_score);
 
-												deque.push(target_seq);
-											}
-										}
+										deque.push(target_seq);
 									}
-									if(ddebug) myLogger.info(root_seqid+" "+razor.vertexSet().size()+" "+razor.edgeSet().size()+" done");
+								}
+							}
+							if(ddebug) myLogger.info(root_seqid+" "+razor.vertexSet().size()+" "+razor.edgeSet().size()+" done");
 
-									// JFrame frame = new JFrame();
-									// frame.getContentPane().add(jgraph);
-									// frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-									// frame.pack();
-									// frame.setVisible(true);
+							// JFrame frame = new JFrame();
+							// frame.getContentPane().add(jgraph);
+							// frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+							// frame.pack();
+							// frame.setVisible(true);
 
-									// "pseudo"-DFS to find the route with the highest score
-									final Map<String, TraceableVertex<String>> razv_map  =new HashMap<String, TraceableVertex<String>>();
-									for(TraceableVertex<String> v : razor.vertexSet()) razv_map.put(v.getId(), v);
+							// "pseudo"-DFS to find the route with the highest score
+							final Map<String, TraceableVertex<String>> razv_map  =new HashMap<String, TraceableVertex<String>>();
+							for(TraceableVertex<String> v : razor.vertexSet()) razv_map.put(v.getId(), v);
 
-									// we use a bidirectional hashmap to simulate the deque
-									// this is because we may need to do deletions
-									// Deque<TraceableVertex<String>> queue = new ArrayDeque<TraceableVertex<String>>();
-									final TreeBidiMap<Long, TraceableVertex<String>> bidiQ = new TreeBidiMap<Long, TraceableVertex<String>>();
+							// we use a bidirectional hashmap to simulate the deque
+							// this is because we may need to do deletions
+							// Deque<TraceableVertex<String>> queue = new ArrayDeque<TraceableVertex<String>>();
+							final TreeBidiMap<Long, TraceableVertex<String>> bidiQ = new TreeBidiMap<Long, TraceableVertex<String>>();
 
-									root_vertex = razv_map.get(root_seqid);
-									root_vertex.setSAMSegment(root_seq);
-									root_vertex.setScore(qry_seqs.get(root_seqid).seq_ln());
-									root_vertex.setPenalty(0);
-									root_vertex.setStatus(true);
-									root_vertex.setSInterval(root_seq.sstart(), root_seq.send());
+							root_vertex = razv_map.get(root_seqid);
+							root_vertex.setSAMSegment(root_seq);
+							root_vertex.setScore(qry_seqs.get(root_seqid).seq_ln());
+							root_vertex.setPenalty(0);
+							root_vertex.setStatus(true);
+							root_vertex.setSInterval(root_seq.sstart(), root_seq.send());
 
-									bidiQ.put(0L, root_vertex);
-									double max_ws = Double.NEGATIVE_INFINITY,
-											source_penalty, target_penalty, source_score, target_score, 
-											penalty, score, target_ws, source_ws, ws;
-									int source_ln, cvg;
-									Set<TraceableEdge> out_edges;
-									TraceableVertex<String> opt_vertex = null;
-									RangeSet<Integer> target_sinterval;
-									SAMSegment target_samseg;
-									Range<Integer> target_range;
-									long sizeQ;
-									boolean isLeaf;
+							bidiQ.put(0L, root_vertex);
+							double max_ws = Double.NEGATIVE_INFINITY,
+									source_penalty, target_penalty, source_score, target_score, 
+									penalty, score, target_ws, source_ws, ws;
+							int source_ln, cvg;
+							Set<TraceableEdge> out_edges;
+							TraceableVertex<String> opt_vertex = null;
+							RangeSet<Integer> target_sinterval;
+							SAMSegment target_samseg;
+							Range<Integer> target_range;
+							long sizeQ;
+							boolean isLeaf;
 
-									if(ddebug)
-										for(TraceableEdge e : razor.edgeSet()) 
-											myLogger.info(e.toString()+"("+razor.getEdgeSource(e).getSAMSegment().toString()+"|"+
-													razor.getEdgeTarget(e).getSAMSegment().toString()+"|"+
-													e.getScore()+"-"+e.getPenalty()+")");
+							if(ddebug)
+								for(TraceableEdge e : razor.edgeSet()) 
+									myLogger.info(e.toString()+"("+razor.getEdgeSource(e).getSAMSegment().toString()+"|"+
+											razor.getEdgeTarget(e).getSAMSegment().toString()+"|"+
+											e.getScore()+"-"+e.getPenalty()+")");
 
-									while(!bidiQ.isEmpty()) {
-										sizeQ = bidiQ.lastKey();
-										source_vertex = bidiQ.get(sizeQ);
-										bidiQ.remove(sizeQ);
+							while(!bidiQ.isEmpty()) {
+								sizeQ = bidiQ.lastKey();
+								source_vertex = bidiQ.get(sizeQ);
+								bidiQ.remove(sizeQ);
 
-										source_ln = qry_seqs.get(source_vertex.getId()).seq_ln();
-										source_score = source_vertex.getScore()-source_ln;
-										source_penalty = source_vertex.getPenalty();
-										source_ws = source_score-source_penalty;
-										
-										isLeaf = true;
-										out_edges = razor.outgoingEdgesOf(source_vertex);
-										for(TraceableEdge out : out_edges) {
-											//**** this is not right because graph edges are immutable?
-											//**** target_vertex = razor.getEdgeTarget(out);
-											target_vertex = razv_map.get(razor.getEdgeTarget(out).getId());
+								source_ln = qry_seqs.get(source_vertex.getId()).seq_ln();
+								source_score = source_vertex.getScore()-source_ln;
+								source_penalty = source_vertex.getPenalty();
+								source_ws = source_score-source_penalty;
 
-											target_samseg = target_vertex.getSAMSegment();
+								isLeaf = true;
+								out_edges = razor.outgoingEdgesOf(source_vertex);
+								for(TraceableEdge out : out_edges) {
+									//**** this is not right because graph edges are immutable?
+									//**** target_vertex = razor.getEdgeTarget(out);
+									target_vertex = razv_map.get(razor.getEdgeTarget(out).getId());
 
-											// in order to avoid recursive placement in repetitive regions 
-											// we need the new contig to expand the contigging on the reference genome
-											target_range = Range.closed(target_samseg.sstart(), 
-													target_samseg.send()).canonical(DiscreteDomain.integers());
-											target_sinterval = source_vertex.getSIntervalCopy();
-											target_sinterval.add(target_range);
-											cvg = countIntervalCoverage(target_sinterval);
-											
-											if(cvg<countIntervalCoverage(source_vertex.getSInterval())+min_ext ||
-													cvg<=countIntervalCoverage(target_vertex.getSInterval()))
-												// if no significant improvement on coverage
-												// if target vertex has been visited
-												// and the reference covered is greater
-												continue;
-											
-											target_score = target_vertex.getScore();
-											target_penalty = target_vertex.getPenalty();
-											target_ws = target_score-target_penalty;
+									target_samseg = target_vertex.getSAMSegment();
 
-											edge_penalty = out.getPenalty();
-											penalty = source_penalty+edge_penalty;
-											edge_score = out.getScore();
-											score = source_score+edge_score;
-											ws = score-penalty;
+									// in order to avoid recursive placement in repetitive regions 
+									// we need the new contig to expand the contigging on the reference genome
+									target_range = Range.closed(target_samseg.sstart(), 
+											target_samseg.send()).canonical(DiscreteDomain.integers());
+									target_sinterval = source_vertex.getSIntervalCopy();
+									target_sinterval.add(target_range);
+									cvg = countIntervalCoverage(target_sinterval);
 
-											if( edge_penalty>hc_gap || 
-													target_vertex.getStatus() && 
-													(ws<=target_ws ||
-													isLoopback(razor, source_vertex, target_vertex)) ) 
-												continue;
+									if(cvg<countIntervalCoverage(source_vertex.getSInterval())+min_ext ||
+											cvg<=countIntervalCoverage(target_vertex.getSInterval()))
+										// if no significant improvement on coverage
+										// if target vertex has been visited
+										// and the reference covered is greater
+										continue;
 
-											isLeaf = false;
-											target_vertex.setBackTrace(source_vertex);
-											target_vertex.setScore(score);
-											target_vertex.setPenalty(penalty);
-											target_vertex.setStatus(true);
-											target_vertex.setSInterval(target_sinterval);
+									target_score = target_vertex.getScore();
+									target_penalty = target_vertex.getPenalty();
+									target_ws = target_score-target_penalty;
 
-											bidiQ.put(sizeQ++, target_vertex);
-										}
+									edge_penalty = out.getPenalty();
+									penalty = source_penalty+edge_penalty;
+									edge_score = out.getScore();
+									score = source_score+edge_score;
+									ws = score-penalty;
 
-										if(isLeaf && source_ws>max_ws) {
-											penalty = source_vertex.getPenalty();
-											score   = source_vertex.getScore();
-											max_ws = source_ws;
-											opt_vertex  = source_vertex;
+									if( edge_penalty>hc_gap || 
+											target_vertex.getStatus() && 
+											(ws<=target_ws ||
+											isLoopback(razor, source_vertex, target_vertex)) ) 
+										continue;
 
-											if(ddebug) {
+									isLeaf = false;
+									target_vertex.setBackTrace(source_vertex);
+									target_vertex.setScore(score);
+									target_vertex.setPenalty(penalty);
+									target_vertex.setStatus(true);
+									target_vertex.setSInterval(target_sinterval);
 
-												String trace = opt_vertex.toString()+":"+
-														opt_vertex.getSAMSegment().sstart()+"-"+
-														opt_vertex.getSAMSegment().send()+"("+
-														opt_vertex.getScore()+"-"+
-														opt_vertex.getPenalty()+")";
-
-												TraceableVertex<String> optx = opt_vertex;
-												while( (optx = optx.getBackTrace())!=null ) {
-													trace += ","+optx.toString()+":"+
-															optx.getSAMSegment().sstart()+"-"+
-															optx.getSAMSegment().send()+"("+
-															optx.getScore()+"-"+
-															optx.getPenalty()+")";
-												}
-												myLogger.info("trace back ["+score+", "+penalty+"]: "+trace);
-											}
-										}
-									}
-
-									traceable.add(opt_vertex);
-
-									Set<TraceableVertex<String>> optx = new HashSet<TraceableVertex<String>>();
-									optx.add(opt_vertex);
-
-									while( (opt_vertex = opt_vertex.getBackTrace())!=null ) optx.add(opt_vertex);
-
-									for(TraceableVertex<String> v : optx) placed.add(v.getSAMSegment());
+									bidiQ.put(sizeQ++, target_vertex);
 								}
 
-								// sort traceable by size
-								Collections.sort(traceable, new Comparator<TraceableVertex<String>>() {
+								if(isLeaf && source_ws>max_ws) {
+									penalty = source_vertex.getPenalty();
+									score   = source_vertex.getScore();
+									max_ws = source_ws;
+									opt_vertex  = source_vertex;
 
-									@Override
-									public int compare(TraceableVertex<String> t0, TraceableVertex<String> t1) {
-										// TODO Auto-generated method stub
-										return Double.compare(t1.getScore(), t0.getScore());
-									}
-								});
-
-								if(debug) {
-									myLogger.info("<<<<<<<<<<<<<"+sub_seq+">>>>>>>>>>>>>>>>");
-
-									for(TraceableVertex<String> opt_vertex : traceable) {
-
-										double score = opt_vertex.getScore();
-										double penalty = opt_vertex.getPenalty(); 
+									if(ddebug) {
 
 										String trace = opt_vertex.toString()+":"+
 												opt_vertex.getSAMSegment().sstart()+"-"+
@@ -1128,86 +1240,133 @@ public class Anchor extends Executor {
 												opt_vertex.getScore()+"-"+
 												opt_vertex.getPenalty()+")";
 
-										while( (opt_vertex = opt_vertex.getBackTrace())!=null ) {
-											trace += ","+opt_vertex.toString()+":"+
-													opt_vertex.getSAMSegment().sstart()+"-"+
-													opt_vertex.getSAMSegment().send()+"("+
-													opt_vertex.getScore()+"-"+
-													opt_vertex.getPenalty()+")";
+										TraceableVertex<String> optx = opt_vertex;
+										while( (optx = optx.getBackTrace())!=null ) {
+											trace += ","+optx.toString()+":"+
+													optx.getSAMSegment().sstart()+"-"+
+													optx.getSAMSegment().send()+"("+
+													optx.getScore()+"-"+
+													optx.getPenalty()+")";
 										}
-										myLogger.info("final trace back ["+score+", "+penalty+"]: "+trace);
+										myLogger.info("trace back ["+score+", "+penalty+"]: "+trace);
 									}
 								}
+							}
 
-								final StringBuilder linkSeq = new StringBuilder();
-								final StringBuilder linkContigging = new StringBuilder();
-								String contigStr;
-								int olap;
+							traceable.add(opt_vertex);
 
-								synchronized(lock) {
-									for(TraceableVertex<String> opt_vertex : traceable) {
+							Set<TraceableVertex<String>> optx = new HashSet<TraceableVertex<String>>();
+							optx.add(opt_vertex);
 
-										List<TraceableVertex<String>> opt_vertices = new ArrayList<TraceableVertex<String>>();
-										opt_vertices.add(opt_vertex);
-										while( (opt_vertex = opt_vertex.getBackTrace())!=null ) opt_vertices.add(opt_vertex);
+							while( (opt_vertex = opt_vertex.getBackTrace())!=null ) optx.add(opt_vertex);
 
-										if(opt_vertices.size()==1)
-											// this is a singleton
-											continue;
+							for(TraceableVertex<String> v : optx) placed.add(v.getSAMSegment());
+						}
 
-										Collections.reverse(opt_vertices);
+						// sort traceable by size
+						Collections.sort(traceable, new Comparator<TraceableVertex<String>>() {
 
-										opt_vertex = opt_vertices.get(0);
-										source_seqid = opt_vertex.getId();
-										linkSeq.setLength(0);
-										linkSeq.append(qry_seqs.get(source_seqid).seq_str());
-										linkContigging.setLength(0);
-										linkContigging.append(source_seqid);
-										linkPlace.add(source_seqid);
+							@Override
+							public int compare(TraceableVertex<String> t0, TraceableVertex<String> t1) {
+								// TODO Auto-generated method stub
+								return Double.compare(t1.getScore(), t0.getScore());
+							}
+						});
 
-										for(int k=1; k<opt_vertices.size(); k++) {
+						if(debug) {
+							myLogger.info("<<<<<<<<<<<<<"+sub_seq+">>>>>>>>>>>>>>>>");
 
-											opt_vertex = opt_vertices.get(k);
-											target_seqid = opt_vertex.getId();
+							for(TraceableVertex<String> opt_vertex : traceable) {
 
-											OverlapEdge e = gfa.getEdge(source_seqid, target_seqid);
+								double score = opt_vertex.getScore();
+								double penalty = opt_vertex.getPenalty(); 
 
-											if(!e.isRealigned()) gfa.realign(e);
+								String trace = opt_vertex.toString()+":"+
+										opt_vertex.getSAMSegment().sstart()+"-"+
+										opt_vertex.getSAMSegment().send()+"("+
+										opt_vertex.getScore()+"-"+
+										opt_vertex.getPenalty()+")";
 
-											olap = (int)e.olapR();
-											if(olap<0) {
-												linkSeq.append(Constants.scaffold_gap_fill);
-												linkSeq.append(qry_seqs.get(target_seqid).seq_str());
-											} else {
-												linkSeq.append(qry_seqs.get(target_seqid).seq_str().substring(olap));
-											}
-											linkContigging.append("->"+target_seqid);
-											linkPlace.add(target_seqid);
-											source_seqid = target_seqid;
-										}
-
-										contigStr = linkContigging.toString();
-										if(contigging.contains(contigStr)) continue;
-										linkSeqStr.add(new Contig(linkSeq.toString(),contigStr));
-										contigging.add(contigStr);
-									}
+								while( (opt_vertex = opt_vertex.getBackTrace())!=null ) {
+									trace += ","+opt_vertex.toString()+":"+
+											opt_vertex.getSAMSegment().sstart()+"-"+
+											opt_vertex.getSAMSegment().send()+"("+
+											opt_vertex.getScore()+"-"+
+											opt_vertex.getPenalty()+")";
 								}
-							} catch (Exception e) {
-								Thread t = Thread.currentThread();
-								t.getUncaughtExceptionHandler().uncaughtException(t, e);
-								e.printStackTrace();
-								executor.shutdown();
-								System.exit(1);
+								myLogger.info("final trace back ["+score+", "+penalty+"]: "+trace);
 							}
 						}
 
-						public Runnable init(String sub_seq) {
-							// TODO Auto-generated method stub
-							this.sub_seq = sub_seq;
-							return this;
-						}
+						final StringBuilder linkSeq = new StringBuilder();
+						final StringBuilder linkContigging = new StringBuilder();
+						String contigStr;
+						int olap;
 
-					}.init(sub_seq));
+						synchronized(lock) {
+							for(TraceableVertex<String> opt_vertex : traceable) {
+
+								List<TraceableVertex<String>> opt_vertices = new ArrayList<TraceableVertex<String>>();
+								opt_vertices.add(opt_vertex);
+								while( (opt_vertex = opt_vertex.getBackTrace())!=null ) opt_vertices.add(opt_vertex);
+
+								if(opt_vertices.size()==1)
+									// this is a singleton
+									continue;
+
+								Collections.reverse(opt_vertices);
+
+								opt_vertex = opt_vertices.get(0);
+								source_seqid = opt_vertex.getId();
+								linkSeq.setLength(0);
+								linkSeq.append(qry_seqs.get(source_seqid).seq_str());
+								linkContigging.setLength(0);
+								linkContigging.append(source_seqid);
+								linkPlace.add(source_seqid);
+
+								for(int k=1; k<opt_vertices.size(); k++) {
+
+									opt_vertex = opt_vertices.get(k);
+									target_seqid = opt_vertex.getId();
+
+									OverlapEdge e = gfa.getEdge(source_seqid, target_seqid);
+
+									if(!e.isRealigned()) gfa.realign(e);
+
+									olap = (int)e.olapR();
+									if(olap<0) {
+										linkSeq.append(Constants.scaffold_gap_fill);
+										linkSeq.append(qry_seqs.get(target_seqid).seq_str());
+									} else {
+										linkSeq.append(qry_seqs.get(target_seqid).seq_str().substring(olap));
+									}
+									linkContigging.append("->"+target_seqid);
+									linkPlace.add(target_seqid);
+									source_seqid = target_seqid;
+								}
+
+								contigStr = linkContigging.toString();
+								if(contigging.contains(contigStr)) continue;
+								linkSeqStr.add(new Contig(linkSeq.toString(),contigStr));
+								contigging.add(contigStr);
+							}
+						}
+					} catch (Exception e) {
+						Thread t = Thread.currentThread();
+						t.getUncaughtExceptionHandler().uncaughtException(t, e);
+						e.printStackTrace();
+						executor.shutdown();
+						System.exit(1);
+					}
+				}
+
+				public Runnable init(String sub_seq) {
+					// TODO Auto-generated method stub
+					this.sub_seq = sub_seq;
+					return this;
+				}
+
+			}.init(sub_seq));
 		}
 		this.waitFor();
 
@@ -1272,7 +1431,7 @@ public class Anchor extends Executor {
 			this.components = components;
 		}
 	}
-	
+
 	private void run1() {
 		// TODO Auto-generated method stub
 
@@ -1342,7 +1501,7 @@ public class Anchor extends Executor {
 			}
 			iter1.close();
 			in1.close();
-		
+
 			String source, target;
 			Set<SAMSegment> sourcePlacement, targetPlacement;
 			boolean removal;
@@ -1356,7 +1515,7 @@ public class Anchor extends Executor {
 			}
 			String pairkey, sseqid;
 			Map<String, Map<Integer, Integer>> segPair;
-			
+
 			for(final OverlapEdge edge : gfa.edgeSet()) {
 				source = gfa.getEdgeSource(edge);
 				target = gfa.getEdgeTarget(edge);
@@ -1373,7 +1532,7 @@ public class Anchor extends Executor {
 				removal = true;
 				olap = (int) edge.olap();
 				slen = qry_seqs.get(source).seq_ln();
-				
+
 				String a = null, b = null;
 				int d = -1;
 				for(final SAMSegment s : sourcePlacement) {
@@ -1401,39 +1560,39 @@ public class Anchor extends Executor {
 				if(removal) edgeToRemove.add(edge);
 				if(ddebug) myLogger.info(pairkey+": "+removal+ " | "+d+" | "+a+","+b);
 			}
-		
+
 			gfa.removeAllEdges(edgeToRemove);
 			gfa.writeGFA(this.out_prefix+".gfa2");
-			
+
 			final List<GFAPath> paths = new ArrayList<GFAPath>();
 			int rpos;
 			Set<SAMSegment> sseg, tseg;
 			Map<Integer, Integer> pairs;
 			int source_sstart, target_sstart;
 			SAMSegment source_seg, target_seg;
-			
+
 			for(final String refSeqStr : initPseudoAssembly.keySet()) {
 				segPair = edgeSegPair.get(refSeqStr);
 				final TreeMap<Integer, Set<SAMSegment>> initAssembly = initPseudoAssembly.get(refSeqStr);
-				
+
 				for(final Map.Entry<Integer, Set<SAMSegment>> entry : initAssembly.entrySet()) {
 					rpos = entry.getKey();
 					sseg = entry.getValue();
-					
+
 					for(final SAMSegment seg : sseg) {
-						
+
 						// create a path tree
 						final LinkedList<SAMSegment> leaves  = new LinkedList<SAMSegment>();
 						final DirectedPseudograph<SAMSegment, DefaultEdge> pathTree = 
 								new DirectedPseudograph<SAMSegment, DefaultEdge>(DefaultEdge.class);
 						pathTree.addVertex(seg);
 						leaves.add(seg);
-						
+
 						while(!leaves.isEmpty()) {
 							source_seg = leaves.poll();
 							source = source_seg.qseqid();
 							source_sstart = source_seg.sstart();
-							
+
 							for(OverlapEdge edge : gfa.outgoingEdgesOf(source)) {
 								target = gfa.getEdgeTarget(edge);
 								pairkey = source+"->"+target;
@@ -1443,16 +1602,16 @@ public class Anchor extends Executor {
 								if(!pairs.containsKey(source_sstart)) continue;
 
 								target_sstart = pairs.get(source_sstart);
-								
+
 								target_seg = null;
-								
+
 								for(final SAMSegment s : initAssembly.get(target_sstart)) {
 									if(s.qseqid().equals(target)) {
 										target_seg = s;
 										break;
 									}
 								}
-								
+
 								if(!pathTree.containsVertex(target_seg)) {
 									pathTree.addVertex(target_seg);
 									leaves.offer(target_seg);
@@ -1461,10 +1620,10 @@ public class Anchor extends Executor {
 								pathTree.addEdge(source_seg, target_seg);
 							}
 						}
-						
+
 						// now find best path in this region
 						if(pathTree.vertexSet().size()==1) continue;
-						
+
 						if(ddebug) {
 							myLogger.info("#########################################");
 							myLogger.info(seg.toString());
@@ -1473,11 +1632,11 @@ public class Anchor extends Executor {
 							for(DefaultEdge edge : pathTree.edgeSet()) 
 								myLogger.info(pathTree.getEdgeSource(edge).qseqid()+"->"+pathTree.getEdgeTarget(edge).qseqid());
 						}
-					
+
 					}
 				}
 			}
-			
+
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -1489,7 +1648,7 @@ public class Anchor extends Executor {
 		final int sstart;
 		final int send;
 		final int gap;
-		
+
 		public GFAPath(final List<String> path,
 				final int sstart,
 				final int send,
