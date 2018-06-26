@@ -71,14 +71,6 @@ public class Anchor extends Executor {
 						+ " -i/--min-identity       Minimum identity between the query and subject sequences \n"
 						+ "                         for an alignment record to consider (default 0.90).\n"
 						+ " -f/--min-fraction       Minimum alignment fraction of the query sequence (default 0.5).\n"
-						+ " -di/--diff-identity     Threshold of the difference of the identity between the primary and secondary \n"
-						+ "                         alignments. If the difference is smaller than this value, the query \n"
-						+ "                         sequence will be regarded as duplications. Otherwise, the secondary \n"
-						+ "                         alignments will be discared (default 0.01).\n"
-						+ " -df/--diff-fraction     Threshold of the difference of the alignment fraction between the primary and \n"
-						+ "                         secondary alignments. If the difference is smaller than this value, the query \n"
-						+ "                         sequence will be regarded as duplications. Otherwise, the secondary \n"
-						+ "                         alignments will be discared (default 0.05).\n"
 						+ " -t/--threads            Number of threads to use (default 16).\n"
 						+ " -d/--debug              Debugging mode will have extra information printed out.\n"
 						+ " -dd/--debug-debug       Debugging mode will have more information printed out than -d mode.\n"
@@ -91,14 +83,12 @@ public class Anchor extends Executor {
 	private String align_file = null;
 	private String asm_graph = null;
 	private double min_ident = 90;        // ignore alignment records with identity smaller than this
-	private double min_frac = 0.5;        // ignore alignment records with completeness smaller than this unless 
+	private double min_frac = 0.8;        // ignore alignment records with completeness smaller than this unless 
 	// the segment is greater than min_alen
 	private double min_alen = 100;        // keep the alignment record if the segment is no smaller than this
 	// without considering the completeness
-	private double diff_ident = 0.05;     // keep the secondary alignment if the identity score difference is no greater than this
-	private double diff_frac = 0.05;      // keep the secondary alignment if the completeness difference is no greater than this
 	private int min_overlap = 10;         // minimum overlap length
-	private double collinear_shift = 0.5; // maximum shift distance for two collinear alignment segments - 50% of the smaller segment size
+	private double collinear_shift = 1.0; // maximum shift distance for two collinear alignment segments - 50% of the smaller segment size
 	private int kmer_size = -1;           // kmer size to construct the de bruijn assembly graph
 
 	private int num_threads = Runtime.getRuntime().availableProcessors();
@@ -118,8 +108,6 @@ public class Anchor extends Executor {
 			myArgsEngine.add("-k", "--kmer-size", true);
 			myArgsEngine.add("-i", "--min-identity", true);
 			myArgsEngine.add("-f", "--min-fraction", true);
-			myArgsEngine.add("-di", "--diff-identity", true);
-			myArgsEngine.add("-df", "--diff-fraction", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-d", "--debug", false);
 			myArgsEngine.add("-dd", "--debug-debug", false);
@@ -178,20 +166,12 @@ public class Anchor extends Executor {
 			this.min_frac = Double.parseDouble(myArgsEngine.getString("-f"));
 		}
 
-		if (myArgsEngine.getBoolean("-di")) {
-			this.diff_ident = Double.parseDouble(myArgsEngine.getString("-di"));
-		}
-
 		if (myArgsEngine.getBoolean("-t")) {
 			int t = Integer.parseInt(myArgsEngine.getString("-t"));
 			if(t<this.num_threads) this.num_threads = t;
 			this.THREADS = t;
 			Constants.omp_threads = this.num_threads;
 			myLogger.info("OMP_THREADS = "+this.num_threads);
-		}
-
-		if (myArgsEngine.getBoolean("-df")) {
-			this.diff_frac = Double.parseDouble(myArgsEngine.getString("-df"));
 		}
 
 		if (myArgsEngine.getBoolean("-d")) {
@@ -227,238 +207,10 @@ public class Anchor extends Executor {
 	@Override
 	public void run() {
 		// this.run1();
-		this.run2();
-		// this.run3();
+		// this.run2();
+		this.run3();
 	}
 
-	private void run1() {
-		// TODO Auto-generated method stub
-
-		// read assembly graph file
-		final GFA gfa = new GFA(query_file, asm_graph);
-		qry_seqs = gfa.getSequenceMap();
-		sub_seqs = Sequence.parseFastaFileAsMap(subject_file);
-
-		myLogger.info("  GFA vertices: "+gfa.vertexSet().size());
-		myLogger.info("  GFA edges   : "+gfa.edgeSet().size()  );
-
-		// read alignment file and place the query sequences
-		final Map<String, Set<SAMSegment>> initPlace = new HashMap<String, Set<SAMSegment>>();
-		final Map<String, TreeMap<Integer, Set<SAMSegment>>> initPseudoAssembly = 
-				new HashMap<String, TreeMap<Integer, Set<SAMSegment>>>();
-		for(String sub_seq : sub_seqs.keySet()) {
-			if(!sub_seq.equals("Chr00"))
-				initPseudoAssembly.put(sub_seq, new TreeMap<Integer, Set<SAMSegment>>());
-		}
-
-		try {
-			final SamReaderFactory factory =
-					SamReaderFactory.makeDefault()
-					.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
-							SamReaderFactory.Option.VALIDATE_CRC_CHECKSUMS)
-					.validationStringency(ValidationStringency.SILENT);
-			final SamReader in1 = factory.open(new File(align_file));
-			final SAMRecordIterator iter1 = in1.iterator();
-
-			String qry;
-			int qry_ln, sstart;
-			final List<SAMSegment> buff = new ArrayList<SAMSegment>();
-			SAMRecord rc = iter1.next();
-
-			while(rc!=null) {
-				qry = rc.getReadName();
-				qry_ln = qry_seqs.get(qry).seq_ln();			
-
-				buff.clear();
-				if(!rc.getReadUnmappedFlag())
-					buff.add(SAMSegment.samRecord(rc, true, qry_ln));
-
-				while( (rc=iter1.next())!=null
-						&&
-						rc.getReadName().equals(qry) ) {
-					buff.add(SAMSegment.samRecord(rc, true, qry_ln));
-				}
-
-				if(buff.isEmpty()) continue;
-
-				Set<SAMSegment> init_f = new HashSet<SAMSegment>();
-				Set<SAMSegment> init_r = new HashSet<SAMSegment>();
-				for(SAMSegment record : buff) {
-					if("Chr00".equals(record.sseqid())) continue;
-					if(record.qlength()<min_alen) 
-						continue;
-					if(record.qseqid().equals(qry)) 
-						init_f.add(record);
-					else init_r.add(record);
-					sstart = record.sstart();
-					if(!initPseudoAssembly.get(record.sseqid()).containsKey(sstart)) 
-						initPseudoAssembly.get(record.sseqid()).put(sstart, new HashSet<SAMSegment>());
-					initPseudoAssembly.get(record.sseqid()).get(sstart).add(record);
-				}
-				if(!init_f.isEmpty()) initPlace.put(qry,     init_f);
-				if(!init_r.isEmpty()) initPlace.put(qry+"'", init_r);
-			}
-			iter1.close();
-			in1.close();
-		
-			String source, target;
-			Set<SAMSegment> sourcePlacement, targetPlacement;
-			boolean removal;
-			int slen, olap;
-			final Set<OverlapEdge> edgeToRemove = new HashSet<OverlapEdge>();
-			final Map<String, Map<String, Map<Integer, Integer>>> edgeSegPair = 
-					new HashMap<String, Map<String, Map<Integer, Integer>>>();
-			for(String sub_seq : sub_seqs.keySet()) {
-				if(!sub_seq.equals("Chr00"))
-					edgeSegPair.put(sub_seq, new HashMap<String, Map<Integer, Integer>>());
-			}
-			String pairkey, sseqid;
-			Map<String, Map<Integer, Integer>> segPair;
-			
-			for(final OverlapEdge edge : gfa.edgeSet()) {
-				source = gfa.getEdgeSource(edge);
-				target = gfa.getEdgeTarget(edge);
-				sourcePlacement = initPlace.containsKey(source)?initPlace.get(source):null;
-				targetPlacement = initPlace.containsKey(target)?initPlace.get(target):null;
-				pairkey = source+"->"+target;
-				if(sourcePlacement==null||targetPlacement==null) {
-					if(ddebug) myLogger.info(pairkey+": "+true+ " | "+ 
-							(sourcePlacement==null?source+"=null":"") +" "+
-							(targetPlacement==null?target+"=null":"") );
-					edgeToRemove.add(edge);
-					continue;
-				}
-				removal = true;
-				olap = (int) edge.olap();
-				slen = qry_seqs.get(source).seq_ln();
-				
-				String a = null, b = null;
-				int d = -1;
-				for(final SAMSegment s : sourcePlacement) {
-					if(s.qlength()-Math.max(s.qend()-(slen-olap), 0)<min_len)
-						continue;
-
-					for(final SAMSegment t : targetPlacement) {
-						if(t.qlength()-Math.max(olap-t.qstart(), 0)<min_len)
-							continue;
-
-						if(s.sseqid().equals(t.sseqid()) &&
-								(d=AlignmentSegment.sdistance(s, t))<=max_dist) {
-
-							sseqid = s.sseqid();
-							segPair = edgeSegPair.get(sseqid);
-							if(!segPair.containsKey(pairkey)) 
-								segPair.put(pairkey, new HashMap<Integer, Integer>());
-							segPair.get(pairkey).put(s.sstart(), t.sstart());
-							a = s.sseqid()+"_"+s.sstart()+"-"+s.send();
-							b = t.sseqid()+"_"+t.sstart()+"-"+t.send();
-							removal = false;
-						}
-					}
-				}
-				if(removal) edgeToRemove.add(edge);
-				if(ddebug) myLogger.info(pairkey+": "+removal+ " | "+d+" | "+a+","+b);
-			}
-		
-			gfa.removeAllEdges(edgeToRemove);
-			gfa.writeGFA(this.out_prefix+".gfa2");
-			
-			final List<GFAPath> paths = new ArrayList<GFAPath>();
-			int rpos;
-			Set<SAMSegment> sseg, tseg;
-			Map<Integer, Integer> pairs;
-			int source_sstart, target_sstart;
-			SAMSegment source_seg, target_seg;
-			
-			for(final String refSeqStr : initPseudoAssembly.keySet()) {
-				segPair = edgeSegPair.get(refSeqStr);
-				final TreeMap<Integer, Set<SAMSegment>> initAssembly = initPseudoAssembly.get(refSeqStr);
-				
-				for(final Map.Entry<Integer, Set<SAMSegment>> entry : initAssembly.entrySet()) {
-					rpos = entry.getKey();
-					sseg = entry.getValue();
-					
-					for(final SAMSegment seg : sseg) {
-						
-						// create a path tree
-						final LinkedList<SAMSegment> leaves  = new LinkedList<SAMSegment>();
-						final DirectedPseudograph<SAMSegment, DefaultEdge> pathTree = 
-								new DirectedPseudograph<SAMSegment, DefaultEdge>(DefaultEdge.class);
-						pathTree.addVertex(seg);
-						leaves.add(seg);
-						
-						while(!leaves.isEmpty()) {
-							source_seg = leaves.poll();
-							source = source_seg.qseqid();
-							source_sstart = source_seg.sstart();
-							
-							for(OverlapEdge edge : gfa.outgoingEdgesOf(source)) {
-								target = gfa.getEdgeTarget(edge);
-								pairkey = source+"->"+target;
-								if(!segPair.containsKey(pairkey)) continue;
-
-								pairs = segPair.get(pairkey);
-								if(!pairs.containsKey(source_sstart)) continue;
-
-								target_sstart = pairs.get(source_sstart);
-								
-								target_seg = null;
-								
-								for(final SAMSegment s : initAssembly.get(target_sstart)) {
-									if(s.qseqid().equals(target)) {
-										target_seg = s;
-										break;
-									}
-								}
-								
-								if(!pathTree.containsVertex(target_seg)) {
-									pathTree.addVertex(target_seg);
-									leaves.offer(target_seg);
-								}
-
-								pathTree.addEdge(source_seg, target_seg);
-							}
-						}
-						
-						// now find best path in this region
-						if(pathTree.vertexSet().size()==1) continue;
-						
-						if(ddebug) {
-							myLogger.info("#########################################");
-							myLogger.info(seg.toString());
-							myLogger.info("#vertices "+pathTree.vertexSet().size());
-							myLogger.info("#edge     "+pathTree.edgeSet().size());
-							for(DefaultEdge edge : pathTree.edgeSet()) 
-								myLogger.info(pathTree.getEdgeSource(edge).qseqid()+"->"+pathTree.getEdgeTarget(edge).qseqid());
-						}
-					
-					}
-				}
-			}
-			
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
-
-	final private class GFAPath {
-		final List<String> path;
-		final int sstart;
-		final int send;
-		final int gap;
-		
-		public GFAPath(final List<String> path,
-				final int sstart,
-				final int send,
-				final int gap) {
-			this.path   = path;
-			this.sstart = sstart;
-			this.send   = send;
-			this.gap    = gap;
-		}
-	}
-	
 	public void run3() {
 		sub_seqs = Sequence.parseFastaFileAsMap(subject_file);
 		qry_seqs = Sequence.parseFastaFileWithRevCmpAsMap(query_file);
@@ -491,15 +243,13 @@ public class Anchor extends Executor {
 			anchored_records.put(seq_sn, new ArrayList<SAMSegment>());
 		}
 
-		// parse blast records
-		// blast records buffer
+		// parse SAMRecords
+		// SAMRecords buffer
 		final List<SAMSegment> buff = new ArrayList<SAMSegment>();
-		// selected blast records
+		// selected SAMRecords
 		final List<SAMSegment> sel_recs = new ArrayList<SAMSegment>();
 		// temp list
 		final List<SAMSegment> tmp_records = new ArrayList<SAMSegment>();
-		// collinear merged record list
-		// final List<Blast6Record> collinear_merged = new ArrayList<Blast6Record>();
 
 		try {
 			final SamReaderFactory factory =
@@ -513,12 +263,11 @@ public class Anchor extends Executor {
 			SAMRecord rc = iter1.next();
 			SAMSegment primary_record, secondary_record;
 			String qry;
-			double qry_ln, aln_frac;
+			double qry_ln;
 
 			while(rc!=null) {
 
-				qry = rc.getReadName();
-				qry_ln = qry_seqs.get(qry).seq_ln();			
+				qry = rc.getReadName();			
 
 				buff.clear();
 				if(!rc.getReadUnmappedFlag())
@@ -579,7 +328,6 @@ public class Anchor extends Executor {
 						}
 
 					// find collinear alignment segments that can be merged
-					// more accurate but slower
 					Collections.sort(tmp_records, new AlignmentSegment.SubjectCoordinationComparator());
 
 					SAMSegment record;
@@ -669,34 +417,18 @@ public class Anchor extends Executor {
 					// add to sel_recs
 					sel_recs.addAll(tmp_records);
 				}
-
-				// filter by alignment fraction		
-				buff.clear();
-				buff.addAll(sel_recs);
-				sel_recs.clear();
-				for(SAMSegment record : buff) {
-					if(record.qlength()/qry_ln>=this.min_frac)
-						sel_recs.add(record);
-				}
-
-				if(sel_recs.isEmpty()) {
-					// unplaced query sequences
-					// continue
-					continue;
-				}
-				// process primary alignment
+				
+				if(sel_recs.isEmpty()) continue;
+				
+				Collections.sort(sel_recs, new SAMSegment.SegmentSizeComparator());
 				primary_record = sel_recs.get(0);
+				qry_ln = primary_record.qlength()*this.min_frac;
 				anchored_records.get(primary_record.sseqid()).add(primary_record);
-				aln_frac = primary_record.qlength()/qry_ln;
-				// compare secondary alignments to primary alignment
-				// and process
+				
 				for(int i=1; i<sel_recs.size(); i++) {
 					secondary_record = sel_recs.get(i);
-					if(secondary_record.qlength()/qry_ln+this.diff_frac<aln_frac) {
-						break;
-					} else {
+					if(secondary_record.qlength()>=qry_ln)
 						anchored_records.get(secondary_record.sseqid()).add(secondary_record);
-					}
 				}
 			}
 
@@ -704,9 +436,18 @@ public class Anchor extends Executor {
 			in1.close();
 
 			for(Map.Entry<String, List<SAMSegment>> entry : anchored_records.entrySet()) {
-				System.out.println(entry.getKey()+": "+entry.getValue().size());
+				myLogger.info("initial placement #entry "+entry.getKey()+": "+entry.getValue().size());
+				if(this.ddebug) {
+					List<SAMSegment> segs = entry.getValue();
+					for(SAMSegment seg : segs)
+						myLogger.info(seg.toString());
+				}
 			}
 
+			if(this.ddebug) {
+				return;
+			}
+			
 			final BufferedWriter bw_map = Utils.getBufferedWriter(out_prefix+".map");
 			final BufferedWriter bw_fa = Utils.getBufferedWriter(out_prefix+".fa");
 			final Set<String> anchored_seqs = new HashSet<String>();
@@ -1526,6 +1267,234 @@ public class Anchor extends Executor {
 		public Contig(String seqStr, String components) {
 			this.seqStr = seqStr;
 			this.components = components;
+		}
+	}
+	
+	private void run1() {
+		// TODO Auto-generated method stub
+
+		// read assembly graph file
+		final GFA gfa = new GFA(query_file, asm_graph);
+		qry_seqs = gfa.getSequenceMap();
+		sub_seqs = Sequence.parseFastaFileAsMap(subject_file);
+
+		myLogger.info("  GFA vertices: "+gfa.vertexSet().size());
+		myLogger.info("  GFA edges   : "+gfa.edgeSet().size()  );
+
+		// read alignment file and place the query sequences
+		final Map<String, Set<SAMSegment>> initPlace = new HashMap<String, Set<SAMSegment>>();
+		final Map<String, TreeMap<Integer, Set<SAMSegment>>> initPseudoAssembly = 
+				new HashMap<String, TreeMap<Integer, Set<SAMSegment>>>();
+		for(String sub_seq : sub_seqs.keySet()) {
+			if(!sub_seq.equals("Chr00"))
+				initPseudoAssembly.put(sub_seq, new TreeMap<Integer, Set<SAMSegment>>());
+		}
+
+		try {
+			final SamReaderFactory factory =
+					SamReaderFactory.makeDefault()
+					.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
+							SamReaderFactory.Option.VALIDATE_CRC_CHECKSUMS)
+					.validationStringency(ValidationStringency.SILENT);
+			final SamReader in1 = factory.open(new File(align_file));
+			final SAMRecordIterator iter1 = in1.iterator();
+
+			String qry;
+			int qry_ln, sstart;
+			final List<SAMSegment> buff = new ArrayList<SAMSegment>();
+			SAMRecord rc = iter1.next();
+
+			while(rc!=null) {
+				qry = rc.getReadName();
+				qry_ln = qry_seqs.get(qry).seq_ln();			
+
+				buff.clear();
+				if(!rc.getReadUnmappedFlag())
+					buff.add(SAMSegment.samRecord(rc, true, qry_ln));
+
+				while( (rc=iter1.next())!=null
+						&&
+						rc.getReadName().equals(qry) ) {
+					buff.add(SAMSegment.samRecord(rc, true, qry_ln));
+				}
+
+				if(buff.isEmpty()) continue;
+
+				Set<SAMSegment> init_f = new HashSet<SAMSegment>();
+				Set<SAMSegment> init_r = new HashSet<SAMSegment>();
+				for(SAMSegment record : buff) {
+					if("Chr00".equals(record.sseqid())) continue;
+					if(record.qlength()<min_alen) 
+						continue;
+					if(record.qseqid().equals(qry)) 
+						init_f.add(record);
+					else init_r.add(record);
+					sstart = record.sstart();
+					if(!initPseudoAssembly.get(record.sseqid()).containsKey(sstart)) 
+						initPseudoAssembly.get(record.sseqid()).put(sstart, new HashSet<SAMSegment>());
+					initPseudoAssembly.get(record.sseqid()).get(sstart).add(record);
+				}
+				if(!init_f.isEmpty()) initPlace.put(qry,     init_f);
+				if(!init_r.isEmpty()) initPlace.put(qry+"'", init_r);
+			}
+			iter1.close();
+			in1.close();
+		
+			String source, target;
+			Set<SAMSegment> sourcePlacement, targetPlacement;
+			boolean removal;
+			int slen, olap;
+			final Set<OverlapEdge> edgeToRemove = new HashSet<OverlapEdge>();
+			final Map<String, Map<String, Map<Integer, Integer>>> edgeSegPair = 
+					new HashMap<String, Map<String, Map<Integer, Integer>>>();
+			for(String sub_seq : sub_seqs.keySet()) {
+				if(!sub_seq.equals("Chr00"))
+					edgeSegPair.put(sub_seq, new HashMap<String, Map<Integer, Integer>>());
+			}
+			String pairkey, sseqid;
+			Map<String, Map<Integer, Integer>> segPair;
+			
+			for(final OverlapEdge edge : gfa.edgeSet()) {
+				source = gfa.getEdgeSource(edge);
+				target = gfa.getEdgeTarget(edge);
+				sourcePlacement = initPlace.containsKey(source)?initPlace.get(source):null;
+				targetPlacement = initPlace.containsKey(target)?initPlace.get(target):null;
+				pairkey = source+"->"+target;
+				if(sourcePlacement==null||targetPlacement==null) {
+					if(ddebug) myLogger.info(pairkey+": "+true+ " | "+ 
+							(sourcePlacement==null?source+"=null":"") +" "+
+							(targetPlacement==null?target+"=null":"") );
+					edgeToRemove.add(edge);
+					continue;
+				}
+				removal = true;
+				olap = (int) edge.olap();
+				slen = qry_seqs.get(source).seq_ln();
+				
+				String a = null, b = null;
+				int d = -1;
+				for(final SAMSegment s : sourcePlacement) {
+					if(s.qlength()-Math.max(s.qend()-(slen-olap), 0)<min_len)
+						continue;
+
+					for(final SAMSegment t : targetPlacement) {
+						if(t.qlength()-Math.max(olap-t.qstart(), 0)<min_len)
+							continue;
+
+						if(s.sseqid().equals(t.sseqid()) &&
+								(d=AlignmentSegment.sdistance(s, t))<=max_dist) {
+
+							sseqid = s.sseqid();
+							segPair = edgeSegPair.get(sseqid);
+							if(!segPair.containsKey(pairkey)) 
+								segPair.put(pairkey, new HashMap<Integer, Integer>());
+							segPair.get(pairkey).put(s.sstart(), t.sstart());
+							a = s.sseqid()+"_"+s.sstart()+"-"+s.send();
+							b = t.sseqid()+"_"+t.sstart()+"-"+t.send();
+							removal = false;
+						}
+					}
+				}
+				if(removal) edgeToRemove.add(edge);
+				if(ddebug) myLogger.info(pairkey+": "+removal+ " | "+d+" | "+a+","+b);
+			}
+		
+			gfa.removeAllEdges(edgeToRemove);
+			gfa.writeGFA(this.out_prefix+".gfa2");
+			
+			final List<GFAPath> paths = new ArrayList<GFAPath>();
+			int rpos;
+			Set<SAMSegment> sseg, tseg;
+			Map<Integer, Integer> pairs;
+			int source_sstart, target_sstart;
+			SAMSegment source_seg, target_seg;
+			
+			for(final String refSeqStr : initPseudoAssembly.keySet()) {
+				segPair = edgeSegPair.get(refSeqStr);
+				final TreeMap<Integer, Set<SAMSegment>> initAssembly = initPseudoAssembly.get(refSeqStr);
+				
+				for(final Map.Entry<Integer, Set<SAMSegment>> entry : initAssembly.entrySet()) {
+					rpos = entry.getKey();
+					sseg = entry.getValue();
+					
+					for(final SAMSegment seg : sseg) {
+						
+						// create a path tree
+						final LinkedList<SAMSegment> leaves  = new LinkedList<SAMSegment>();
+						final DirectedPseudograph<SAMSegment, DefaultEdge> pathTree = 
+								new DirectedPseudograph<SAMSegment, DefaultEdge>(DefaultEdge.class);
+						pathTree.addVertex(seg);
+						leaves.add(seg);
+						
+						while(!leaves.isEmpty()) {
+							source_seg = leaves.poll();
+							source = source_seg.qseqid();
+							source_sstart = source_seg.sstart();
+							
+							for(OverlapEdge edge : gfa.outgoingEdgesOf(source)) {
+								target = gfa.getEdgeTarget(edge);
+								pairkey = source+"->"+target;
+								if(!segPair.containsKey(pairkey)) continue;
+
+								pairs = segPair.get(pairkey);
+								if(!pairs.containsKey(source_sstart)) continue;
+
+								target_sstart = pairs.get(source_sstart);
+								
+								target_seg = null;
+								
+								for(final SAMSegment s : initAssembly.get(target_sstart)) {
+									if(s.qseqid().equals(target)) {
+										target_seg = s;
+										break;
+									}
+								}
+								
+								if(!pathTree.containsVertex(target_seg)) {
+									pathTree.addVertex(target_seg);
+									leaves.offer(target_seg);
+								}
+
+								pathTree.addEdge(source_seg, target_seg);
+							}
+						}
+						
+						// now find best path in this region
+						if(pathTree.vertexSet().size()==1) continue;
+						
+						if(ddebug) {
+							myLogger.info("#########################################");
+							myLogger.info(seg.toString());
+							myLogger.info("#vertices "+pathTree.vertexSet().size());
+							myLogger.info("#edge     "+pathTree.edgeSet().size());
+							for(DefaultEdge edge : pathTree.edgeSet()) 
+								myLogger.info(pathTree.getEdgeSource(edge).qseqid()+"->"+pathTree.getEdgeTarget(edge).qseqid());
+						}
+					
+					}
+				}
+			}
+			
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	final private class GFAPath {
+		final List<String> path;
+		final int sstart;
+		final int send;
+		final int gap;
+		
+		public GFAPath(final List<String> path,
+				final int sstart,
+				final int send,
+				final int gap) {
+			this.path   = path;
+			this.sstart = sstart;
+			this.send   = send;
+			this.gap    = gap;
 		}
 	}
 }

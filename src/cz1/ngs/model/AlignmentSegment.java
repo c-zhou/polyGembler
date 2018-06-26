@@ -426,6 +426,24 @@ public class AlignmentSegment {
 				new AlignmentSegment(record1.qseqid(),record1.sseqid(),qstart,qend,send,sstart):
 				new AlignmentSegment(record1.qseqid(),record1.sseqid(),qstart,qend,sstart,send);
 	}
+	
+	public static AlignmentSegment merge(final AlignmentSegment record1, final AlignmentSegment record2) {
+		// TODO Auto-generated method stub
+		if(AlignmentSegment.reverse(record1, record2)) return null;
+		
+		int qstart = Math.min(record1.true_qstart(), 
+				record2.true_qstart());
+		int qend = Math.max(record1.true_qend(),
+				record2.true_qend());
+		int sstart = Math.min(record1.true_sstart(), 
+				record2.true_sstart());
+		int send = Math.max(record1.true_send(),
+				record2.true_send());
+		
+		return record1.reverse() ? 
+				new AlignmentSegment(record1.qseqid(),record1.sseqid(),qstart,qend,send,sstart):
+				new AlignmentSegment(record1.qseqid(),record1.sseqid(),qstart,qend,sstart,send);
+	}
 
 	public int qlength() {
 		// TODO Auto-generated method stub
