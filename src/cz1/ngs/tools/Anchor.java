@@ -465,7 +465,8 @@ public class Anchor extends Executor {
 						// TODO Auto-generated method stub
 						try {
 							if(sub_seq.equals("Chr00")) return;
-
+							final int sub_ln = sub_seqs.get(sub_seq).seq_ln();
+							
 							// make traceable alignment segments from SAM segments
 							final List<TraceableAlignmentSegment> alignments = new ArrayList<TraceableAlignmentSegment>();
 							TraceableAlignmentSegment alignment;
@@ -482,7 +483,7 @@ public class Anchor extends Executor {
 								qry_ln = qry_seqs.get(record.qseqid()).seq_ln();
 								clip = Math.min(max_clip, qry_ln*m_clip);
 								alignment.setEndToEnd(qstart<=clip, qend+clip>=qry_ln, false, false);
-								alignment.setClip(qstart-1, qry_ln-qend, Integer.MAX_VALUE, Integer.MAX_VALUE);
+								alignment.setClip(qstart-1, qry_ln-qend, sstart-1, sub_ln-send);
 								alignment.calcScore();
 								alignments.add(alignment);	
 							}
@@ -575,7 +576,7 @@ public class Anchor extends Executor {
 											tmp_send   = tmp_as.send();
 											
 											if(tmp_sstart>source_send && 
-													tmp_sstart>target_send)
+													tmp_sstart>target_sstart)
 												break;
 											
 											tmp = tmp_as.getScore()+
@@ -643,7 +644,6 @@ public class Anchor extends Executor {
 							for(final TraceableAlignmentSegment seg : graph_path) 
 								covs.add(Range.closed(seg.sstart(), seg.send()).canonical(DiscreteDomain.integers()));
 							
-							int sub_ln = sub_seqs.get(sub_seq).seq_ln();
 							int cov = countIntervalCoverage(covs);
 							myLogger.info("####reference chromosome covered "+sub_seq+": "+(double)cov/sub_ln+"("+cov+"/"+sub_ln+")");
 							
