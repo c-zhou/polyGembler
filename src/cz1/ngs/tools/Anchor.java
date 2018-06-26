@@ -544,13 +544,13 @@ public class Anchor extends Executor {
 
 							for(int w=0; w<asz; w++) {
 								source_as = selected.get(w);
-								if(source_as.getTraceBackward()!=null) 
+								if(source_as.getTraceForward()!=null) 
 									continue;
 								objective = source_as.getScore();
 								source_sstart = source_as.sstart();
 								source_send   = source_as.send();
 
-								// so we start from w
+								// so we start from w+1
 								int z = w+1;
 								outerloop:
 									while(z<asz) {
@@ -562,9 +562,9 @@ public class Anchor extends Executor {
 										// calculate the additive to the objective
 										dobj = target_as.getScore()+
 												// penalty: gap on reference
-												(target_sstart>source_send?0:(target_sstart-source_send)*TraceableAlignmentSegment.gap_extension)+
+												(target_sstart>source_send?(target_sstart-source_send)*TraceableAlignmentSegment.gap_extension:0)+
 												// subtract match score for overlap
-												(target_sstart>source_send?0:(source_send-target_sstart)*TraceableAlignmentSegment.match_score);
+												(target_sstart>source_send?0:(target_sstart-source_send)*TraceableAlignmentSegment.match_score);
 
 										// #a <------------------->
 										// #b      <----------------->
@@ -581,9 +581,9 @@ public class Anchor extends Executor {
 											
 											tmp = tmp_as.getScore()+
 													// penalty: gap on reference
-													(tmp_sstart>source_send?0:(tmp_sstart-source_send)*TraceableAlignmentSegment.gap_extension)+
+													(tmp_sstart>source_send?(tmp_sstart-source_send)*TraceableAlignmentSegment.gap_extension:0)+
 													// subtract match score for overlap
-													(tmp_sstart>source_send?0:(source_send-tmp_sstart)*TraceableAlignmentSegment.match_score);
+													(tmp_sstart>source_send?0:(tmp_sstart-source_send)*TraceableAlignmentSegment.match_score);
 											
 											if(tmp>dobj) {
 												// update selected
@@ -1219,11 +1219,11 @@ public class Anchor extends Executor {
 										// higher weight edges are those,
 
 										/****
-												//       1.  large/long alignment segments vertices
-												// TODO: 2*. small gaps on the reference
-												edge_weight = qry_seqs.get(source_seqid).seq_ln()+
-												qry_seqs.get(target_seqid).seq_ln()-
-												gfa.getEdge(source_seqid, target_seqid).olap();
+										//       1.  large/long alignment segments vertices
+										// TODO: 2*. small gaps on the reference
+										edge_weight = qry_seqs.get(source_seqid).seq_ln()+
+										qry_seqs.get(target_seqid).seq_ln()-
+										gfa.getEdge(source_seqid, target_seqid).olap();
 										 **/
 
 										// TODO: 1*. large/long alignment segments vertices
