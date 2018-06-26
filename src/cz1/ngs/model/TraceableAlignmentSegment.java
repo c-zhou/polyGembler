@@ -9,7 +9,7 @@ public class TraceableAlignmentSegment extends AlignmentSegment {
 	
 	private TraceableAlignmentSegment next = null;
 	private TraceableAlignmentSegment previous = null;
-	private double objective = 0d;
+	private double objective = Double.NEGATIVE_INFINITY;
 	private int mer_count = 0;
 	private boolean to_query_start = false;
 	private boolean to_query_end   = false;

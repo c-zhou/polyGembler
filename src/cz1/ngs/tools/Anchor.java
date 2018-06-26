@@ -536,17 +536,18 @@ public class Anchor extends Executor {
 								}
 							}
 														
-							double objective = Double.NEGATIVE_INFINITY, dobj, opt_obj = 0d, tmp; // record the current best path
+							double objective = Double.NEGATIVE_INFINITY, dobj, opt_obj = Double.NEGATIVE_INFINITY, tmp; // record the current best path
 							int tmp_sstart, tmp_send;
 							// int source_qstart, source_qend, target_qstart, target_qend;
 							TraceableAlignmentSegment traceback = null;
 							asz = selected.size();
 
+							// find the best path - dynamic programming
 							for(int w=0; w<asz; w++) {
 								source_as = selected.get(w);
-								if(source_as.getTraceForward()!=null) 
+								if(source_as.getTraceBackward()!=null) 
 									continue;
-								objective = source_as.getScore();
+								objective     = source_as.getScore();
 								source_sstart = source_as.sstart();
 								source_send   = source_as.send();
 
@@ -559,10 +560,15 @@ public class Anchor extends Executor {
 										target_sstart = target_as.sstart();
 										target_send   = target_as.send();
 
+										if(source_send>=target_send) {
+											++z;
+											continue;
+										}
+										
 										// calculate the additive to the objective
 										dobj = target_as.getScore()+
 												// penalty: gap on reference
-												(target_sstart>source_send?(target_sstart-source_send)*TraceableAlignmentSegment.gap_extension:0)+
+												//(target_sstart>source_send?(target_sstart-source_send)*TraceableAlignmentSegment.gap_extension:0)+
 												// subtract match score for overlap
 												(target_sstart>source_send?0:(target_sstart-source_send)*TraceableAlignmentSegment.match_score);
 
@@ -581,7 +587,7 @@ public class Anchor extends Executor {
 											
 											tmp = tmp_as.getScore()+
 													// penalty: gap on reference
-													(tmp_sstart>source_send?(tmp_sstart-source_send)*TraceableAlignmentSegment.gap_extension:0)+
+													//(tmp_sstart>source_send?(tmp_sstart-source_send)*TraceableAlignmentSegment.gap_extension:0)+
 													// subtract match score for overlap
 													(tmp_sstart>source_send?0:(tmp_sstart-source_send)*TraceableAlignmentSegment.match_score);
 											
@@ -596,7 +602,7 @@ public class Anchor extends Executor {
 										}
 
 										// OK now we found it
-										if(dobj>0 && dobj+objective>target_as.getObjective()) {
+										if(dobj+objective>target_as.getObjective()) {
 											// if the objective is better, we choose this path
 											objective += dobj;
 											target_as.setTraceBackward(source_as);
@@ -611,7 +617,14 @@ public class Anchor extends Executor {
 											if(source_as.getTraceForward()!=null) {
 												// so we trace forward from here to avoid redoing this
 												while((target_as=source_as.getTraceForward())!=null) {
-													objective = target_as.getObjective()+dobj;
+													target_sstart = target_as.sstart();
+													source_send   = source_as.send();
+													dobj = target_as.getScore()+
+															// penalty: gap on reference
+															//(target_sstart>source_send?(target_sstart-source_send)*TraceableAlignmentSegment.gap_extension:0)+
+															// subtract match score for overlap
+															(target_sstart>source_send?0:(target_sstart-source_send)*TraceableAlignmentSegment.match_score);
+													objective += dobj;
 													target_as.setObjective(objective);
 													source_as = target_as;
 												}
@@ -621,7 +634,6 @@ public class Anchor extends Executor {
 										// don't forget this
 										++z;
 									}
-
 								// now we get a path
 								if(objective>opt_obj) {
 									opt_obj = objective;
@@ -654,6 +666,9 @@ public class Anchor extends Executor {
 									for(TraceableAlignmentSegment seg : graph_path) myLogger.info(seg.toString());
 								}
 							}
+							
+							// now we join the neighbouring placement 
+							
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();
 							t.getUncaughtExceptionHandler().uncaughtException(t, e);
