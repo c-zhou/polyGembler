@@ -93,7 +93,7 @@ public class Anchor extends Executor {
 	private double min_ident = 90;        // ignore alignment records with identity smaller than this
 	private double min_frac = 0.5;        // ignore alignment records with completeness smaller than this unless 
 	// the segment is greater than min_alen
-	private double min_alen = 300;        // keep the alignment record if the segment is no smaller than this
+	private double min_alen = 100;        // keep the alignment record if the segment is no smaller than this
 	// without considering the completeness
 	private double diff_ident = 0.05;     // keep the secondary alignment if the identity score difference is no greater than this
 	private double diff_frac = 0.05;      // keep the secondary alignment if the completeness difference is no greater than this
@@ -209,6 +209,7 @@ public class Anchor extends Executor {
 	private final static int min_len  = 100; // minimum alignment length
 	private final static int min_gap  = 10;  // take this if estimated gap size is smaller than this
 	private final static int max_gap  = 100; // take this if estimated gap size is larger than this
+	private final static int min_ext  = 30;  // minimum extension for contigging
 	private Map<String, Sequence> qry_seqs;
 	private Map<String, Sequence> sub_seqs;
 	private Map<String, TreeRangeSet<Integer>> sub_gaps;
@@ -218,7 +219,7 @@ public class Anchor extends Executor {
 	
 	private final static int match_score  = 1;
 	private final static int clip_penalty = 1;
-	private final static int hc_gap  = 50000;
+	private final static int hc_gap  = 100000;
 	private final static int max_cov = 127;
 
 	private final static Object lock = new Object();
@@ -928,8 +929,6 @@ public class Anchor extends Executor {
 		}
 	}
 
-	private final static int min_ext = 100; //minimum extension for contigging
-	
 	public void run2() {
 		// TODO Auto-generated method stub
 
@@ -1260,7 +1259,9 @@ public class Anchor extends Executor {
 
 									if(ddebug)
 										for(TraceableEdge e : razor.edgeSet()) 
-											myLogger.info(e.toString()+"("+razor.getEdgeSource(e).getSAMSegment().toString()+"|"+razor.getEdgeTarget(e).getSAMSegment().toString()+"|"+e.getScore()+"-"+e.getPenalty()+")");
+											myLogger.info(e.toString()+"("+razor.getEdgeSource(e).getSAMSegment().toString()+"|"+
+													razor.getEdgeTarget(e).getSAMSegment().toString()+"|"+
+													e.getScore()+"-"+e.getPenalty()+")");
 
 									while(!bidiQ.isEmpty()) {
 										sizeQ = bidiQ.lastKey();
@@ -1289,7 +1290,7 @@ public class Anchor extends Executor {
 											target_sinterval.add(target_range);
 											cvg = countIntervalCoverage(target_sinterval);
 											
-											if(cvg<countIntervalCoverage(source_vertex.getSInterval())+min_ext||
+											if(cvg<countIntervalCoverage(source_vertex.getSInterval())+min_ext ||
 													cvg<=countIntervalCoverage(target_vertex.getSInterval()))
 												// if no significant improvement on coverage
 												// if target vertex has been visited
