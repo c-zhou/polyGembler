@@ -490,7 +490,7 @@ public class Anchor extends Executor {
 							Collections.sort(alignments, new TraceableAlignmentSegment.SubjectCoordinationComparator());
 							
 							// we remove containment
-							TraceableAlignmentSegment source_as, target_as;
+							TraceableAlignmentSegment source_as, target_as, tmp_as;
 							int source_sstart, source_send, target_sstart, target_send;
 							int asz = alignments.size();
 							boolean sEndToEnd, qEndToEnd;
@@ -534,8 +534,126 @@ public class Anchor extends Executor {
 									for(TraceableAlignmentSegment seg : selected) myLogger.info(seg.toString());
 								}
 							}
+														
+							double objective = Double.NEGATIVE_INFINITY, dobj, opt_obj = 0d, tmp; // record the current best path
+							int tmp_sstart, tmp_send;
+							// int source_qstart, source_qend, target_qstart, target_qend;
+							TraceableAlignmentSegment traceback = null;
+							asz = selected.size();
+
+							for(int w=0; w<asz; w++) {
+								source_as = selected.get(w);
+								if(source_as.getTraceBackward()!=null) 
+									continue;
+								objective = source_as.getScore();
+								source_sstart = source_as.sstart();
+								source_send   = source_as.send();
+
+								// so we start from w
+								int z = w+1;
+								outerloop:
+									while(z<asz) {
+										// first find next 
+										target_as     = selected.get(z);
+										target_sstart = target_as.sstart();
+										target_send   = target_as.send();
+
+										// calculate the additive to the objective
+										dobj = target_as.getScore()+
+												// penalty: gap on reference
+												(target_sstart>source_send?0:(target_sstart-source_send)*TraceableAlignmentSegment.gap_extension)+
+												// subtract match score for overlap
+												(target_sstart>source_send?0:(source_send-target_sstart)*TraceableAlignmentSegment.match_score);
+
+										// #a <------------------->
+										// #b      <----------------->
+										// #c            <--------------->
+										// we prefer #c over #b
+										for(int v=z+1; v<asz; v++) {
+											tmp_as     = selected.get(v);
+											tmp_sstart = tmp_as.sstart();
+											tmp_send   = tmp_as.send();
+											
+											if(tmp_sstart>source_send && 
+													tmp_sstart>target_send)
+												break;
+											
+											tmp = tmp_as.getScore()+
+													// penalty: gap on reference
+													(tmp_sstart>source_send?0:(tmp_sstart-source_send)*TraceableAlignmentSegment.gap_extension)+
+													// subtract match score for overlap
+													(tmp_sstart>source_send?0:(source_send-tmp_sstart)*TraceableAlignmentSegment.match_score);
+											
+											if(tmp>dobj) {
+												// update selected
+												dobj          = tmp;
+												target_as     = tmp_as;
+												target_sstart = tmp_sstart;
+												target_send   = tmp_send;
+												z = v;
+											}
+										}
+
+										// OK now we found it
+										if(dobj>0 && dobj+objective>target_as.getObjective()) {
+											// if the objective is better, we choose this path
+											objective += dobj;
+											target_as.setTraceBackward(source_as);
+											target_as.setObjective(objective);
+											source_as.setTraceForward(target_as);
+											
+											// finally we update source
+											source_as     = target_as;
+											source_sstart = target_sstart;
+											source_send   = target_send;
+
+											if(source_as.getTraceForward()!=null) {
+												// so we trace forward from here to avoid redoing this
+												while((target_as=source_as.getTraceForward())!=null) {
+													objective = target_as.getObjective()+dobj;
+													target_as.setObjective(objective);
+													source_as = target_as;
+												}
+												break outerloop;
+											}
+										}
+										// don't forget this
+										++z;
+									}
+
+								// now we get a path
+								if(objective>opt_obj) {
+									opt_obj = objective;
+									traceback = source_as;	
+								}
+							}
 							
+							// now we get the final path
+							// which can be traced back from 'traceback'
+							if(traceback==null) throw new RuntimeException("!!!");
 							
+							final List<TraceableAlignmentSegment> graph_path = new ArrayList<TraceableAlignmentSegment>();
+							while(traceback!=null) {
+								graph_path.add(traceback);
+								traceback = traceback.getTraceBackward();
+							}
+							Collections.reverse(graph_path);
+
+							RangeSet<Integer> covs = TreeRangeSet.create();
+							for(final TraceableAlignmentSegment seg : graph_path) 
+								covs.add(Range.closed(seg.sstart(), seg.send()).canonical(DiscreteDomain.integers()));
+							
+							int sub_ln = sub_seqs.get(sub_seq).seq_ln();
+							int cov = countIntervalCoverage(covs);
+							myLogger.info("####reference chromosome covered "+sub_seq+": "+(double)cov/sub_ln+"("+cov+"/"+sub_ln+")");
+							
+							if(ddebug) {
+								synchronized(lock) {
+									myLogger.info("####final placement #entry "+sub_seq+": "+graph_path.size()+
+											"["+(double)cov/sub_ln+"("+cov+"/"+sub_ln+")]");
+									for(TraceableAlignmentSegment seg : graph_path) myLogger.info(seg.toString());
+								}
+							}
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();
 							t.getUncaughtExceptionHandler().uncaughtException(t, e);
