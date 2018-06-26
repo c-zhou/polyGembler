@@ -263,20 +263,22 @@ public class Anchor extends Executor {
 			SAMRecord rc = iter1.next();
 			SAMSegment primary_record, secondary_record;
 			String qry;
-			double qry_ln;
-
+			int qry_ln;
+			double thres_ln;
+			
 			while(rc!=null) {
 
 				qry = rc.getReadName();			
-
+				qry_ln = qry_seqs.get(qry).seq_ln();
+				
 				buff.clear();
 				if(!rc.getReadUnmappedFlag())
-					buff.add(SAMSegment.samRecord(rc));
+					buff.add(SAMSegment.samRecord(rc, true, qry_ln));
 
 				while( (rc=iter1.next())!=null
 						&&
 						rc.getReadName().equals(qry) ) {
-					buff.add(SAMSegment.samRecord(rc));
+					buff.add(SAMSegment.samRecord(rc, true, qry_ln));
 				}
 
 				if(buff.isEmpty()) continue;
@@ -422,12 +424,12 @@ public class Anchor extends Executor {
 				
 				Collections.sort(sel_recs, new SAMSegment.SegmentSizeComparator());
 				primary_record = sel_recs.get(0);
-				qry_ln = primary_record.qlength()*this.min_frac;
+				thres_ln = primary_record.qlength()*this.min_frac;
 				anchored_records.get(primary_record.sseqid()).add(primary_record);
 				
 				for(int i=1; i<sel_recs.size(); i++) {
 					secondary_record = sel_recs.get(i);
-					if(secondary_record.qlength()>=qry_ln)
+					if(secondary_record.qlength()>=thres_ln)
 						anchored_records.get(secondary_record.sseqid()).add(secondary_record);
 				}
 			}
@@ -439,6 +441,7 @@ public class Anchor extends Executor {
 				myLogger.info("initial placement #entry "+entry.getKey()+": "+entry.getValue().size());
 				if(this.ddebug) {
 					List<SAMSegment> segs = entry.getValue();
+					Collections.sort(segs, new SAMSegment.SubjectCoordinationComparator());
 					for(SAMSegment seg : segs)
 						myLogger.info(seg.toString());
 				}
@@ -706,7 +709,7 @@ public class Anchor extends Executor {
 					
 			while(rc!=null) {
 				qry = rc.getReadName();
-				qry_ln = qry_seqs.get(qry).seq_ln();			
+				qry_ln = qry_seqs.get(qry).seq_ln();		
 
 				buff.clear();
 				if(!rc.getReadUnmappedFlag())
