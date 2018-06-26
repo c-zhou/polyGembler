@@ -17,6 +17,9 @@ import java.util.Set;
 import java.util.TreeMap;
 
 import org.apache.commons.collections4.bidimap.TreeBidiMap;
+import org.biojava.nbio.core.alignment.template.SequencePair;
+import org.biojava.nbio.core.sequence.DNASequence;
+import org.biojava.nbio.core.sequence.compound.NucleotideCompound;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.DirectedPseudograph;
 import org.jgrapht.graph.DirectedWeightedPseudograph;
@@ -205,7 +208,8 @@ public class Anchor extends Executor {
 	private final static int clip_penalty = 1;
 	private final static int hc_gap  = 100000;
 	private final static int max_cov = 127;
-
+	private final static int aln_flank = 50;
+	
 	private final static Object lock = new Object();
 
 	@Override
@@ -215,6 +219,9 @@ public class Anchor extends Executor {
 		this.run3();
 	}
 
+	private final static int min_olap  = 50;
+	private final static int max_clip2 = 30;
+	
 	public void run3() {
 		sub_seqs = Sequence.parseFastaFileAsMap(subject_file);
 		qry_seqs = Sequence.parseFastaFileWithRevCmpAsMap(query_file);
@@ -452,6 +459,10 @@ public class Anchor extends Executor {
 			}
 
 			myLogger.info("####process each reference chromosome");
+
+			final BufferedWriter bw_map = Utils.getBufferedWriter(out_prefix+".map");
+			final BufferedWriter bw_fa = Utils.getBufferedWriter(out_prefix+".fa");
+			final Set<String> anchored_contigs = new HashSet<String>();
 			
 			this.initial_thread_pool();
 			for(String sub_seq : sub_seqs.keySet()) {
@@ -668,6 +679,104 @@ public class Anchor extends Executor {
 							}
 							
 							// now we join the neighbouring placement 
+							final Set<String> anchored_seq = new HashSet<String>();
+							final StringBuilder pseudo_chr = new StringBuilder();
+							final List<String> agpmap_str  = new ArrayList<String>();
+							alignment = graph_path.get(0);
+							String qseqid = alignment.qseqid();
+							pseudo_chr.append(qry_seqs.get(qseqid).seq_str());
+							int chrL = pseudo_chr.length();
+							if(qseqid.endsWith("'")) {
+								// reverse complement
+								qseqid = qseqid.replaceAll("'$", "");
+								anchored_seq.add(qseqid);
+								agpmap_str.add(qseqid+"\t"+chrL+"\t0\t"+chrL+"\t-\t"+sub_seq+"\t0\t"+chrL);
+							} else {
+								anchored_seq.add(qseqid);
+								agpmap_str.add(qseqid+"\t"+chrL+"\t0\t"+chrL+"\t+\t"+sub_seq+"\t0\t"+chrL);
+							}
+							
+							String target_str, source_aln, target_aln;
+							int olap, gap, source_len, target_len, source_qend, target_qstart;
+							int aLen, a2, b1, b2;
+							SequencePair<DNASequence, NucleotideCompound> seqPair;
+							
+							for(int i=1; i<graph_path.size(); i++) {
+								source_as = graph_path.get(i-1);
+								target_as = graph_path.get(i);
+								
+								source_qend = source_as.qend();
+								source_send = source_as.send();
+								source_len  = qry_seqs.get(source_as.qseqid()).seq_ln();
+								
+								target_qstart = target_as.qstart();
+								target_sstart = target_as.sstart();
+								
+								qseqid = target_as.qseqid();
+								target_str = qry_seqs.get(qseqid).seq_str();
+								target_len = target_str.length();
+								
+								// see if there is overlap between source tail and target head
+								olap = Math.max(0, source_send-target_sstart);
+								
+								source_aln = pseudo_chr.substring(Math.max(0, 
+										chrL-(source_len-source_qend+olap+aln_flank)));
+								target_aln = target_str.substring(0, Math.min(target_len,
+										target_qstart+olap+aln_flank));
+								seqPair = Constants.localPairMatcher(source_aln, target_aln);
+								
+								aLen = seqPair.getLength();
+								a2 = seqPair.getIndexInQueryAt(aLen);
+								b1 = seqPair.getIndexInTargetAt(1);
+								b2 = seqPair.getIndexInTargetAt(aLen);
+								
+								if(aLen>=min_olap&&a2+max_clip2>=source_aln.length()&&max_clip2>=b1) {
+									// overlap found
+
+									pseudo_chr.append(target_str.substring(b2));
+									
+									if(qseqid.endsWith("'")) {
+										// reverse complement
+										qseqid = qseqid.replaceAll("'$", "");
+										anchored_seq.add(qseqid);
+										agpmap_str.add(qseqid+"\t"+(target_len-b2)+"\t"+0+"\t"+(target_len-b2)+"\t-\t"+sub_seq+"\t"+chrL+"\t"+pseudo_chr.length());
+									} else {
+										anchored_seq.add(qseqid);
+										agpmap_str.add(qseqid+"\t"+(target_len-b2)+"\t"+b2+"\t"+target_len+"\t+\t"+sub_seq+"\t"+chrL+"\t"+pseudo_chr.length());
+									}
+									
+								} else {
+									// no overlap found
+									gap = Math.max(min_gap, target_sstart-source_send);
+									pseudo_chr.append(Sequence.polyN(gap));
+									agpmap_str.add("GAP\t"+gap+"\t"+0+"\t"+gap+"\t+\t"+sub_seq+"\t"+chrL+"\t"+pseudo_chr.length());
+									chrL = pseudo_chr.length();
+									
+									pseudo_chr.append(target_str);
+									if(qseqid.endsWith("'")) {
+										// reverse complement
+										qseqid = qseqid.replaceAll("'$", "");
+										anchored_seq.add(qseqid);
+										agpmap_str.add(qseqid+"\t"+target_len+"\t"+0+"\t"+target_len+"\t-\t"+sub_seq+"\t"+chrL+"\t"+pseudo_chr.length());
+									} else {
+										anchored_seq.add(qseqid);
+										agpmap_str.add(qseqid+"\t"+target_len+"\t"+0+"\t"+target_len+"\t+\t"+sub_seq+"\t"+chrL+"\t"+pseudo_chr.length());
+									}
+								}
+								chrL = pseudo_chr.length();
+							}
+							
+							if(ddebug) {
+								myLogger.info("####agp map");
+								for(final String agpstr : agpmap_str) myLogger.info(agpstr);
+							}
+							
+							synchronized(lock) {
+								bw_fa.write(Sequence.formatOutput(this.sub_seq, pseudo_chr.toString()));
+								for(final String agpstr : agpmap_str) bw_map.write(agpstr+"\n");
+								anchored_contigs.addAll(anchored_seq);
+							}
+							
 							
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();
@@ -688,282 +797,19 @@ public class Anchor extends Executor {
 			}
 			this.waitFor();
 
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-
-
-
-
-
-
-
-
-
-
-
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/******
-			final BufferedWriter bw_map = Utils.getBufferedWriter(out_prefix+".map");
-			final BufferedWriter bw_fa = Utils.getBufferedWriter(out_prefix+".fa");
-			final Set<String> anchored_seqs = new HashSet<String>();
-			final List<String> sub_list = Sequence.parseSeqList(subject_file);
-
-			for(String sub_sn : sub_list) {
-
-				sam_records = anchored_records.get(sub_sn);
-				int nV = sam_records.size(), count = 0;
-
-				// sort blast records
-				Collections.sort(sam_records, new SAMSegment.SubjectCoordinationComparator());
-				// consensus
-				int posUpto = 0, send_clip = 0;
-				int sstart, send, qstart, qend, qlen, tmp_int, qstart_clip, qend_clip, gap_size;
-				// distance to last 'N', start from next position to find longest common suffix-prefix
-				int prev_n = Integer.MAX_VALUE;
-				int mol_len = 0;
-				String qseq;
-				int nS, nQ;
-
-				// first step: construct super scaffold
-				// will form a tree graph indicating the path through the contigs
-
-				// convert contig names to integer indices
-				// one contig could end up with multiple indices due to repeats
-				// Map<Integer, String> ss_coordinate = new HashMap<Integer, String>();
-				// int index = 0;
-				// for(SAMSegment record : sam_records)
-				//	ss_coordinate.put(index++, record.qseqid()+(record.forward()?"":"'"));
-
-				StringBuilder seq_str = new StringBuilder();
-				for(int v=0; v<nV; v++) {
-					if(++count%10000==0) myLogger.info(sub_sn+" "+count+"/"+nV+" done.");
-
-					SAMSegment record = sam_records.get(v);
-					qlen = qry_seqs.get(record.qseqid()).seq_ln();
-					sstart = record.sstart();
-					send = record.send();
-					qstart = record.qstart();
-					qend = record.qend();
-					if(sstart>send) {
-						// make sure sstart<send
-						tmp_int = sstart;
-						sstart = send;
-						send = tmp_int;
-						tmp_int = qstart;
-						qstart = qend;
-						qend = tmp_int;
-					}
-
-					if(qstart>qend) {
-						qstart_clip = qlen-qstart;
-						qend_clip = qend-1;
-						qseq = Sequence.revCompSeq(qry_seqs.get(record.qseqid()).seq_str());
-					} else {
-						qstart_clip = qstart-1;
-						qend_clip = qlen-qend;
-						qseq = qry_seqs.get(record.qseqid()).seq_str();
-					}
-
-					if(send<posUpto||sstart<posUpto&&qstart_clip>max_clip) {
-						// skip if it is redundant
-						//     ====================
-						//      /-------\
-						//        /----\
-						// skip if contradiction observed
-						//     ====================
-						//      /-------\
-						//       --/----\--
-						// TODO process
-						continue;
-					}
-
-					int nO = 0;
-					if(send_clip<=min_overlap&&qstart_clip<=min_overlap) {
-						nO = posUpto-sstart+qstart_clip+1;
-					} else {
-						// find longest suffix-prefix
-						nS = seq_str.length();
-						nQ = qseq.length();
-						nO = Math.min(prev_n, Math.min(nS, nQ));
-						outerloop:
-							for(; nO>=min_overlap; nO--) {
-								int nS_i = nS-nO;
-								for(int i=0; i<nO; i++) {
-									if(seq_str.charAt(nS_i+i)!=qseq.charAt(i))
-										continue outerloop;
-								}
-								break outerloop;
-							}
-					}
-
-					if(nO<min_overlap) {
-						// no overlap found
-
-						// simply extend
-						//     ====================
-						//      /-------\
-						//               /----\
-
-						// will insert a GAP anyway
-						// if sstart<=posUpto will insert a small GAP min_gap
-						// otherwise will insert a large GAP max(pseduo_distance, max_gap)
-						if(posUpto>0) {
-							if(sstart<=posUpto) {
-								// if too much overlap, then treat it as a contradiction
-								if(posUpto-sstart>min_overlap) {
-									//discard
-									continue;
-								} else {
-									// insert a min_gap
-									gap_size = min_gap;
-								}
-							} else {
-								// estimate gap size
-								gap_size = (sstart-posUpto)-(send_clip+qstart_clip);
-								if(gap_size<max_gap) gap_size = max_gap;	
-							}
-
-							bw_map.write("GAP\t"+
-									gap_size+
-									"\t0\t"+
-									gap_size+
-									"\t+\t"+
-									sub_sn+
-									"\t"+
-									mol_len+
-									"\t"+
-									(mol_len+gap_size)+
-									"\n");
-							seq_str.append( Sequence.polyN(gap_size) );
-							mol_len += gap_size;
-						}
-						bw_map.write(record.qseqid()+
-								"\t"+
-								qlen+
-								"\t");
-						if(qstart>qend) {
-							// reverse
-							bw_map.write("0\t"+qlen+"\t-\t");
-						} else {
-							// forward
-							bw_map.write("0\t"+qlen+"\t+\t");
-						}
-						seq_str.append(qseq);
-						bw_map.write(sub_sn+
-								"\t"+
-								mol_len+
-								"\t"+
-								(mol_len+qlen)+
-								"\n");
-						mol_len += qlen;
-						prev_n = qlen;
-
-						anchored_seqs.add(record.qseqid());
-
-					} else {
-						// overlap found
-						// will not insert gap
-						//     ====================
-						//      /-------\
-						//            /----\
-						// calculate overlaps
-						// process overlap
-
-						qstart = nO;
-						if(qstart==qlen) continue;
-						bw_map.write(record.qseqid()+
-								"\t"+
-								(qlen-qstart)+
-								"\t");
-
-						if(qstart>qend) {
-							// reverse
-							bw_map.write( 0+
-									"\t"+
-									(qlen-qstart)+
-									"\t-\t" );
-						} else {
-							// forward
-							bw_map.write( qstart+
-									"\t"+
-									qlen+
-									"\t+\t" );
-						}
-						bw_map.write(sub_sn+
-								"\t"+
-								mol_len+
-								"\t"+
-								(mol_len+qlen-qstart)+
-								"\n");
-						mol_len += qlen-qstart;
-						prev_n += qlen-qstart;
-						seq_str.append( qseq.substring(qstart) );
-
-						anchored_seqs.add(record.qseqid());
-					}
-
-					posUpto = send;
-					send_clip = qend_clip;
-
-				}
-
-				if(seq_str.length()>0) 
-					bw_fa.write(Sequence.formatOutput(sub_sn, seq_str.toString()));
-			}
-
 			bw_fa.close();
 			bw_map.close();
 
 			final BufferedWriter bw_ufa = Utils.getBufferedWriter(out_prefix+"_unplaced.fa");
 			for(String seq : qry_seqs.keySet()) 
-				if(!anchored_seqs.contains(seq))
+				if(!anchored_contigs.contains(seq)&&!seq.endsWith("'"))
 					bw_ufa.write(qry_seqs.get(seq).formatOutput());
 			bw_ufa.close();
+			
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
-*****/
 	}
 
 	public void run2() {
