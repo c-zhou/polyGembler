@@ -238,9 +238,9 @@ public class NGSAnchor extends Executor {
 							String[] s;
 							while( (line=br.readLine())!=null ) {
 								s = line.split("\\s+");
-								if(s[6].equals(this.sub_seq))
-									graph_path.add(new AlignmentSegment(s[5],s[6],Integer.parseInt(s[7]),
-											Integer.parseInt(s[8]),Integer.parseInt(s[9]),Integer.parseInt(s[10])));
+								if(s[1].equals(this.sub_seq))
+									graph_path.add(new AlignmentSegment(s[0],s[1],Integer.parseInt(s[2]),
+											Integer.parseInt(s[3]),Integer.parseInt(s[4]),Integer.parseInt(s[5])));
 							}
 							br.close();
 							
