@@ -678,6 +678,8 @@ public class Anchor extends Executor {
 								}
 							}
 							
+							myLogger.info("####consensus "+this.sub_seq+" initiated.");
+							
 							// now we join the neighbouring placement 
 							final Set<String> anchored_seq = new HashSet<String>();
 							final StringBuilder pseudo_chr = new StringBuilder();
@@ -700,8 +702,11 @@ public class Anchor extends Executor {
 							int olap, gap, source_len, target_len, source_qend, target_qstart;
 							int aLen, a2, b1, b2;
 							SequencePair<DNASequence, NucleotideCompound> seqPair;
+							final int n = graph_path.size();
 							
 							for(int i=1; i<graph_path.size(); i++) {
+								myLogger.info("####consensus "+this.sub_seq+": "+i+"/"+n);
+								
 								source_as = graph_path.get(i-1);
 								target_as = graph_path.get(i);
 								
@@ -766,10 +771,7 @@ public class Anchor extends Executor {
 								chrL = pseudo_chr.length();
 							}
 							
-							if(ddebug) {
-								myLogger.info("####agp map");
-								for(final String agpstr : agpmap_str) myLogger.info(agpstr);
-							}
+							myLogger.info("####consensus "+this.sub_seq+" finished.");
 							
 							synchronized(lock) {
 								bw_fa.write(Sequence.formatOutput(this.sub_seq, pseudo_chr.toString()));
