@@ -34,7 +34,7 @@ public class Consensus10X extends Executor {
 				"\n\nUsage is as follows:\n"
 						+ " -s/--subject            Subject/reference sequences file in FASTA format.\n"
 						+ " -a/--align              Alignment files of query sequences to the subject sequences. \n"
-						+ " -#/--min-link           Minimum link to make consensus (default 10).\n"
+						+ " -#/--min-link           Minimum link to make consensus (default 3).\n"
 						+ " -t/--threads            Number of threads to use.\n"
 						+ " -o/--out-prefix         Prefix of the output files.\n"
 						+ "\n");	
@@ -43,7 +43,7 @@ public class Consensus10X extends Executor {
 	private String subject_file;
 	private String[] bam_files;
 	private String out_prefix;
-	private int min_link = 10;
+	private int min_link = 3;
 	private int num_threads = Runtime.getRuntime().availableProcessors();
 	
 	@Override
@@ -206,9 +206,9 @@ public class Consensus10X extends Executor {
 			.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
 					SamReaderFactory.Option.VALIDATE_CRC_CHECKSUMS)
 			.validationStringency(ValidationStringency.SILENT);
-	private final static double min_qual = 20;
-	private final static double max_ins  = 1000;
-	private final static int max_gap = 10000;
+	private final static double min_qual = 0;
+	private final static double max_ins  = 2000;
+	private final static int max_gap = 20000;
 	
 	private class BAMBarcodeIterator {
 		private final SamReader samReader;
