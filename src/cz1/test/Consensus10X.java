@@ -162,7 +162,7 @@ public class Consensus10X extends Executor {
 				if(cvg[i]<min_link) lowCov.add(i);
 			}
 			lowCov.add(seq_ln);
-			int start, end, scaff_no = 1;
+			int start, end;
 			for(int i=1; i<lowCov.size();i++) {
 				start = lowCov.get(i-1)+1;
 				end   = lowCov.get(i);
@@ -171,9 +171,7 @@ public class Consensus10X extends Executor {
 				scaff_str = scaff_str.replaceAll("^N{1,}", "");
 				scaff_str = scaff_str.replaceAll("N{1,}$", "");
 				if(scaff_str.length()>=min_scaff) {
-					scaffs.add(new Sequence(sub_seqid+"_scaffold"+
-							String.format("%08d", scaff_no), scaff_str));
-					++scaff_no;
+					scaffs.add(new Sequence(sub_seqid+":"+start+"-"+end, scaff_str));
 				}
 			}
 		}
@@ -186,6 +184,12 @@ public class Consensus10X extends Executor {
 				return arg1.seq_ln()-arg0.seq_ln();
 			}
 		});
+		
+		int scaff_no = 1;
+		for(final Sequence scaff : scaffs) {
+			scaff.setSeqSn("scaffold"+String.format("%08d", scaff_no)+" "+scaff.seq_sn());
+			++scaff_no;
+		}
 		
 		try {
 			BufferedWriter bw = Utils.getBufferedWriter(this.out_prefix+"_consensus.fa");
