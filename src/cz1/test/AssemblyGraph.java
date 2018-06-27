@@ -455,7 +455,11 @@ public class AssemblyGraph {
 			distMat.put(sourceV, dist);
 		}
 		
-		System.out.println();
+		String scaff_str = "NGNANN";
+		scaff_str = scaff_str.replaceAll("^N{1,}", "");
+		scaff_str = scaff_str.replaceAll("N{1,}$", "");
+		
+		System.out.println(scaff_str);
 	}
 }
 
