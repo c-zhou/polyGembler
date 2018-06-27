@@ -168,7 +168,8 @@ public class Redundas extends Executor {
 				
 				for(SAMRecord record : buffer_sam) {
 					sseqid = record.getReferenceName();
-					if(seq_rm.contains(sseqid)||sequence_index.get(sseqid)>=index) continue;
+					if(sequence_index.containsKey(sseqid) &&
+							sequence_index.get(sseqid)>=index) continue;
 					cvg = Math.abs(record.getReadPositionAtReferencePosition(record.getAlignmentEnd())-
 							record.getReadPositionAtReferencePosition(record.getAlignmentStart())+1);
 					frac = Math.min(1d, (double)cvg/sz);
