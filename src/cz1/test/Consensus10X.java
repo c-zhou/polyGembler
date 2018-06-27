@@ -362,6 +362,12 @@ public class Consensus10X extends Executor {
 		
 		return mols;
 	}
+	
+	public static void main(String[] args) {
+		Consensus10X cons = new Consensus10X();
+		cons.setParameters(args);
+		cons.run();
+	}
 }
 
 
