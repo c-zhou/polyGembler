@@ -166,8 +166,8 @@ public class Consensus10X extends Executor {
 			for(int i=1; i<lowCov.size();i++) {
 				start = lowCov.get(i-1)+1;
 				end   = lowCov.get(i);
-				if(end<=start) continue;
-				String scaff_str = seq_str.substring(start, end-start);
+				if(end<start) continue;
+				String scaff_str = seq_str.substring(start, end);
 				scaff_str = scaff_str.replaceAll("^N{1,}", "");
 				scaff_str = scaff_str.replaceAll("N{1,}$", "");
 				if(scaff_str.length()>=min_scaff) {
