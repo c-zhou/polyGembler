@@ -206,8 +206,8 @@ public class Consensus10X extends Executor {
 			.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
 					SamReaderFactory.Option.VALIDATE_CRC_CHECKSUMS)
 			.validationStringency(ValidationStringency.SILENT);
-	private final static double min_qual = 0;
-	private final static double max_ins  = 2000;
+	private final static double min_qual = 1;
+	private final static double max_ins  = 1000;
 	private final static int max_gap = 20000;
 	
 	private class BAMBarcodeIterator {
