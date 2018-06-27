@@ -460,8 +460,10 @@ public class Anchor extends Executor {
 
 			myLogger.info("####process each reference chromosome");
 
+			/***
 			final BufferedWriter bw_map = Utils.getBufferedWriter(out_prefix+".map");
 			final BufferedWriter bw_fa = Utils.getBufferedWriter(out_prefix+".fa");
+			***/
 			final Set<String> anchored_contigs = new HashSet<String>();
 			
 			this.initial_thread_pool();
@@ -678,6 +680,23 @@ public class Anchor extends Executor {
 								}
 							}
 							
+							// TODO: need to figure out why this is working so slow
+							// right now we write the link file out and 
+							// run the consensus step with an extra script
+							BufferedWriter bw = Utils.getBufferedWriter(out_prefix+"_"+this.sub_seq+".link");
+							bw.write("####final placement #entry "+sub_seq+": "+graph_path.size()+
+											"["+(double)cov/sub_ln+"("+cov+"/"+sub_ln+")]\n");
+							for(TraceableAlignmentSegment seg : graph_path) bw.write(seg.toString()+"\n");
+							bw.close();
+							synchronized(lock) {
+								for(final TraceableAlignmentSegment seg : graph_path) { 
+									String qseqid = seg.qseqid();
+									qseqid = qseqid.replaceAll("'$", "");
+									anchored_contigs.add(qseqid);
+								}
+							}
+							
+							/***
 							myLogger.info("####consensus "+this.sub_seq+" initiated.");
 							
 							// now we join the neighbouring placement 
@@ -778,7 +797,7 @@ public class Anchor extends Executor {
 								for(final String agpstr : agpmap_str) bw_map.write(agpstr+"\n");
 								anchored_contigs.addAll(anchored_seq);
 							}
-							
+							***/
 							
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();
@@ -799,9 +818,11 @@ public class Anchor extends Executor {
 			}
 			this.waitFor();
 
+			/***
 			bw_fa.close();
 			bw_map.close();
-
+			***/
+			
 			final BufferedWriter bw_ufa = Utils.getBufferedWriter(out_prefix+"_unplaced.fa");
 			for(String seq : qry_seqs.keySet()) 
 				if(!anchored_contigs.contains(seq)&&!seq.endsWith("'"))

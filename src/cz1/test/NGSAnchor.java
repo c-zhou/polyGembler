@@ -217,7 +217,6 @@ public class NGSAnchor extends Executor {
 		try {
 			final BufferedWriter bw_map = Utils.getBufferedWriter(out_prefix+".map");
 			final BufferedWriter bw_fa = Utils.getBufferedWriter(out_prefix+".fa");
-			final Set<String> anchored_contigs = new HashSet<String>();
 
 			this.initial_thread_pool();
 			for(String sub_seq : sub_seqs.keySet()) {
@@ -353,9 +352,7 @@ public class NGSAnchor extends Executor {
 							synchronized(lock) {
 								bw_fa.write(Sequence.formatOutput(this.sub_seq, pseudo_chr.toString()));
 								for(final String agpstr : agpmap_str) bw_map.write(agpstr+"\n");
-								anchored_contigs.addAll(anchored_seq);
 							}
-
 
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();
@@ -378,12 +375,6 @@ public class NGSAnchor extends Executor {
 
 			bw_fa.close();
 			bw_map.close();
-
-			final BufferedWriter bw_ufa = Utils.getBufferedWriter(out_prefix+"_unplaced.fa");
-			for(String seq : qry_seqs.keySet()) 
-				if(!anchored_contigs.contains(seq)&&!seq.endsWith("'"))
-					bw_ufa.write(qry_seqs.get(seq).formatOutput());
-			bw_ufa.close();
 
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
