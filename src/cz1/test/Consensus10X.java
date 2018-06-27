@@ -43,7 +43,7 @@ public class Consensus10X extends Executor {
 	private String subject_file;
 	private String[] bam_files;
 	private String out_prefix;
-	private int min_link = 3;
+	private int min_link = 10;
 	private int num_threads = Runtime.getRuntime().availableProcessors();
 	
 	@Override
@@ -113,6 +113,7 @@ public class Consensus10X extends Executor {
 				public void run() {
 					// TODO Auto-generated method stub
 					try {
+						myLogger.info("####now process "+this.bam_file);
 						final BAMBarcodeIterator iter = new BAMBarcodeIterator(this.bam_file);
 						while(iter.hasNext()) {
 							List<SAMRecord[]> bc_records = iter.next();
@@ -124,6 +125,7 @@ public class Consensus10X extends Executor {
 							}
 						}
 						iter.close();
+						myLogger.info("####"+this.bam_file+" processed");
 					} catch (Exception e) {
 						Thread t = Thread.currentThread();
 						t.getUncaughtExceptionHandler().uncaughtException(t, e);
