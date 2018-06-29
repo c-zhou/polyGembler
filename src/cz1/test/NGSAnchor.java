@@ -273,6 +273,11 @@ public class NGSAnchor extends Executor {
 								target_qstart = target_as.qstart();
 								target_sstart = target_as.sstart();
 
+								if(target_as.send()<=source_send) {
+									graph_path.remove(i);
+									--i;
+								}
+								
 								qseqid = target_as.qseqid();
 								target_str = qry_seqs.get(qseqid).seq_str();
 
