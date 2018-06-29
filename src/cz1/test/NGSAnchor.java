@@ -276,6 +276,7 @@ public class NGSAnchor extends Executor {
 								if(target_as.send()<=source_send) {
 									graph_path.remove(i);
 									--i;
+									continue;
 								}
 								
 								qseqid = target_as.qseqid();
