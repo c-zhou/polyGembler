@@ -252,7 +252,6 @@ public class NGSAnchor extends Executor {
 							// now we join the neighbouring placement 
 							final StringBuilder pseudo_chr = new StringBuilder();
 							AlignmentSegment alignment = graph_path.get(0);
-							myLogger.info(alignment.toString());
 							
 							String qseqid = alignment.qseqid();
 							pseudo_chr.append(qry_seqs.get(qseqid).seq_str());
@@ -266,8 +265,6 @@ public class NGSAnchor extends Executor {
 								
 								source_as = graph_path.get(i-1);
 								target_as = graph_path.get(i);
-
-								myLogger.info(target_as.toString());
 								
 								source_qend   = source_as.qend();
 								source_send   = source_as.send();
@@ -291,12 +288,12 @@ public class NGSAnchor extends Executor {
 								} else {
 									// so overlap found
 									// trim the both contigs if necessary and join them
-									
 									// trim source str first
 									trim = source_len-source_qend;
 									pseudo_chr.setLength(pseudo_chr.length()-trim);
 									// trim target str then
-									pseudo_chr.append(target_str.substring(target_qstart-1));									
+									pseudo_chr.append(target_str.substring(target_qstart-1));
+									myLogger.info(source_as.qseqid()+" end trimmed "+trim+", "+target_as.qseqid()+" start trimmed "+target_qstart);
 								}
 							}
 
