@@ -183,6 +183,8 @@ public class NGSAnchor extends Executor {
 	private final static int min_ext  = 30;  // minimum extension for contigging
 	private final static double m_clip = 0.1d; // max clip size (%) to treat an alignment end-to-end
 	private final static double olap_min = 0.99d; // min overlap fraction for containment
+	private final static int min_olap  = 50;
+	private final static int max_clip2 = 30;
 
 	private Map<String, Sequence> qry_seqs;
 	private Map<String, Sequence> sub_seqs;
@@ -203,14 +205,134 @@ public class NGSAnchor extends Executor {
 	public void run() {
 		// this.run1();
 		// this.run2();
-		this.run3();
+		//this.run_stringent();
+		this.run_greedy();
 	}
 
+	public void run_greedy() {
+		// this will trim the original contigs as long as the are significant overlap found
+		
+		sub_seqs = Sequence.parseFastaFileAsMap(subject_file);
+		qry_seqs = Sequence.parseFastaFileWithRevCmpAsMap(query_file);
+		
+		try {
+			final BufferedWriter bw_fa = Utils.getBufferedWriter(out_prefix+".fa");
 
-	private final static int min_olap  = 50;
-	private final static int max_clip2 = 30;
+			this.initial_thread_pool();
+			for(String sub_seq : sub_seqs.keySet()) {
 
-	public void run3() {
+				this.executor.submit(new Runnable() {
+
+					String sub_seq = null;
+
+					@Override
+					public void run() {
+						// TODO Auto-generated method stub
+						try {
+							if(sub_seq.equals("Chr00")) return;
+
+							final List<AlignmentSegment> graph_path = new ArrayList<AlignmentSegment>();
+							BufferedReader br = Utils.getBufferedReader(asm_graph);
+							myLogger.info(br.readLine());
+							String line;
+							String[] s;
+							while( (line=br.readLine())!=null ) {
+								s = line.split("\\s+");
+								if(s[1].equals(this.sub_seq))
+									graph_path.add(new AlignmentSegment(s[0],s[1],Integer.parseInt(s[2]),
+											Integer.parseInt(s[3]),Integer.parseInt(s[4]),Integer.parseInt(s[5])));
+							}
+							br.close();
+							
+							if(graph_path.isEmpty()) {
+								myLogger.info(this.sub_seq+" done");
+								return;
+							}
+							
+							// now we join the neighbouring placement 
+							final StringBuilder pseudo_chr = new StringBuilder();
+							AlignmentSegment alignment = graph_path.get(0);
+							myLogger.info(alignment.toString());
+							
+							String qseqid = alignment.qseqid();
+							pseudo_chr.append(qry_seqs.get(qseqid).seq_str());
+							
+							String target_str;
+							int olap, gap, trim, source_len;
+							AlignmentSegment source_as, target_as;
+							int source_qend, target_qstart, source_send, target_sstart;
+
+							for(int i=1; i<graph_path.size(); i++) {
+								
+								source_as = graph_path.get(i-1);
+								target_as = graph_path.get(i);
+
+								myLogger.info(target_as.toString());
+								
+								source_qend   = source_as.qend();
+								source_send   = source_as.send();
+								source_len    = qry_seqs.get(source_as.qseqid()).seq_ln();
+
+								target_qstart = target_as.qstart();
+								target_sstart = target_as.sstart();
+
+								qseqid = target_as.qseqid();
+								target_str = qry_seqs.get(qseqid).seq_str();
+
+								// see if there is overlap between source tail and target head
+								olap = source_send-target_sstart+1;
+								if(olap<min_olap) {
+									// so no overlap
+									// estimate gap and directly join them
+									gap = Math.max(min_gap, target_sstart-source_send);
+									pseudo_chr.append(Sequence.polyN(gap));
+									pseudo_chr.append(target_str);
+									
+								} else {
+									// so overlap found
+									// trim the both contigs if necessary and join them
+									
+									// trim source str first
+									trim = source_len-source_qend;
+									pseudo_chr.setLength(pseudo_chr.length()-trim);
+									// trim target str then
+									pseudo_chr.append(target_str.substring(target_qstart-1));									
+								}
+							}
+
+							synchronized(lock) {
+								bw_fa.write(Sequence.formatOutput(this.sub_seq, pseudo_chr.toString()));
+							}
+
+						} catch (Exception e) {
+							Thread t = Thread.currentThread();
+							t.getUncaughtExceptionHandler().uncaughtException(t, e);
+							e.printStackTrace();
+							executor.shutdown();
+							System.exit(1);
+						}
+					}
+
+					public Runnable init(String sub_seq) {
+						// TODO Auto-generated method stub
+						this.sub_seq = sub_seq;
+						return this;
+					}
+
+				}.init(sub_seq));
+			}
+			this.waitFor();
+
+			bw_fa.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	public void run_stringent() {
+		// this will not trim too much the original contigs
+		
 		sub_seqs = Sequence.parseFastaFileAsMap(subject_file);
 		qry_seqs = Sequence.parseFastaFileWithRevCmpAsMap(query_file);
 		

@@ -2,7 +2,6 @@ package cz1.test;
 
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,7 +44,7 @@ public class Consensus10X extends Executor {
 	private String out_prefix;
 	private int min_link = 10;
 	private int num_threads = Runtime.getRuntime().availableProcessors();
-	
+
 	@Override
 	public void setParameters(String[] args) {
 		// TODO Auto-generated method stub
@@ -65,18 +64,18 @@ public class Consensus10X extends Executor {
 			printUsage();
 			throw new IllegalArgumentException("Please specify the subject/reference file.");
 		}
-		
+
 		if (myArgsEngine.getBoolean("-a")) {
 			this.bam_files = myArgsEngine.getString("-a").split(":");
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify the BAM files.");
 		}
-		
+
 		if (myArgsEngine.getBoolean("-#")) {
 			this.min_link = Integer.parseInt(myArgsEngine.getString("-#"));
 		}
-		
+
 		if (myArgsEngine.getBoolean("-t")) {
 			int t = Integer.parseInt(myArgsEngine.getString("-t"));
 			if(t<this.num_threads) this.num_threads = t;
@@ -84,7 +83,7 @@ public class Consensus10X extends Executor {
 			Constants.omp_threads = this.num_threads;
 			myLogger.info("OMP_THREADS = "+this.num_threads);
 		}
-		
+
 		if (myArgsEngine.getBoolean("-o")) {
 			this.out_prefix = myArgsEngine.getString("-o");
 		} else {
@@ -92,10 +91,10 @@ public class Consensus10X extends Executor {
 			throw new IllegalArgumentException("Please specify the prefix of output files.");
 		}
 	}
-	
+
 	private final static Object lock = new Object();
 	private final static int min_scaff = 200;
-	
+
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
@@ -103,12 +102,12 @@ public class Consensus10X extends Executor {
 		final Map<String, List<Range<Integer>>> ranges = new HashMap<String, List<Range<Integer>>>();
 		for(final Sequence sub_seq : sub_seqs) 
 			ranges.put(sub_seq.seq_sn(), new ArrayList<Range<Integer>>());
-		
+
 		this.initial_thread_pool();
 		for(final String bam_file : bam_files) {
 			executor.submit(new Runnable() {
 				private String bam_file;
-				
+
 				@Override
 				public void run() {
 					// TODO Auto-generated method stub
@@ -140,44 +139,73 @@ public class Consensus10X extends Executor {
 					this.bam_file = bam_file;
 					return this;
 				}
-				
+
 			}.init(bam_file));
 		}
 		this.waitFor();
-		
+
 		myLogger.info("####calculate depth of coverage");
 		final List<Sequence> scaffs = new ArrayList<Sequence>();
+
+		this.initial_thread_pool();
 		for(final Sequence sub_seq : sub_seqs) {
-			String sub_seqid = sub_seq.seq_sn();
-			myLogger.info("####now process "+sub_seqid);
-			if("Chr00".equals(sub_seqid)) continue;
-			String seq_str = sub_seq.seq_str();
-			int seq_ln = sub_seq.seq_ln();
-			final byte[] cvg = new byte[seq_ln];
-			for(Range<Integer> r : ranges.get(sub_seqid)) {
-				for(int i=r.lowerEndpoint(); i<r.upperEndpoint(); i++)
-					if(cvg[i]<Byte.MAX_VALUE) ++cvg[i];
-			}
-			final List<Integer> lowCov = new ArrayList<Integer>();
-			lowCov.add(-1);
-			for(int i=0; i<seq_ln; i++) {
-				if(cvg[i]<min_link) lowCov.add(i);
-			}
-			lowCov.add(seq_ln);
-			int start, end;
-			for(int i=1; i<lowCov.size();i++) {
-				start = lowCov.get(i-1)+1;
-				end   = lowCov.get(i);
-				if(end<start) continue;
-				String scaff_str = seq_str.substring(start, end);
-				scaff_str = scaff_str.replaceAll("^N{1,}", "");
-				scaff_str = scaff_str.replaceAll("N{1,}$", "");
-				if(scaff_str.length()>=min_scaff) {
-					scaffs.add(new Sequence(sub_seqid+":"+start+"-"+end, scaff_str));
+			executor.submit(new Runnable() {
+				private Sequence sub_seq;
+
+				@Override
+				public void run() {
+					try {
+						String sub_seqid = sub_seq.seq_sn();
+						myLogger.info("####now process "+sub_seqid);
+						if("Chr00".equals(sub_seqid)) return;
+						String seq_str = sub_seq.seq_str();
+						int seq_ln = sub_seq.seq_ln();
+						final byte[] cvg = new byte[seq_ln];
+						for(Range<Integer> r : ranges.get(sub_seqid)) {
+							for(int i=r.lowerEndpoint(); i<r.upperEndpoint(); i++)
+								if(cvg[i]<Byte.MAX_VALUE) ++cvg[i];
+						}
+						final List<Integer> lowCov = new ArrayList<Integer>();
+						lowCov.add(-1);
+						for(int i=0; i<seq_ln; i++) {
+							if(cvg[i]<min_link) lowCov.add(i);
+						}
+						lowCov.add(seq_ln);
+						int start, end;
+						for(int i=1; i<lowCov.size();i++) {
+							start = lowCov.get(i-1)+1;
+							end   = lowCov.get(i);
+							if(end<start) continue;
+							String scaff_str = seq_str.substring(start, end);
+							scaff_str = scaff_str.replaceAll("^N{1,}", "");
+							scaff_str = scaff_str.replaceAll("N{1,}$", "");
+							if(scaff_str.length()>=min_scaff) {
+								synchronized(lock) {
+									scaffs.add(new Sequence(sub_seqid+":"+start+"-"+end, scaff_str));
+								}
+							}
+						}
+						myLogger.info("####"+sub_seqid+" processed");
+						
+					} catch (Exception e) {
+						Thread t = Thread.currentThread();
+						t.getUncaughtExceptionHandler().uncaughtException(t, e);
+						e.printStackTrace();
+						executor.shutdown();
+						System.exit(1);
+					}
 				}
-			}
+
+				public Runnable init(Sequence sub_seq) {
+					// TODO Auto-generated method stub
+					this.sub_seq = sub_seq;
+					return this;
+				}
+
+			}.init(sub_seq));
 		}
-		
+		this.waitFor();
+
 		Collections.sort(scaffs, new Comparator<Sequence>() {
 
 			@Override
@@ -186,13 +214,13 @@ public class Consensus10X extends Executor {
 				return arg1.seq_ln()-arg0.seq_ln();
 			}
 		});
-		
+
 		int scaff_no = 1;
 		for(final Sequence scaff : scaffs) {
 			scaff.setSeqSn("scaffold"+String.format("%08d", scaff_no)+" "+scaff.seq_sn());
 			++scaff_no;
 		}
-		
+
 		try {
 			BufferedWriter bw = Utils.getBufferedWriter(this.out_prefix+"_consensus.fa");
 			for(final Sequence scaff : scaffs)
@@ -202,7 +230,7 @@ public class Consensus10X extends Executor {
 			e.printStackTrace();
 		}
 	}
-	
+
 	private final SamReaderFactory factory =
 			SamReaderFactory.makeDefault()
 			.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
@@ -211,35 +239,35 @@ public class Consensus10X extends Executor {
 	private final static double min_qual = 1;
 	private final static double max_ins  = 1000;
 	private final static int max_gap = 20000;
-	
+
 	private class BAMBarcodeIterator {
 		private final SamReader samReader;
 		private final SAMRecordIterator iter;
 		private SAMRecord samRecord = null;
-		
+
 		public BAMBarcodeIterator(String bam_file) {
 			this.samReader = factory.open(new File(bam_file));
 			this.iter = this.samReader.iterator();
 			this.samRecord = iter.hasNext() ? iter.next() : null;
 		}
-		
+
 		public boolean hasNext() {
 			return samRecord != null;
 		}
-		
+
 		public List<SAMRecord[]> next() {
-			
+
 			if(!this.hasNext()) throw new RuntimeException("!!!");
-			
+
 			List<SAMRecord[]> bc_records = new ArrayList<SAMRecord[]>();
 			String bc = samRecord.getStringAttribute("BX");
-			
+
 			String sn;
 			SAMRecord[] records = new SAMRecord[2];
-			
+
 			while( samRecord!=null && samRecord.getStringAttribute("BX").equals(bc) ) {
 				sn = samRecord.getReadName();
-				
+
 				if( !samRecord.getReadUnmappedFlag() &&
 						!samRecord.getNotPrimaryAlignmentFlag()&&
 						!samRecord.getSupplementaryAlignmentFlag() ) {
@@ -250,7 +278,7 @@ public class Consensus10X extends Executor {
 					else
 						throw new RuntimeException("!!!");
 				}
-				
+
 				while( (samRecord = iter.hasNext() ? iter.next() : null)!=null && samRecord.getReadName().equals(sn)) {
 					if( !samRecord.getReadUnmappedFlag() &&
 							!samRecord.getNotPrimaryAlignmentFlag()&&
@@ -273,13 +301,13 @@ public class Consensus10X extends Executor {
 						bc_records.add(records);
 					}
 				}
-				
+
 				records = new SAMRecord[2];
 			}
-			
+
 			return bc_records;
 		}
-		
+
 		public void close() {
 			try {
 				this.iter.close();
@@ -290,7 +318,7 @@ public class Consensus10X extends Executor {
 			}
 		}
 	}
-	
+
 	private class Molecule {
 		private List<SAMRecord[]> reads_list;
 		private String chr_id = null;
@@ -322,19 +350,19 @@ public class Consensus10X extends Executor {
 			this.chr_end   = chr_end;
 		}
 	}
-	
+
 	private double middlePoint(SAMRecord[] record) {
 		// TODO Auto-generated method stub
 		return (double)(Math.min(record[0].getAlignmentStart(), record[1].getAlignmentStart())+
 				Math.max(record[0].getAlignmentEnd(), record[1].getAlignmentEnd()))/2;
 	}
-	
+
 	private List<Molecule> extractMoleculeFromList(List<SAMRecord[]> list) {
 		// TODO Auto-generated method stub
 		List<Molecule> mols = new ArrayList<Molecule>();
-		
+
 		if(list.isEmpty()) return mols; 
-		
+
 		Collections.sort(list, new Comparator<SAMRecord[]>() {
 			@Override
 			public int compare(SAMRecord[] record0, SAMRecord[] record1) {
@@ -344,7 +372,7 @@ public class Consensus10X extends Executor {
 				return f==0 ? Double.compare(middlePoint(record0), middlePoint(record1)) : f;
 			}
 		});
-		
+
 		Iterator<SAMRecord[]> iter = list.iterator();
 		SAMRecord[] records = iter.next();
 		int chr_index = records[0].getReferenceIndex();
@@ -365,28 +393,16 @@ public class Consensus10X extends Executor {
 		}
 		mol.construct();
 		mols.add(mol);
-		
+
 		return mols;
 	}
-	
+
 	public static void main(String[] args) {
 		Consensus10X cons = new Consensus10X();
 		cons.setParameters(args);
 		cons.run();
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
