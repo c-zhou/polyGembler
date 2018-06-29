@@ -183,7 +183,7 @@ public class NGSAnchor extends Executor {
 	private final static int min_ext  = 30;  // minimum extension for contigging
 	private final static double m_clip = 0.1d; // max clip size (%) to treat an alignment end-to-end
 	private final static double olap_min = 0.99d; // min overlap fraction for containment
-	private final static int min_olap  = 50;
+	private final static int min_olap  = 30;
 	private final static int max_clip2 = 30;
 
 	private Map<String, Sequence> qry_seqs;
