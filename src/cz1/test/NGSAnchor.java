@@ -296,9 +296,16 @@ public class NGSAnchor extends Executor {
 									// trim the both contigs if necessary and join them
 									// trim source str first
 									source_trim = source_len-source_qend;
-									pseudo_chr.setLength(pseudo_chr.length()-source_trim);
 									// trim target str then
 									target_trim = target_qstart-1+olap;
+									
+									if(target_trim>=target_str.length()) {
+										graph_path.remove(i);
+										--i;
+										continue;
+									}
+									
+									pseudo_chr.setLength(pseudo_chr.length()-source_trim);
 									pseudo_chr.append(target_str.substring(target_trim));
 									myLogger.info(source_as.qseqid()+" end trimmed "+source_trim+", "+
 											target_as.qseqid()+" start trimmed "+target_trim);
