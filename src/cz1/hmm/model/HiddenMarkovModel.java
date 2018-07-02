@@ -1092,8 +1092,8 @@ public abstract class HiddenMarkovModel {
 			double alpha = Math.max(Constants._mu_J_e*(1-e), Constants.eps);
 			double beta = Math.max(Constants._mu_J_e*e, Constants.eps);
 			this.exp = new BetaDistribution(Constants.rg, alpha, beta).sample();
-			// TODO should be a smaller number?
-			this.exp = Math.max(this.exp, 1e-3);
+			// TODO should be fixed? should be a smaller number?
+			// this.exp = Math.max(this.exp, 1e-3);
 			int z = Constants._haplotype_z/2;
 			this.alpha = new double[2][z];
 			//Dirichlet diri = new Dirichlet(distz(z), Constants._mu_alpha_e);
