@@ -221,7 +221,7 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 			return Double.NEGATIVE_INFINITY;
 		else {
 			double probability = 0;
-			for(Viterbi v : this.vb) probability += v.probability;
+			for(Viterbi v : this.vb) probability += v.probability();
 			return probability;
 		}
 	}
@@ -240,7 +240,7 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 		if(iteration==0)
 			myLogger.info(" hmm initialised.");
 		else {
-			for(Viterbi v : this.vb) probability += v.probability;
+			for(Viterbi v : this.vb) probability += v.probability();
 			myLogger.info(" log-likelihood "+probability);
 		}
 
@@ -290,13 +290,14 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 			String experiment, 
 			String scaff) {
 		// TODO Auto-generated method stub
-		write(output, experiment, scaff, 100);
+		write(output, experiment, scaff, 100, .0);
 	}
 	
 	public void write(String output, 
 			String experiment, 
 			String scaff,
-			int resampling) {
+			int resampling,
+			double loglik_diff) {
 		// TODO Auto-generated method stub
 		String root = experiment+"."+
 				scaff+"."+
@@ -310,15 +311,22 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 			out.write((""+this.loglik()+"\n").getBytes());
 			out.write((""+this.dp.length+"\n").getBytes());
 			for(int i=0; i<this.sample.length; i++) {
-				String[] path = this.vb[i].path_str;
-				List<String[]> path_s = new ArrayList<String[]>();
-				for(int j=0; j<path.length; j++)
-					path_s.add(path[j].split("_"));
-				for(int j=0; j<Constants._ploidy_H; j++) {
-					out.write(("# id "+this.sample[i]+":"+(j+1)+"\t\t\t").getBytes());
-					for(int k=0; k<path_s.size(); k++)
-						out.write(path_s.get(k)[j].getBytes());
-					out.write("\n".getBytes());
+				Viterbi vb1 = this.vb[i];
+				double ll = vb1.probability();
+				int n = vb1.probability.length;
+				for(int j=0; j<n; j++) {
+					if(ll-vb1.probability(j)>loglik_diff) break;
+					vb1.trace(j);
+					String[] path = vb1.path_str;
+					List<String[]> path_s = new ArrayList<String[]>();
+					for(int k=0; k<path.length; k++)
+						path_s.add(path[k].split("_"));
+					for(int k=0; k<Constants._ploidy_H; k++) {
+						out.write(("# id "+this.sample[i]+":"+(k+1)+"\t\t\t").getBytes());
+						for(int s=0; s<path_s.size(); s++)
+							out.write(path_s.get(s)[k].getBytes());
+						out.write("\n".getBytes());
+					}
 				}
 			}
 			

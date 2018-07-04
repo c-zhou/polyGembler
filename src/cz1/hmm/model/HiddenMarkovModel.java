@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.ArrayUtils;
@@ -97,7 +98,8 @@ public abstract class HiddenMarkovModel {
 	public abstract void write(String output, 
 			String experiment, 
 			String contig,
-			int resampling);
+			int resampling,
+			double loglik_diff);
 	public abstract void print(boolean details);
 	protected abstract void EM();
 	public abstract int[][][] resample(final int n);
@@ -571,8 +573,9 @@ public abstract class HiddenMarkovModel {
 				this.vb[i].scale(j);
 			}
 			
+			this.vb[i].finalise();
 			this.vb[i].trace();
-			probability += this.vb[i].probability;
+			probability += this.vb[i].probability();
 		}
 		
 		return probability;
@@ -1401,24 +1404,42 @@ public abstract class HiddenMarkovModel {
 		protected double[] logscale;
 		protected String[] path_str;
 		protected int[] path;
-		protected double probability;
-
+		protected double[] probability;
+		protected int[] sortv;
+		
 		public Viterbi(int _m_, int _n_, String[] statespace) {
 			// TODO Auto-generated constructor stub
 			this.v = new double[_m_][_n_];
+			this.sortv = new int[_n_];
 			this.m = _m_;
 			this.trace = new int[_m_-1][_n_];
 			this.statespace = statespace;
 			this.logscale = new double[_m_];
 			this.path_str = new String[_m_-1];
 			this.path = new int[_m_-1];
-			this.probability = 0.0;
+			this.probability = new double[_n_];
 		}
 
-		protected void trace() {
-			this.probability = Math.log(StatUtils.max(v[m-1]))+
-					this.logscale[m-1];
-			int tr = Algebra.maxIndex(v[m-1]);
+		public double probability(final int i) {
+			// TODO Auto-generated method stub
+			return probability[sortv[i]];
+		}
+		
+		public double probability() {
+			// TODO Auto-generated method stub
+			return probability(0);
+		}
+
+		public void finalise() {
+			this.sortv = IntStream.range(0, v[m-1].length)
+					.boxed().sorted((i, j) -> Double.compare(v[m-1][j], v[m-1][i]))
+					.mapToInt(ele -> ele).toArray();
+			for(int i=0; i<probability.length; i++)
+				this.probability[i] = Math.log(this.v[m-1][i])+this.logscale[m-1];
+		}
+		
+		protected void trace(int v) {
+			int tr = sortv[v];
 			this.path[m-2] = tr;
 			this.path_str[m-2] = this.statespace[tr];
 			for(int i=m-3; i>=0; i--) {
@@ -1428,7 +1449,11 @@ public abstract class HiddenMarkovModel {
 			}
 			return;
 		}
-
+		
+		protected void trace() {
+			this.trace(0);
+		}
+		
 		protected void scale(final int i) {
 			// TODO Auto-generated method stub
 			if(i==0) return;

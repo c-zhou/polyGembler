@@ -837,13 +837,14 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 			String experiment, 
 			String scaff) {
 		// TODO Auto-generated method stub
-		write(output, experiment, scaff, 100);
+		write(output, experiment, scaff, 100, .0);
 	}
 	
 	public void write(String output, 
 			String experiment, 
 			String scaff,
-			int resampling) {
+			int resampling,
+			double loglik_diff) {
 		// TODO Auto-generated method stub
 		
 		this.makeViterbi();

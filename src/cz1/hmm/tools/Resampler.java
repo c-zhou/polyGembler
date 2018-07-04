@@ -63,6 +63,7 @@ public class Resampler extends Executor {
 	private int[] end_pos = null;
 	private String hmm_file = null;
 	private int resampling = 100;
+	private double loglik_diff = 0;
 	
 	@Override
 	public void printUsage() {
@@ -98,6 +99,7 @@ public class Resampler extends Executor {
 							+"                              exclusive with option -G/--genotype and -L/--allele-depth \n"
 							+"                              (default).\n"
 							+" -b/--segmental-kmeans        Use Viterbi training instead of Baum-Welch algorithm.\n"
+							+" -ld/--loglike-diff           Log likelihood difference for Veterbi path (default 0)."
 							+" -e/--train-exp               Re-estimate transition probabilities between founder/parental \n"
 							+"                              haplotypes at each step.\n"
 							+" -rs/--resampling             Resampling from the HMM (default 100).\n"
@@ -135,6 +137,7 @@ public class Resampler extends Executor {
 			myArgsEngine.add("-D", "--allele-depth", false);
 			myArgsEngine.add("-L", "--genotype-likelihood", false);
 			myArgsEngine.add("-b", "--segmental-kmeans", false);
+			myArgsEngine.add("-ld", "--loglike-diff", true);
 			myArgsEngine.add("-e", "--train-exp", false);
 			myArgsEngine.add("-S", "--random-seed", true);
 			myArgsEngine.add("-rs", "--resampling", true);
@@ -216,6 +219,10 @@ public class Resampler extends Executor {
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify the parent samples (seperated by a \":\").");
+		}
+		
+		if(myArgsEngine.getBoolean("-ld")) {
+			loglik_diff = Double.parseDouble(myArgsEngine.getString("-ld"));
 		}
 		
 		if(myArgsEngine.getBoolean("-s")) {
@@ -331,6 +338,6 @@ public class Resampler extends Executor {
 			}
 		}
 		
-		hmm.write(out_prefix, expr_id, scaff_str, resampling);
+		hmm.write(out_prefix, expr_id, scaff_str, resampling, loglik_diff);
 	}
 }
