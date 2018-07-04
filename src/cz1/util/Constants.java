@@ -52,21 +52,21 @@ public class Constants {
 	 * e for E-step
 	 * m for M-step 
 	 */
-	public final static String _use_field_="PL";
+	public final static String _use_field_ = "PL";
 	
-	public final static double _mu_alpha_e=1;
-	public final static double _mu_theta_e=1;
-	public final static double _mu_J_e=1e5;
+	public final static double _mu_alpha_e = 1;
+	public final static double _mu_theta_e = 1;
+	public final static double _mu_J_e = 1e5;
 	public final static double[] _pseudo_ = new double[]{1E10, 0, 1, 1 ,1};
 	/*** background probability of recombination between consecutive bases **/
-	public final static double _con_base_r=1e-8;
-	public final static double _soften_ = 0.05;
+	public final static double _con_base_r = 1e-7;
+	public final static double _soften_ = 1e-12;
 	public final static double _max_initial_seperation = 1e7; 
 	/*** ploidy **/
-	public static int _ploidy_H=2;
+	public static int _ploidy_H = 2;
 	/*** number of ancestral haplotypes - hidden states **/
-	public static int _haplotype_z=4;
-	public final static String _comment_syntax ="#";
+	public static int _haplotype_z = 4;
+	public final static String _comment_syntax = "#";
 	public final static String[] _vcf_format = new String[] {"GT","AD","DP","GQ","PL"};
 	public final static String _vcf_format_str = "GT:AD:DP:GQ:PL";
 	public final static String[] _vcf_header = new String[]{"CHROM","POS","ID",

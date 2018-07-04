@@ -303,7 +303,7 @@ public abstract class HiddenMarkovModel {
 		for(int i=0; i<M; i++) {
 			String[] dosaS = this.obspace[i].dosaS;
 			int _d_ = dosaS.length;
-			Map<String, Integer[]> dgMap = this.obspace[i].dgMap;
+			// Map<String, Integer[]> dgMap = this.obspace[i].dgMap;
 			EP ep1 = this.compoundEmissProbs[i];
 			for(int j=0; j<N; j++) {
 				Integer[] vst = this.validStateSpace.get(j);
@@ -312,10 +312,12 @@ public abstract class HiddenMarkovModel {
 				for(int k : vst) {
 					double ss = 0;
 					for(int a=0; a<_d_; a++) {
+						/***
 						Integer[] ix = dgMap.get(dosaS[a]);
 						for(int c : ix)
-							ss += dp1.likelihood[a]
-									*ep1.probsMat[k][c];
+							ss += dp1.likelihood[a]*ep1.probsMat[k][c];
+						 **/
+						ss += dp1.likelihood[a]*ep1.probsDosaMat[k][a];
 					}
 					dp1.emiss[k] = ss;
 					//this.dp[i][j].emiss[k] = 
@@ -1148,6 +1150,12 @@ public abstract class HiddenMarkovModel {
 			//for pair haplotype phasing
 			//need to update distance!!!
 			
+			int _n_=this.str_statespace.length;
+			for(int i=0; i<_n_; i++) {
+				Arrays.fill(this.count[i], .0);
+			}
+			
+			/***
 			double e = Math.exp(-this.distance*Constants._con_base_r);
 			double alpha_m = Math.max(Constants._pseudo_[2]*(1-e), Constants.eps);
 			double beta_m = Math.max(Constants._pseudo_[2]*e, Constants.eps);
@@ -1173,7 +1181,7 @@ public abstract class HiddenMarkovModel {
 					}
 				}
 			}
-
+			***/
 			return count;
 		}
 
