@@ -423,7 +423,7 @@ public class HiddenMarkovModelRST extends HiddenMarkovModel {
 			this.makeViterbi();
 			myLogger.info("Viterbi path:");
 			for(int i=0; i<this.sample.length; i++) {
-				String[] path = this.vb[i].path_str;
+				String[] path = this.vb[i].path_str[0];
 				List<String[]> path_s = new ArrayList<String[]>();
 				for(int j=0; j<path.length; j++)
 					path_s.add(path[j].split("_"));
@@ -604,7 +604,7 @@ public class HiddenMarkovModelRST extends HiddenMarkovModel {
 			out.write((""+this.loglik()+"\n").getBytes());
 			out.write((""+this.dp.length+"\n").getBytes());
 			for(int i=0; i<this.sample.length; i++) {
-				String[] path = this.vb[i].path_str;
+				String[] path = this.vb[i].path_str[0];
 				List<String[]> path_s = new ArrayList<String[]>();
 				for(int j=0; j<path.length; j++)
 					path_s.add(path[j].split("_"));
@@ -644,7 +644,7 @@ public class HiddenMarkovModelRST extends HiddenMarkovModel {
 			
 			out.putNextEntry(new ZipEntry("phased_genotypes"+experiment+".txt"));
 			for(int i=0; i<this.N; i++) {
-				int[] path = this.vb[i].path;
+				int[] path = this.vb[i].path[0];
 				for(int j=0; j<this.M; j++) {
 					int[] states = this.statespace[path[j]].state;
 					int dosa = 0;

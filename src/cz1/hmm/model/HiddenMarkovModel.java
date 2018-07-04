@@ -110,7 +110,7 @@ public abstract class HiddenMarkovModel {
 	
 	protected void printViterbiPath() {
 		for(int i=0; i<this.sample.length; i++) {
-			String[] path = this.vb[i].path_str;
+			String[] path = this.vb[i].path_str[0];
 			List<String[]> path_s = new ArrayList<String[]>();
 			for(int j=0; j<path.length; j++)
 				path_s.add(path[j].split("_"));
@@ -574,7 +574,7 @@ public abstract class HiddenMarkovModel {
 			}
 			
 			this.vb[i].finalise();
-			this.vb[i].trace();
+			this.vb[i].traceAll();
 			probability += this.vb[i].probability();
 		}
 		
@@ -1402,8 +1402,8 @@ public abstract class HiddenMarkovModel {
 		protected int[][] trace;
 		protected String[] statespace;
 		protected double[] logscale;
-		protected String[] path_str;
-		protected int[] path;
+		protected String[][] path_str;
+		protected int[][] path;
 		protected double[] probability;
 		protected int[] sortv;
 		
@@ -1415,14 +1415,14 @@ public abstract class HiddenMarkovModel {
 			this.trace = new int[_m_-1][_n_];
 			this.statespace = statespace;
 			this.logscale = new double[_m_];
-			this.path_str = new String[_m_-1];
-			this.path = new int[_m_-1];
+			this.path_str = new String[_n_][_m_-1];
+			this.path = new int[_n_][_m_-1];
 			this.probability = new double[_n_];
 		}
 
 		public double probability(final int i) {
 			// TODO Auto-generated method stub
-			return probability[sortv[i]];
+			return probability[i];
 		}
 		
 		public double probability() {
@@ -1435,23 +1435,28 @@ public abstract class HiddenMarkovModel {
 					.boxed().sorted((i, j) -> Double.compare(v[m-1][j], v[m-1][i]))
 					.mapToInt(ele -> ele).toArray();
 			for(int i=0; i<probability.length; i++)
-				this.probability[i] = Math.log(this.v[m-1][i])+this.logscale[m-1];
+				this.probability[i] = Math.log(this.v[m-1][sortv[i]])+this.logscale[m-1];
 		}
 		
 		protected void trace(int v) {
 			int tr = sortv[v];
-			this.path[m-2] = tr;
-			this.path_str[m-2] = this.statespace[tr];
+			this.path[v][m-2] = tr;
+			this.path_str[v][m-2] = this.statespace[tr];
 			for(int i=m-3; i>=0; i--) {
 				tr = trace[i+1][tr];
-				this.path[i] = tr;
-				this.path_str[i] = this.statespace[tr];
+				this.path[v][i] = tr;
+				this.path_str[v][i] = this.statespace[tr];
 			}
 			return;
 		}
 		
 		protected void trace() {
 			this.trace(0);
+		}
+		
+		protected void traceAll() {
+			for(int i=0; i<this.path.length; i++)
+				this.trace(i);
 		}
 		
 		protected void scale(final int i) {

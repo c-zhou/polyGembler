@@ -103,6 +103,22 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 		int _p_ = Constants._ploidy_H;
 		int _g_, _d_, _t_;
 		
+		final double[][] probs = new double[this.N][];
+		for(int i=0; i<this.N; i++) {
+			Viterbi vb1 = this.vb[i];
+			double ll = vb1.probability(0);
+			int z = 0;
+			while(ll-vb1.probability(z)<1.0) ++z;
+			final double[] prob = new double[z];
+			System.arraycopy(vb1.probability, 0, prob, 0, z);
+			for(int k=0; k<z; k++) {
+				prob[k] -= ll;
+				prob[k] = Math.exp(prob[k]);
+			}
+			Algebra.normalize(prob);
+			probs[i] = prob;
+		}
+		
 		for(int i=0; i<this.M; i++) {
 			_g_ = this.obspace[i].genotype.length;
 			OB ob = this.obspace[i];
@@ -124,36 +140,42 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 				DP dp1 = this.dp[i][j];
 				double coeff = dp1.isparent ? ((N-2)*founder_hap_coeff) : 1.0;
 				Viterbi vb1 = this.vb[j];
+
 				
-				final int a = i==0 ? 0 : vb1.path[i-1],
-						b = vb1.path[i];
-				double[] prior = this.transProbs[i].prior[a][b];
-				s_a = this.statespace[a].state;
-				st_b = this.statespace[b].stateperm;
-				_t_ = st_b.length;
-				for(int l=0; l<_t_; l++) {
-					tmp = coeff*prior[l];
-					s_b = st_b[l].state;
-					for(int m=0; m<_p_; m++)
-						trans_count[s_a[m]][s_b[m]] += tmp;
-				}
-			
+				final double[] ws = probs[j];
+				for(int w=0; w<ws.length; w++) {
+					
+					final int a = i==0 ? 0 : vb1.path[w][i-1],
+							b = vb1.path[w][i];
 				
-				Arrays.fill(emissG, 0);
-				for(int k=0; k<_d_; k++) {
-					Integer[] idx = dgMap.get(dosaS[k]);
-					for(int c : idx)
-						emissG[c] = dp1.likelihood[k]*
+					double[] prior = this.transProbs[i].prior[a][b];
+					s_a = this.statespace[a].state;
+					st_b = this.statespace[b].stateperm;
+					_t_ = st_b.length;
+					
+					for(int l=0; l<_t_; l++) {
+						tmp = coeff*prior[l];
+						s_b = st_b[l].state;
+						for(int m=0; m<_p_; m++)
+							trans_count[s_a[m]][s_b[m]] += tmp*ws[w];
+					}
+
+					Arrays.fill(emissG, 0);
+					for(int k=0; k<_d_; k++) {
+						Integer[] idx = dgMap.get(dosaS[k]);
+						for(int c : idx)
+							emissG[c] = dp1.likelihood[k]*
 							ep1.probsMat[b][c]/dp1.emiss[b];
-				}
-				
-				s_a = this.statespace[b].state;
-				
-				for(int c=0; c<_g_; c++) {
-					A = coeff*emissG[c];
-					s_l = genotype[c];
-					for(int l=0; l<_p_; l++)
-						emiss_count[s_a[l]][alMap.get(s_l[l])] += A;
+					}
+
+					s_a = this.statespace[b].state;
+
+					for(int c=0; c<_g_; c++) {
+						A = coeff*emissG[c];
+						s_l = genotype[c];
+						for(int l=0; l<_p_; l++)
+							emiss_count[s_a[l]][alMap.get(s_l[l])] += A*ws[w];
+					}
 				}
 			}
 			
@@ -247,7 +269,7 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 		if(detail) {
 			myLogger.info("Viterbi path:");
 			for(int i=0; i<this.sample.length; i++) {
-				String[] path = this.vb[i].path_str;
+				String[] path = this.vb[i].path_str[0];
 				List<String[]> path_s = new ArrayList<String[]>();
 				for(int j=0; j<path.length; j++)
 					path_s.add(path[j].split("_"));
@@ -316,8 +338,7 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 				int n = vb1.probability.length;
 				for(int j=0; j<n; j++) {
 					if(ll-vb1.probability(j)>loglik_diff) break;
-					vb1.trace(j);
-					String[] path = vb1.path_str;
+					String[] path = vb1.path_str[j];
 					List<String[]> path_s = new ArrayList<String[]>();
 					for(int k=0; k<path.length; k++)
 						path_s.add(path[k].split("_"));
