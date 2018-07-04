@@ -31,6 +31,7 @@ import org.apache.log4j.Logger;
 import cz1.breeding.data.FullSiblings;
 import cz1.hmm.data.DataEntry;
 import cz1.hmm.model.HiddenMarkovModel.DP;
+import cz1.hmm.model.HiddenMarkovModel.Viterbi;
 import cz1.util.Algebra;
 import cz1.util.Combination;
 import cz1.util.Constants;
@@ -861,15 +862,22 @@ public class HiddenMarkovModelBWT extends HiddenMarkovModel {
 			out.write((""+this.loglik()+"\n").getBytes());
 			out.write((""+this.dp.length+"\n").getBytes());
 			for(int i=0; i<this.sample.length; i++) {
-				String[] path = this.vb[i].path_str;
-				List<String[]> path_s = new ArrayList<String[]>();
-				for(int j=0; j<path.length; j++)
-					path_s.add(path[j].split("_"));
-				for(int j=0; j<Constants._ploidy_H; j++) {
-					out.write(("# id "+this.sample[i]+":"+(j+1)+"\t\t\t").getBytes());
-					for(int k=0; k<path_s.size(); k++)
-						out.write(path_s.get(k)[j].getBytes());
-					out.write("\n".getBytes());
+				Viterbi vb1 = this.vb[i];
+				double ll = vb1.probability();
+				int n = vb1.probability.length;
+				for(int j=0; j<n; j++) {
+					if(ll-vb1.probability(j)>loglik_diff) break;
+					vb1.trace(j);
+					String[] path = vb1.path_str;
+					List<String[]> path_s = new ArrayList<String[]>();
+					for(int k=0; k<path.length; k++)
+						path_s.add(path[k].split("_"));
+					for(int k=0; k<Constants._ploidy_H; k++) {
+						out.write(("# id "+this.sample[i]+":"+(k+1)+"\t\t\t").getBytes());
+						for(int s=0; s<path_s.size(); s++)
+							out.write(path_s.get(s)[k].getBytes());
+						out.write("\n".getBytes());
+					}
 				}
 			}
 			
