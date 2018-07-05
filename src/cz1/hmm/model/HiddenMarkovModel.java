@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.apache.commons.io.FileUtils;
@@ -62,8 +63,8 @@ public abstract class HiddenMarkovModel {
 	protected Viterbi vb[];
 	protected boolean[][] miss;
 
-	protected TP[] compoundTransProbs;
-	protected EP[] compoundEmissProbs;
+	protected CompoundTP[] compoundTransProbs;
+	protected CompoundEP[] compoundEmissProbs;
 	
 	protected final int[] pedigree; //0 and 1 represent two parents, and -1s represent F1 offspring
 	protected final List<Integer[]> validStateSpace; //valid statespace for each sample
@@ -306,7 +307,7 @@ public abstract class HiddenMarkovModel {
 			String[] dosaS = this.obspace[i].dosaS;
 			int _d_ = dosaS.length;
 			// Map<String, Integer[]> dgMap = this.obspace[i].dgMap;
-			EP ep1 = this.compoundEmissProbs[i];
+			CompoundEP ep1 = this.compoundEmissProbs[i];
 			for(int j=0; j<N; j++) {
 				Integer[] vst = this.validStateSpace.get(j);
 				
@@ -430,81 +431,14 @@ public abstract class HiddenMarkovModel {
 
 	protected void makeCompoundEP() {
 		// TODO Auto-generated method stub
-		int _n_ = this.statespace.length;
-		for(int i=0; i<this.M; i++) 
-			for(int j=0; j<_n_; j++) 
-				this.compoundEP(i, j);
-	}
-
-	protected void compoundEP(int i, int j) {
-		// TODO Auto-generated method stub
-		EP ep = this.emissProbs[i];
-		OB ob = this.obspace[i];
-		int[] state = this.statespace[j].state;
-		String[][] geno = ob.genotype;
-		int _m_ = geno.length;
-		int _n_ = geno[0].length;
-		Map<String, Integer> esMap = ep.esMap;
-		for(int a=0; a<_m_; a++) {
-			String[] g = geno[a];
-			double ss=1.0;
-			for(int b=0; b<_n_; b++) 
-				ss *= ep.probsMat[state[b]]
-						[esMap.get(g[b])];
-			this.compoundEmissProbs[i].probsMat[j][a] = ss;
-		}
-
-		Map<String, Integer[]> dgMap = ob.dgMap;
-		String[] dosa = ob.dosaS;
-		int _k_ = dosa.length;
-		int _i_;
-		for(int k=0; k<_k_; k++) {
-			Integer[] idx = dgMap.get(dosa[k]);
-			_i_ = idx.length;
-			double ss = 0.0;
-			for(int l=0; l<_i_; l++)
-				ss += this.compoundEmissProbs[i].probsMat[j][idx[l]];
-			this.compoundEmissProbs[i].probsDosaMat[j][k] = ss;
-		}
+		for(final CompoundEP ep : this.compoundEmissProbs) ep.update();
 	}
 
 	protected void makeCompoundTP() {
 		// TODO Auto-generated method stub
-		int _n_ = this.statespace.length;
 		for(int i=0; i<this.M; i++)
-			for(int j=0; j<_n_; j++)
-				for(int k=0; k<_n_; k++)
-					this.compoundTP(j, k, i, true);
-	}
-
-	protected void compoundTP(int j, int k, int i, boolean permutate) {
-		// TODO Auto-generated method stub
-
-		int[] states_0 = this.statespace[j].state;
-		int[] states_1 = this.statespace[k].state;
-		double[][] probs = this.transProbs[i].probsMat;
-
-		int[][] perms;
-		if(permutate) 
-			//perms = Permutation.permutation(states_1);
-			perms = this.spMap.get(StringUtils.
-					join(this.statespace[k].state_str,
-							"_"));
-		else {
-			perms = new int[1][states_1.length];
-			perms[0] = states_1;
-		}
-
-		int _a_ = perms.length, _b_ = states_0.length;
-		double ss = 0.0;
-		for(int a=0; a<_a_; a++) {
-			double s = 1.0;
-			for(int b=0; b<_b_; b++)
-				s *= probs[states_0[b]]
-						[perms[a][b]];
-			ss += s;
-		}
-		this.compoundTransProbs[i].probsMat[j][k] = ss;
+			if(this.exp_b.contains(i))  
+				this.compoundTransProbs[i].update();
 	}
 	
 	protected double makeViterbi() {
@@ -550,7 +484,7 @@ public abstract class HiddenMarkovModel {
 						vst_copy.remove(k);
 				
 				DP dp1 = this.dp[j-1][i];
-				TP tp1 = this.compoundTransProbs[j-1];
+				CompoundTP tp1 = this.compoundTransProbs[j-1];
 				
 				for(int k : vst) {
 					double ss = 0.0, ss0 = 0.0, ss_tmp;
@@ -849,56 +783,36 @@ public abstract class HiddenMarkovModel {
 
 		protected ST[] stateperm() {
 			// TODO Auto-generated method stub
-			if(!isdupstate) return new ST[]{
+			if(!isdupstate||isparent) return new ST[]{
 					new ST(this.state,
 							this.state_str,
 							this.isparent)};
-			if(isparent) {
-				int n = this.state.length;
-				List<List<Integer>> perm = 
-						Permutation.permutation(this.state);
-				ST[] stateperm = new ST[perm.size()];
-				for(int i=0; i<stateperm.length; i++) {
+			int mid1 = Constants._ploidy_H/2;
+			int n = this.state.length;
+			int[] p = new int[mid1];
+			System.arraycopy(this.state, 0, p, 0, mid1);
+			List<List<Integer>> perm1 = Permutation.permutation(p);
+			System.arraycopy(this.state, mid1, p, 0, mid1);
+			List<List<Integer>> perm2 = Permutation.permutation(p);
+			ST[] stateperm = new ST[perm1.size()*perm2.size()];
+			int i = 0;
+			for(List<Integer> p1 : perm1) {
+				for(List<Integer> p2 : perm2) {
+					List<Integer> s = new ArrayList<Integer>(p1);
+					s.addAll(p2);
 					Integer[] st = new Integer[n];
-					perm.get(i).toArray(st);
+					s.toArray(st);
 					String[] ss = new String[n];
 					for(int j=0; j<n; j++)
 						ss[j] = hs[st[j]];
-					stateperm[i] = new ST(
+					stateperm[i++] = new ST(
 							ArrayUtils.toPrimitive(st),
 							ss,
 							this.isparent,
 							false);
 				}
-				return stateperm;
-			} else {
-				int mid1 = Constants._ploidy_H/2;
-				int n = this.state.length;
-				int[] p = new int[mid1];
-				System.arraycopy(this.state, 0, p, 0, mid1);
-				List<List<Integer>> perm1 = Permutation.permutation(p);
-				System.arraycopy(this.state, mid1, p, 0, mid1);
-				List<List<Integer>> perm2 = Permutation.permutation(p);
-				ST[] stateperm = new ST[perm1.size()*perm2.size()];
-				int i = 0;
-				for(List<Integer> p1 : perm1) {
-					for(List<Integer> p2 : perm2) {
-						List<Integer> s = new ArrayList<Integer>(p1);
-						s.addAll(p2);
-						Integer[] st = new Integer[n];
-						s.toArray(st);
-						String[] ss = new String[n];
-						for(int j=0; j<n; j++)
-							ss[j] = hs[st[j]];
-						stateperm[i++] = new ST(
-								ArrayUtils.toPrimitive(st),
-								ss,
-								this.isparent,
-								false);
-					}
-				}
-				return stateperm;
 			}
+			return stateperm;
 		}
 	}
 	
@@ -948,39 +862,67 @@ public abstract class HiddenMarkovModel {
 		}
 	}
 	
+	public class CompoundTP {
+		protected final TP tp;
+		protected final ST[] statespace;
+		
+		protected double[][][] prior;
+		protected double[][] probsMat;
+		
+		public CompoundTP(final TP tp,
+				final ST[] statespace) {
+			this.tp = tp;
+			this.statespace = statespace;
+			final int _m_ = this.statespace.length;
+			this.probsMat = new double[_m_][_m_];
+			this.prior = new double[_m_][_m_][];
+			this.update();
+		}
+
+		private void update() {
+			// TODO Auto-generated method stub
+			int _a_ = this.statespace.length;
+			for(int a=0; a<_a_; a++) {
+				int[] s_a = this.statespace[a].state;
+				for(int b=0; b<_a_; b++) { 
+					ST[] st_b = this.statespace[b].stateperm();
+					int _i_ = st_b.length;
+					int _j_ = st_b[0].state.length;
+					
+					if(this.prior[a][b]==null) 
+						this.prior[a][b] = new double[_i_];
+					final double[] prior = this.prior[a][b];
+				
+					Arrays.fill(prior, 1.0);
+					for(int i=0; i<_i_; i++) {
+						int[] s_i = st_b[i].state;
+						for(int j=0; j<_j_; j++)
+							prior[i] *= tp.probsMat[s_a[j]][s_i[j]];
+					}
+					
+					this.probsMat[a][b] = StatUtils.sum(prior);
+					Algebra.normalize(prior);
+				}
+			}
+		}
+	}
+	
 	public class TP {
 		protected final boolean isDotState;
 		protected final double distance;
-		protected final ST[] statespace;
 		protected final String[] str_statespace;
 		protected final boolean trainExp;
-
-		protected double[][][] prior;
+		protected final double[][] probsMat;
+		
 		protected boolean logspace;
-		protected double[][] probsMat;
 		protected double[][] count;
 		protected double exp;
 		protected double[][] alpha;
 
 		public TP(String[] str_statespace, 
-				boolean logspace, 
-				double[][] probsMat) {
-			this.statespace = null;
-			this.str_statespace = str_statespace;
-			this.isDotState = false;
-			this.distance = -1;
-			this.logspace = logspace;
-			this.probsMat = probsMat;
-			if( logspace ) this.setNormalspace();
-			this.trainExp = false;
-		}
-
-		public TP(ST[] statespace,
-				String[] str_statespace, 
 				double distance, 
 				boolean isDotState,
 				boolean trainExp) {
-			this.statespace = statespace;
 			this.str_statespace = str_statespace;
 			this.distance = distance;
 			this.isDotState = isDotState;
@@ -990,19 +932,15 @@ public abstract class HiddenMarkovModel {
 			this.probsMat = new double[_n_][_n_];
 			this.count = new double[_n_][_n_];
 			this.logspace = false;
-			int _m_=this.statespace.length;
-			this.prior = new double[_m_][_m_][];
 			this.update();
 		}
 
-		public TP(ST[] statespace, 
-				String[] str_statespace, 
+		public TP(String[] str_statespace, 
 				double distance, 
 				boolean isDotState, 
 				boolean trainExp, 
 				String tranProbs) {
 			// TODO Auto-generated constructor stub
-			this.statespace = statespace;
 			this.str_statespace = str_statespace;
 			this.distance = distance;
 			this.isDotState = isDotState;
@@ -1012,8 +950,6 @@ public abstract class HiddenMarkovModel {
 			this.probsMat = new double[_n_][_n_];
 			this.count = new double[_n_][_n_];
 			this.logspace = false;
-			int _m_=this.statespace.length;
-			this.prior = new double[_m_][_m_][];
 			this.update(tranProbs);
 		}
 		
@@ -1039,15 +975,6 @@ public abstract class HiddenMarkovModel {
 					}
 				}
 			}
-
-			int _a_ = this.statespace.length;
-			for(int a=0; a<_a_; a++) {
-				int[] s_a = this.statespace[a].state;
-				for(int b=0; b<_a_; b++) { 
-					ST[] st_b = this.statespace[b].stateperm();
-					prior[a][b] = prior(s_a, st_b);
-				}
-			}
 		}
 		
 		private void update(String tranProbs) {
@@ -1065,33 +992,9 @@ public abstract class HiddenMarkovModel {
 				for(int b=0; b<_n_; b++) 
 					probs[b] = Double.parseDouble(prob_str[b*2+1]);
 			}
-			
-			int _a_ = this.statespace.length;
-			for(int a=0; a<_a_; a++) {
-				int[] s_a = this.statespace[a].state;
-				for(int b=0; b<_a_; b++) { 
-					ST[] st_b = this.statespace[b].stateperm();
-					prior[a][b] = prior(s_a, st_b);
-				}
-			}
 		}
-
-		protected double[] prior(int[] s, ST[] st) {
-			// TODO Auto-generated method stub
-			// TODO Auto-generated method stub
-			int _i_ = st.length;
-			int _j_ = st[0].state.length;
-			double[] prior = new double[_i_];
-			Arrays.fill(prior, 1.0);
-			for(int i=0; i<_i_; i++) {
-				int[] s_i = st[i].state;
-				for(int j=0; j<_j_; j++)
-					prior[i] *= probsMat[s[j]][s_i[j]];
-			}
-			return Algebra.normalize(prior);
-		}
-
-		protected void prior() {
+		
+		private void prior() {
 			// TODO Auto-generated method stub	
 			double e = Math.exp(-this.distance*Constants._con_base_r);
 			double alpha = Math.max(Constants._mu_J_e*(1-e), Constants.eps);
@@ -1153,12 +1056,12 @@ public abstract class HiddenMarkovModel {
 			//for pair haplotype phasing
 			//need to update distance!!!
 			
+			/***
 			int _n_=this.str_statespace.length;
 			for(int i=0; i<_n_; i++) {
 				Arrays.fill(this.count[i], .0);
 			}
-			
-			/***
+			***/
 			double e = Math.exp(-this.distance*Constants._con_base_r);
 			double alpha_m = Math.max(Constants._pseudo_[2]*(1-e), Constants.eps);
 			double beta_m = Math.max(Constants._pseudo_[2]*e, Constants.eps);
@@ -1184,7 +1087,6 @@ public abstract class HiddenMarkovModel {
 					}
 				}
 			}
-			***/
 			return count;
 		}
 
@@ -1215,74 +1117,114 @@ public abstract class HiddenMarkovModel {
 			this.logspace = false;
 		}
 
-		protected void setProbsMat(double[][] probsMat) {
-			this.probsMat = probsMat;
-		}
-
 		public double[][] probs() {
 			// TODO Auto-generated method stub
 			return this.probsMat;
 		}
 	}
 
+	public class CompoundEP {
+		protected final EP ep;
+		protected final OB ob;
+		protected final ST[] statespace;
+		protected final double[][] probsMat;
+		protected final double[][] probsDosaMat;
+
+		public CompoundEP(EP ep,
+				OB obspace,
+				ST[] statespace) {
+			// TODO Auto-generated constructor stub
+			this.ep = ep;
+			this.ob = obspace;
+			this.statespace = statespace;
+			int _n_ = this.statespace.length;
+			int _g_ = obspace.genotype.length;
+			int _k_ = obspace.dosage.length;
+			this.probsMat = new double[_n_][_g_];
+			this.probsDosaMat = new double[_n_][_k_];
+			this.update();
+		}
+
+		private void update() {
+			// TODO Auto-generated method stub
+			final int _s_ = this.statespace.length;
+			
+			for(int i=0; i<_s_; i++) {
+				int[] state = this.statespace[i].state;
+				String[][] geno = ob.genotype;
+				int _m_ = geno.length;
+				int _n_ = geno[0].length;
+				Map<String, Integer> esMap = ep.esMap;
+				for(int a=0; a<_m_; a++) {
+					String[] g = geno[a];
+					double ss=1.0;
+					for(int b=0; b<_n_; b++) 
+						ss *= ep.probsMat[state[b]]
+								[esMap.get(g[b])];
+					this.probsMat[i][a] = ss;
+				}
+
+				Map<String, Integer[]> dgMap = ob.dgMap;
+				String[] dosa = ob.dosaS;
+				int _k_ = dosa.length;
+				int _i_;
+				for(int k=0; k<_k_; k++) {
+					Integer[] idx = dgMap.get(dosa[k]);
+					_i_ = idx.length;
+					double ss = 0.0;
+					for(int l=0; l<_i_; l++)
+						ss += this.probsMat[i][idx[l]];
+					this.probsDosaMat[i][k] = ss;
+				}
+			}
+		}
+	}
+	
 	public class EP {
 
 		protected final String[] statespace;
 		protected final String[] allele;
 		protected final double bfrac;
-		protected double[][] probsMat;
+		protected final double[][] probsMat;
 		protected boolean logspace;
-		protected double[][] probsDosaMat;
 		protected double[][] count;
 
 		protected final Map<String, Integer> ssMap;
 		protected final Map<String, Integer> esMap;
 
-		public EP(String[] statespace, String[] allele, 
-				double[][] probsMat,
-				double[][] probsDosaMat,
-				boolean logspace) {
+		public EP(String[] statespace, 
+				String[] allele, 
+				double bfrac) {
 			// TODO Auto-generated constructor stub
 			this.statespace = statespace;
 			this.allele = allele;
-			this.probsMat = probsMat;
-			this.probsDosaMat = probsDosaMat;
-			this.logspace = logspace;
-			this.bfrac = 0;
-			if( logspace ) this.setNormalspace();
-			this.ssMap = new HashMap<String, Integer>();
-			for(int i=0; i<statespace.length; i++)
-				this.ssMap.put(statespace[i], i);
-			this.esMap = new HashMap<String, Integer>();
-			for(int i=0; i<allele.length; i++)
-				this.esMap.put(allele[i], i);
-		}
-
-		public EP(String[] statespace, OB obspace, double bfrac) {
-			// TODO Auto-generated constructor stub
-			this.statespace = statespace;
-			this.allele = obspace.allele;
 			this.bfrac = bfrac;
+			int _a_ = this.statespace.length;
+			int _b_ = this.allele.length;
+			this.probsMat = new double[_a_][_b_];
+			this.count = new double[_a_][_b_];
 			this.prior();
 			this.ssMap = new HashMap<String, Integer>();
-			for(int i=0; i<statespace.length; i++)
+			for(int i=0; i<_a_; i++)
 				this.ssMap.put(statespace[i], i);
 			this.esMap = new HashMap<String, Integer>();
-			for(int i=0; i<allele.length; i++)
+			for(int i=0; i<_b_; i++)
 				this.esMap.put(allele[i], i);
-			this.probsDosaMat = null;
 			this.logspace = false;
-			this.count = new double[this.statespace.length][this.allele.length];
 		}
 
 		public EP(String[] statespace,
-				OB obspace, 
+				String[] allele, 
 				double bfrac, 
 				String emissProbs) {
 			// TODO Auto-generated constructor stub
 			this.statespace = statespace;
-			this.allele = obspace.allele;
+			this.allele = allele;
 			this.bfrac = bfrac;
+			int _a_ = this.statespace.length;
+			int _b_ = this.allele.length;
+			this.probsMat = new double[_a_][_b_];
+			this.count = new double[_a_][_b_];
 			this.prior(emissProbs);
 			this.ssMap = new HashMap<String, Integer>();
 			for(int i=0; i<statespace.length; i++)
@@ -1290,7 +1232,6 @@ public abstract class HiddenMarkovModel {
 			this.esMap = new HashMap<String, Integer>();
 			for(int i=0; i<allele.length; i++)
 				this.esMap.put(allele[i], i);
-			this.probsDosaMat = null;
 			this.logspace = false;
 			this.count = new double[this.statespace.length][this.allele.length];
 		}
@@ -1302,7 +1243,6 @@ public abstract class HiddenMarkovModel {
 			
 			int _a_ = this.statespace.length;
 			int _b_ = this.allele.length;
-			this.probsMat = new double[_a_][_b_];
 			String[] prob_str;
 			double[] probs;
 			
@@ -1317,7 +1257,6 @@ public abstract class HiddenMarkovModel {
 
 		protected void prior() {
 			// TODO Auto-generated method stub
-			this.probsMat = new double[this.statespace.length][this.allele.length];
 			Arrays.fill(this.probsMat[0], 0);
 			for(int i=1; i<this.probsMat.length; i++) {
 				//Dirichlet diri = new Dirichlet(distz(this.allele.length), 
@@ -1386,10 +1325,6 @@ public abstract class HiddenMarkovModel {
 			this.logspace = false;
 		}
 
-		protected void setProbsMat(double[][] probsMat) {
-			this.probsMat = probsMat;
-		}
-
 		public double[][] probs() {
 			// TODO Auto-generated method stub
 			return this.probsMat;
@@ -1445,11 +1380,28 @@ public abstract class HiddenMarkovModel {
 			for(int i=m-3; i>=0; i--) {
 				tr = trace[i+1][tr];
 				this.path[v][i] = tr;
-				this.path_str[v][i] = this.statespace[tr];
+				this.path_str[v][i] = maxMatch(this.statespace[tr], 
+						this.path_str[v][i+1]);
 			}
 			return;
 		}
 		
+		private String maxMatch(String str1, String str2) {
+			// TODO Auto-generated method stub
+			final String[] s1 = str1.split("_");
+			final Set<String> s2 = Arrays.stream(str2.split("_")).collect(Collectors.toSet());;
+			final String[] s = new String[s1.length];
+			int i = 0;
+			for(final String c1 : s1) {
+				if(s2.contains(c1)) {
+					s[i++] = c1;
+					s2.remove(c1);
+				}
+			}
+			for(final String c2 : s2) s[i++] = c2;
+			return StringUtils.join(s, '_');
+		}
+
 		protected void trace() {
 			this.trace(0);
 		}

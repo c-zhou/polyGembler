@@ -59,7 +59,7 @@ public class Constants {
 	public final static double _mu_J_e = 1e5;
 	public final static double[] _pseudo_ = new double[]{1E10, 0, 1, 1 ,1};
 	/*** background probability of recombination between consecutive bases **/
-	public final static double _con_base_r = 1e-7;
+	public final static double _con_base_r = 1e-8;
 	public final static double _soften_ = 1e-12;
 	public final static double _max_initial_seperation = 1e7; 
 	/*** ploidy **/

@@ -63,7 +63,7 @@ public class Haplotyper extends Executor {
 	private String hmm_file = null;
 	private int resampling = 100;
 	private double founder_hap_coeff = 0.5;
-	private double loglik_diff = 0;
+	private double loglik_diff = 0.05129329;
 	
 	public Haplotyper() {}
 	

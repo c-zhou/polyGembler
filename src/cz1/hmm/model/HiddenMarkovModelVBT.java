@@ -22,6 +22,7 @@ import org.apache.commons.math3.distribution.BetaDistribution;
 import org.apache.commons.math3.stat.StatUtils;
 import org.apache.log4j.Logger;
 
+import cz1.breeding.data.FullSiblings;
 import cz1.hmm.data.DataEntry;
 import cz1.util.Algebra;
 import cz1.util.Combination;
@@ -35,7 +36,9 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 	
 	// ----founder haplotypes coefficients----
 	private double founder_hap_coeff = 0.5;
-	
+	// higher quality data get more weights for training the model
+	private double[][] weights;
+		
 	public HiddenMarkovModelVBT(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse,
@@ -43,7 +46,9 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 			Field field) {
 		super(de, seperation, reverse, trainExp, field);
 		
+		this.makeWeightingCoeff();
 		this.trainAllExp();
+		this.trainAllExpExceptDummy();
 		this.makeVBT();
 		this.makeViterbi();
 	}
@@ -53,13 +58,20 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 			boolean[] reverse,
 			boolean trainExp,
 			Field field,
-			double founder_hap_coeff) {
+			double fh_coeff) {
 		super(de, seperation, reverse, trainExp, field);
 		
-		this.founder_hap_coeff = founder_hap_coeff;
-		this.trainAllExp();
+		this.founder_hap_coeff = fh_coeff;
+		this.makeWeightingCoeff();
+		this.trainAllExpExceptDummy();
 		this.makeVBT();
 		this.makeViterbi();
+	}
+
+	private void trainAllExpExceptDummy() {
+		// TODO Auto-generated method stub
+		this.trainAllExp();
+		//this.exp_b.remove(0);
 	}
 
 	public void train() {
@@ -94,6 +106,62 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 		return;
 	}
 	
+	private void makeWeightingCoeff() {
+		// TODO Auto-generated method stub
+		this.weights = new double[M][N];
+		
+		FullSiblings fullSib = new FullSiblings();
+		double[][] pvals = fullSib.calcDosaConfig(this.de, this.parent_i);
+		for(int i=0; i<M; i++) {
+			if(StatUtils.max(pvals[i])==0) {
+				Arrays.fill(weights[i], 1.0);
+				continue;
+			}
+			
+			final int p_i = Algebra.maxIndex(pvals[i]);
+			double[] weights_i = weights[i];
+			
+			// parental samples
+			if(!miss[i][this.parent_i[0]] && !miss[i][this.parent_i[1]]) {
+				int[] parentalDosa = fullSib.getParentalDosaByIndex(p_i);
+				double[] ll0 = this.dp[i][this.parent_i[0]].likelihood,
+						ll1 = this.dp[i][this.parent_i[1]].likelihood;
+				if( ll0[parentalDosa[0]]+ll1[parentalDosa[1]] < 
+						ll0[parentalDosa[1]]+ll1[parentalDosa[0]]) {
+					int tmp_i = parentalDosa[0];
+					parentalDosa[0] = parentalDosa[1];
+					parentalDosa[1] = tmp_i;
+				}
+				weights_i[parent_i[0]] = 1.0+founder_hap_coeff*ll0[parentalDosa[0]]*(N-2);
+				weights_i[parent_i[1]] = 1.0+founder_hap_coeff*ll1[parentalDosa[1]]*(N-2);
+			} else {
+				weights_i[parent_i[0]] = miss[i][this.parent_i[0]]?0.1:1.0;
+				weights_i[parent_i[1]] = miss[i][this.parent_i[1]]?0.1:1.0;
+			}
+			
+			boolean[] f1Dosa = fullSib.getF1DosaByIndex(p_i);
+			// f1 samples
+			for(int j=0; j<N; j++) {
+				if(this.pedigree[j]!=-1) continue;
+				int dosa = this.getDosage(i, j);
+				if(miss[i][j]) weights_i[j] = 0.1;
+				weights_i[j] = f1Dosa[dosa] ? 1.0 : 0.01;
+			}
+			
+			Algebra.normalize(weights_i);
+			Algebra.multiply(weights_i, N);
+		}
+		Utils.print(this.weights);
+	}
+	
+	private int getDosage(final int i, final int j) {
+		// TODO Auto-generated method stub
+		double[] ll = this.dp[i][j].likelihood;
+		return Algebra.maxIndex(ll);
+	}
+	
+	private final double loglik_diff = 0.05129329; // 5% difference of likelihood
+	
 	protected void EM() {
 		// TODO Auto-generated method stub
 		int[] s_a, s_b; 
@@ -108,7 +176,7 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 			Viterbi vb1 = this.vb[i];
 			double ll = vb1.probability(0);
 			int z = 0;
-			while(ll-vb1.probability(z)<1.0) ++z;
+			while(ll-vb1.probability(z)<=loglik_diff) ++z;
 			final double[] prob = new double[z];
 			System.arraycopy(vb1.probability, 0, prob, 0, z);
 			for(int k=0; k<z; k++) {
@@ -131,14 +199,15 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 			for(int j=0; j<allele.length; j++) alMap.put(allele[j], j);
 			
 			double[][] trans_count = this.transProbs[i].pseudo();
-			EP ep1 = this.compoundEmissProbs[i];
+			CompoundEP ep1 = this.compoundEmissProbs[i];
 			double[][] emiss_count = this.emissProbs[i].pseudo();
 			double[] emissG = new double[_g_];
 			
 			for(int j=0;j<this.N; j++) {
 				
 				DP dp1 = this.dp[i][j];
-				double coeff = dp1.isparent ? ((N-2)*founder_hap_coeff) : 1.0;
+				double coeff = weights[i][j];
+				
 				Viterbi vb1 = this.vb[j];
 
 				
@@ -148,33 +217,35 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 					final int a = i==0 ? 0 : vb1.path[w][i-1],
 							b = vb1.path[w][i];
 				
-					double[] prior = this.transProbs[i].prior[a][b];
-					s_a = this.statespace[a].state;
-					st_b = this.statespace[b].stateperm;
-					_t_ = st_b.length;
+					if(this.exp_b.contains(i)) {
+						double[] prior = this.compoundTransProbs[i].prior[a][b];
+						s_a = this.statespace[a].state;
+						st_b = this.statespace[b].stateperm;
+						_t_ = st_b.length;
+
+						for(int l=0; l<_t_; l++) {
+							tmp = prior[l]*ws[w];
+							s_b = st_b[l].state;
+							for(int m=0; m<_p_; m++)
+								trans_count[s_a[m]][s_b[m]] += tmp;
+						}
+
+						Arrays.fill(emissG, 0);
+						for(int k=0; k<_d_; k++) {
+							Integer[] idx = dgMap.get(dosaS[k]);
+							for(int c : idx)
+								emissG[c] = dp1.likelihood[k]*
+								ep1.probsMat[b][c]/ep1.probsDosaMat[b][k];
+						}
+					}
 					
-					for(int l=0; l<_t_; l++) {
-						tmp = coeff*prior[l];
-						s_b = st_b[l].state;
-						for(int m=0; m<_p_; m++)
-							trans_count[s_a[m]][s_b[m]] += tmp*ws[w];
-					}
-
-					Arrays.fill(emissG, 0);
-					for(int k=0; k<_d_; k++) {
-						Integer[] idx = dgMap.get(dosaS[k]);
-						for(int c : idx)
-							emissG[c] = dp1.likelihood[k]*
-							ep1.probsMat[b][c]/dp1.emiss[b];
-					}
-
 					s_a = this.statespace[b].state;
 
 					for(int c=0; c<_g_; c++) {
-						A = coeff*emissG[c];
+						A = coeff*emissG[c]*ws[w];
 						s_l = genotype[c];
 						for(int l=0; l<_p_; l++)
-							emiss_count[s_a[l]][alMap.get(s_l[l])] += A*ws[w];
+							emiss_count[s_a[l]][alMap.get(s_l[l])] += A;
 					}
 				}
 			}
@@ -189,45 +260,37 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 	private void makeVBT() {
 		// TODO Auto-generated method stub
 		this.transProbs = new TP[this.M];
-		transProbs[0] = new TP(this.statespace,
-				this.hs, -1, true, false);
+		transProbs[0] = new TP(this.hs, -1, true, false);
 		for(int i=1; i<this.M; i++) {
 			System.out.print(i);
 			transProbs[i] = exp_b.contains(i) ? 
-				new TP(this.statespace, 
-					this.hs, this.distance[i-1], 
+				new TP(this.hs, this.distance[i-1], 
 					false, true) : 
-				new TP(this.statespace, 
-					this.hs, this.distance[i-1], 
+				new TP(this.hs, this.distance[i-1], 
 					false, false);
 		}
 		this.emissProbs = new EP[this.M];
 		for(int i=0; i<this.M; i++)
 			emissProbs[i] = new EP(
 				this.hs, 
-				this.obspace[i], 
+				this.obspace[i].allele, 
 				this.bfrac[i]);
 
-		this.compoundTransProbs = new TP[this.M];
+		this.compoundTransProbs = new CompoundTP[this.M];
 		int _n_ = this.statespace.length;
-		for(int i=0; i<this.M; i++)
-			this.compoundTransProbs[i] = new TP(
-				str_statespace, 
-				false, 
-				new double[_n_][_n_]);
-		this.makeCompoundTP();
-		
-		this.compoundEmissProbs = new EP[this.M];
 		for(int i=0; i<this.M; i++) {
-			OB ob = this.obspace[i];
-			this.compoundEmissProbs[i] = new EP(
-				str_statespace, 
-				ob.genoS, 
-				new double[_n_][ob.genotype.length], 
-				new double[_n_][ob.dosage.length], 
-				true);
+			this.compoundTransProbs[i] = new CompoundTP(
+					this.transProbs[i],
+					this.statespace);
 		}
-		this.makeCompoundEP();
+		
+		this.compoundEmissProbs = new CompoundEP[this.M];
+		for(int i=0; i<this.M; i++) {
+			this.compoundEmissProbs[i] = new CompoundEP(
+				this.emissProbs[i],
+				this.obspace[i],
+				this.statespace);
+		}
 		this.updateDP();
 		
 		int _m_ = this.dp.length;
@@ -330,6 +393,22 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 					FileOutputStream(output+"/"+root+".zip"), 65536));
 		
 			out.putNextEntry(new ZipEntry("phasedStates/"+experiment+".txt"));
+			out.write((""+this.loglik()+"\n").getBytes());
+			out.write((""+this.dp.length+"\n").getBytes());
+			for(int i=0; i<this.sample.length; i++) {
+				String[] path = this.vb[i].path_str[0];
+				List<String[]> path_s = new ArrayList<String[]>();
+				for(int k=0; k<path.length; k++)
+					path_s.add(path[k].split("_"));
+				for(int k=0; k<Constants._ploidy_H; k++) {
+					out.write(("# id "+this.sample[i]+":"+(k+1)+"\t\t\t").getBytes());
+					for(int s=0; s<path_s.size(); s++)
+						out.write(path_s.get(s)[k].getBytes());
+					out.write("\n".getBytes());
+				}
+			}
+			
+			out.putNextEntry(new ZipEntry("phasedStates/"+experiment+"_ld.txt"));
 			out.write((""+this.loglik()+"\n").getBytes());
 			out.write((""+this.dp.length+"\n").getBytes());
 			for(int i=0; i<this.sample.length; i++) {

@@ -29,8 +29,11 @@ import org.apache.commons.math3.stat.StatUtils;
 import org.apache.log4j.Logger;
 
 import cz1.hmm.data.DataEntry;
+import cz1.hmm.model.HiddenMarkovModel.CompoundEP;
+import cz1.hmm.model.HiddenMarkovModel.CompoundTP;
 import cz1.hmm.model.HiddenMarkovModel.DP;
 import cz1.hmm.model.HiddenMarkovModel.EP;
+import cz1.hmm.model.HiddenMarkovModel.TP;
 import cz1.hmm.model.HiddenMarkovModel.Viterbi;
 import cz1.util.Algebra;
 import cz1.util.Combination;
@@ -159,7 +162,7 @@ public class HiddenMarkovModelRST extends HiddenMarkovModel {
 			Map<String, Integer> alMap = new HashMap<String, Integer>();
 			for(int j=0; j<allele.length; j++) alMap.put(allele[j], j);
 			
-			EP ep1 = this.compoundEmissProbs[i];
+			CompoundEP ep1 = this.compoundEmissProbs[i];
 			double[][] emiss_count = this.emissProbs[i].pseudo();
 			//clear(emiss_count);
 			double[] emissG = new double[_g_];
@@ -174,7 +177,7 @@ public class HiddenMarkovModelRST extends HiddenMarkovModel {
 					int stats_fr = i==0 ? 0 : rs_path[j][i-1][k];
 					int stats_to = rs_path[j][i][k];
 					
-					double[] prior = this.transProbs[i].prior[stats_fr][stats_to];
+					double[] prior = this.compoundTransProbs[i].prior[stats_fr][stats_to];
 					s_a = this.statespace[stats_fr].state;
 					st_b = this.statespace[stats_to].stateperm;
 					_t_ = st_b.length;
@@ -190,7 +193,7 @@ public class HiddenMarkovModelRST extends HiddenMarkovModel {
 						Integer[] idx = dgMap.get(dosaS[l]);
 						for(int c : idx)
 							emissG[c] = dp1.likelihood[l]*
-								ep1.probsMat[stats_to][c]/dp1.emiss[stats_to];
+								ep1.probsMat[stats_to][c]/ep1.probsDosaMat[stats_to][l];
 					}
 					
 					s_a = this.statespace[stats_to].state;
@@ -224,7 +227,7 @@ public class HiddenMarkovModelRST extends HiddenMarkovModel {
 			for(int j=_m_-2; j>=0; j--) {	
 				Arrays.fill(probsMat[j], 0);
 				DP dp1 = this.dp[j+1][i];
-				TP tp1 = this.compoundTransProbs[j+1];
+				CompoundTP tp1 = this.compoundTransProbs[j+1];
 
 				for(int k : vst) {
 					tmp = 0;
@@ -238,8 +241,8 @@ public class HiddenMarkovModelRST extends HiddenMarkovModel {
 			}
 			DP dp1 = this.dp[0][i];
 			int _d_ = dp1.likelihood.length;
-			EP ep1 = this.compoundEmissProbs[0];
-			TP tp1 = this.compoundTransProbs[0];
+			CompoundEP ep1 = this.compoundEmissProbs[0];
+			CompoundTP tp1 = this.compoundTransProbs[0];
 			double s = 0.0;
 			for(int j=0; j<_k_; j++)
 				for(int b=0; b<_d_; b++)
@@ -262,17 +265,14 @@ public class HiddenMarkovModelRST extends HiddenMarkovModel {
 			final BufferedReader br_trans = Utils.getBufferedReader(
 					in.getInputStream(in.getEntry("results_hmm/transitionModel.txt")));
 			this.transProbs = new TP[this.M];
-			transProbs[0] = new TP(this.statespace,
-					this.hs, -1, true, false, br_trans.readLine());
+			transProbs[0] = new TP(this.hs, -1, true, false, br_trans.readLine());
 			for(int i=1; i<this.M; i++) {
 				transProbs[i] = exp_b.contains(i) ? 
-						new TP(this.statespace, 
-								this.hs, this.distance[i-1], 
-								false, true, br_trans.readLine()) : 
-									new TP(this.statespace, 
-											this.hs, this.distance[i-1], 
-											false, false, br_trans.readLine());	
-			}
+						new TP(this.hs, this.distance[i-1], 
+						false, true, br_trans.readLine()) : 
+						new TP(this.hs, this.distance[i-1], 
+						false, false, br_trans.readLine());	
+			} 
 
 			br_trans.close();
 
@@ -282,7 +282,7 @@ public class HiddenMarkovModelRST extends HiddenMarkovModel {
 			for(int i=0; i<this.M; i++) {
 				emissProbs[i] = new EP(
 						this.hs, 
-						this.obspace[i], 
+						this.obspace[i].allele, 
 						this.bfrac[i],
 						br_emiss.readLine());
 			}
@@ -290,29 +290,26 @@ public class HiddenMarkovModelRST extends HiddenMarkovModel {
 
 			in.close();
 
-			this.compoundTransProbs = new TP[this.M];
+			this.compoundTransProbs = new CompoundTP[this.M];
 			int _n_ = this.statespace.length;
 			for(int i=0; i<this.M; i++) {
-				this.compoundTransProbs[i] = new TP(
-						str_statespace, 
-						false, 
-						new double[_n_][_n_]);
+				this.compoundTransProbs[i] = new CompoundTP(
+						this.transProbs[i],
+						this.statespace);
 			}
-			this.makeCompoundTP();
+			
 			//logger.info("Free MEM: "+this.memory("used"));
 			//this.makeCompoundAJTP();
 			//logger.info("Free MEM: "+this.memory("used"));
-			this.compoundEmissProbs = new EP[this.M];
+			this.compoundEmissProbs = new CompoundEP[this.M];
 			for(int i=0; i<this.M; i++) {
 				OB ob = this.obspace[i];
-				this.compoundEmissProbs[i] = new EP(
-						str_statespace, 
-						ob.genoS, 
-						new double[_n_][ob.genotype.length], 
-						new double[_n_][ob.dosage.length], 
-						true);
+				this.compoundEmissProbs[i] = new CompoundEP(
+						this.emissProbs[i],
+						this.obspace[i],
+						this.statespace);
 			}
-			this.makeCompoundEP();
+			
 			this.updateDP();
 			//logger.info("Free MEM: "+this.memory("used"));
 			//this.vb = new Viterbi(this);
@@ -334,50 +331,42 @@ public class HiddenMarkovModelRST extends HiddenMarkovModel {
 	private void makeBWT() {
 		// TODO Auto-generated method stub
 		this.transProbs = new TP[this.M];
-		transProbs[0] = new TP(this.statespace,
-				this.hs, -1, true, false);
+		transProbs[0] = new TP(this.hs, -1, true, false);
 		for(int i=1; i<this.M; i++) {
 			transProbs[i] = exp_b.contains(i) ? 
-					new TP(this.statespace, 
-							this.hs, this.distance[i-1], 
-							false, true) : 
-								new TP(this.statespace, 
-										this.hs, this.distance[i-1], 
-										false, false);
+					new TP(this.hs, this.distance[i-1], 
+						false, true) : 
+						new TP(this.hs, this.distance[i-1], 
+						false, false);
 		}
 
 		this.emissProbs = new EP[this.M];
 		for(int i=0; i<this.M; i++) {
 			emissProbs[i] = new EP(
 					this.hs, 
-					this.obspace[i], 
+					this.obspace[i].allele, 
 					this.bfrac[i]);
 		}
 
-		this.compoundTransProbs = new TP[this.M];
+		this.compoundTransProbs = new CompoundTP[this.M];
 		int _n_ = this.statespace.length;
 		for(int i=0; i<this.M; i++) {
-			this.compoundTransProbs[i] = new TP(
-					str_statespace, 
-					false, 
-					new double[_n_][_n_]);
+			this.compoundTransProbs[i] = new CompoundTP(
+					this.transProbs[i],
+					this.statespace);
 		}
 		
-		this.makeCompoundTP();
 		//logger.info("Free MEM: "+this.memory("used"));
 		//this.makeCompoundAJTP();
 		//logger.info("Free MEM: "+this.memory("used"));
-		this.compoundEmissProbs = new EP[this.M];
+		this.compoundEmissProbs = new CompoundEP[this.M];
 		for(int i=0; i<this.M; i++) {
-			OB ob = this.obspace[i];
-			this.compoundEmissProbs[i] = new EP(
-					str_statespace, 
-					ob.genoS, 
-					new double[_n_][ob.genotype.length], 
-					new double[_n_][ob.dosage.length], 
-					true);
+			this.compoundEmissProbs[i] = new CompoundEP(
+					this.emissProbs[i],
+					this.obspace[i],
+					this.statespace);
 		}
-		this.makeCompoundEP();
+		
 		this.updateDP();
 		//logger.info("Free MEM: "+this.memory("used"));
 		//this.vb = new Viterbi(this);
@@ -601,6 +590,22 @@ public class HiddenMarkovModelRST extends HiddenMarkovModel {
 					FileOutputStream(output+"/"+root+".zip"), 65536));
 			
 			out.putNextEntry(new ZipEntry("phasedStates/"+experiment+".txt"));
+			out.write((""+this.loglik()+"\n").getBytes());
+			out.write((""+this.dp.length+"\n").getBytes());
+			for(int i=0; i<this.sample.length; i++) {
+				String[] path = this.vb[i].path_str[0];
+				List<String[]> path_s = new ArrayList<String[]>();
+				for(int k=0; k<path.length; k++)
+					path_s.add(path[k].split("_"));
+				for(int k=0; k<Constants._ploidy_H; k++) {
+					out.write(("# id "+this.sample[i]+":"+(k+1)+"\t\t\t").getBytes());
+					for(int s=0; s<path_s.size(); s++)
+						out.write(path_s.get(s)[k].getBytes());
+					out.write("\n".getBytes());
+				}
+			}
+			
+			out.putNextEntry(new ZipEntry("phasedStates/"+experiment+"_ld.txt"));
 			out.write((""+this.loglik()+"\n").getBytes());
 			out.write((""+this.dp.length+"\n").getBytes());
 			for(int i=0; i<this.sample.length; i++) {
