@@ -559,6 +559,7 @@ public class Phaser extends Executor {
 									break;
 								loglik = loglik1;
 							}
+							if(ddebug) hmm.print();
 							hmm.write(out_prefix+"/"+expr_id+"_"+rangeChr+"~"+rangeLowerBound+"-"+rangeUpperBound+"_"+r+".tmp");
 						} catch (Exception e) {
 							myLogger.error("##########ERROR MESSAGE##########");

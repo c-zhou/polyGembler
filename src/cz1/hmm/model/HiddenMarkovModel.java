@@ -1389,16 +1389,25 @@ public abstract class HiddenMarkovModel {
 		private String maxMatch(String str1, String str2) {
 			// TODO Auto-generated method stub
 			final String[] s1 = str1.split("_");
-			final Set<String> s2 = Arrays.stream(str2.split("_")).collect(Collectors.toSet());;
+			final String[] s2 = str2.split("_");
+			final Map<String, Integer> a = new HashMap<String, Integer>();
+			for(int i=0; i<s2.length; i++) a.put(s2[i], i);
 			final String[] s = new String[s1.length];
-			int i = 0;
-			for(final String c1 : s1) {
-				if(s2.contains(c1)) {
-					s[i++] = c1;
-					s2.remove(c1);
+			for(int i=0; i<s.length; i++) {
+				if(a.containsKey(s1[i])) {
+					s[a.get(s1[i])] = s1[i];
+					s1[i] = null;
 				}
 			}
-			for(final String c2 : s2) s[i++] = c2;
+			int i = 0, j = 0;
+			while(i<s.length) {
+				if(s1[i]!=null) {
+					while(j<s.length && s[j]!=null)
+						++j;
+					s[j] = s1[i];
+				}
+				++i;
+			}
 			return StringUtils.join(s, '_');
 		}
 

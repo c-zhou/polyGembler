@@ -13,6 +13,7 @@ import java.util.TreeMap;
 
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.stat.inference.TestUtils;
 import org.biojava.nbio.core.alignment.template.SequencePair;
 import org.biojava.nbio.core.sequence.DNASequence;
@@ -460,6 +461,31 @@ public class AssemblyGraph {
 		scaff_str = scaff_str.replaceAll("N{1,}$", "");
 		
 		System.out.println(scaff_str);
+		
+		
+		String str1 = "2_3_4_8_a_c";
+		String str2 = "1_2_3_8_9_a";
+		final String[] s1 = str1.split("_");
+		final String[] s2 = str2.split("_");
+		final Map<String, Integer> aa = new HashMap<String, Integer>();
+		for(int i=0; i<s2.length; i++) aa.put(s2[i], i);
+		final String[] s = new String[s1.length];
+		for(int i=0; i<s.length; i++) {
+			if(aa.containsKey(s1[i])) {
+				s[aa.get(s1[i])] = s1[i];
+				s1[i] = null;
+			}
+		}
+		int i = 0, j = 0;
+		while(i<s.length) {
+			if(s1[i]!=null) {
+				while(j<s.length && s[j]!=null)
+					++j;
+				s[j] = s1[i];
+			}
+			++i;
+		}
+		System.out.println(StringUtils.join(s, '_'));
 	}
 }
 
