@@ -664,7 +664,6 @@ public class HiddenMarkovModel {
 		Collection<Integer> comm;
 		int mismatch;
 		int N = hapcombs.size();
-		double z;
 		double[][] dpAdj = new double[N][N];
 		for(int i=0; i<N; i++) {
 			m1 = hapcombs.get(i);
@@ -675,11 +674,8 @@ public class HiddenMarkovModel {
 				for(int k : comm) 
 					if(m1.get(k)!=m2.get(k))
 						++mismatch;
-				if(mismatch==0) 
-					z = Double.NEGATIVE_INFINITY;
-				else z = Math.log((double)mismatch);
-				dpAdj[i][j] = z;
-				dpAdj[j][i] = z;
+				dpAdj[i][j] = mismatch;
+				dpAdj[j][i] = mismatch;
 			}
 		}
 		myLogger.info("Dissimulatirty matrix construction done.");
