@@ -16,9 +16,6 @@ import java.util.Set;
 
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
-import org.apache.commons.lang3.ArrayUtils;
-
-import com.google.common.io.Files;
 
 import cz1.tenx.model.HiddenMarkovModel;
 import cz1.util.ArgsEngine;
@@ -46,7 +43,7 @@ public class Phaser extends Executor {
 	private boolean simulated_annealing = false;
 	private boolean clustering = true;
 	private String ground_truth = null;
-	private int minD = 1;
+	private int minD = 3;
 	private boolean  debug = false;
 	private boolean ddebug = false;
 	
@@ -74,7 +71,7 @@ public class Phaser extends Executor {
 							+" -b/--block-size              Block size (default 100000).\n"
 							+" -olap/--overlap-size         Overlap size (default 10000).\n"
 							+" -r/--range                   Data range (chr/chr:start-end).\n"
-							+" -x/--depth                   Minimum depth to make a block (default 1).\n"
+							+" -x/--depth                   Minimum depth to make a block (default 3).\n"
 							+" -o/--prefix                  Output file location.\n\n"
 					);
 			break;
@@ -386,6 +383,8 @@ public class Phaser extends Executor {
 		}
 	}
 	
+	private final static int varOlap = 300;
+	
 	private void runMakeb() {
 		// TODO Auto-generated method stub
 		try {
@@ -483,6 +482,29 @@ public class Phaser extends Executor {
 				}
 			}
 			bw.close();
+			
+			/***
+			BufferedWriter bw = Utils.getBufferedWriter(this.out_prefix+".b");
+			int lb, ub, varid = 1, tmp_varid;
+			for(int i=0; i<n; i++) {
+				lb = ranges[i][0];
+				ub = ranges[i][1];
+				int from = lb, to;
+				while(true) {
+					tmp_varid = Math.max(1, varid-varOlap);
+					from = idxmap.get(tmp_varid);
+					to   = Math.min(ub, from+block);
+					bw.write(rangeChr+":"+from+"-"+to+"\n");
+					while( idxmap.containsKey(tmp_varid) &&
+							idxmap.get(tmp_varid)<to ) {
+						++tmp_varid;
+					}
+					varid = tmp_varid;
+					if(to>=ub) break;
+				}
+			}
+			bw.close();
+			**/
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

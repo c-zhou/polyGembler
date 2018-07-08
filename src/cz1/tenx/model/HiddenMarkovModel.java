@@ -27,6 +27,7 @@ import cz1.algebra.matrix.SparseMatrix;
 import cz1.graph.cluster.KMedoids;
 import cz1.graph.cluster.MarkovClustering;
 import cz1.graph.cluster.SpectralClustering;
+import cz1.tenx.model.HiddenMarkovModel2.DataEntry;
 import cz1.util.Algebra;
 import cz1.util.Constants;
 import cz1.util.Utils;
@@ -123,9 +124,6 @@ public class HiddenMarkovModel {
 		long[] tic = new long[10];
 		int k=0;
 		tic[k++] = System.nanoTime();
-		this.updateDP();
-		tic[k++] = System.nanoTime();
-		myLogger.info("update dp "+(tic[k-1]-tic[k-2])+"ns");
 		this.optimise();
 		tic[k++] = System.nanoTime();
 		myLogger.info("EM algorithm "+(tic[k-1]-tic[k-2])+"ns");
@@ -339,7 +337,7 @@ public class HiddenMarkovModel {
 		}
 
 		final List<Map<Integer, Integer>> hapcombs = new ArrayList<Map<Integer,Integer>>();
-		int N;
+		int N = 0;
 		SparseMatrix dpAdj = null;
 		boolean recalc = true;
 		
@@ -523,6 +521,42 @@ public class HiddenMarkovModel {
 			Set<Integer> haplo = haplos.get(i);
 			for(int j : haplo) initMolClus.put(j, i);
 		}
+		
+
+		/**
+		final List<Map<Integer, Integer>> hapcounts = new ArrayList<Map<Integer,Integer>>();
+		for(int i=0; i<N; i++) hapcounts.add(getCountFromRead(clusters.get(i)));
+		hapcombs.clear();
+		for(int i=0; i<N; i++) hapcombs.add(getHapFromRead(clusters.get(i)));
+	
+		this.N = hapcombs.size();
+		this.dp = new DataEntry[this.N];
+		for(int i=0; i<this.N; i++) {
+			final Map<Integer, Integer> hap   = hapcombs.get(i);
+			final Map<Integer, Integer> count = hapcounts.get(i);
+			final int n1 = count.size();
+			final int[] indexz  = new int[n1];
+			final int[] allelez = new int[n1];
+			final int[] depth   = new int[n1];
+			int j=0;
+			for(Map.Entry<Integer, Integer> entry : hap.entrySet()) {
+				indexz[j]  = entry.getKey();
+				allelez[j] = entry.getValue();
+				depth[j]   = count.get(indexz[j]);
+				++j;
+			}
+			this.dp[i] = new DataEntry(indexz, allelez, depth);
+		}
+		for(int i=0; i<this.M; i++) { 
+			dpCrossRef.put(i, new HashSet<Integer>());
+		}
+		for(int i=0; i<this.N; i++) {
+			final Set<Integer> indexSet = this.dp[i].index.values();
+			for(int j : indexSet) dpCrossRef.get(j).add(i);
+		}
+		this.haps   = new int[this.N];
+		this.hap_assign = new double[this.N][Constants._ploidy_H];
+		**/
 	}
 
 	private void errorCorrection(List<Set<Integer>> clusters) {
@@ -779,6 +813,25 @@ public class HiddenMarkovModel {
 		}
 	}
 	
+	private Map<Integer, Integer> getCountFromRead(Set<Integer> dat) {
+		// TODO Auto-generated method stub
+
+		final Map<Integer, Integer> count = new HashMap<Integer, Integer>();
+		DataEntry dp1;
+		Set<Integer> m1;
+		for(final int i : dat) {
+			dp1 = this.dp[i];
+			m1 = dp1.index.values();
+			for(final int j : m1) {
+				if(!count.containsKey(j))
+					count.put(j, 0);
+				count.put(j, count.get(j)+1);
+			}
+		}
+		
+		return count;
+	}
+	
 	private Map<Integer, Integer> getHapFromRead(Set<Integer> dat) {
 		// TODO Auto-generated method stub
 
@@ -817,31 +870,6 @@ public class HiddenMarkovModel {
 		myLogger.info(os.toString());
 	}
 
-	private void updateDP() {
-		// TODO Auto-generated method stub
-		this.updateDP(dp, emissProbs);
-	}
-
-	private void updateDP(DataEntry[] dp, EP[] emissProbs) {
-		// TODO Auto-generated method stub
-		for(int i=0; i<N; i++) {
-			double[][] probs = dp[i].probs; // Mx2
-			double[][] weightedProbs = dp[i].weightedProbs; // MxP
-			BidiMap<Integer, Integer> index = dp[i].index;
-			int M = probs.length;
-			for(int j=0; j<M; j++) {
-				double[][] emiss = 
-						emissProbs[index.get(j)].probsMat; // Px2
-				for(int k=0; k<Constants._ploidy_H; k++) {
-					weightedProbs[j][k] = 
-							probs[j][0]*emiss[k][0]+
-							probs[j][1]*emiss[k][1];
-				}
-			}
-		}
-		return;
-	}
-		
 	private void optimise () {
 		// TODO Auto-generated method stub
 		final double[] loglik = new double[Constants._ploidy_H];
@@ -858,6 +886,7 @@ public class HiddenMarkovModel {
 			for(int j : crossRef) {
 				dp1 = this.dp[j];
 				z = dp1.index.getKey(i);
+				
 				System.arraycopy(this.hap_assign[j], 0, loglik, 0, Constants._ploidy_H);
 				exp_c = StatUtils.max(loglik);
 				for(int k=0; k<loglik.length; k++) 
@@ -865,8 +894,8 @@ public class HiddenMarkovModel {
 				Algebra.normalize(loglik);
 				
 				for(int k=0; k<loglik.length; k++) {
-					emiss_count[k][0] += loglik[k]*dp1.probs[z][0];
-					emiss_count[k][1] += loglik[k]*dp1.probs[z][1];
+					emiss_count[k][0] += loglik[k]*dp1.depth[z][0];
+					emiss_count[k][1] += loglik[k]*dp1.depth[z][1];
 				}
 			}
 			
@@ -1106,15 +1135,15 @@ public class HiddenMarkovModel {
 		public void getCounts(double[] hittingProb) {
 			int _i_ = count.length;
 			double sum = 0;
-			for(int i=1; i<_i_; i++) {
+			for(int i=0; i<_i_; i++) {
 				hittingProb[i] = StatUtils.sum(count[i]);
 				sum += hittingProb[i];
 			}
 			if(sum==0) 
-				for(int i=1; i<_i_; i++) 
-					hittingProb[i] = 1.0/(_i_-1);
+				for(int i=0; i<_i_; i++) 
+					hittingProb[i] = 1.0/_i_;
 			else
-				for(int i=1; i<_i_; i++) 
+				for(int i=0; i<_i_; i++) 
 					hittingProb[i] /= sum;
 		}
 
@@ -1122,7 +1151,7 @@ public class HiddenMarkovModel {
 			// TODO Auto-generated method stub
 			int _i_ = count.length,
 					_j_ = count[0].length;
-			for(int i=1; i<_i_; i++) {
+			for(int i=0; i<_i_; i++) {
 				double s = StatUtils.sum(count[i]);
 				if(s==0)
 					for(int j=0; j<_j_; j++)
@@ -1136,7 +1165,7 @@ public class HiddenMarkovModel {
 		public double[][] pseudo() {
 			// TODO Auto-generated method stub
 			int _i_ = count.length;
-			for(int i=1; i<_i_; i++) {
+			for(int i=0; i<_i_; i++) {
 				//Arrays.fill(count[i], 
 				//		1.0/this.allele.length*Constants._mu_theta_m);
 				count[i][0] = (1-baf)*Constants._pseudo_[1];
@@ -1175,15 +1204,40 @@ public class HiddenMarkovModel {
 	protected class DataEntry { // data entry
 		// <K,V>=<Index,MarkerIndex>
 		final BidiMap<Integer, Integer> index;
+		final double[][] depth; // Mx2 matrix
 		final double[][] probs; // Mx2 matrix
-		final double[][] weightedProbs; // MxP matrix
-
+		
 		public DataEntry(final int[] index, final int[] allele) {
 			this.probs = softProbs(allele);
-			this.weightedProbs = new double[allele.length]
-					[Constants._ploidy_H];
+			this.depth = this.nullDepth();
 			this.index = new DualHashBidiMap<Integer, Integer>();
 			this.fillIndexMap(index);
+		}
+		
+		public DataEntry(final int[] index, final int[] allele, final int[] d) {
+			this.probs = softProbs(allele);
+			this.depth = this.depth(d);
+			this.index = new DualHashBidiMap<Integer, Integer>();
+			this.fillIndexMap(index);
+		}
+
+		private double[][] nullDepth() {
+			// TODO Auto-generated method stub
+			final int M = probs.length;
+			final int[] d = new int[M]; 
+			Arrays.fill(d, 1);
+			return this.depth(d);
+		}
+
+		private double[][] depth(int[] d) {
+			// TODO Auto-generated method stub
+			final int M = probs.length;
+			final double[][] depth = new double[M][2];
+			for(int i=0; i<M; i++) {
+				depth[i][0] = probs[i][0]*d[i];
+				depth[i][1] = probs[i][1]*d[i];
+			}
+			return depth;
 		}
 
 		public int n() {
@@ -1195,8 +1249,7 @@ public class HiddenMarkovModel {
 				final double[][] probs) {
 			this.index = index;
 			this.probs = probs;
-			this.weightedProbs = new double[index.size()]
-					[Constants._ploidy_H];;
+			this.depth = this.nullDepth();
 		}
 
 		public DataEntry clone() {

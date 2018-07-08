@@ -27,14 +27,13 @@ import cz1.algebra.matrix.SparseMatrix;
 import cz1.graph.cluster.KMedoids;
 import cz1.graph.cluster.MarkovClustering;
 import cz1.graph.cluster.SpectralClustering;
-import cz1.tenx.model.HiddenMarkovModel.DataEntry;
 import cz1.util.Algebra;
 import cz1.util.Constants;
 import cz1.util.Utils;
 import cz1.util.Dirichlet;
 
-public class HiddenMarkovModel2 {
-	protected final static Logger myLogger = Logger.getLogger(HiddenMarkovModel2.class);
+public class HiddenMarkovModel3 {
+	protected final static Logger myLogger = Logger.getLogger(HiddenMarkovModel3.class);
 	
 	protected final static Runtime runtime = Runtime.getRuntime();
 
@@ -42,12 +41,9 @@ public class HiddenMarkovModel2 {
 
 	protected String[] hs = null;
 	protected EP[] emissProbs = null;
-	protected Viterbi vb[] = null;
 
 	protected int N = -1;
 	protected int M = -1;
-
-	private FB[] forward, backward;
 
 	protected String rangeChr = null;
 	protected int rangeLowerBound = Integer.MIN_VALUE;
@@ -57,17 +53,20 @@ public class HiddenMarkovModel2 {
 	protected boolean simulated_annealing = false;
 
 	protected int[] haps = null;
+	protected double[][] hap_assign = null;
 	
 	protected boolean  debug = false;
 	protected boolean ddebug = false;
 	
-	public HiddenMarkovModel2(String vcf_file,
+	protected double loglik = Double.NEGATIVE_INFINITY;
+	
+	public HiddenMarkovModel3(String vcf_file,
 			String dat_file,
 			String rangeChr) {
 		this(vcf_file, dat_file, rangeChr, true, false);
 	}
 
-	public HiddenMarkovModel2(String vcf_file,
+	public HiddenMarkovModel3(String vcf_file,
 			String dat_file,
 			String rangeChr,
 			boolean use_clus,
@@ -75,7 +74,7 @@ public class HiddenMarkovModel2 {
 		this(vcf_file, dat_file, rangeChr, Integer.MIN_VALUE, Integer.MAX_VALUE, use_clus, use_sa);
 	}
 
-	public HiddenMarkovModel2(String vcf_file,
+	public HiddenMarkovModel3(String vcf_file,
 			String dat_file,
 			String rangeChr,
 			int rangeLowerBound,
@@ -83,7 +82,7 @@ public class HiddenMarkovModel2 {
 		this(vcf_file, dat_file, rangeChr, rangeLowerBound, rangeUpperBound, true, false);
 	}
 
-	public HiddenMarkovModel2(String vcf_file,
+	public HiddenMarkovModel3(String vcf_file,
 			String dat_file,
 			String rangeChr,
 			int rangeLowerBound,
@@ -93,7 +92,7 @@ public class HiddenMarkovModel2 {
 		this(vcf_file, dat_file, rangeChr, rangeLowerBound, rangeUpperBound, use_clus, use_sa, false, false);
 	}
 	
-	public HiddenMarkovModel2(String vcf_file,
+	public HiddenMarkovModel3(String vcf_file,
 			String dat_file,
 			String rangeChr,
 			int rangeLowerBound,
@@ -112,8 +111,7 @@ public class HiddenMarkovModel2 {
 		this.setDataEntryFile(vcf_file, dat_file);
 		if(this.isNullModel()) return;
 		if(this.clustering) this.makeMCL();
-		this.makeBWT();
-		if(this.simulated_annealing) this.makeSA();
+		this.makeEM();
 	}
 
 	public void train() {
@@ -125,25 +123,10 @@ public class HiddenMarkovModel2 {
 		long[] tic = new long[10];
 		int k=0;
 		tic[k++] = System.nanoTime();
-		this.updateDP();
-		tic[k++] = System.nanoTime();
-		myLogger.info("update dp "+(tic[k-1]-tic[k-2])+"ns");
-		this.makeForward();
-		tic[k++] = System.nanoTime();
-		myLogger.info("forward done "+(tic[k-1]-tic[k-2])+"ns");
-		this.makeBackward();
-		tic[k++] = System.nanoTime();
-		myLogger.info("backward done "+(tic[k-1]-tic[k-2])+"ns");
-		this.checkFW();
-		tic[k++] = System.nanoTime();
-		this.EM();
+		this.optimise();
 		tic[k++] = System.nanoTime();
 		myLogger.info("EM algorithm "+(tic[k-1]-tic[k-2])+"ns");
-		if(this.simulated_annealing) {
-			this.SA();
-			tic[k++] = System.nanoTime();
-			myLogger.info("simulated annealing "+(tic[k-1]-tic[k-2])+"ns");
-		}
+		myLogger.info("log likelihood "+this.loglik);	
 		return;
 	}
 
@@ -297,6 +280,7 @@ public class HiddenMarkovModel2 {
 			
 			this.bfrac = ArrayUtils.toPrimitive(bfrac.toArray(new Double[this.M]));
 			this.haps   = new int[N];
+			this.hap_assign = new double[N][Constants._ploidy_H];
 			
 			myLogger.info("Data entry loaded. #Loci: "+this.M+"/"+M);
 			if(debug) {	
@@ -319,27 +303,12 @@ public class HiddenMarkovModel2 {
 		}
 	}
 
-	private void makeBWT() {
+	private void makeEM() {
 		// TODO Auto-generated method stub
 		this.emissProbs = new EP[M];
 		for(int i=0; i<M; i++)
 			emissProbs[i] = new EP(i);
 
-		this.forward = new FB[N];
-		for(int i=0; i<N; i++) 
-			this.forward[i] = new FB(false,
-					this.dp[i].probs.length,
-					Constants._ploidy_H);
-		this.backward = new FB[N];
-		for(int i=0; i<N; i++) 
-			this.backward[i] = new FB(true,
-					this.dp[i].probs.length,
-					Constants._ploidy_H);
-		this.vb = new Viterbi[N];
-		for(int i=0; i<N; i++)
-			this.vb[i] = new Viterbi(
-					this.dp[i].probs.length,
-					Constants._ploidy_H);
 		return;
 	}
 
@@ -367,7 +336,7 @@ public class HiddenMarkovModel2 {
 		}
 
 		final List<Map<Integer, Integer>> hapcombs = new ArrayList<Map<Integer,Integer>>();
-		int N = 0;
+		int N;
 		SparseMatrix dpAdj = null;
 		boolean recalc = true;
 		
@@ -455,6 +424,7 @@ public class HiddenMarkovModel2 {
 			clusters = clusters2;
 			myLogger.info("####MCL round "+iter+", #clusters="+clusters.size());
 		}
+
 		if(recalc) {
 			N = clusters.size();
 			hapcombs.clear();
@@ -550,40 +520,6 @@ public class HiddenMarkovModel2 {
 			Set<Integer> haplo = haplos.get(i);
 			for(int j : haplo) initMolClus.put(j, i);
 		}
-		
-		/***
-		final List<Map<Integer, Integer>> hapcounts = new ArrayList<Map<Integer,Integer>>();
-		for(int i=0; i<N; i++) hapcounts.add(getCountFromRead(clusters.get(i)));
-		hapcombs.clear();
-		for(int i=0; i<N; i++) hapcombs.add(getHapFromRead(clusters.get(i)));
-		
-		this.N = hapcombs.size();
-		this.dp = new DataEntry[this.N];
-		for(int i=0; i<this.N; i++) {
-			final Map<Integer, Integer> hap   = hapcombs.get(i);
-			final Map<Integer, Integer> count = hapcounts.get(i);
-			final int n1 = count.size();
-			final int[] indexz  = new int[n1];
-			final int[] allelez = new int[n1];
-			final int[] depth   = new int[n1];
-			int j=0;
-			for(Map.Entry<Integer, Integer> entry : hap.entrySet()) {
-				indexz[j]  = entry.getKey();
-				allelez[j] = entry.getValue();
-				depth[j]   = count.get(indexz[j]);
-				++j;
-			}
-			this.dp[i] = new DataEntry(indexz, allelez, depth);
-		}
-		for(int i=0; i<this.M; i++) { 
-			dpCrossRef.put(i, new HashSet<Integer>());
-		}
-		for(int i=0; i<this.N; i++) {
-			final Set<Integer> indexSet = this.dp[i].index.values();
-			for(int j : indexSet) dpCrossRef.get(j).add(i);
-		}
-		this.haps   = new int[this.N];
-		***/
 	}
 
 	private void errorCorrection(List<Set<Integer>> clusters) {
@@ -840,25 +776,6 @@ public class HiddenMarkovModel2 {
 		}
 	}
 	
-	private Map<Integer, Integer> getCountFromRead(Set<Integer> dat) {
-		// TODO Auto-generated method stub
-
-		final Map<Integer, Integer> count = new HashMap<Integer, Integer>();
-		DataEntry dp1;
-		Set<Integer> m1;
-		for(final int i : dat) {
-			dp1 = this.dp[i];
-			m1 = dp1.index.values();
-			for(final int j : m1) {
-				if(!count.containsKey(j))
-					count.put(j, 0);
-				count.put(j, count.get(j)+1);
-			}
-		}
-		
-		return count;
-	}
-	
 	private Map<Integer, Integer> getHapFromRead(Set<Integer> dat) {
 		// TODO Auto-generated method stub
 
@@ -897,223 +814,51 @@ public class HiddenMarkovModel2 {
 		myLogger.info(os.toString());
 	}
 
-	private DataEntry[] SAdp;
-	private EP[] SAemissProbs;
-	private FB[] SAforward;
-
-	private void makeSA() {
+	private void optimise () {
 		// TODO Auto-generated method stub
-		// need a copy of dp
-		SAdp = new DataEntry[N];
-		for(int i=0; i<N;i++)
-			SAdp[i] = dp[i].clone();
-		// need a copy of emissProbs
-		SAemissProbs = new EP[M];
-		for(int i=0; i<M;i++)
-			SAemissProbs[i] = emissProbs[i].clone();
-		// need a copy of forward
-		SAforward = new FB[N];
-		for(int i=0; i<N;i++)
-			SAforward[i] = forward[i].clone();
-		return;
-	}
-
-	private void updateDP() {
-		// TODO Auto-generated method stub
-		this.updateDP(dp, emissProbs);
-	}
-
-	private void updateDP(DataEntry[] dp, EP[] emissProbs) {
-		// TODO Auto-generated method stub
-		for(int i=0; i<N; i++) {
-			double[][] probs = dp[i].probs; // Mx2
-			double[][] weightedProbs = dp[i].weightedProbs; // MxP
-			BidiMap<Integer, Integer> index = dp[i].index;
-			int M = probs.length;
-			for(int j=0; j<M; j++) {
-				double[][] emiss = 
-						emissProbs[index.get(j)].probsMat; // Px2
-				for(int k=0; k<Constants._ploidy_H; k++) {
-					weightedProbs[j][k] = 
-							probs[j][0]*emiss[k][0]+
-							probs[j][1]*emiss[k][1];
-				}
-			}
-		}
-		return;
-	}
-
-	private void makeForward() {
-		// TODO Auto-generated method stub
-		this.makeForward(dp, forward);
-	}
-
-	private void makeForward(DataEntry[] dp, FB[] forward) {
-		// TODO Auto-generated method stub
-		DataEntry dp1;
-		for(int i=0; i<N; i++) {
-			dp1 = dp[i];
-			int M = dp1.probs.length;
-			double[][] probs = dp1.weightedProbs; // MxP
-			double[][] probsMat = forward[i].probsMat; // MxP
-
-			System.arraycopy(probs[0], 0, probsMat[0], 0, Constants._ploidy_H);
-			for(int j=1; j<M; j++) {
-				for(int k=0; k<Constants._ploidy_H; k++) 
-					probsMat[j][k] = probsMat[j-1][k]*probs[j][k];	
-				forward[i].scale(j);
-			}
-			forward[i].probability(StatUtils.sum(probsMat[M-1]));
-		}
-		return;
-	}
-
-	private void makeBackward() {
-		// TODO Auto-generated method stub
-		this.makeBackward(dp, backward);
-	}
-
-	private void makeBackward(DataEntry[] dp, FB[] backward) {
-		// TODO Auto-generated method stub
-		DataEntry dp1;
-		for(int i=0; i<N; i++) {
-			dp1 = dp[i];
-			int M = dp1.probs.length;
-			double[][] probs = dp1.weightedProbs; // MxP
-			double[][] probsMat = backward[i].probsMat; // MxP
-
-			Arrays.fill(probsMat[M-1], 1.);
-			for(int j=M-2; j>=0; j--) {
-				for(int k=0; k<Constants._ploidy_H; k++) 
-					probsMat[j][k] = probsMat[j+1][k]*probs[j+1][k];	
-				backward[i].scale(j);	
-			}
-			double ll = 0.;
-			for(int j=0; j<Constants._ploidy_H; j++) 
-				ll+=probsMat[0][j]*probs[0][j];
-			backward[i].probability(ll);
-		}
-		return;
-	}
-
-	private void checkFW() {
-		// TODO Auto-generated method stub
-		if(iteration==0) return;
-
-		myLogger.info(this.loglik()+"---"+this.loglik1());
-		for(int i=0; i<this.forward.length; i++) {
-			double r = Math.abs(this.forward[i].probability-
-					this.backward[i].probability);
-			if(r>1e-6) myLogger.info(i+" | "+r+" --- FORWARD-BACKWARD PRECISION NOT RIGHT!!!");
-		}
-	}
-
-	private void EM() {
-		// TODO Auto-generated method stub
-
-		double coeff, exp_c, exp;
+		final double[] loglik = new double[Constants._ploidy_H];
 		int z;
-		FB fw1, bw1;
 		DataEntry dp1;
 		Set<Integer> crossRef;
+		double exp_c;
+		
+		this.findHap();
 		for(int i=0; i<M; i++) {
-
+			// exception
 			double[][] emiss_count = this.emissProbs[i].pseudo(); // Px2
 			crossRef = this.dpCrossRef.get(i);
 			for(int j : crossRef) {
-
-				fw1 = this.forward[j];
-				bw1 = this.backward[j];
-
-				dp1 = dp[j];
+				dp1 = this.dp[j];
 				z = dp1.index.getKey(i);
-
-				exp_c = fw1.logscale[z]+
-						bw1.logscale[z]-
-						fw1.probability;
-
-				if(exp_c>Constants.MAX_EXP_DOUBLE) { 
-					// cannot calculate exponential directly
-					// logarithm and then exponential 
-					// time consuming
-					for(int k=0; k<Constants._ploidy_H; k++) {
-						coeff = fw1.probsMat[z][k]*bw1.probsMat[z][k];
-						for(int w=0; w<2; w++) 
-							emiss_count[k][w] += 
-							Math.exp(Math.log(coeff*dp1.depth[z][w])+exp_c);
-					}
-				} else { 
-					// exponential is safe
-					// ideal way but dangerous
-					exp = Math.exp(exp_c);
-					for(int k=0; k<Constants._ploidy_H; k++) {
-						coeff = fw1.probsMat[z][k]*bw1.probsMat[z][k]*exp;
-						for(int w=0; w<2; w++) 
-							emiss_count[k][w] += coeff*dp1.depth[z][w];
-					}
+				
+				System.arraycopy(this.hap_assign[j], 0, loglik, 0, Constants._ploidy_H);
+				exp_c = StatUtils.max(loglik);
+				for(int k=0; k<loglik.length; k++) 
+					loglik[k] = Math.exp(loglik[k]-exp_c);
+				Algebra.normalize(loglik);
+				
+				for(int k=0; k<loglik.length; k++) {
+					emiss_count[k][0] += loglik[k]*dp1.probs[z][0];
+					emiss_count[k][1] += loglik[k]*dp1.probs[z][1];
 				}
 			}
-
+			
+			// maximisation
 			this.emissProbs[i].posterior();
 		}
 	}
-
-	private double temperature =  100;
-	private double coolingRate = 0.01;
-
-	private void SA() {
-		// TODO Auto-generated method stub
-		// need to copy the emissProbs
-		for(int i=0; i<M; i++) {
-			double[][] emiss   = emissProbs[i].probsMat; // Px2
-			double[][] SAemiss = SAemissProbs[i].probsMat; // Px2
-			for(int j=0; j<Constants._ploidy_H; j++)
-				System.arraycopy(emiss[j], 0, SAemiss[j], 0, 2);
-			SAemissProbs[i].shrink();
-		}
-
-		// need to update SAdp
-		this.updateDP(SAdp, SAemissProbs);
-		// need to make SAforward
-		this.makeForward(SAdp, SAforward);
-
-		double llold = this.loglik(forward), 
-				llnew = this.loglik(SAforward);
-		if(llnew>llold||Math.exp((llnew-llold)/temperature)>Math.random()) {
-			// accept SA local
-			// need to replace emissProbs
-			EP[] tmpEP = this.emissProbs;
-			this.emissProbs = SAemissProbs;
-			this.SAemissProbs = tmpEP;
-			// need to replace dp
-			DataEntry[] tmpDP = this.dp;
-			this.dp = SAdp;
-			this.SAdp = tmpDP;
-			// need to replace forward
-			FB[] tmpFB = this.forward;
-			this.forward = SAforward;
-			this.SAforward = tmpFB;
-			// we run EM from here
-			this.makeBackward();
-			this.checkFW();
-			this.EM();
-			myLogger.info("SA local ACCEPTED at temperature "+temperature);
-		} else {
-			myLogger.info("SA local REJECTED at temperature "+temperature);
-		}
-		temperature *= 1-coolingRate;
-	}
-
-
+	
 	private void findHap() {
 		// TODO Auto-generated method stub
 		DataEntry dp1;
 		double[][] probs1, emiss1;
 		int lc;
-		double[] ll = new double[Constants._ploidy_H];
+		double[] ll;
+		this.loglik = 0;
 		for(int i=0; i<N; i++) {
 			dp1 = this.dp[i];
 			probs1 = dp1.probs;
+			ll = hap_assign[i];
 			Arrays.fill(ll, 0);
 			for(Map.Entry<Integer, Integer> ent : dp1.index.entrySet()) {
 				lc = ent.getKey();
@@ -1124,6 +869,7 @@ public class HiddenMarkovModel2 {
 				}
 			}
 			this.haps[i] = Algebra.maxIndex(ll);
+			this.loglik += ll[this.haps[i]];
 		}
 	}
 	
@@ -1265,51 +1011,7 @@ public class HiddenMarkovModel2 {
 			if( logspace ) this.setNormalspace();
 			this.count = new double[Constants._ploidy_H][2];
 		}
-
-		public void shrink() {
-			// TODO Auto-generated method stub
-			for(int i=0; i<Constants._ploidy_H; i++) {
-				if(this.probsMat[i][0]<0.5) {
-					this.probsMat[i][0] = this.probsMat[i][0]*(1-shinkage);
-				} else {
-					this.probsMat[i][0] = this.probsMat[i][0]+shinkage*this.probsMat[i][1];
-				}
-				this.probsMat[i][1] = 1-this.probsMat[i][0];
-			}
-			shinkage *= 1-coolingRate;
-		}
-
-		public void shrink2() {
-			// TODO Auto-generated method stub
-			double[] probs = new double[Constants._ploidy_H];
-			for(int i=0; i<Constants._ploidy_H; i++)
-				probs[i] = this.probsMat[i][0];
-			Arrays.sort(probs);
-			int pivot = (int) Math.round(Constants._ploidy_H*baf);
-
-			if(pivot==0&&probs[0]>0.5 ||
-					pivot==Constants._ploidy_H&&
-					probs[Constants._ploidy_H-1]<0.5 ||
-					probs[pivot-1]<0.5&&probs[pivot]>0.5) 
-				return;
-
-			double pthres;
-			if(pivot==0) 
-				pthres = Double.NEGATIVE_INFINITY;
-			else if(pivot==Constants._ploidy_H)
-				pthres = Double.POSITIVE_INFINITY;
-			else pthres = probs[pivot-1];
-
-			for(int i=0; i<Constants._ploidy_H; i++) {
-				if(this.probsMat[i][0]<=pthres) {
-					this.probsMat[i][0] = this.probsMat[i][0]*(1-shinkage);
-				} else {
-					this.probsMat[i][0] = this.probsMat[i][0]+shinkage*this.probsMat[i][1];
-				}
-				this.probsMat[i][1] = 1-this.probsMat[i][0];
-			}
-		}
-
+		
 		public EP clone() {
 			return new EP(this.baf);
 		}
@@ -1442,193 +1144,16 @@ public class HiddenMarkovModel2 {
 		}
 	}
 
-	protected class Viterbi {
-		protected double[][] v;
-		protected int m;
-		protected int[][] trace;
-		protected double[] logscale;
-		protected int[] path;
-		protected double probability;
-
-		public Viterbi(int _m_, int _n_) {
-			// TODO Auto-generated constructor stub
-			this.v = new double[_m_][_n_];
-			this.m = _m_;
-			this.trace = new int[_m_-1][_n_];
-			this.logscale = new double[_m_];
-			this.path = new int[_m_-1];
-			this.probability = 0.0;
-		}
-
-		protected void trace() {
-			this.probability = Math.log(StatUtils.max(v[m-1]))+
-					this.logscale[m-1];
-			int tr = Algebra.maxIndex(v[m-1]);
-			this.path[m-2] = tr;
-			for(int i=m-3; i>=0; i--) {
-				tr = trace[i+1][tr];
-				this.path[i] = tr;
-			}
-			return;
-		}
-
-		protected void scale(final int i) {
-			// TODO Auto-generated method stub
-			if(i==0) return;
-			double[] probs = this.v[i];
-			double min = Double.POSITIVE_INFINITY,
-					max = Double.NEGATIVE_INFINITY;
-			for(int k=0; k<probs.length; k++) {
-				if(probs[k]>0) {
-					min = probs[k]<min ? probs[k] : min;
-					max = probs[k]>max ? probs[k] : max;
-				}
-			}
-
-			this.logscale[i] = this.logscale[i-1];
-			if(min<Constants.threshMin &&
-					max<Constants.threshMax) {
-				this.logscale[i] += 
-						Constants.logThreshMax;
-				for(int k=0; k<probs.length; k++)
-					probs[k] /= Constants.threshMax;
-			}
-		}
-	}
-
-	protected class FB { /** forward/backward algorithm object */
-		protected double probability;
-		protected double[][] probsMat;
-		protected boolean logspace;
-		protected double[] logscale;
-		protected final boolean backward;
-
-		public FB(boolean backward,
-				int m,
-				int s) {
-			this.backward = backward;
-			this.probsMat = new double[m][s];
-			this.probability = 0;
-			this.logscale = new double[m];
-			Arrays.fill(this.logscale, 0.0);
-			this.logspace = false;
-		}
-
-		public FB clone() {
-			return new FB(this.backward, 
-					this.probsMat.length, 
-					this.probsMat[0].length);
-		}
-
-		public void probability(double p) {
-			// TODO Auto-generated method stub
-			if(this.backward)
-				this.probability = Math.log(p)+this.logscale[0];
-			else
-				this.probability = Math.log(p)+
-				this.logscale[this.logscale.length-1];
-		}
-
-		protected void scale() {
-			// TODO Auto-generated method stub
-			this.logscale = new double[this.probsMat.length];
-			if(this.backward)
-				for(int i=this.logscale.length-1; i>=0; i++)
-					this.scale(i);
-			else
-				for(int i=0; i<this.logscale.length; i++)
-					this.scale(i);
-		}
-
-		protected void scale(final int i) {
-			// TODO Auto-generated method stub
-			if(i==this.logscale.length-1 && this.backward) 
-				return;
-			if(i==0 && !this.backward) return;
-			int dv = -1;
-			if(this.backward) dv = 1;
-			double[] probs = this.probsMat[i];
-			double min = Double.POSITIVE_INFINITY,
-					max = Double.NEGATIVE_INFINITY;
-			for(int k=0; k<probs.length; k++) {
-				if(probs[k]>0) {
-					min = probs[k]<min ? probs[k] : min;
-					max = probs[k]>max ? probs[k] : max;
-				}
-			}
-
-			this.logscale[i] = this.logscale[i+dv];
-			if(min<Constants.threshMin &&
-					max<Constants.threshMax) {
-				this.logscale[i] += 
-						Constants.logThreshMax;
-				for(int k=0; k<probs.length; k++)
-					probs[k] /= Constants.threshMax;
-			}
-		}
-
-		private void setLogspace() {
-			// TODO Auto-generated method stub
-			for(int i=0; i<this.probsMat.length; i++)
-				for(int j=0; j<this.probsMat[i].length; j++)
-					this.probsMat[i][j] = Math.log(this.probsMat[i][j]);
-			this.probability = Math.log(this.probability);
-			this.logspace = true;
-		}
-
-		private void setNormalspace() {
-			// TODO Auto-generated method stub
-			for(int i=0; i<this.probsMat.length; i++)
-				for(int j=0; j<this.probsMat[i].length; j++)
-					this.probsMat[i][j] = Math.exp(this.probsMat[i][j]);
-			this.probability = Math.exp(this.probability);
-			this.logspace = false;
-		}
-	}
-
 	protected final double soften = 1e-16;
 	protected class DataEntry { // data entry
 		// <K,V>=<Index,MarkerIndex>
 		final BidiMap<Integer, Integer> index;
 		final double[][] probs; // Mx2 matrix
-		final double[][] depth; // Mx2 matrix
-		final double[][] weightedProbs; // MxP matrix
-
+		
 		public DataEntry(final int[] index, final int[] allele) {
 			this.probs = softProbs(allele);
-			this.weightedProbs = new double[allele.length]
-					[Constants._ploidy_H];
-			this.depth = this.nullDepth();
 			this.index = new DualHashBidiMap<Integer, Integer>();
 			this.fillIndexMap(index);
-		}
-		
-		public DataEntry(final int[] index, final int[] allele, final int[] d) {
-			this.probs = softProbs(allele);
-			this.weightedProbs = new double[allele.length]
-					[Constants._ploidy_H];
-			this.depth = this.depth(d);
-			this.index = new DualHashBidiMap<Integer, Integer>();
-			this.fillIndexMap(index);
-		}
-
-		private double[][] nullDepth() {
-			// TODO Auto-generated method stub
-			final int M = probs.length;
-			final int[] d = new int[M]; 
-			Arrays.fill(d, 1);
-			return this.depth(d);
-		}
-
-		private double[][] depth(int[] d) {
-			// TODO Auto-generated method stub
-			final int M = probs.length;
-			final double[][] depth = new double[M][2];
-			for(int i=0; i<M; i++) {
-				depth[i][0] = probs[i][0]*d[i];
-				depth[i][1] = probs[i][1]*d[i];
-			}
-			return depth;
 		}
 
 		public int n() {
@@ -1640,9 +1165,6 @@ public class HiddenMarkovModel2 {
 				final double[][] probs) {
 			this.index = index;
 			this.probs = probs;
-			this.depth = this.nullDepth();
-			this.weightedProbs = new double[index.size()]
-					[Constants._ploidy_H];;
 		}
 
 		public DataEntry clone() {
@@ -1723,33 +1245,10 @@ public class HiddenMarkovModel2 {
 	}
 
 	public double loglik() {
-		return this.loglik(forward);
+		// TODO Auto-generated method stub
+		return this.loglik;
 	}
-
-	public double loglik(FB[] forward) {
-		if(iteration==0)
-			return Double.NEGATIVE_INFINITY;
-		else {
-			double probability = 0;
-			for(FB fw : forward) probability += fw.probability;
-			return probability;
-		}
-	}
-
-	public double loglik1() {
-		return this.loglik1(backward);
-	}
-
-	public double loglik1(FB[] backward) {
-		if(iteration==0)
-			return Double.NEGATIVE_INFINITY;
-		else {
-			double probability = 0;
-			for(FB bw : backward) probability += bw.probability;
-			return probability;
-		}
-	}
-
+	
 	public void write(String out) {
 		// TODO Auto-generated method stub
 		// stats for haplotype coverage
