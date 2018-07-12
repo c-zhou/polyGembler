@@ -421,7 +421,7 @@ public class HiddenMarkovModel {
 			errorCorrection(clusters2);
 			myLogger.info("Error correction done. "+(clusters2.size()-n)+" singletons.");
 			
-			if(equals(clusters, clusters2)) {
+			if(equals(clusters, clusters2)||clusters.size()<clusters2.size()) {
 				recalc = false;
 				break;
 			}
@@ -1407,6 +1407,20 @@ public class HiddenMarkovModel {
 		final List<Set<Integer>> adjmat = new ArrayList<Set<Integer>>();
 		for(int i=0; i<M; i++) adjmat.add(new HashSet<Integer>());
 		Set<Integer> ms1, ms2;
+		
+		for(int i=0; i<M; i++) {
+			adjmat.add(new HashSet<Integer>());
+			ms1 = this.dpCrossRef.get(i);
+			for(int j=i+1; j<M; j++) {
+				ms2 = this.dpCrossRef.get(j);
+				if(CollectionUtils.containsAny(ms1, ms2)) {
+					adjmat.get(i).add(j);
+					adjmat.get(j).add(i);
+				}
+			}
+		}
+		
+		/***
 		for(int i=0; i<N; i++) {
 			ms1 = this.dp[i].index.values();
 			for(int j=i; j<N; j++) {
@@ -1423,7 +1437,8 @@ public class HiddenMarkovModel {
 				}
 			}
 		}
-
+		***/
+		
 		// now for each pair of adjacent markers 
 		// we check if there is a path to connect them
 		int source, target;
