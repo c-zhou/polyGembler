@@ -14,6 +14,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.IntStream;
 
 import org.apache.commons.collections4.BidiMap;
@@ -1477,7 +1478,21 @@ public class HiddenMarkovModel {
 		
 		int h, a1, a2, m1, m2, h1, h2;
 		final int[] depth = new int[M-1];
-		final Map<Range<Integer>, Integer> mismatch = new HashMap<Range<Integer>, Integer>();
+		final TreeMap<Range<Integer>, Integer> mismatch = new TreeMap<Range<Integer>, Integer>(
+				new Comparator<Range<Integer>>() {
+
+					@Override
+					public int compare(Range<Integer> r0, Range<Integer> r1) {
+						// TODO Auto-generated method stub
+						if(r0.lowerEndpoint().equals(r1.lowerEndpoint())) {
+							return Integer.compare(r0.upperEndpoint().intValue(), 
+									r1.upperEndpoint().intValue());
+						}
+						return Integer.compare(r0.lowerEndpoint().intValue(), 
+								r1.lowerEndpoint().intValue());
+					}
+
+				});
 		Range<Integer> range;
 		for(int i=0; i<N; i++) {
 			dp1 = this.dp[i];
@@ -1537,7 +1552,7 @@ public class HiddenMarkovModel {
 					mc += entry.getValue();
 					tmp_keys.add(range);
 				}
-				if(this.ddebug) myLogger.info("#mismatch@"+i+": "+mc);
+				if(this.ddebug) myLogger.info("#mismatch@"+i+": "+mc+"/"+depth[i]);
 				if(mc>depth[i]*0.5&&mc>mismatch_count) {
 					bp = i;
 					mismatch_count = mc;
