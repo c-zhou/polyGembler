@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,6 +23,8 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.stat.StatUtils;
 import org.apache.commons.math3.stat.inference.TestUtils;
 import org.apache.log4j.Logger;
+
+import com.google.common.collect.Range;
 
 import cz1.algebra.matrix.SparseMatrix;
 import cz1.graph.cluster.KMedoids;
@@ -1344,17 +1347,83 @@ public class HiddenMarkovModel {
 				cov[j] = true;
 		}
 		
+		// here we will create a graph for the data entry
+		// for adjacent markers
+		// if no path connect them
+		// we then break the haplotype at that point
+		final List<Set<Integer>> adjmat = new ArrayList<Set<Integer>>();
+		for(int i=0; i<M; i++) adjmat.add(new HashSet<Integer>());
+		Set<Integer> m1, m2;
+		for(int i=0; i<N; i++) {
+			m1 = this.dp[i].index.values();
+			for(int j=i; j<N; j++) {
+				m2 = this.dp[j].index.values();
+				if(CollectionUtils.containsAny(m1, m2)) {
+					for(int u : m1) {
+						for(int v : m2) {
+							if(u!=v) {
+								adjmat.get(u).add(v);
+								adjmat.get(v).add(u);
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		// now for each pair of adjacent markers 
+		// we check if there is a path to connect them
+		int source, target;
+		boolean reachable;
+		final Set<Integer> visited = new HashSet<Integer>();
+		final LinkedList<Integer> queue = new LinkedList<Integer>();
+		Set<Integer> neighbours;
+		final List<Integer> breakpoints = new ArrayList<Integer>();
+		breakpoints.add(0);
+		for(int i=1; i<M; i++) {
+			source = i-1;
+			target = i  ;
+			queue.clear();
+			visited.clear();
+			queue.offer(source);
+			reachable = false;
+			while(!queue.isEmpty()) {
+				source = queue.pop();
+				neighbours = adjmat.get(source);
+				if(source==target||
+						neighbours.contains(target)) {
+					reachable = true;
+					break;
+				} else {
+					visited.add(source);
+					for(int z : neighbours) {
+						if(!visited.contains(z))
+							queue.offer(z);
+					}
+				}
+			}
+			if(!reachable) breakpoints.add(i);
+		}
+		
+		if(breakpoints.get(breakpoints.size()-1)<M) breakpoints.add(M);
+		
 		try {
 			BufferedWriter bw = Utils.getBufferedWriter(out);
 			bw.write("##"+this.M+" "+this.loglik()+"\n");
-			for(int i=0; i<M; i++) {
-				double[][] probs = this.emissProbs[i].probsMat; // Px2
-				Variant variant = variants[i];
-				bw.write(this.rangeChr+"\t"+String.format("%1$12s", variant.position)+"\t"+
-						variant.refAllele+"\t"+variant.altAllele);
-				for(int j=0; j<Constants._ploidy_H; j++)
-					bw.write("\t"+(hapCov[j][i]?(probs[j][0]<0.5?0:1):"-"));
-				bw.write("\n");	
+			for(int b=1; b<breakpoints.size(); b++) {
+				int start = breakpoints.get(b-1);
+				int end   = breakpoints.get(b  );
+				bw.write("BLOCK: "+this.rangeChr+"\t"+this.variants[start].position+"\t"+this.variants[end-1].position+"\n");
+				for(int i=start; i<end; i++) {
+					double[][] probs = this.emissProbs[i].probsMat; // Px2
+					Variant variant = variants[i];
+					bw.write(this.rangeChr+"\t"+String.format("%1$12s", variant.position)+"\t"+
+							variant.refAllele+"\t"+variant.altAllele);
+					for(int j=0; j<Constants._ploidy_H; j++)
+						bw.write("\t"+(hapCov[j][i]?(probs[j][0]>0.5?0:1):"-"));
+					bw.write("\n");	
+				}
+				bw.write("********\n");
 			}
 			bw.close();
 		} catch (IOException e) {
@@ -1383,4 +1452,64 @@ public class HiddenMarkovModel {
 		// TODO Auto-generated method stub
 		return this.M == 0;
 	}
+
+	public void polish() {
+		// TODO Auto-generated method stub
+		// aims to detect block switch errors
+		
+		this.findHap();
+		final boolean[][] hapCov = new boolean[Constants._ploidy_H][M];
+		boolean[] cov;
+		DataEntry dp1;
+		for(int i=0; i<N; i++) {
+			cov = hapCov[this.haps[i]];
+			dp1 = this.dp[i];
+			for(final int j : dp1.index.values())
+				cov[j] = true;
+		}
+		
+		int[][] hapInt = new int[Constants._ploidy_H][M];
+		for(int i=0; i<M; i++) {
+			double[][] probs = this.emissProbs[i].probsMat; // Px2
+			for(int j=0; j<Constants._ploidy_H; j++)
+				hapInt[j][i] = hapCov[j][i]?(probs[j][0]>0.5?0:1):-1;
+		}
+		
+		int h, a1, a2, m1, m2, h1, h2;
+		final Map<Range<Integer>, Integer>    match = new HashMap<Range<Integer>, Integer>();
+		final Map<Range<Integer>, Integer> mismatch = new HashMap<Range<Integer>, Integer>();
+		Range<Integer> range;
+		for(int i=0; i<N; i++) {
+			dp1 = this.dp[i];
+			h   = this.haps[i];
+			final List<Integer> ms = new ArrayList<Integer>(dp1.index.values());
+			Collections.sort(ms);
+			m1 = ms.get(0);
+			a1 = dp1.probs[dp1.index.getKey(m1)][1]==soften?0:1;
+			h1 = hapInt[h][m1];
+			for(int j=1; j<ms.size(); j++) {
+				m2 = ms.get(j);
+				a2 = dp1.probs[dp1.index.getKey(m2)][1]==soften?0:1;
+				h2 = hapInt[h][m2];
+				range = Range.open(m1, m2);
+				if(!   match.containsKey(range))    match.put(range, 0);
+				if(!mismatch.containsKey(range)) mismatch.put(range, 0);
+				if( (a1==h1)==(a2==h2) ) {
+					// so we have a match here
+					match.put(range, match.get(range)+1);
+				} else {
+					// so we have a switch error here
+					mismatch.put(range, mismatch.get(range)+1);
+				}
+				m1 = m2;
+				a1 = a2;
+				h1 = h2;
+			}
+		}
+	}
 }
+
+
+
+
+

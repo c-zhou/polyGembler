@@ -7,15 +7,19 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
+
+import com.google.common.collect.Range;
 
 import cz1.tenx.model.HiddenMarkovModel;
 import cz1.util.ArgsEngine;
@@ -581,6 +585,7 @@ public class Phaser extends Executor {
 									break;
 								loglik = loglik1;
 							}
+							hmm.polish();
 							if(ddebug) hmm.print();
 							hmm.write(out_prefix+"/"+expr_id+"_"+rangeChr+"~"+rangeLowerBound+"-"+rangeUpperBound+"_"+r+".tmp");
 						} catch (Exception e) {

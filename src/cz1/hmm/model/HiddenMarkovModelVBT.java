@@ -229,14 +229,14 @@ public class HiddenMarkovModelVBT extends HiddenMarkovModel {
 							for(int m=0; m<_p_; m++)
 								trans_count[s_a[m]][s_b[m]] += tmp;
 						}
-
-						Arrays.fill(emissG, 0);
-						for(int k=0; k<_d_; k++) {
-							Integer[] idx = dgMap.get(dosaS[k]);
-							for(int c : idx)
-								emissG[c] = dp1.likelihood[k]*
-								ep1.probsMat[b][c]/ep1.probsDosaMat[b][k];
-						}
+					}
+					
+					Arrays.fill(emissG, 0);
+					for(int k=0; k<_d_; k++) {
+						Integer[] idx = dgMap.get(dosaS[k]);
+						for(int c : idx)
+							emissG[c] = dp1.likelihood[k]*
+							ep1.probsMat[b][c]/ep1.probsDosaMat[b][k];
 					}
 					
 					s_a = this.statespace[b].state;
