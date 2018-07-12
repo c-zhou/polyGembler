@@ -1534,7 +1534,7 @@ public class HiddenMarkovModel {
 		}
 		
 		// now for each pair of adjacent markers
-		// if the mismatch rate is greater that 0.1 
+		// if the mismatch rate is greater that 0.3 
 		// then we break the block at the position
 		int bp, mc, tmp_mc;
 		double mr, tmp_mr;
@@ -1565,7 +1565,7 @@ public class HiddenMarkovModel {
 					keys.addAll(tmp_keys);
 				}
 			}
-			if(mr<0.1) break;
+			if(mr<0.3) break;
 			breakpoints.add(bp+1);
 			for(final Range<Integer> key : keys) mismatch.remove(key);
 		}
