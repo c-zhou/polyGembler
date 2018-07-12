@@ -1506,13 +1506,15 @@ public class HiddenMarkovModel {
 				m2 = ms.get(j);
 				a2 = dp1.probs[dp1.index.getKey(m2)][1]==soften?0:1;
 				h2 = hapInt[h][m2];
-				range = Range.open(m1, m2);
-				if( (a1==h1)!=(a2==h2) ) {
-					// so we have a switch error here
-					if(!mismatch.containsKey(range)) {
-						mismatch.put(range, 1);
-					} else {
-						mismatch.put(range, mismatch.get(range)+1);
+				if(h1!=-1&&h2!=-1){
+					range = Range.closed(m1, m2);
+					if( (a1==h1)!=(a2==h2) ) {
+						// so we have a switch error here
+						if(!mismatch.containsKey(range)) {
+							mismatch.put(range, 1);
+						} else {
+							mismatch.put(range, mismatch.get(range)+1);
+						}
 					}
 				}
 				for(int k=m1; k<m2; k++) ++depth[k];
