@@ -1534,35 +1534,38 @@ public class HiddenMarkovModel {
 		}
 		
 		// now for each pair of adjacent markers
-		// if the mismatch rate is greater that 0.5 
+		// if the mismatch rate is greater that 0.1 
 		// then we break the block at the position
-		int bp, mismatch_count, mc;
+		int bp, mc, tmp_mc;
+		double mr, tmp_mr;
 		final Set<Range<Integer>> keys = new HashSet<Range<Integer>>(),
 				tmp_keys = new HashSet<Range<Integer>>();
 		
 		while(true) {
 			bp = -1;
-			mismatch_count = 0;
+			mc = 0;
+			mr = 0;
 			// find a point with maximum inconsistency
 			for(int i=0; i<M-1; i++) {
-				mc = 0;
+				tmp_mc = 0;
 				tmp_keys.clear();
 				for(Map.Entry<Range<Integer>, Integer> entry : mismatch.entrySet()) {
 					range = entry.getKey();
 					if(range.upperEndpoint()<=i) continue;
 					if(range.lowerEndpoint()> i) break;
-					mc += entry.getValue();
+					tmp_mc += entry.getValue();
 					tmp_keys.add(range);
 				}
 				if(this.ddebug) myLogger.info("#mismatch@"+i+": "+mc+"/"+depth[i]);
-				if(mc>depth[i]*0.5&&mc>mismatch_count) {
+				if(tmp_mc>0&&(tmp_mr=tmp_mc/depth[i])>mr) {
 					bp = i;
-					mismatch_count = mc;
+					mc = tmp_mc;
+					mr = tmp_mr;
 					keys.clear();
 					keys.addAll(tmp_keys);
 				}
 			}
-			if(bp==-1) break;
+			if(mr<0.1) break;
 			breakpoints.add(bp+1);
 			for(final Range<Integer> key : keys) mismatch.remove(key);
 		}
