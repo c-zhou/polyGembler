@@ -1557,7 +1557,7 @@ public class HiddenMarkovModel {
 					tmp_keys.add(range);
 				}
 				if(this.ddebug) myLogger.info("#mismatch@"+i+": "+tmp_mc+"/"+depth[i]);
-				if(tmp_mc>0&&(tmp_mr=(double)tmp_mc/depth[i])>mr) {
+				if(tmp_mc>mc&&(tmp_mr=(double)tmp_mc/depth[i])>0.3) {
 					bp = i;
 					mc = tmp_mc;
 					mr = tmp_mr;
@@ -1565,7 +1565,7 @@ public class HiddenMarkovModel {
 					keys.addAll(tmp_keys);
 				}
 			}
-			if(mr<0.3) break;
+			if(bp==-1) break;
 			breakpoints.add(bp+1);
 			for(final Range<Integer> key : keys) mismatch.remove(key);
 		}
