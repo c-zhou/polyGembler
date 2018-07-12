@@ -1537,6 +1537,7 @@ public class HiddenMarkovModel {
 					mc += entry.getValue();
 					tmp_keys.add(range);
 				}
+				if(this.ddebug) myLogger.info("#mismatch@"+i+": "+mc);
 				if(mc>depth[i]*0.5&&mc>mismatch_count) {
 					bp = i;
 					mismatch_count = mc;
