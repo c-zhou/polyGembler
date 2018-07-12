@@ -387,7 +387,8 @@ public class Phaser extends Executor {
 		}
 	}
 	
-	private final static int varOlap = 300;
+	private final static int varOlap = 300;         // #overlap markers if possible
+	private final static int minVars = varOlap*2;   // #minimum markers if possible
 	
 	private void runMakeb() {
 		// TODO Auto-generated method stub
@@ -585,7 +586,6 @@ public class Phaser extends Executor {
 									break;
 								loglik = loglik1;
 							}
-							hmm.polish();
 							if(ddebug) hmm.print();
 							hmm.write(out_prefix+"/"+expr_id+"_"+rangeChr+"~"+rangeLowerBound+"-"+rangeUpperBound+"_"+r+".tmp");
 						} catch (Exception e) {

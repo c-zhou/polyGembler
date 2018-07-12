@@ -1347,65 +1347,7 @@ public class HiddenMarkovModel {
 				cov[j] = true;
 		}
 		
-		// here we will create a graph for the data entry
-		// for adjacent markers
-		// if no path connect them
-		// we then break the haplotype at that point
-		final List<Set<Integer>> adjmat = new ArrayList<Set<Integer>>();
-		for(int i=0; i<M; i++) adjmat.add(new HashSet<Integer>());
-		Set<Integer> m1, m2;
-		for(int i=0; i<N; i++) {
-			m1 = this.dp[i].index.values();
-			for(int j=i; j<N; j++) {
-				m2 = this.dp[j].index.values();
-				if(CollectionUtils.containsAny(m1, m2)) {
-					for(int u : m1) {
-						for(int v : m2) {
-							if(u!=v) {
-								adjmat.get(u).add(v);
-								adjmat.get(v).add(u);
-							}
-						}
-					}
-				}
-			}
-		}
-		
-		// now for each pair of adjacent markers 
-		// we check if there is a path to connect them
-		int source, target;
-		boolean reachable;
-		final Set<Integer> visited = new HashSet<Integer>();
-		final LinkedList<Integer> queue = new LinkedList<Integer>();
-		Set<Integer> neighbours;
-		final List<Integer> breakpoints = new ArrayList<Integer>();
-		breakpoints.add(0);
-		for(int i=1; i<M; i++) {
-			source = i-1;
-			target = i  ;
-			queue.clear();
-			visited.clear();
-			queue.offer(source);
-			reachable = false;
-			while(!queue.isEmpty()) {
-				source = queue.pop();
-				neighbours = adjmat.get(source);
-				if(source==target||
-						neighbours.contains(target)) {
-					reachable = true;
-					break;
-				} else {
-					visited.add(source);
-					for(int z : neighbours) {
-						if(!visited.contains(z))
-							queue.offer(z);
-					}
-				}
-			}
-			if(!reachable) breakpoints.add(i);
-		}
-		
-		if(breakpoints.get(breakpoints.size()-1)<M) breakpoints.add(M);
+		final List<Integer> breakpoints = this.breakpoints();
 		
 		try {
 			BufferedWriter bw = Utils.getBufferedWriter(out);
@@ -1453,11 +1395,69 @@ public class HiddenMarkovModel {
 		return this.M == 0;
 	}
 
-	public void polish() {
+	public List<Integer> breakpoints() {
 		// TODO Auto-generated method stub
 		// aims to detect block switch errors
-		
+
+		// here we will create a graph for the data entry
+		// for adjacent markers
+		// if no path connect them
+		// we then break the haplotype at that point
+		final List<Set<Integer>> adjmat = new ArrayList<Set<Integer>>();
+		for(int i=0; i<M; i++) adjmat.add(new HashSet<Integer>());
+		Set<Integer> ms1, ms2;
+		for(int i=0; i<N; i++) {
+			ms1 = this.dp[i].index.values();
+			for(int j=i; j<N; j++) {
+				ms2 = this.dp[j].index.values();
+				if(CollectionUtils.containsAny(ms1, ms2)) {
+					for(int u : ms1) {
+						for(int v : ms2) {
+							if(u!=v) {
+								adjmat.get(u).add(v);
+								adjmat.get(v).add(u);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// now for each pair of adjacent markers 
+		// we check if there is a path to connect them
+		int source, target;
+		boolean reachable;
+		final Set<Integer> visited = new HashSet<Integer>();
+		final LinkedList<Integer> queue = new LinkedList<Integer>();
+		Set<Integer> neighbours;
+		final List<Integer> breakpoints = new ArrayList<Integer>();
+		for(int i=1; i<M; i++) {
+			source = i-1;
+			target = i  ;
+			queue.clear();
+			visited.clear();
+			queue.offer(source);
+			reachable = false;
+			while(!queue.isEmpty()) {
+				source = queue.pop();
+				neighbours = adjmat.get(source);
+				if(source==target||
+						neighbours.contains(target)) {
+					reachable = true;
+					break;
+				} else {
+					visited.add(source);
+					for(int z : neighbours) {
+						if(!visited.contains(z))
+							queue.offer(z);
+					}
+				}
+			}
+			if(!reachable) breakpoints.add(i);
+		}
+
 		this.findHap();
+		
 		final boolean[][] hapCov = new boolean[Constants._ploidy_H][M];
 		boolean[] cov;
 		DataEntry dp1;
@@ -1476,7 +1476,7 @@ public class HiddenMarkovModel {
 		}
 		
 		int h, a1, a2, m1, m2, h1, h2;
-		final Map<Range<Integer>, Integer>    match = new HashMap<Range<Integer>, Integer>();
+		final int[] depth = new int[M-1];
 		final Map<Range<Integer>, Integer> mismatch = new HashMap<Range<Integer>, Integer>();
 		Range<Integer> range;
 		for(int i=0; i<N; i++) {
@@ -1492,20 +1492,57 @@ public class HiddenMarkovModel {
 				a2 = dp1.probs[dp1.index.getKey(m2)][1]==soften?0:1;
 				h2 = hapInt[h][m2];
 				range = Range.open(m1, m2);
-				if(!   match.containsKey(range))    match.put(range, 0);
 				if(!mismatch.containsKey(range)) mismatch.put(range, 0);
-				if( (a1==h1)==(a2==h2) ) {
-					// so we have a match here
-					match.put(range, match.get(range)+1);
-				} else {
+				if( (a1==h1)!=(a2==h2) ) {
 					// so we have a switch error here
 					mismatch.put(range, mismatch.get(range)+1);
 				}
+				for(int k=m1; k<m2; k++) ++depth[k];
 				m1 = m2;
 				a1 = a2;
 				h1 = h2;
 			}
 		}
+		
+		// now for each pair of adjacent markers
+		// if the mismatch rate is greater that 0.5 
+		// then we break the block at the position
+		int bp, mismatch_count, mc;
+		final Set<Range<Integer>> keys = new HashSet<Range<Integer>>(),
+				tmp_keys = new HashSet<Range<Integer>>();
+		
+		while(true) {
+			bp = -1;
+			mismatch_count = 0;
+			// find a point with maximum inconsistency
+			for(int i=0; i<M-1; i++) {
+				mc = 0;
+				tmp_keys.clear();
+				for(Map.Entry<Range<Integer>, Integer> entry : mismatch.entrySet()) {
+					range = entry.getKey();
+					if(range.upperEndpoint()<=i) continue;
+					if(range.lowerEndpoint()> i) break;
+					mc += entry.getValue();
+					tmp_keys.add(range);
+				}
+				if(mc>depth[i]*0.5&&mc>mismatch_count) {
+					bp = i;
+					mismatch_count = mc;
+					keys.clear();
+					keys.addAll(tmp_keys);
+				}
+			}
+			if(bp==-1) break;
+			breakpoints.add(bp+1);
+			for(final Range<Integer> key : keys) mismatch.remove(key);
+		}
+		
+		breakpoints.add(0);
+		breakpoints.add(M);
+
+		Collections.sort(breakpoints);
+		
+		return breakpoints;
 	}
 }
 
