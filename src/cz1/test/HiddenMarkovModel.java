@@ -1,4 +1,4 @@
-package cz1.tenx.model;
+package cz1.test;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -31,7 +31,6 @@ import cz1.algebra.matrix.SparseMatrix;
 import cz1.graph.cluster.KMedoids;
 import cz1.graph.cluster.MarkovClustering;
 import cz1.graph.cluster.SpectralClustering;
-import cz1.tenx.model.HiddenMarkovModel2.DataEntry;
 import cz1.util.Algebra;
 import cz1.util.Constants;
 import cz1.util.Utils;
@@ -117,6 +116,29 @@ public class HiddenMarkovModel {
 		if(this.isNullModel()) return;
 		if(this.clustering) this.makeMCL();
 		this.makeEM();
+	}
+	
+	public HiddenMarkovModel(String vcf_file,
+			String dat_file,
+			String rangeChr,
+			int rangeLowerBound,
+			int rangeUpperBound,
+			boolean use_clus,
+			boolean use_sa,
+			boolean debug,
+			boolean ddebug,
+			final String infl) {
+		this.rangeChr = rangeChr;
+		this.rangeLowerBound = rangeLowerBound;
+		this.rangeUpperBound = rangeUpperBound;
+		this.clustering = use_clus;
+		this.simulated_annealing = use_sa;
+		this.debug = debug;
+		this.ddebug = ddebug;
+		this.setDataEntryFile(vcf_file, dat_file);
+		if(this.isNullModel()) return;
+		if(this.clustering) this.makeMCL();
+		this.makeEM(infl);
 	}
 
 	public void train() {
@@ -316,6 +338,40 @@ public class HiddenMarkovModel {
 
 		return;
 	}
+	
+	private void makeEM(final String infl) {
+		// TODO Auto-generated method stub
+		this.emissProbs = new EP[M];
+		
+		try {
+			BufferedReader br = Utils.getBufferedReader(infl);
+			String line;
+			String[] s;
+			double f;
+			int i = 0;
+			while( (line=br.readLine())!=null ){
+				if(line.startsWith("#")) continue;
+				s = line.split("\\s+");
+				if(variants[i].position!=Integer.parseInt(s[1]))
+					throw new RuntimeException("!!!");
+				final double[][] af = new double[Constants._ploidy_H][2];
+				for(int p=0; p<Constants._ploidy_H; p++) {
+					if(s[p+4].equals("-")) f = 0.5;
+					else if(s[p+4].equals("0")) f = 0.01;
+					else f = 0.99;
+					af[p][0] = 1-f;
+					af[p][1] = f;
+				}
+				emissProbs[i] = new EP(i, af);
+				++i;
+			}
+			br.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return;
+	}
+
 
 	/**
 	for(int i=0; i<this.M; i++) { 
@@ -920,26 +976,15 @@ public class HiddenMarkovModel {
 				lc = ent.getKey();
 				emiss1 = this.emissProbs[ent.getValue()].probsMat;
 				for(int j=0; j<Constants._ploidy_H; j++) {
-					// ll[j] += Math.log(probs1[lc][0]*emiss1[j][0]+
-					//		probs1[lc][1]*emiss1[j][1]);
-					ll[j] += probs1[lc][0]*Math.log(emiss1[j][0])+
-							probs1[lc][1]*Math.log(emiss1[j][1]);
+					ll[j] += Math.log(probs1[lc][0]*emiss1[j][0]+
+							probs1[lc][1]*emiss1[j][1]);
 				}
 			}
-			
 			this.haps[i] = Algebra.maxIndex(ll);
-			this.loglik += this.sumLogs(ll);
+			this.loglik += ll[this.haps[i]];
 		}
 	}
 	
-	private double sumLogs(double[] ll) {
-		// TODO Auto-generated method stub
-		double lik = 0;
-		for(double l : ll)
-			lik += Math.exp(l);
-		return Math.log(lik/Constants._ploidy_H);
-	}
-
 	protected double[][] normalise(double[][] mat, boolean byrow,
 			boolean logspace) {
 		// TODO Auto-generated method stub
@@ -1104,7 +1149,15 @@ public class HiddenMarkovModel {
 			// TODO Auto-generated constructor stub
 			this(i, true);
 		}
-
+		
+		public EP(final int i, final double[][] probsMat) {
+			// TODO Auto-generated constructor stub
+			this.baf = bfrac[i];
+			this.probsMat = probsMat;
+			this.logspace = false;
+			this.count = new double[Constants._ploidy_H][2];
+		}
+		
 		protected void prior(final int mInd) {
 			// TODO Auto-generated method stub
 			Dirichlet diri = new Dirichlet(new double[]{1-baf, baf}, 
@@ -1179,9 +1232,8 @@ public class HiddenMarkovModel {
 			for(int i=0; i<_i_; i++) {
 				//Arrays.fill(count[i], 
 				//		1.0/this.allele.length*Constants._mu_theta_m);
-				//count[i][0] = (1-baf)*Constants._pseudo_[1];
-				//count[i][1] = baf*Constants._pseudo_[1];
-				Arrays.fill(count[i], 0);
+				count[i][0] = (1-baf)*Constants._pseudo_[1];
+				count[i][1] = baf*Constants._pseudo_[1];
 			}
 			return count;
 		}

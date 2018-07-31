@@ -290,6 +290,8 @@ public class NGSAnchor extends Executor {
 									gap = Math.max(min_gap, target_sstart-source_send);
 									pseudo_chr.append(Sequence.polyN(gap));
 									pseudo_chr.append(target_str);
+									myLogger.info(source_as.qseqid()+" and "+
+											target_as.qseqid()+" gap inserted: "+gap);
 									
 								} else {
 									// so overlap found

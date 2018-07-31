@@ -1,4 +1,4 @@
-package cz1.tenx.tools;
+package cz1.test;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -21,7 +21,6 @@ import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 
 import com.google.common.collect.Range;
 
-import cz1.tenx.model.HiddenMarkovModel;
 import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Executor;
@@ -48,11 +47,18 @@ public class Phaser extends Executor {
 	private boolean clustering = true;
 	private String ground_truth = null;
 	private int minD = 3;
+	private String model_file = null;
 	private boolean  debug = false;
 	private boolean ddebug = false;
 	
 	private static enum Task {makeb, phase, pileup, zzz, eval};
 	private Task task = Task.zzz;
+	
+	public static void main(String[] args) {
+		Phaser phaser = new Phaser();
+		phaser.setParameters(args);
+		phaser.run();
+	}
 	
 	@Override
 	public void printUsage() {
@@ -94,6 +100,7 @@ public class Phaser extends Executor {
 							+" -no-clus/--no-clustering     Do not run pre-clustering.\n"
 							+" -it/--max-iter               Maxmium rounds for EM optimization (default 1000).\n"
 							+" -ex/--experiment-id          Common prefix of haplotype files for this experiment.\n"
+							+" -mf/--model-file             Model file.\n"
 							+" -@/--num-threads             Number of threads to use (default 1).\n"
 							+"                              Will be used only if a range list (-rs) is provided. \n"
 							+" -seed/--random-seed          Random seed.\n"
@@ -172,6 +179,7 @@ public class Phaser extends Executor {
 			myArgsEngine.add("-no-clus", "--no-clustering", false);
 			myArgsEngine.add("-it", "--max-iter", true);
 			myArgsEngine.add("-ex", "--experiment-id", true);
+			myArgsEngine.add("-mf", "--model-file", true);
 			myArgsEngine.add("-@", "--num-threads", true);
 			myArgsEngine.add("-seed", "--random-seed", true);
 			myArgsEngine.add("-hap", "--haplotypes", true);
@@ -278,6 +286,10 @@ public class Phaser extends Executor {
 			}  else {
 				printUsage();
 				throw new IllegalArgumentException("Please specify your experiment identifier.");	
+			}
+			
+			if(myArgsEngine.getBoolean("-mf")) {
+				this.model_file = myArgsEngine.getString("-mf");
 			}
 
 			if(myArgsEngine.getBoolean("-@")) {
@@ -574,18 +586,15 @@ public class Phaser extends Executor {
 						// TODO Auto-generated method stub
 						try {
 							HiddenMarkovModel hmm = new HiddenMarkovModel(vcf_file, dat_file, rangeChr,
-									rangeLowerBound, rangeUpperBound, clustering, simulated_annealing, debug, ddebug);
+									rangeLowerBound, rangeUpperBound, clustering, simulated_annealing, debug, ddebug, model_file);
 							if(hmm.isNullModel()) return;
-							if(ddebug) hmm.print();
 							hmm.train();
 							double loglik = hmm.loglik(), loglik1 = 0;
 							for(int i=0; i<max_iter; i++) {
 								hmm.train();
 								loglik1 = hmm.loglik();
-								// if(loglik1<loglik) 
-								//	throw new RuntimeException("likelihood decreased!!!");
 								if(loglik1>=loglik && 
-										(loglik-loglik1)/loglik<1e-12) 
+										(loglik-loglik1)/loglik<1e-6) 
 									break;
 								loglik = loglik1;
 							}

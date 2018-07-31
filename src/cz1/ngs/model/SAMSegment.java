@@ -126,10 +126,12 @@ public class SAMSegment extends AlignmentSegment {
 
 			if( sam_rc.getReadNegativeStrandFlag() ) {
 				qseqid  = qseqid+"'";
+				/*** has already done by BWA
 				int tmp = qstart;
 				qstart  = seq_ln-qend+1;
 				qend    = seq_ln-tmp +1;
 				cigar   = Constants.cgRev(cigar);
+				***/
 			}
 
 			return new SAMSegment(qseqid, 
