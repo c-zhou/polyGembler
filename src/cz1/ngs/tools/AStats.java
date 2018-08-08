@@ -253,8 +253,8 @@ public class AStats extends Executor {
 				bootstrapReads += cd.n;
 			}
 
-			double arrivalRate = (double) bootstrapReads / (double) bootstrapLen;
-			long genomeSize = (long)(totalReads / arrivalRate);
+			arrivalRate = (double) bootstrapReads / (double) bootstrapLen;
+			genomeSize = (long)(totalReads / arrivalRate);
 
 			myLogger.info("Initial arrival rate: " + arrivalRate);
 			myLogger.info("Initial genome size estimate: " + genomeSize);
@@ -299,7 +299,6 @@ public class AStats extends Executor {
 			BufferedWriter bw = Utils.getBufferedWriter(this.out_prefix+".astat");
 			for(Contig cd : contigData) {
 				if(cd.len >= minLength && cd.nlen > 0) {
-					System.out.printf("%s\t%d\t%d\t%d\t%f\t%f\n", cd.name, cd.len, cd.nlen, cd.n, cd.n / (cd.nlen * arrivalRate), cd.astat);
 					bw.write(cd.name+"\t"+cd.len+"\t"+cd.nlen+"\t"+cd.n+"\t"+(cd.n / (cd.nlen * arrivalRate))+"\t"+cd.astat+"\n");
 					if(cd.bUnique)
 						sumUnique += cd.len;
