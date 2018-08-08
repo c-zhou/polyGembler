@@ -136,6 +136,7 @@ public class PolyGembler {
 			AStats astats = new AStats();
 			astats.setParameters(args);
 			astats.run();
+			break;
 		default:
 			printUsage();
 			throw new RuntimeException("Undefined tool!!!");
