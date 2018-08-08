@@ -209,7 +209,7 @@ public class AStats extends Executor {
 						final SAMRecordIterator iter1 = in1.iterator();
 
 						myLogger.info("Reading alignments from "+ this.bamfile);
-						
+
 						SAMRecord alignment;
 						while(iter1.hasNext()) {
 							alignment = iter1.next();
@@ -266,6 +266,16 @@ public class AStats extends Executor {
 
 		this.waitFor();
 
+		try {
+			BufferedWriter bw = Utils.getBufferedWriter(this.out_prefix+".rstat");
+			for(Contig cd : contigData) 
+				bw.write(cd.toString()+"\n");
+			bw.close();
+		} catch(IOException e) {
+			e.printStackTrace();
+		}
+
+		
 		double avgReadLen = (double)sumReadLength / totalReads;
 		Arrays.sort(contigData, new Comparator<Contig>() {
 
@@ -373,6 +383,11 @@ public class AStats extends Executor {
 
 		public void addRead(int n) {
 			this.n += n;
+		}
+		
+		@Override
+		public String toString() {
+			return this.name+" "+this.len+" "+this.nlen+" "+this.n+" "+this.astat+" "+this.bUnique;
 		}
 	}
 
