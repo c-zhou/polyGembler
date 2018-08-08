@@ -13,6 +13,7 @@ import cz1.hmm.tools.SuperScaffoldConstructor;
 import cz1.hmm.tools.TwoPointConstructor;
 import cz1.hmm.tools.VCFResampling;
 import cz1.ngs.assembly.GenomeAssemblyTiling;
+import cz1.ngs.tools.AStats;
 import cz1.ngs.tools.Anchor;
 import cz1.ngs.tools.Consensus;
 import cz1.ngs.tools.Contigger;
@@ -131,6 +132,10 @@ public class PolyGembler {
 			redundas.setParameters(args2);
 			redundas.run();
 			break;	
+		case "a-stats":
+			AStats astats = new AStats();
+			astats.setParameters(args);
+			astats.run();
 		default:
 			printUsage();
 			throw new RuntimeException("Undefined tool!!!");
@@ -160,6 +165,7 @@ public class PolyGembler {
 						+ " contigger           Contigging using paired-end and/or long reads.\n"
 						+ " consensus           Consensus with paired reads link analysis.\n"
 						+ " redundas            Remove redundancies in the genome assembly.\n"
+						+ " a-stats             Compute Myers' a-statistic for a set of contigs using read alignments.\n"
 						+ " gembler             Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.\n\n");
 	}
 }

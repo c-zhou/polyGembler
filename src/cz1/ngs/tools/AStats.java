@@ -1,4 +1,4 @@
-package cz1.test;
+package cz1.ngs.tools;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -32,7 +32,7 @@ public class AStats extends Executor {
 	private boolean debug  = false;
 	private boolean ddebug = false;
 	private String out_prefix = null;
-	
+
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub
@@ -76,27 +76,27 @@ public class AStats extends Executor {
 			printUsage();
 			throw new IllegalArgumentException("Please specify the alignment file(s).");
 		}
-		
+
 		if (myArgsEngine.getBoolean("-m")) {
 			this.minLength = Integer.parseInt(myArgsEngine.getString("-m"));
 		}
-		
+
 		if (myArgsEngine.getBoolean("-b")) {
 			this.numContigsForInitialEstimate = Integer.parseInt(myArgsEngine.getString("-b"));
 		}
-		
+
 		if (myArgsEngine.getBoolean("-n")) {
 			this.numIterations = Integer.parseInt(myArgsEngine.getString("-n"));
 		}
-		
+
 		if (myArgsEngine.getBoolean("-g")) {
 			this.genomeSize = Long.parseLong(myArgsEngine.getString("-g"));
 		}
-		
+
 		if (myArgsEngine.getBoolean("-no-dup")) {
 			this.bKeepDuplicates = false;
 		}
-		
+
 		if (myArgsEngine.getBoolean("-t")) {
 			int t = Integer.parseInt(myArgsEngine.getString("-t"));
 			if(t<this.num_threads) this.num_threads = t;
@@ -113,7 +113,7 @@ public class AStats extends Executor {
 			this.debug  = true;
 			this.ddebug = true;
 		}
-		
+
 		if (myArgsEngine.getBoolean("-o")) {
 			this.out_prefix = myArgsEngine.getString("-o");
 		} else {
@@ -121,7 +121,7 @@ public class AStats extends Executor {
 			throw new IllegalArgumentException("Please specify the prefix of output files.");
 		}
 	}
-	
+
 	final SamReaderFactory factory =
 			SamReaderFactory.makeDefault()
 			.enable(SamReaderFactory.Option.INCLUDE_SOURCE_IN_RECORDS, 
@@ -129,15 +129,15 @@ public class AStats extends Executor {
 			.validationStringency(ValidationStringency.SILENT);
 
 	private final static Object lock = new Object();
-	
+
 	private static long totalReads = 0;
 	private static long sumReadLength = 0;
 	private static Contig[] contigData;
-	
+
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		
+
 		final SamReader in1 = factory.open(new File(this.bamList[0]));
 		final List<SAMSequenceRecord> refseqs = 
 				in1.getFileHeader().getSequenceDictionary().getSequences();
@@ -145,12 +145,12 @@ public class AStats extends Executor {
 		for(int i=0; i<refseqs.size(); i++)
 			contigData[i] = new Contig(refseqs.get(i).getId(), 
 					refseqs.get(i).getSequenceLength());
-		
+
 		this.initial_thread_pool();
 		for(String bamfile : this.bamList)
 			this.executor.submit(new Runnable() {
 				private String bamfile;
-				
+
 				@Override
 				public void run() {
 					// TODO Auto-generated method stub
@@ -161,7 +161,7 @@ public class AStats extends Executor {
 					int ref_idx, pos;
 					String ref_name;
 					Contig cd;
-					
+
 					try {
 						final SamReader in1 = factory.open(new File(bamfile));
 						final List<SAMSequenceRecord> refseqs = 
@@ -170,38 +170,38 @@ public class AStats extends Executor {
 						for(int i=0; i<refseqs.size(); i++)
 							contigData1[i] = new Contig(refseqs.get(i).getId(), 
 									refseqs.get(i).getSequenceLength());
-						
+
 						final SAMRecordIterator iter1 = in1.iterator();
-						
+
 						SAMRecord alignment;
 						while(iter1.hasNext()) {
 							alignment = iter1.next();
-							
+
 							if(alignment.getReadUnmappedFlag()) 
 								continue;
-							
-						    ref_idx = alignment.getReferenceIndex();
-						    ref_name = alignment.getReferenceName();
-						    pos = alignment.getAlignmentStart();
-						    
-						    if(ref_idx == last_ref_idx && 
-						    		pos == last_pos && 
-						    		!bKeepDuplicates)
-						        continue;
 
-						    cd = contigData1[ref_idx];
-						    cd.addRead();
-						    readCount1 += 1;
-						    sumReadLength1 += alignment.getReadLength();
-						    if(!cd.name.equals(ref_name)) 
-						    	throw new RuntimeException("!!!");
-						    last_ref_idx = ref_idx;
-						    last_pos = pos;
+							ref_idx = alignment.getReferenceIndex();
+							ref_name = alignment.getReferenceName();
+							pos = alignment.getAlignmentStart();
+
+							if(ref_idx == last_ref_idx && 
+									pos == last_pos && 
+									!bKeepDuplicates)
+								continue;
+
+							cd = contigData1[ref_idx];
+							cd.addRead();
+							readCount1 += 1;
+							sumReadLength1 += alignment.getReadLength();
+							if(!cd.name.equals(ref_name)) 
+								throw new RuntimeException("!!!");
+							last_ref_idx = ref_idx;
+							last_pos = pos;
 						}
-						
+
 						iter1.close();
 						in1.close();
-						
+
 						synchronized(lock) {
 							totalReads += readCount1;
 							sumReadLength += sumReadLength1;
@@ -209,7 +209,7 @@ public class AStats extends Executor {
 								contigData[i].addRead(contigData1[i].n);
 							}
 						}
-						
+
 					} catch (Exception e) {
 						// TODO Auto-generated catch block
 						Thread t = Thread.currentThread();
@@ -226,9 +226,9 @@ public class AStats extends Executor {
 					return this;
 				}				
 			}.init(bamfile));
-		
+
 		this.waitFor();
-		
+
 		double avgReadLen = (double)sumReadLength / totalReads;
 		Arrays.sort(contigData, new Comparator<Contig>() {
 
@@ -237,62 +237,62 @@ public class AStats extends Executor {
 				// TODO Auto-generated method stub
 				return arg1.len-arg0.len;
 			}
-			
+
 		});
-	
+
 		for(Contig cd : contigData) 
 			cd.nlen = (cd.len > avgReadLen ? (cd.len - avgReadLen + 1) : 0);
-		
+
 		long bootstrapLen = 0;
 		long bootstrapReads = 0;
-		
-		if(genomeSize == 0) {
-		    for(int i=0; i<Math.min(numContigsForInitialEstimate, contigData.length); i++) {
-		        Contig cd = contigData[i];
-		        bootstrapLen += cd.nlen;
-		        bootstrapReads += cd.n;
-		    }
-		    
-		    double arrivalRate = (double) bootstrapReads / (double) bootstrapLen;
-			long genomeSize = (long)(totalReads / arrivalRate);
-			
-		    myLogger.info("Initial arrival rate: " + arrivalRate);
-		    myLogger.info("Initial genome size estimate: " + genomeSize);
-		
-		    for(int i=0; i<numIterations; i++) {
-		        bootstrapLen = 0;
-		        bootstrapReads = 0;
-		        for(Contig cd : contigData) {
-		            cd.astat = computeAStat(arrivalRate, cd.nlen, cd.n);
-		            cd.bUnique = cd.astat > singleCopyThreshold;
 
-		            if(cd.len >= minLength && cd.bUnique) {
-		                bootstrapLen += cd.nlen;
-		                bootstrapReads += cd.n;
-		            }
-		        }
-		        
-		        arrivalRate = (double) bootstrapReads / (double) bootstrapLen;
-		        genomeSize = (long)(totalReads / arrivalRate);
-		        myLogger.info("Iteration "+i+" arrival rate: " + arrivalRate);
+		if(genomeSize == 0) {
+			for(int i=0; i<Math.min(numContigsForInitialEstimate, contigData.length); i++) {
+				Contig cd = contigData[i];
+				bootstrapLen += cd.nlen;
+				bootstrapReads += cd.n;
+			}
+
+			double arrivalRate = (double) bootstrapReads / (double) bootstrapLen;
+			long genomeSize = (long)(totalReads / arrivalRate);
+
+			myLogger.info("Initial arrival rate: " + arrivalRate);
+			myLogger.info("Initial genome size estimate: " + genomeSize);
+
+			for(int i=0; i<numIterations; i++) {
+				bootstrapLen = 0;
+				bootstrapReads = 0;
+				for(Contig cd : contigData) {
+					cd.astat = computeAStat(arrivalRate, cd.nlen, cd.n);
+					cd.bUnique = cd.astat > singleCopyThreshold;
+
+					if(cd.len >= minLength && cd.bUnique) {
+						bootstrapLen += cd.nlen;
+						bootstrapReads += cd.n;
+					}
+				}
+
+				arrivalRate = (double) bootstrapReads / (double) bootstrapLen;
+				genomeSize = (long)(totalReads / arrivalRate);
+				myLogger.info("Iteration "+i+" arrival rate: " + arrivalRate);
 				myLogger.info("Iteration "+i+" genome size estimate: " + genomeSize);
-		    }
+			}
 		}
-		
+
 		arrivalRate = (double)totalReads / genomeSize;
 		myLogger.info("Using genome size: " + genomeSize);
 		myLogger.info("Using arrival rate: " + arrivalRate);
 
 		for(Contig cd : contigData) {
-		    cd.astat = computeAStat(arrivalRate, cd.nlen, cd.n);
-		    cd.bUnique = cd.astat > singleCopyThreshold;
+			cd.astat = computeAStat(arrivalRate, cd.nlen, cd.n);
+			cd.bUnique = cd.astat > singleCopyThreshold;
 
-		    if(cd.len >= minLength && cd.bUnique) {
-		        bootstrapLen += cd.nlen;
-		        bootstrapReads += cd.n;
-		    }
+			if(cd.len >= minLength && cd.bUnique) {
+				bootstrapLen += cd.nlen;
+				bootstrapReads += cd.n;
+			}
 		}
-		
+
 		long sumUnique = 0;
 		long sumRepeat = 0;
 		try {
@@ -311,12 +311,12 @@ public class AStats extends Executor {
 		} catch(IOException e) {
 			e.printStackTrace();
 		}
-		
+
 		myLogger.info("Sum unique bases in contigs >= " +minLength+ "bp in length: "+sumUnique);
 		myLogger.info("Sum repeat bases in contigs >= " +minLength+ "bp in length: "+sumRepeat);
 
 	}
-	
+
 	private final static class Contig {
 		private final String name;
 		private final int len;
@@ -324,29 +324,23 @@ public class AStats extends Executor {
 		private int n = 0;
 		private double astat = 0.0;
 		private boolean bUnique = true;
-		
+
 		public Contig(String name, int len) {
 			this.name = name;
 			this.len = len;
 			this.nlen = len;
 		}
-		
+
 		public void addRead() {
 			++this.n;
 		}
-		
+
 		public void addRead(int n) {
 			this.n += n;
 		}
 	}
-	
+
 	private static double computeAStat(double arrivalRate, double len, int n) {
-		 return arrivalRate * len - (n * Math.log(2));
-	}
-	
-	public static void main(String[] args) {
-		AStats astats = new AStats();
-		astats.setParameters(args);
-		astats.run();
+		return arrivalRate * len - (n * Math.log(2));
 	}
 }
