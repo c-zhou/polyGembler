@@ -134,7 +134,7 @@ public class PolyGembler {
 			break;	
 		case "a-stats":
 			AStats astats = new AStats();
-			astats.setParameters(args);
+			astats.setParameters(args2);
 			astats.run();
 			break;
 		default:
