@@ -173,6 +173,8 @@ public class AStats extends Executor {
 
 						final SAMRecordIterator iter1 = in1.iterator();
 
+						myLogger.info("Reading alignments from "+ this.bamfile);
+						
 						SAMRecord alignment;
 						while(iter1.hasNext()) {
 							alignment = iter1.next();
