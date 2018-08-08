@@ -1,8 +1,10 @@
 package cz1.ngs.tools;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -39,6 +41,7 @@ public class AStats extends Executor {
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
 						+ " -a/--align              Alignment file(s). Multiple file are separated by ':'. \n"
+						+ " -aL/--align-list        Alignment file list.\n"
 						+ " -m/--min-len            Only compute a-stat for contigs at least the specified size.\n"
 						+ " -b/--best               Number of longest contigs to perform the initial estimate \n"
 						+ "                         of the arrival rate (default: 20).\n"
@@ -58,6 +61,7 @@ public class AStats extends Executor {
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-a", "--align", true);
+			myArgsEngine.add("-aL", "--align-list", true);
 			myArgsEngine.add("-m", "--min-len", true);
 			myArgsEngine.add("-b", "--best", true);
 			myArgsEngine.add("-n","--bootstrap", true);
@@ -70,13 +74,38 @@ public class AStats extends Executor {
 			myArgsEngine.parse(args);
 		}
 
+		if (!myArgsEngine.getBoolean("-a")&&!myArgsEngine.getBoolean("-aL")) {
+			printUsage();
+			throw new IllegalArgumentException("Please specify the alignment file(s) using -a or -aL option.");
+		}
+		
+		if (myArgsEngine.getBoolean("-a")&&myArgsEngine.getBoolean("-aL")) {
+			printUsage();
+			throw new IllegalArgumentException("Options -a and -aL are exclusive.");
+		}
+		
 		if (myArgsEngine.getBoolean("-a")) {
 			this.bamList = myArgsEngine.getString("-a").trim().split(":");
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify the alignment file(s).");
 		}
-
+		
+		if (myArgsEngine.getBoolean("-aL")) {
+			try {
+				BufferedReader br = Utils.getBufferedReader(myArgsEngine.getString("-aL").trim());
+				final List<String> file_list = new ArrayList<String>();
+				String line;
+				while( (line = br.readLine()) != null) {
+					line = line.trim();
+					if(line.length()>0) file_list.add(line);
+				}
+				this.bamList = file_list.toArray(new String[file_list.size()]);
+				br.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+		}
+		
 		if (myArgsEngine.getBoolean("-m")) {
 			this.minLength = Integer.parseInt(myArgsEngine.getString("-m"));
 		}
@@ -137,7 +166,13 @@ public class AStats extends Executor {
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-
+		
+		myLogger.info("Reading alignments from "+this.bamList.length+" BAM file"+
+				(this.bamList.length>1?"s":"")+":");
+		for(String bamfile : this.bamList)
+			myLogger.info(bamfile);
+		myLogger.info("****");
+		
 		final SamReader in1 = factory.open(new File(this.bamList[0]));
 		final List<SAMSequenceRecord> refseqs = 
 				in1.getFileHeader().getSequenceDictionary().getSequences();
