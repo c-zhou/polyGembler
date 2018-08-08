@@ -486,6 +486,11 @@ public class AssemblyGraph {
 			++i;
 		}
 		System.out.println(StringUtils.join(s, '_'));
+		
+		final String qstr = "&'()*+,-./0123456789";
+		for(int k=0; k<100; k++)
+			System.out.print(qstr.charAt(Constants.rand.nextInt(qstr.length())));
+		
 	}
 }
 

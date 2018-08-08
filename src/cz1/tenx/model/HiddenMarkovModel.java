@@ -31,6 +31,7 @@ import cz1.algebra.matrix.SparseMatrix;
 import cz1.graph.cluster.KMedoids;
 import cz1.graph.cluster.MarkovClustering;
 import cz1.graph.cluster.SpectralClustering;
+import cz1.ngs.model.FASTQRead;
 import cz1.tenx.model.HiddenMarkovModel2.DataEntry;
 import cz1.util.Algebra;
 import cz1.util.Constants;
@@ -175,9 +176,11 @@ public class HiddenMarkovModel {
 			BufferedReader br_dat = Utils.getBufferedReader(dat_file);
 			final List<DataEntry> dp_list = new ArrayList<DataEntry>();
 			
-			final List<Integer> index = new ArrayList<Integer>();
+			final List<Integer> index  = new ArrayList<Integer>();
 			final List<Integer> allele = new ArrayList<Integer>();
+			final List<Double>  error  = new ArrayList<Double>();
 			int[] index_arr, allele_arr;
+			double[] error_arr;
 			int n, starti;
 			while( (line=br_dat.readLine())!=null ) {
 				s = line.split("\\s+");
@@ -198,10 +201,14 @@ public class HiddenMarkovModel {
 						++starti;
 					}
 				}
+				error.clear();
+				for(char q : s[n-1].toCharArray()) error.add(FASTQRead.getBaseError(q)); 
+				
 				if(index.size()<2) continue;
 				index_arr  = ArrayUtils.toPrimitive( index.toArray(new Integer[ index.size()]));
 				allele_arr = ArrayUtils.toPrimitive(allele.toArray(new Integer[allele.size()]));
-				dp_list.add(new DataEntry(index_arr, allele_arr));
+				error_arr  = ArrayUtils.toPrimitive(error.toArray(new Double[error.size()]));
+				dp_list.add(new DataEntry(index_arr, allele_arr, error_arr));
 			}
 			br_dat.close();
 			
@@ -258,15 +265,15 @@ public class HiddenMarkovModel {
 				if(z>1) {
 					// add to final dp
 					final int[] indexz  = new int[z];
-					final int[] allelez = new int[z];
+					final double[][] probsz = new double[z][2];
 					k = 0;
 					for(int j : vals) {
 						w = dp1.index.getKey(j);
-						indexz[k]  = oldnewidx.get(j);
-						allelez[k] = dp1.probs[w][0]>dp1.probs[w][1]?0:1;
+						indexz[k] = oldnewidx.get(j);
+						System.arraycopy(dp1.probs[w], 0, probsz[k], 0, 2);
 						++k;
 					}
-					dp.add(new DataEntry(indexz, allelez));
+					dp.add(new DataEntry(indexz, probsz));
 				}
 			}
 
@@ -300,6 +307,19 @@ public class HiddenMarkovModel {
 					os.append("\t");
 					os.append(String.format("%.3f", this.bfrac[i]));
 					myLogger.info(os.toString());
+				}
+			}
+			if(ddebug) {
+				final StringBuilder os = new StringBuilder();
+				for(int i=0; i<this.N; i++) {
+					dp1 = this.dp[i];
+					n = dp1.probs.length;
+					os.setLength(0);
+					for(int j=0; j<n; j++) {
+						os.append(dp1.index.get(j)+" ");
+						os.append(dp1.probs[j][0]+" ");
+					}
+					System.out.println(os.toString());
 				}
 			}
 		} catch (IOException e) {
@@ -359,7 +379,7 @@ public class HiddenMarkovModel {
 				}
 			}
 			
-			dpAdj = getSimularityMatrix(hapcombs);
+			dpAdj = getSimilarityMatrix(hapcombs);
 			
 			/***
 			try {
@@ -588,7 +608,8 @@ public class HiddenMarkovModel {
 			dp1 = this.dp[i];
 			m1 = dp1.index.values();
 			for(final int j : m1) {
-				h = dp1.probs[dp1.index.getKey(j)][0]==soften ? 1 : 0;
+				h = dp1.getHardAllele(j);
+				if(h==-1) continue;
 				if(hap.containsKey(j)) {
 					if(hap.get(j)!=h) 
 						mismatch.add(j);
@@ -617,7 +638,8 @@ public class HiddenMarkovModel {
 			for(final int j : indvi) {
 				if(!dat.contains(j)||singleton.contains(j)) continue;
 				dp1 = this.dp[j];
-				h = dp1.probs[dp1.index.getKey(i)][0]==soften ? 1 : 0;
+				h = dp1.getHardAllele(i);
+				if(h==-1) continue;
 				++alleleCount[h];
 				a.get(h).add(j);
 			}
@@ -720,7 +742,7 @@ public class HiddenMarkovModel {
 		return dpAdj;
 	}
 	
-	private SparseMatrix getSimularityMatrix(List<Map<Integer, Integer>> hapcombs) {
+	private SparseMatrix getSimilarityMatrix(List<Map<Integer, Integer>> hapcombs) {
 		Map<Integer, Integer> m1, m2;
 		int N = hapcombs.size();
 		SparseMatrix dpAdj = new SparseMatrix(N, N);
@@ -844,7 +866,8 @@ public class HiddenMarkovModel {
 			dp1 = this.dp[i];
 			m1 = dp1.index.values();
 			for(final int j : m1) {
-				h = dp1.probs[dp1.index.getKey(j)][0]==soften ? 1 : 0;
+				h = dp1.getHardAllele(j);
+				if(h==-1) continue;
 				if(hap.containsKey(j)) {
 					if(hap.get(j)!=h) 
 						mismatch.add(j);
@@ -1120,8 +1143,11 @@ public class HiddenMarkovModel {
 				for(int i=0; i<Constants._ploidy_H; i++) {
 					final double[] a = new double[2];
 					for(int j : indivs) {
-						if(initMolClus.containsKey(j)&&initMolClus.get(j)==i) 
-							++a[dp[j].probs[dp[j].index.getKey(mInd)][1]==soften?0:1];
+						if(initMolClus.containsKey(j)&&initMolClus.get(j)==i) {
+							double[] p = dp[j].probs[dp[j].index.getKey(mInd)];
+							a[0] += p[0]; 
+							a[1] += p[1]; 
+						}
 					}
 					double s = a[0]+a[1];
 					if(s==0) {
@@ -1129,16 +1155,14 @@ public class HiddenMarkovModel {
 						continue;
 					}
 					
-					/**
-					double b = a[1]/s;
-					if(b==0) b = 0.01;
-					if(b==1) b = 0.99;
+					double b = (a[1]+baf)/(s+1.0);
 					this.probsMat[i] = ArrayUtils.toPrimitive(new Dirichlet(new double[]{1-b, b}, 
 							Constants._mu_theta_e).sample());
-					 **/
+					/**
 					if(a[0]>a[1]) this.probsMat[i] = new double[]{0.99,0.01};
 					if(a[1]>a[0]) this.probsMat[i] = new double[]{0.01,0.99};
 					if(a[0]==a[1]) this.probsMat[i] = ArrayUtils.toPrimitive(diri.sample());
+					 **/
 				}
 			}
 		}
@@ -1226,6 +1250,20 @@ public class HiddenMarkovModel {
 			this.fillIndexMap(index);
 		}
 		
+		public DataEntry(final int[] index, final int[] allele, final double[] err) {
+			this.probs = qualProbs(allele, err);
+			this.depth = this.nullDepth();
+			this.index = new DualHashBidiMap<Integer, Integer>();
+			this.fillIndexMap(index);
+		}
+		
+		public DataEntry(final int[] index, final double[][] probs) {
+			this.probs = probs;
+			this.depth = this.nullDepth();
+			this.index = new DualHashBidiMap<Integer, Integer>();
+			this.fillIndexMap(index);
+		}
+		
 		public DataEntry(final int[] index, final int[] allele, final int[] d) {
 			this.probs = softProbs(allele);
 			this.depth = this.depth(d);
@@ -1283,10 +1321,24 @@ public class HiddenMarkovModel {
 			}
 			return probs;
 		}
-
-		private int softenAlleleIndex(int markerIndex) {
+		
+		private double[][] qualProbs(int[] allele, double[] err) {
 			// TODO Auto-generated method stub
-			return this.probs[this.index.getKey(markerIndex)][0]==soften?0:1;
+			final double[][] probs = new double[allele.length][2]; 
+			for(int i=0; i<allele.length; i++) {
+				probs[i][  allele[i]] = 1-err[i];
+				probs[i][1-allele[i]] =   err[i];
+			}
+			return probs;
+		}
+
+		public int getHardAllele(int markerIndex) {
+			// TODO Auto-generated method stub
+			double[] probs = this.probs[this.index.getKey(markerIndex)];
+			//  0 allele A
+			//  1 allele B
+			// -1 not decided
+			return probs[0]>probs[1]?0:(probs[0]<probs[1]?1:-1);
 		}
 	}
 
@@ -1398,7 +1450,7 @@ public class HiddenMarkovModel {
 			os.append(String.format("%1$12s", variant.position)+"\t"+
 					variant.refAllele+"\t"+variant.altAllele);
 			for(int j=0; j<Constants._ploidy_H; j++) 
-				os.append("\t"+String.format("%.3f", probs[j][0]));
+				os.append("\t"+String.format("%.3f", probs[j][1]));
 			myLogger.info(os.toString());
 		}
 	}
@@ -1527,11 +1579,11 @@ public class HiddenMarkovModel {
 			final List<Integer> ms = new ArrayList<Integer>(dp1.index.values());
 			Collections.sort(ms);
 			m1 = ms.get(0);
-			a1 = dp1.probs[dp1.index.getKey(m1)][1]==soften?0:1;
+			a1 = dp1.getHardAllele(m1);
 			h1 = hapInt[h][m1];
 			for(int j=1; j<ms.size(); j++) {
 				m2 = ms.get(j);
-				a2 = dp1.probs[dp1.index.getKey(m2)][1]==soften?0:1;
+				a2 = dp1.getHardAllele(m2);
 				h2 = hapInt[h][m2];
 				if(h1!=-1&&h2!=-1){
 					range = Range.closed(m1, m2);
