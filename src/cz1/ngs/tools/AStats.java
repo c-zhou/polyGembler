@@ -143,7 +143,7 @@ public class AStats extends Executor {
 				in1.getFileHeader().getSequenceDictionary().getSequences();
 		contigData = new Contig[refseqs.size()];
 		for(int i=0; i<refseqs.size(); i++)
-			contigData[i] = new Contig(refseqs.get(i).getId(), 
+			contigData[i] = new Contig(refseqs.get(i).getSequenceName(), 
 					refseqs.get(i).getSequenceLength());
 
 		this.initial_thread_pool();
@@ -168,7 +168,7 @@ public class AStats extends Executor {
 								in1.getFileHeader().getSequenceDictionary().getSequences();
 						final Contig[] contigData1 = new Contig[refseqs.size()];
 						for(int i=0; i<refseqs.size(); i++)
-							contigData1[i] = new Contig(refseqs.get(i).getId(), 
+							contigData1[i] = new Contig(refseqs.get(i).getSequenceName(), 
 									refseqs.get(i).getSequenceLength());
 
 						final SAMRecordIterator iter1 = in1.iterator();
