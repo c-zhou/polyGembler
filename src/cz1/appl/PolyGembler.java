@@ -20,6 +20,7 @@ import cz1.ngs.tools.Contigger;
 import cz1.ngs.tools.Graphmap;
 import cz1.ngs.tools.HetCorr;
 import cz1.ngs.tools.Redundas;
+import cz1.ngs.tools.Scaffolder;
 import cz1.simulation.tools.GBSSimulator;
 import cz1.simulation.tools.PopulationSimulator;
 
@@ -137,6 +138,11 @@ public class PolyGembler {
 			astats.setParameters(args2);
 			astats.run();
 			break;
+		case "scaffolder":
+			Scaffolder scaffolder = new Scaffolder();
+			scaffolder.setParameters(args2);
+			scaffolder.run();
+			break;
 		default:
 			printUsage();
 			throw new RuntimeException("Undefined tool!!!");
@@ -164,6 +170,7 @@ public class PolyGembler {
 						+ " anchor              Anchor contigs/scaffolds against a reference.\n"
 						+ " graphmap            Map noisy long reads (Nanopore and Pacbio) to an assembly graph.\n"
 						+ " contigger           Contigging using paired-end and/or long reads.\n"
+						+ " scaffolder          Scaffolding using paired-end and/or long reads.\n"
 						+ " consensus           Consensus with paired reads link analysis.\n"
 						+ " redundas            Remove redundancies in the genome assembly.\n"
 						+ " a-stats             Compute Myers' a-statistic for a set of contigs using read alignments.\n"
