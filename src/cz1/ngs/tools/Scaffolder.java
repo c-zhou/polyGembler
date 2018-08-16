@@ -14,6 +14,8 @@ import java.util.Map;
 
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
+import org.jgrapht.graph.DefaultWeightedEdge;
+import org.jgrapht.graph.DirectedWeightedPseudograph;
 
 import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
@@ -27,6 +29,9 @@ import htsjdk.samtools.SamReaderFactory;
 import htsjdk.samtools.ValidationStringency;
 
 public class Scaffolder extends Executor {
+	
+	private static enum Task {all, link, parse, zzz}
+	private Task task_list = Task.zzz;
 	
 	private final static boolean USE_OS_BUFFER = false;
 	// 8Mb buffer size
@@ -43,71 +48,156 @@ public class Scaffolder extends Executor {
 	private int inst;
 	private int maxInst;
 	private String subject_file;
+	private String link_file;
 	
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub
-		myLogger.info(
-				"\n\nUsage is as follows:\n"
-						+ " -a/--align              Alignment file(s). Multiple file are separated by ':'. \n"
-						+ " -aL/--align-list        Alignment file list.\n"
-						+ " -s/--subject            The FASTA file contain subject/reference sequences. \n"
-						+ " -q/--min-qual           Minimum alignment quality (default 20).\n"
-						+ " -f/--frag-size          Insert size of the library.\n"
-						+ " -t/--threads            Number of threads to use (default 16).\n"
-						+ " -d/--debug              Debugging mode will have extra information printed out.\n"
-						+ " -dd/--debug-debug       Debugging mode will have more information printed out than -d mode.\n"
-						+ " -o/--out-prefix         Prefix of the output files.\n"
-						+ "\n");	
+		switch(this.task_list) {
+		case zzz:
+			myLogger.info(
+					"\n\nChoose a task from listed:\n"
+							+ " link                    Count links.\n"
+							+ " parse                   Parse scaffolds. \n"
+							+ " all                     Count links and then parse scaffolds.\n"
+							+ "\n");
+			break;
+
+		case link:
+			myLogger.info(
+					"\n\nUsage is as follows:\n"
+							+ " -a/--align              Alignment file(s). Multiple file are separated by ':'. \n"
+							+ " -aL/--align-list        Alignment file list.\n"
+							+ " -s/--subject            The FASTA file contain subject/reference sequences. \n"
+							+ " -q/--min-qual           Minimum alignment quality (default 20).\n"
+							+ " -f/--frag-size          Insert size of the library.\n"
+							+ " -t/--threads            Number of threads to use (default 16).\n"
+							+ " -d/--debug              Debugging mode will have extra information printed out.\n"
+							+ " -dd/--debug-debug       Debugging mode will have more information printed out than -d mode.\n"
+							+ " -o/--out-prefix         Prefix of the output files.\n"
+							+ "\n");
+			break;
+		case parse:
+			myLogger.info(
+					"\n\nUsage is as follows:\n"
+							+ " -s/--subject            The FASTA file contain subject/reference sequences. \n"
+							+ " -l/--link               The file contain links.\n"
+							+ " -d/--debug              Debugging mode will have extra information printed out.\n"
+							+ " -dd/--debug-debug       Debugging mode will have more information printed out than -d mode.\n"
+							+ " -o/--out-prefix         Prefix of the output files.\n"
+							+ "\n");
+			break;
+		default:
+			throw new RuntimeException("!!!");
+		}
 	}
 
 	@Override
 	public void setParameters(String[] args) {
 		// TODO Auto-generated method stub
+		if (args.length == 0) {
+			printUsage();
+			throw new IllegalArgumentException("\n\nPlease use the above arguments/options.\n\n");
+		}
+		
+		switch(args[0].toLowerCase()) {
+		case "link":
+			this.task_list = Task.link;
+			break;
+		case "parse":
+			this.task_list = Task.parse;
+			break;
+		case "all":
+			this.task_list = Task.all;
+			break;
+		default:
+			printUsage();
+			throw new IllegalArgumentException("\n\nPlease use the above arguments/options.\n\n");	
+		}
+		
+		String[] args2 = new String[args.length-1];
+		System.arraycopy(args, 1, args2, 0, args2.length);
+		
+		
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-a", "--align", true);
 			myArgsEngine.add("-aL", "--align-list", true);
 			myArgsEngine.add("-s", "--subject", true);
+			myArgsEngine.add("-l", "--link", true);
 			myArgsEngine.add("-q", "--min-qual", true);
 			myArgsEngine.add("-f", "--frag-size", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-d", "--debug", false);
 			myArgsEngine.add("-dd", "--debug-debug", false);
 			myArgsEngine.add("-o", "--out-prefix", true);
-			myArgsEngine.parse(args);
+			myArgsEngine.parse(args2);
 		}
 
-		if (!myArgsEngine.getBoolean("-a")&&!myArgsEngine.getBoolean("-aL")) {
-			printUsage();
-			throw new IllegalArgumentException("Please specify the alignment file(s) using -a or -aL option.");
-		}
-		
-		if (myArgsEngine.getBoolean("-a")&&myArgsEngine.getBoolean("-aL")) {
-			printUsage();
-			throw new IllegalArgumentException("Options -a and -aL are exclusive.");
-		}
-		
-		if (myArgsEngine.getBoolean("-a")) {
-			this.bamList = myArgsEngine.getString("-a").trim().split(":");
-		}
-		
-		if (myArgsEngine.getBoolean("-aL")) {
-			try {
-				BufferedReader br = Utils.getBufferedReader(myArgsEngine.getString("-aL").trim());
-				final List<String> file_list = new ArrayList<String>();
-				String line;
-				while( (line = br.readLine()) != null) {
-					line = line.trim();
-					if(line.length()>0) file_list.add(line);
-				}
-				this.bamList = file_list.toArray(new String[file_list.size()]);
-				br.close();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+		switch(this.task_list) {
+		case link:
+			if (!myArgsEngine.getBoolean("-a")&&!myArgsEngine.getBoolean("-aL")) {
+				printUsage();
+				throw new IllegalArgumentException("Please specify the alignment file(s) using -a or -aL option.");
 			}
 			
+			if (myArgsEngine.getBoolean("-a")&&myArgsEngine.getBoolean("-aL")) {
+				printUsage();
+				throw new IllegalArgumentException("Options -a and -aL are exclusive.");
+			}
+			
+			if (myArgsEngine.getBoolean("-a")) {
+				this.bamList = myArgsEngine.getString("-a").trim().split(":");
+			}
+			
+			if (myArgsEngine.getBoolean("-aL")) {
+				try {
+					BufferedReader br = Utils.getBufferedReader(myArgsEngine.getString("-aL").trim());
+					final List<String> file_list = new ArrayList<String>();
+					String line;
+					while( (line = br.readLine()) != null) {
+						line = line.trim();
+						if(line.length()>0) file_list.add(line);
+					}
+					this.bamList = file_list.toArray(new String[file_list.size()]);
+					br.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				
+			}
+			if (myArgsEngine.getBoolean("-q")) {
+				this.minQual = Integer.parseInt(myArgsEngine.getString("-q"));
+			}
+
+			if (myArgsEngine.getBoolean("-f")) {
+				this.inst = Integer.parseInt(myArgsEngine.getString("-f"));
+				this.maxInst = this.inst*2;
+			} else {
+				printUsage();
+				throw new IllegalArgumentException("Please specify insert size of the library.");
+			}
+			if (myArgsEngine.getBoolean("-t")) {
+				int t = Integer.parseInt(myArgsEngine.getString("-t"));
+				if(t<this.num_threads) this.num_threads = t;
+				this.THREADS = t;
+				Constants.omp_threads = this.num_threads;
+				myLogger.info("OMP_THREADS = "+this.num_threads);
+			}
+			break;
+		case parse:
+			if (myArgsEngine.getBoolean("-l")) {
+				this.link_file = myArgsEngine.getString("-l");
+			} else {
+				printUsage();
+				throw new IllegalArgumentException("Please specify link file.");
+			}
+			break;
+		case all:
+			break;
+		default:
+			throw new RuntimeException("!!!");
 		}
 		
 		if (myArgsEngine.getBoolean("-s")) {
@@ -117,27 +207,6 @@ public class Scaffolder extends Executor {
 			throw new IllegalArgumentException("Please specify the contig file.");
 		}
 		
-		if (myArgsEngine.getBoolean("-q")) {
-			this.minQual = Integer.parseInt(myArgsEngine.getString("-q"));
-		}
-
-		if (myArgsEngine.getBoolean("-f")) {
-			this.inst = Integer.parseInt(myArgsEngine.getString("-f"));
-			this.maxInst = this.inst*2;
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify insert size of the library.");
-		}
-
-		
-		if (myArgsEngine.getBoolean("-t")) {
-			int t = Integer.parseInt(myArgsEngine.getString("-t"));
-			if(t<this.num_threads) this.num_threads = t;
-			this.THREADS = t;
-			Constants.omp_threads = this.num_threads;
-			myLogger.info("OMP_THREADS = "+this.num_threads);
-		}
-
 		if (myArgsEngine.getBoolean("-d")) {
 			this.debug = true;
 		}
@@ -168,6 +237,70 @@ public class Scaffolder extends Executor {
 	
 	@Override
 	public void run() {
+		switch(this.task_list) {
+		case zzz:
+			myLogger.info("Task list is empty!!!");
+			break;
+		case link:
+			this.run_link();
+			break;
+		case parse:
+			this.run_parse();
+			break;
+		case all:
+			this.run_all();
+		default:
+			throw new RuntimeException("!!!");
+		}
+		return;
+			
+	}
+	
+	private void run_all() {
+		// TODO Auto-generated method stub
+		
+	}
+
+	private void run_parse() {
+		// TODO Auto-generated method stub
+		final Map<String, Sequence> sub_seqs = Sequence.parseFastaFileWithRevCmpAsMap(subject_file);
+		final BidiMap<String, Integer> seq_index = new DualHashBidiMap<String, Integer>();
+		final Map<String, String> symm_seqsn = new HashMap<String, String>();
+		
+		int index = 0;
+		for(String seq : sub_seqs.keySet()) seq_index.put(seq, ++index);
+		for(String seq : sub_seqs.keySet()) {
+			if(!seq.endsWith("'")) {
+				symm_seqsn.put(seq, seq+"'");
+				symm_seqsn.put(seq+"'", seq);
+			}
+		}
+		
+		final DirectedWeightedPseudograph<String,DefaultWeightedEdge> linkg = 
+				new DirectedWeightedPseudograph<String,DefaultWeightedEdge>(DefaultWeightedEdge.class);
+		for(String k : sub_seqs.keySet()) linkg.addVertex(k);
+		
+		try {
+			BufferedReader br = Utils.getBufferedReader(this.link_file);
+			String[] s;
+			String line;
+			int lsource, ltarget, link;
+			while( (line=br.readLine())!=null ) {
+				s = line.split("\\s+");
+				lsource = sub_seqs.get(s[0]).seq_ln();
+				ltarget = sub_seqs.get(s[1]).seq_ln();
+				link = Integer.parseInt(s[2]);
+				
+				
+			}
+			br.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+
+	public void run_link() {
 		// TODO Auto-generated method stub
 		myLogger.info("Reading alignments from "+this.bamList.length+" BAM file"+
 				(this.bamList.length>1?"s":"")+":");
