@@ -8,12 +8,17 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
+import org.jgrapht.alg.ConnectivityInspector;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.DirectedWeightedPseudograph;
 
@@ -47,6 +52,7 @@ public class Scaffolder extends Executor {
 	private int minQual = 20;
 	private int inst;
 	private int maxInst;
+	private boolean matePair = false; // mate-pair library 
 	private String subject_file;
 	private String link_file;
 	
@@ -68,6 +74,7 @@ public class Scaffolder extends Executor {
 					"\n\nUsage is as follows:\n"
 							+ " -a/--align              Alignment file(s). Multiple file are separated by ':'. \n"
 							+ " -aL/--align-list        Alignment file list.\n"
+							+ " -mp/--mate-pair         Mate-pair library.\n"
 							+ " -s/--subject            The FASTA file contain subject/reference sequences. \n"
 							+ " -q/--min-qual           Minimum alignment quality (default 20).\n"
 							+ " -f/--frag-size          Insert size of the library.\n"
@@ -123,6 +130,7 @@ public class Scaffolder extends Executor {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-a", "--align", true);
 			myArgsEngine.add("-aL", "--align-list", true);
+			myArgsEngine.add("-mp", "--mate-pair", false);
 			myArgsEngine.add("-s", "--subject", true);
 			myArgsEngine.add("-l", "--link", true);
 			myArgsEngine.add("-q", "--min-qual", true);
@@ -167,6 +175,12 @@ public class Scaffolder extends Executor {
 				}
 				
 			}
+			
+			if (myArgsEngine.getBoolean("-mp")) {
+				this.matePair = true;
+				myLogger.info("a mate-pair library.");
+			}
+			
 			if (myArgsEngine.getBoolean("-q")) {
 				this.minQual = Integer.parseInt(myArgsEngine.getString("-q"));
 			}
@@ -232,9 +246,6 @@ public class Scaffolder extends Executor {
 
 	private final static Object lock = new Object();
 
-	private final static Map<Long, Integer> linkCount = new HashMap<Long, Integer>();
-	private static long exceed_ins = 0;
-	
 	@Override
 	public void run() {
 		switch(this.task_list) {
@@ -276,30 +287,63 @@ public class Scaffolder extends Executor {
 			}
 		}
 		
-		final DirectedWeightedPseudograph<String,DefaultWeightedEdge> linkg = 
+		final DirectedWeightedPseudograph<String,DefaultWeightedEdge> linkngraph = 
 				new DirectedWeightedPseudograph<String,DefaultWeightedEdge>(DefaultWeightedEdge.class);
-		for(String k : sub_seqs.keySet()) linkg.addVertex(k);
+		for(String k : sub_seqs.keySet()) linkngraph.addVertex(k);
 		
 		try {
 			BufferedReader br = Utils.getBufferedReader(this.link_file);
 			String[] s;
 			String line;
 			int lsource, ltarget, link;
+			DefaultWeightedEdge edge;
 			while( (line=br.readLine())!=null ) {
 				s = line.split("\\s+");
-				lsource = sub_seqs.get(s[0]).seq_ln();
-				ltarget = sub_seqs.get(s[1]).seq_ln();
+				// lsource = sub_seqs.get(s[0]).seq_ln();
+				// ltarget = sub_seqs.get(s[1]).seq_ln();
 				link = Integer.parseInt(s[2]);
-				
-				
+				edge = linkngraph.addEdge(s[0], s[1]);
+				linkngraph.setEdgeWeight(edge, link);
 			}
 			br.close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		
+		final ConnectivityInspector<String,DefaultWeightedEdge> connInsp = new ConnectivityInspector<String,DefaultWeightedEdge>(linkngraph);
+		final List<Set<String>> conns = connInsp.connectedSets();
+		Collections.sort(conns, new Comparator<Set<String>>() { // sort conns by size: decreasing
+			@Override
+			public int compare(Set<String> arg0, Set<String> arg1) {
+				// TODO Auto-generated method stub
+				return arg1.size()-arg0.size();
+			}	
+		});
+		
+		myLogger.info("######################################");
+		myLogger.info("Link graph loaded from "+this.link_file);
+		myLogger.info("#V: "+linkngraph.vertexSet().size());
+		myLogger.info("#E: "+linkngraph.edgeSet().size());
+		myLogger.info("#Connected Components: "+conns.size());
+		for(int i=0; i<10; i++)
+			myLogger.info("Maximum CC ["+i+"] #V: "+conns.get(i).size());
+		myLogger.info("######################################");
+		
+		final Set<DefaultWeightedEdge> edges = new HashSet<DefaultWeightedEdge>();
+		for(String vertex : linkngraph.vertexSet()) {
+			final Set<DefaultWeightedEdge> out  = linkngraph.outgoingEdgesOf(vertex);
+			if(out.size()>1) {
+				// so multiple outgoing vertices founded
+				
+			}
+		}
 	}
 
+	private final static Map<Long, Integer> linkCount = new HashMap<Long, Integer>(); // link count
+	private final static Map<Long, Integer> linkInstS = new HashMap<Long, Integer>(); // link insert size (total) 
+	private static long exceed_ins = 0;
+	
 	public void run_link() {
 		// TODO Auto-generated method stub
 		myLogger.info("Reading alignments from "+this.bamList.length+" BAM file"+
@@ -339,11 +383,12 @@ public class Scaffolder extends Executor {
 						SAMRecord[] sam_records = new SAMRecord[2];
 						SAMRecord sam_record;
 						final Map<Long, Integer> linkCount1 = new HashMap<Long, Integer>();
+						final Map<Long, Integer> linkInstS1 = new HashMap<Long, Integer>();
 						long exceed_ins1 = 0;
 						final boolean[] rev = new boolean[2];
 						final int[] reflen = new int[2];
 						final String[] refstr = new String[2];
-						int a, b;
+						int inst;
 						long refind;
 
 						while(iter1.hasNext()) {
@@ -382,124 +427,214 @@ public class Scaffolder extends Executor {
 								rev[1] = sam_records[1].getReadNegativeStrandFlag();
 								reflen[0]  = sub_seqs.get(sam_records[0].getReferenceName()).seq_ln();
 								reflen[1]  = sub_seqs.get(sam_records[1].getReferenceName()).seq_ln();
+								
+								if(matePair) {
+									// this is a mate-pair
+									if(rev[0]&&rev[1]) {
+										//       0                  1
+										// ---------------     -------------
+										//   <===                 <===
 
-								if(rev[0]&&rev[1]) {
-									//       0                  1
-									// ---------------     -------------
-									//     <===                <===
-
-									// reverse 0
-									// ---------------     -------------
-									//     ===>                <===
-									a = reflen[0]-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
-									// reverse 1
-									// ---------------     -------------
-									//     <===                ===>
-									b = sam_records[0].getAlignmentEnd()+reflen[1]-sam_records[1].getAlignmentStart()+1;
-
-									if(ddebug)
-										STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-												sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
-									if(a>maxInst&&b>maxInst) {
-										++exceed_ins1;
-										Arrays.fill(sam_records, null);
-										continue;
-									}
-									if(a<b) {
 										// reverse 0
-										refstr[0] = sam_records[0].getReferenceName()+"'";
-										refstr[1] = sam_records[1].getReferenceName();
-									} else {
+										// ---------------     -------------
+										//          ===>          <===
 										// reverse 1
-										refstr[0] = sam_records[1].getReferenceName()+"'";
-										refstr[1] = sam_records[0].getReferenceName();
-									}
-								} else if(rev[0]&&!rev[1]) {
-									//       0                  1
-									// ---------------     -------------
-									//     <===                ===>
-									a = sam_records[0].getAlignmentEnd()+reflen[1]-sam_records[1].getAlignmentStart()+1;
-
-									// reverse 0 & reverse1
-									// ---------------     -------------
-									//     ===>                <===
-									b = reflen[0]-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
-
-									if(ddebug)
-										STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-												sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
-									if(a>maxInst&&b>maxInst) {
-										++exceed_ins1;
-										Arrays.fill(sam_records, null);
-										continue;
-									}
-
-									if(a<b) {
-										refstr[0] = sam_records[1].getReferenceName();
-										refstr[1] = sam_records[0].getReferenceName();
-									} else {
-										refstr[0] = sam_records[0].getReferenceName()+"'";
+										// ---------------     -------------
+										//   <===                    ===>
+										
+										inst = reflen[0]-sam_records[0].getAlignmentStart()+1+
+												reflen[1]-sam_records[1].getAlignmentStart()+1;
+												
+										if(ddebug)
+											STD_OUT_BUFFER.write(">>>>"+inst+"\n"+
+													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
+										
+										if(inst>maxInst) {
+											++exceed_ins1;
+											Arrays.fill(sam_records, null);
+											continue;
+										}
+										
+										// reverse 0 and 1 are symmetric
+										refstr[0] = sam_records[0].getReferenceName();
 										refstr[1] = sam_records[1].getReferenceName()+"'";
-									}
+										
+									} else if(rev[0]&&!rev[1]) {
+										//       0                  1
+										// ---------------     -------------
+										//   <===                    ===>
+										
+										// reverse 0 & reverse 1
+										// ---------------     -------------
+										//          ===>          <===
+										
+										inst = reflen[0]-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
 
-								} else if(!rev[0]&&rev[1]) {
-									//       0                  1
-									// ---------------     -------------
-									//     ===>                <===
-									a = reflen[0]-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
+										if(ddebug)
+											STD_OUT_BUFFER.write(">>>>"+inst+"\n"+
+													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
+										if(inst>maxInst) {
+											++exceed_ins1;
+											Arrays.fill(sam_records, null);
+											continue;
+										}
 
-									// reverse 0 & reverse1
-									// ---------------     -------------
-									//     <===                ===>
-									b = sam_records[0].getAlignmentEnd()+reflen[1]-sam_records[1].getAlignmentStart()+1;
-
-									if(ddebug)
-										STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-												sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
-									if(a>maxInst&&b>maxInst) {
-										++exceed_ins1;
-										Arrays.fill(sam_records, null);
-										continue;
-									}
-
-									if(a<b) {
 										refstr[0] = sam_records[0].getReferenceName();
 										refstr[1] = sam_records[1].getReferenceName();
-									} else {
-										refstr[0] = sam_records[1].getReferenceName()+"'";
-										refstr[1] = sam_records[0].getReferenceName()+"'";
-									}
+										
+									} else if(!rev[0]&&rev[1]) {
+										//       0                  1
+										// ---------------     -------------
+										//          ===>          <===
 
-								} else {
-									//       0                  1
-									// ---------------     -------------
-									//     ===>                ===>
+										// reverse 0 & reverse 1
+										// ---------------     -------------
+										//   <===                    ===>
 
-									// reverse 0
-									// ---------------     -------------
-									//     <===                ===>
-									a = sam_records[0].getAlignmentEnd()+reflen[1]-sam_records[1].getAlignmentStart()+1;
+										inst = sam_records[0].getAlignmentEnd()+reflen[1]-sam_records[1].getAlignmentStart()+1;
 
-									// reverse 1
-									// ---------------     -------------
-									//     ===>                <===
-									b = reflen[0]-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
+										if(ddebug)
+											STD_OUT_BUFFER.write(">>>>"+inst+"\n"+
+													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
+										if(inst>maxInst) {
+											++exceed_ins1;
+											Arrays.fill(sam_records, null);
+											continue;
+										}
 
-									if(ddebug)
-										STD_OUT_BUFFER.write(">>>>"+Math.min(a, b)+"\n"+
-												sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
-									if(a>maxInst&&b>maxInst) {
-										++exceed_ins1;
-										Arrays.fill(sam_records, null);
-										continue;
-									}
-
-									if(a<b) {
 										refstr[0] = sam_records[1].getReferenceName();
-										refstr[1] = sam_records[0].getReferenceName()+"'";
+										refstr[1] = sam_records[0].getReferenceName();
+										
 									} else {
+										//       0                  1
+										// ---------------     -------------
+										//         ===>               ===>
+
+										// reverse 0
+										// ---------------     -------------
+										//    <===                    ===>
+										// reverse 1
+										// ---------------     -------------
+										//         ===>          <===
+										
+										inst = sam_records[0].getAlignmentEnd()+sam_records[1].getAlignmentEnd();
+
+										if(ddebug)
+											STD_OUT_BUFFER.write(">>>>"+inst+"\n"+
+													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
+										if(inst>maxInst) {
+											++exceed_ins1;
+											Arrays.fill(sam_records, null);
+											continue;
+										}
+
+										refstr[0] = sam_records[0].getReferenceName()+"'";
+										refstr[1] = sam_records[1].getReferenceName();
+										
+									}
+								} else {
+									// this is a paired-end
+									if(rev[0]&&rev[1]) {
+										//       0                  1
+										// ---------------     -------------
+										//   <===                 <===
+
+										// reverse 0
+										// ---------------     -------------
+										//          ===>          <===
+										// reverse 1
+										// ---------------     -------------
+										//   <===                    ===>
+										
+										inst = sam_records[0].getAlignmentEnd()+sam_records[1].getAlignmentEnd();
+										
+										if(ddebug)
+											STD_OUT_BUFFER.write(">>>>"+inst+"\n"+
+													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
+										
+										if(inst>maxInst) {
+											++exceed_ins1;
+											Arrays.fill(sam_records, null);
+											continue;
+										}
+										
+										// reverse 0 and 1 are symmetric
+										refstr[0] = sam_records[0].getReferenceName()+"'";
+										refstr[1] = sam_records[1].getReferenceName();
+										
+									} else if(rev[0]&&!rev[1]) {
+										//       0                  1
+										// ---------------     -------------
+										//   <===                    ===>
+										
+										// reverse 0 & reverse 1
+										// ---------------     -------------
+										//          ===>          <===
+										
+										inst = sam_records[0].getAlignmentEnd()+reflen[1]-sam_records[1].getAlignmentStart()+1;
+
+										if(ddebug)
+											STD_OUT_BUFFER.write(">>>>"+inst+"\n"+
+													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
+										if(inst>maxInst) {
+											++exceed_ins1;
+											Arrays.fill(sam_records, null);
+											continue;
+										}
+
+										refstr[0] = sam_records[1].getReferenceName();
+										refstr[1] = sam_records[0].getReferenceName();
+										
+									} else if(!rev[0]&&rev[1]) {
+										//       0                  1
+										// ---------------     -------------
+										//          ===>          <===
+
+										// reverse 0 & reverse 1
+										// ---------------     -------------
+										//   <===                    ===>
+
+										inst = reflen[0]-sam_records[0].getAlignmentStart()+1+sam_records[1].getAlignmentEnd();
+
+										if(ddebug)
+											STD_OUT_BUFFER.write(">>>>"+inst+"\n"+
+													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
+										if(inst>maxInst) {
+											++exceed_ins1;
+											Arrays.fill(sam_records, null);
+											continue;
+										}
+
+										refstr[0] = sam_records[0].getReferenceName();
+										refstr[1] = sam_records[1].getReferenceName();
+										
+									} else {
+										//       0                  1
+										// ---------------     -------------
+										//         ===>               ===>
+
+										// reverse 0
+										// ---------------     -------------
+										//    <===                    ===>
+										// reverse 1
+										// ---------------     -------------
+										//         ===>          <===
+										
+										inst = reflen[0]-sam_records[0].getAlignmentStart()+1
+												+reflen[1]-sam_records[1].getAlignmentStart()+1;
+
+										if(ddebug)
+											STD_OUT_BUFFER.write(">>>>"+inst+"\n"+
+													sam_records[0].getSAMString()+sam_records[1].getSAMString()+"<<<<\n");
+										if(inst>maxInst) {
+											++exceed_ins1;
+											Arrays.fill(sam_records, null);
+											continue;
+										}
+
 										refstr[0] = sam_records[0].getReferenceName();
 										refstr[1] = sam_records[1].getReferenceName()+"'";
+										
 									}
 								}
 
@@ -507,19 +642,24 @@ public class Scaffolder extends Executor {
 								refind <<= 32;
 								refind += seq_index.get(refstr[1]);
 								if(linkCount1.containsKey(refind)) {
-									linkCount1.put(refind, linkCount1.get(refind)+1);
+									linkCount1.put(refind, linkCount1.get(refind)+1   );
+									linkInstS1.put(refind, linkInstS1.get(refind)+inst);
 								} else {
-									linkCount1.put(refind, 1);
+									linkCount1.put(refind, 1   );
+									linkInstS1.put(refind, inst);
 								}
 
 								refind  = seq_index.get(symm_seqsn.get(refstr[1]));
 								refind <<= 32;
 								refind += seq_index.get(symm_seqsn.get(refstr[0]));
 								if(linkCount1.containsKey(refind)) {
-									linkCount1.put(refind, linkCount1.get(refind)+1);
+									linkCount1.put(refind, linkCount1.get(refind)+1    );
+									linkInstS1.put(refind, linkInstS1.get(refind)+inst);
 								} else {
-									linkCount1.put(refind, 1);
+									linkCount1.put(refind, 1   );
+									linkInstS1.put(refind, inst);
 								}
+								
 								Arrays.fill(sam_records, null);
 							}
 						}
@@ -531,8 +671,10 @@ public class Scaffolder extends Executor {
 							for(long key : linkCount1.keySet()) {
 								if(linkCount.containsKey(key)) {
 									linkCount.put(key, linkCount.get(key)+linkCount1.get(key));
+									linkInstS.put(key, linkInstS.get(key)+linkInstS1.get(key));
 								} else {
 									linkCount.put(key, linkCount1.get(key));
+									linkInstS.put(key, linkInstS1.get(key));
 								}
 							}
 							exceed_ins += exceed_ins1;
@@ -565,10 +707,12 @@ public class Scaffolder extends Executor {
 		try {
 			BufferedWriter bw = Utils.getBufferedWriter(this.out_prefix+".links");
 			String source, target;
+			double estGap;
 			for(long key : linkCount.keySet()) {
 				target = seq_index.getKey((int)  key     );
 				source = seq_index.getKey((int) (key>>32));
-				bw.write(source+"\t"+target+"\t"+linkCount.get(key)+"\n");
+				estGap = this.inst-(double)linkInstS.get(key)/linkCount.get(key);
+				bw.write(source+"\t"+target+"\t"+linkCount.get(key)+"\t"+String.format("%.3f", estGap)+"\n");
 			}
 			bw.close();
 		} catch (IOException e) {

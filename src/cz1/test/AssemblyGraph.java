@@ -490,7 +490,9 @@ public class AssemblyGraph {
 		final String qstr = "&'()*+,-./0123456789";
 		for(int k=0; k<100; k++)
 			System.out.print(qstr.charAt(Constants.rand.nextInt(qstr.length())));
+		System.out.println();
 		
+		System.out.println(String.format("%.3f", 12.12312314112232132));
 	}
 }
 
