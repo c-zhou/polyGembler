@@ -1,4 +1,4 @@
-package cz1.ngs.tools;
+package cz1.backup;
 
 import java.io.BufferedWriter;
 import java.io.File;

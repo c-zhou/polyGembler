@@ -13,7 +13,7 @@ public class OverlapEdge extends DefaultWeightedEdge {
 	protected double olapR = Double.NaN;
 	protected String cigar = null;
 	protected OverlapResult olapInfo = null;
-
+	
 	protected boolean realigned = false;
 	
 	public double olap() {
@@ -37,7 +37,7 @@ public class OverlapEdge extends DefaultWeightedEdge {
 	}
 	
 	public void setOlap(double olap) {
-		if(olap<0) throw new RuntimeException("!!!");
+		// if(olap<0) throw new RuntimeException("!!!");
 		this.olap = olap;
 	}
 	

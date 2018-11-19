@@ -106,6 +106,12 @@ public class SAMSegment extends AlignmentSegment {
 				sam_rc.getIntegerAttribute("AS"));
 	}
 	
+	public static SAMSegment samRecord(SAMRecord sam_rc, boolean rev) {
+		// TODO Auto-generated method stub
+		if(rev==false) throw new RuntimeException("!!!");
+		return samRecord(sam_rc, true, 0);
+	}
+	
 	public static SAMSegment samRecord(SAMRecord sam_rc, boolean rev, int seq_ln) {
 		// TODO Auto-generated method stub
 		

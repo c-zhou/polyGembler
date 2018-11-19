@@ -38,23 +38,48 @@ public class Blast6Segment extends AlignmentSegment {
 
 	public static Blast6Segment blast6Segment(String b6Record) {
 		// TODO Auto-generated method stub
-		if(b6Record==null) return null;
-		String[] s = b6Record.split("\\s+");
-		return new Blast6Segment(
-				s[0],
-				s[1],
-				Double.parseDouble(s[2]),
-				Integer.parseInt(s[3]),
-				Integer.parseInt(s[4]),
-				Integer.parseInt(s[5]),
-				Integer.parseInt(s[6]),
-				Integer.parseInt(s[7]),
-				Integer.parseInt(s[8]),
-				Integer.parseInt(s[9]),
-				Double.parseDouble(s[10]),
-				Double.parseDouble(s[11]) );
+		return blast6Segment(b6Record, false);
 	}
 
+	public static Blast6Segment blast6Segment(String b6Record, boolean reverse) {
+		// TODO Auto-generated method stub
+		if(b6Record==null) return null;
+		String[] s = b6Record.split("\\s+");
+		String qseqid = s[0];   // query (e.g., gene) sequence id
+		String sseqid = s[1];   // subject (e.g., reference genome) sequence id
+		double pident = Double.parseDouble(s[2]); // percentage of identical matches
+		int length    = Integer.parseInt(s[3]);   // alignment length
+		int mismatch  = Integer.parseInt(s[4]);   // number of mismatches
+		int gapopen   = Integer.parseInt(s[5]);   // number of gap openings
+		int qstart    = Integer.parseInt(s[6]);   // start of alignment in query
+		int qend      = Integer.parseInt(s[7]);   // end of alignment in query
+		int sstart    = Integer.parseInt(s[8]);   // start of alignment in subject
+		int send      = Integer.parseInt(s[9]);   // end of alignment in subject
+		double evalue = Double.parseDouble(s[10]);    // expect value
+		double bitscore  = Double.parseDouble(s[11]); // bit score
+		
+		if(reverse&&sstart>send) {
+			qseqid += "'";
+			int tmp = sstart;
+			sstart  = send;
+			send    = tmp;
+		}
+		
+		return new Blast6Segment(
+				qseqid,
+				sseqid,
+				pident,
+				length,
+				mismatch,
+				gapopen,
+				qstart,
+				qend,
+				sstart,
+				send,
+				evalue,
+				bitscore);
+	}
+	
 	public double pident() {
 		return this.pident;
 	}
@@ -133,7 +158,7 @@ public class Blast6Segment extends AlignmentSegment {
 				this.sstart+"\t"+
 				this.send+"\t"+
 				this.evalue+"\t"+
-				this.bitscore+"\t";
+				this.bitscore;
 	}
 	
 	public static Blast6Segment collinear(final Blast6Segment record1, final Blast6Segment record2, final double max_shift) {

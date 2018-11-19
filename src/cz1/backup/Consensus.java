@@ -15,6 +15,7 @@ import java.io.Reader;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -1031,7 +1032,15 @@ public class Consensus extends Executor {
 				scaffolds.add(entry.getValue());
 			
 			System.err.println("Sort scaffolds...");
-			Collections.sort(scaffolds);
+			Collections.sort(scaffolds, new Comparator<Sequence>() {
+
+				@Override
+				public int compare(Sequence arg0, Sequence arg1) {
+					// TODO Auto-generated method stub
+					return arg1.seq_ln()-arg0.seq_ln();
+				}
+				
+			});
 			Collections.reverse(scaffolds);
 			
 			int n = scaffolds.size(), rm = 0, seq_ln;

@@ -57,6 +57,16 @@ public class DirectedWeightedOverlapPseudograph<V> extends DirectedWeightedPseud
 	public OverlapResult getEdgeOverlapInfo(OverlapEdge edge) {
 		return edge.olapInfo;
 	}
+
+	public double getEdgeOverlap(V source, V target) {
+		// TODO Auto-generated method stub
+		return getEdge(source, target).olap;
+	}
+
+	public void setEdgeOverlap(V source, V target, double olap) {
+		// TODO Auto-generated method stub
+		getEdge(source, target).setOlap(olap);
+	}
 	
 	/***
 	public V getVertexId(SequenceVertex<V> vertex) {

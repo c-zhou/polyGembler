@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -32,6 +33,7 @@ import org.biojava.nbio.core.sequence.DNASequence;
 import org.biojava.nbio.core.sequence.compound.AmbiguityDNACompoundSet;
 import org.biojava.nbio.core.sequence.compound.NucleotideCompound;
 import org.jgrapht.GraphPath;
+import org.jgrapht.graph.DefaultWeightedEdge;
 
 import cz1.util.Constants;
 import cz1.util.Utils;
@@ -738,45 +740,66 @@ public class GFA {
 		myLogger.info("    finished.");
 
 		// 2. make the graph symmetric and flooding 
-		myLogger.info("    symmetrizing and flooding assembly graph.");
-		int link_added = 0;
-		int round = 0;
+		myLogger.info("    symmetrizing assembly graph.");
 		myLogger.info("    Edge number "+gfa.edgeSet().size());
 
-		while(true) {
-			int link_new = 0;
-			// need a copy of the edges to avoid concurrent modification exception
-			// flooding
-			myLogger.info("      Skip flooding. Yet to implement. ");
-
-			Set<OverlapEdge> symmE = new HashSet<OverlapEdge>();
-			symmE.addAll(gfa.edgeSet());
-			// symmetrizing
-			for(OverlapEdge olapE : symmE) {
-				source = rev.get(gfa.getEdgeTarget(olapE));
-				target = rev.get(gfa.getEdgeSource(olapE)); 
-				if(!gfa.containsEdge(source, target)) {
-					// mark a symmetric edge
-					OverlapEdge e = gfa.addEdge(source, target);
-					gfa.setEdgeWeight(e, 1.0);
-					overlap = Constants.cgRevCmp(olapE.cigar);
-					gfa.setEdgeCigar(e, overlap);
-					olap = Constants.getOlapFromCigar(overlap);
-					gfa.setEdgeOverlapF(e, olap==0 ? -Constants.scaffold_gap_size : olap);
-					gfa.setEdgeOverlap(e, olap);
-					olap = Constants.getOlapFromCigar(Constants.cgRevCmp(overlap));
-					gfa.setEdgeOverlapR(e, olap==0 ? -Constants.scaffold_gap_size : olap);
-					gfa.setEdgeRealigned(e);
-					++link_new;
-				}
-			}
-
-			myLogger.info("      Round "+(++round)+": "+link_new+" new links were added to graph after symmetrizing and flooding.");
-
-			if(link_new==0 || round>9) break;
-			link_added += link_new;
+		final Set<OverlapEdge> unsyms = new HashSet<>();
+		for(OverlapEdge olapE : gfa.edgeSet()) {
+			source = rev.get(gfa.getEdgeTarget(olapE));
+			target = rev.get(gfa.getEdgeSource(olapE)); 
+			if(!gfa.containsEdge(source, target)) 
+				unsyms.add(olapE);
 		}
-		myLogger.info("      "+link_added+" new links were added to graph after symmetrizing and flooding.");
+		myLogger.info("      "+unsyms.size()+" unsymmerical edges were found.");
+		
+		// symmetrizing
+		for(OverlapEdge olapE : unsyms) {
+			source = rev.get(gfa.getEdgeTarget(olapE));
+			target = rev.get(gfa.getEdgeSource(olapE));
+			OverlapEdge e = gfa.addEdge(source, target);
+			gfa.setEdgeWeight(e, 1.0);
+			overlap = Constants.cgRevCmp(olapE.cigar);
+			gfa.setEdgeCigar(e, overlap);
+			olap = Constants.getOlapFromCigar(overlap);
+			gfa.setEdgeOverlapF(e, olap==0 ? -Constants.scaffold_gap_size : olap);
+			gfa.setEdgeOverlap(e, olap);
+			olap = Constants.getOlapFromCigar(Constants.cgRevCmp(overlap));
+			gfa.setEdgeOverlapR(e, olap==0 ? -Constants.scaffold_gap_size : olap);
+			gfa.setEdgeRealigned(e);
+		}
+
+		myLogger.info("      "+unsyms.size()+" new links were added to graph after symmetrizing.");
+		
+		myLogger.info("    Remove self loops.");
+		final Set<OverlapEdge> loops = new HashSet<OverlapEdge>();
+		for(final String vertex : gfa.vertexSet()) 
+			if(gfa.containsEdge(vertex, vertex))
+				loops.add(gfa.getEdge(vertex, vertex));
+		gfa.removeAllEdges(loops);
+		myLogger.info("    Removed self loops "+loops.size());
+		
+		myLogger.info("    Remove multiple edges.");
+		final Set<OverlapEdge> multi = new HashSet<OverlapEdge>();
+		for(final OverlapEdge edge : gfa.edgeSet()) {
+			source = gfa.getEdgeSource(edge);
+			target = gfa.getEdgeTarget(edge);
+			final List<OverlapEdge> edges = new ArrayList<>(gfa.getAllEdges(source, target));
+			if(edges.size()>1) {
+				Collections.sort(edges, new Comparator<OverlapEdge>() {
+
+					@Override
+					public int compare(OverlapEdge e0, OverlapEdge e1) {
+						// TODO Auto-generated method stub
+						return Double.compare(e1.olap, e0.olap);
+					}
+					
+				});
+			}
+			for(int i=1; i<edges.size(); i++) multi.add(edges.get(i));
+		}
+		gfa.removeAllEdges(multi);
+		myLogger.info("    Removed multiple edges "+multi.size());
+		
 		myLogger.info("    Edge number "+gfa.edgeSet().size());
 		myLogger.info("    finished.");
 
@@ -932,6 +955,16 @@ public class GFA {
 	public void removeAllEdges(Collection<OverlapEdge> edges) {
 		// TODO Auto-generated method stub
 		this.gfa.removeAllEdges(edges);
+	}
+	
+	public void removeVertex(String vertex) {
+		// TODO Auto-generated method stub
+		this.gfa.removeVertex(vertex);
+	}
+
+	public void removeAllVertices(Set<String> vertices) {
+		// TODO Auto-generated method stub
+		this.gfa.removeAllVertices(vertices);
 	}
 
 	public int inDegreeOf(String v) {

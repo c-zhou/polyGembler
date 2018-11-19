@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
 
 import cz1.util.Utils;
 
-public class Sequence implements Comparable<Sequence> {
+public class Sequence {
 	private int seq_no; // sequence index 0-
 	private int seq_ln; // sequence length
 	private String seq_sn; // sequence name
@@ -81,9 +81,15 @@ public class Sequence implements Comparable<Sequence> {
 	}
 
 	@Override
-	public int compareTo(Sequence contig) {
-		// TODO Auto-generated method stub
-		return this.seq_ln-contig.seq_ln;
+	public boolean equals(Object sequence){
+		if(!sequence.getClass().equals(this))
+			return false;
+		return this.seq_sn.equals(((Sequence)sequence).seq_sn());
+	}
+	
+	@Override
+	public int hashCode() {
+		return this.seq_sn.hashCode();
 	}
 	
 	public int seq_no() {

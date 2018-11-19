@@ -122,7 +122,9 @@ public class AlignmentSegment {
     	@Override
     	public int compare(AlignmentSegment b1, AlignmentSegment b2) {
     		// TODO Auto-generated method stub
-    		return b1.true_qstart()-b2.true_qstart();
+    		return b1.true_qstart()==b2.true_qstart()?
+    				(b1.true_qend()-b2.true_qend()):
+    					(b1.true_qstart()-b2.true_qstart());
     	}
     }
     

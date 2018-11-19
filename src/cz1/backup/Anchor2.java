@@ -38,7 +38,7 @@ import cz1.util.ArgsEngine;
 import cz1.util.Executor;
 import cz1.util.Utils;
 
-public class Anchor extends Executor {
+public class Anchor2 extends Executor {
 	
 	@Override
 	public void printUsage() {

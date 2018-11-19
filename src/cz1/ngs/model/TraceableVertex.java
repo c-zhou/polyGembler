@@ -1,5 +1,8 @@
 package cz1.ngs.model;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.google.common.collect.DiscreteDomain;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
@@ -11,7 +14,7 @@ public class TraceableVertex<V extends Comparable<V>> implements Comparable<Trac
 	private double penalty = Double.POSITIVE_INFINITY;
 	private double score   = Double.NEGATIVE_INFINITY;
 	private RangeSet<Integer> sinterval = null;
-	private SAMSegment segment;
+	private final List<SAMSegment> segment = new ArrayList<>();
 	// specify the status of the vertex
 	// e.g., is visited or not during traversal
 	private boolean status = false;
@@ -79,7 +82,11 @@ public class TraceableVertex<V extends Comparable<V>> implements Comparable<Trac
 	}
 
 	public void setSAMSegment(SAMSegment segment) {
-		this.segment = segment;
+		this.segment.add(segment);
+	}
+
+	public void addSAMSegment(SAMSegment segment) {
+		this.segment.add(segment);
 	}
 	
 	public TraceableVertex<V> getBackTrace() {
@@ -99,6 +106,10 @@ public class TraceableVertex<V extends Comparable<V>> implements Comparable<Trac
 	}
 	
 	public SAMSegment getSAMSegment() {
+		return this.segment.get(0);
+	}
+	
+	public List<SAMSegment> getAllSAMSegment() {
 		return this.segment;
 	}
 	

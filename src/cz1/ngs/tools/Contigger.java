@@ -10,6 +10,7 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -823,8 +824,15 @@ public class Contigger extends Executor {
 				scaffolds.add(entry.getValue());
 			
 			System.err.println("Sort scaffolds...");
-			Collections.sort(scaffolds);
-			Collections.reverse(scaffolds);
+			Collections.sort(scaffolds, new Comparator<Sequence>() {
+
+				@Override
+				public int compare(Sequence o1, Sequence o2) {
+					// TODO Auto-generated method stub
+					return o2.seq_ln()-o1.seq_ln();
+				}
+				
+			});
 			
 			int n = scaffolds.size(), rm = 0, seq_ln;
 			String seq_str;

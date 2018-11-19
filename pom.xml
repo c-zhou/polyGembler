@@ -200,7 +200,6 @@
     <dependency>
         <groupId>org.biojava</groupId>
         <artifactId>biojava-alignment</artifactId>
-        <version>4.2.11</version>
     </dependency>
     <dependency>
       <groupId>com.github.marbl</groupId>
@@ -219,6 +218,12 @@
     	<artifactId>commons-text</artifactId>
     	<version>1.3</version>
 	</dependency>
+	<!-- https://mvnrepository.com/artifact/com.github.jgraph/jgraphx -->
+	<dependency>
+    	<groupId>com.github.jgraph</groupId>
+    	<artifactId>jgraphx</artifactId>
+    	<version>v3.9.8</version>
+	</dependency>
   </dependencies>
   
   <repositories>
@@ -232,4 +237,13 @@
     <id>jitpack.io</id>
     <url>https://jitpack.io</url>
   </repository>
+  <dependencyManagement>
+  	<dependencies>
+  		<dependency>
+  			<groupId>org.biojava</groupId>
+  			<artifactId>biojava-alignment</artifactId>
+  			<version>4.2.11</version>
+  		</dependency>
+  	</dependencies>
+  </dependencyManagement>
 </project>
