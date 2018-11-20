@@ -32,6 +32,7 @@ import org.jgrapht.ext.JGraphXAdapter;
 import org.jgrapht.graph.AsSubgraph;
 import org.jgrapht.graph.DefaultListenableGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
+import org.jgrapht.graph.DirectedWeightedPseudograph;
 
 import com.google.common.collect.DiscreteDomain;
 import com.google.common.collect.Range;
@@ -317,14 +318,15 @@ public class Anchor extends Executor implements Serializable {
 	
 	
 	GFA gfa;
-	final DirectedWeightedOverlapPseudograph<String> subgraph = new DirectedWeightedOverlapPseudograph<>(OverlapEdge.class);
 	final Map<String, List<Set<SAMSegment>>> initPlace = new HashMap<String, List<Set<SAMSegment>>>();
 	final Map<String, List<SAMSegment>> highQualSeg = new HashMap<String, List<SAMSegment>>();
 	SAMSequenceDictionary dict = null;
+	final long[] elapsed = new long[10];
 	
 	private void run4() {
 		// TODO Auto-generated method stub
-
+		elapsed[0]  = System.nanoTime();
+				
 		// read assembly graph file
 		gfa = new GFA(query_file, asm_graph);
 		myLogger.info("  GFA vertices: "+gfa.vertexSet().size());
@@ -434,7 +436,9 @@ public class Anchor extends Executor implements Serializable {
 		myLogger.info("#Query sequences with SAM segment "+nQrySeq+"/"+ignFRQry.size()+" summed to "+totQryLen+"bp");
 		myLogger.info("#Total SAM segments "+totSAMSeg);
 
+		/***
 		
+		final DirectedWeightedOverlapPseudograph<String> subgraph = new DirectedWeightedOverlapPseudograph<>(OverlapEdge.class);
 		final Set<OverlapEdge> edgesToRetain = new HashSet<>();
 		int slen, tlen;
 		
@@ -535,37 +539,55 @@ public class Anchor extends Executor implements Serializable {
 		for(final String v : conv) sL += qry_seqs.get(v).seq_ln();
 		myLogger.info("####query seqs "+conv.size());
 		myLogger.info("####total length "+sL);
+		***/
 		
 		this.pileup();
 	}
 	
+	private final int niche = 10;
+	
 	private void pileup() {
 		// TODO Auto-generated method stub
-
+		elapsed[1]  = System.nanoTime();
+		
 		final String subSeq = "Chr07";
 		final int subSeqIndex = dict.getSequenceIndex(subSeq);
 		
-		final List<Traceable2> segBySubAll = new ArrayList<>();
+		final List<Traceable> segBySubAll = new ArrayList<>();
 		final List<SAMSegment> segs  = new ArrayList<SAMSegment>();
+		int search_radius;
 		for(final String qry_seq : gfa.vertexSet()) {
-			segs.clear();
-			for(SAMSegment seg : initPlace.get(qry_seq).get(subSeqIndex)) 
-				segs.add(seg);
+            segs.clear();
+            
+            if(!initPlace.containsKey(qry_seq)) continue;
+			for(SAMSegment seg : initPlace.get(qry_seq).get(subSeqIndex))
+                segs.add(seg);
 			if(segs.isEmpty()) continue;
+
 			Collections.sort(segs, new AlignmentSegment.SubjectCoordinationComparator());
 			int n = segs.size();
 			int start = 0, end = 0;
+			final int qry_ln = qry_seqs.get(qry_seq).seq_ln();
+			search_radius = qry_ln*niche;
+			Range<Integer> qryRange, subRange;
 			while(start<n) {
 				end = start+1;
-				while(end<n&&AlignmentSegment.sdistance(segs.get(end-1), segs.get(end))<=as_gap)
+				while(end<n&&AlignmentSegment.sdistance(segs.get(end-1), segs.get(end))<=search_radius)
 					++end;
-
+				
 				RangeSet<Integer> subCov = TreeRangeSet.create();
 				RangeSet<Integer> qryCov = TreeRangeSet.create();
 				for(int j=start; j<end; j++) {
 					SAMSegment seg = segs.get(j);
-					subCov.add(Range.closed(seg.sstart(), seg.send()).canonical(DiscreteDomain.integers()));
-					qryCov.add(Range.closed(seg.qstart(), seg.qend()).canonical(DiscreteDomain.integers()));
+					subRange = Range.closed(seg.sstart(), seg.send()).canonical(DiscreteDomain.integers());
+					qryRange = Range.closed(seg.qstart(), seg.qend()).canonical(DiscreteDomain.integers());
+					if(qryRange.upperEndpoint()-qryRange.lowerEndpoint()>0.7*qry_ln && 
+							extension(qryCov, qryRange)<0.3*qry_ln) {
+						end = j;
+						break;
+					}
+					subCov.add(subRange);
+					qryCov.add(qryRange);
 				}
 
 				Range<Integer> subSpan = subCov.span();
@@ -584,145 +606,167 @@ public class Anchor extends Executor implements Serializable {
 				int slen = ls;
 				int qlen = lq;
 
-				segBySubAll.add(new Traceable2(qry_seq, subSeq, 
+				segBySubAll.add(new Traceable(qry_seq, subSeq, 
 						qstart, qend, sstart, send, subCov, qryCov, slen, qlen));
 
 				start = end;
 			}
 		}
-		
-		
-		
-		
 
 		Collections.sort(segBySubAll, new AlignmentSegment.SubjectCoordinationComparator());
 		int nSeg = segBySubAll.size();
 		myLogger.info("####Subject Sequence "+subSeq+", #SamSegment "+nSeg);
 		
-		int root_segix, source_segix, target_segix;
-		Traceable root_seg, source_seg, target_seg;
-		String root_segid, source_segid, target_segid;
+		elapsed[2]  = System.nanoTime();
 		
-		RangeSet<Integer> subCov = TreeRangeSet.create();
-		final Set<Integer> processed = new HashSet<Integer>();
+		// now extract subgraphs from the alignments
+		
+		final Set<Integer> processed = new HashSet<>();
+		final Set<Integer> contained = new HashSet<>();
+		int source_segix, target_segix;
+		Traceable source_seg, target_seg;
+		String source_segid, target_segid;
 		final Deque<Integer> deque = new ArrayDeque<Integer>();
-
-		int counti = 0;
+		final List<DirectedWeightedPseudograph<Integer, DefaultWeightedEdge>> subgraphs = new ArrayList<>();
+		
 		for(int i=0; i<nSeg; i++) {
-			if(i-counti>100000) {
-				myLogger.info("####"+subSeq+" processed "+i+" SAM segments.");
-				counti = i;
-			}
-			root_segix = i;
-			root_seg   = segBySubAll.get(root_segix);
-			root_segid = root_seg.qseqid();
-			if(root_seg.getPrev()!=null) continue;
+
+			if(i%100000==0) myLogger.info("#SAM segments processed "+i+", #subgraph "+subgraphs.size());
+			
+			if(processed.contains(i)) continue;
 			
 			deque.clear();
-			deque.add(root_segix);
+			deque.add(i);
+			contained.clear();
+			contained.add(i);
 			
+			final DirectedWeightedPseudograph<Integer, DefaultWeightedEdge> subgraph = 
+					new DirectedWeightedPseudograph<>(DefaultWeightedEdge.class);
+
 			while(!deque.isEmpty()) {
 				
-				source_segix = deque.pop();
-				source_seg   = segBySubAll.get(source_segix);
-				source_segid = source_seg.qseqid();
-
-				// first find all 
+				source_segix  = deque.pop();
+				source_seg    = segBySubAll.get(source_segix);
+				source_segid  = source_seg.qseqid();
+				search_radius = qry_seqs.get(source_segid).seq_ln()*niche;
 				
-				for(int k=source_segix-1; k>0; k--) {
-					target_segix = k;
+				if(!subgraph.containsVertex(source_segix))
+					subgraph.addVertex(source_segix);
+				
+				for(int j=source_segix-1; j>0; j--) {
+					target_segix = j;
 					target_seg   = segBySubAll.get(target_segix);
 					target_segid = target_seg.qseqid();
 
-					if(target_seg.sstart()-source_seg.sstart()>hc_gap) break;
+					if(source_seg.sstart()-target_seg.sstart()>search_radius) break;
 					
-					if(source_segid.equals(target_segid)) {
-						// change prev and 'subCov' and add to the 'deque'
-						
-						deque.add(target_segix);
-						continue;
-					} else if(gfa.containsEdge(source_segid, target_segid)) {
-						
-						
+					if(gfa.containsEdge(source_segid, target_segid)) {
+						if(!subgraph.containsVertex(target_segix))
+							subgraph.addVertex(target_segix);
+						if(!subgraph.containsEdge(source_segix, target_segix))
+							subgraph.addEdge(source_segix, target_segix);
+						if(!contained.contains(target_segix)) {
+							deque.add(target_segix);
+							contained.add(target_segix);
+						}
+					}
+					
+					if(gfa.containsEdge(target_segid, source_segid)) {
+						if(!subgraph.containsVertex(target_segix))
+							subgraph.addVertex(target_segix);
+						if(!subgraph.containsEdge(target_segix, source_segix))
+							subgraph.addEdge(target_segix, source_segix);
+						if(!contained.contains(target_segix)) {
+							deque.add(target_segix);
+							contained.add(target_segix);
+						}
 					}
 				}
 
-				for(int k=source_segix+1; k<nSeg; k++) {
-					target_segix = k;
-					target_seg   = seqBySubAll.get(target_segix);
+				for(int j=source_segix+1; j<nSeg; j++) {
+					target_segix = j;
+					target_seg   = segBySubAll.get(target_segix);
 					target_segid = target_seg.qseqid();
 
-					if(target_seg.sstart()-source_seg.sstart()>hc_gap) break;
+					if(target_seg.sstart()-source_seg.sstart()>search_radius) break;
 
-					if(subgraph.containsEdge(source_segid, target_segid)) {
-						if(g.containsVertex(target_segid)) {
-							if(!contained.contains(target_segix)) {
-								myLogger.info("########\n"+
-										"#"+target_seg.toString()+"\n"+
-										"#"+g.getAlignmentSegmentByVertex(target_segid).toString()+"\n"+
-										"########");
-								//throw new RuntimeException("!!!");	
-							}
-						} else {
-							g.addVertex(target_segid, target_seg);
+					if(gfa.containsEdge(source_segid, target_segid)) {
+						if(!subgraph.containsVertex(target_segix))
+							subgraph.addVertex(target_segix);
+						if(!subgraph.containsEdge(source_segix, target_segix))
+							subgraph.addEdge(source_segix, target_segix);
+						if(!contained.contains(target_segix)) {
+							deque.add(target_segix);
+							contained.add(target_segix);
 						}
-						if(!g.containsEdge(source_segid, target_segid))
-							g.addEdge(source_segid, target_segid);
-					} else if(subgraph.containsEdge(target_segid, source_segid)) {
-						if(g.containsVertex(target_segid)) {
-							if(!contained.contains(target_segix)) {
-								myLogger.info("\n"+
-										"############\n"+
-										"##"+target_seg.toString()+"\n"+
-										"##"+g.getAlignmentSegmentByVertex(target_segid).toString()+"\n"+
-										"############");
-								//throw new RuntimeException("!!!");	
-							}
-						} else {
-							g.addVertex(target_segid, target_seg);
+					}
+					
+					if(gfa.containsEdge(target_segid, source_segid)) {
+						if(!subgraph.containsVertex(target_segix))
+							subgraph.addVertex(target_segix);
+						if(!subgraph.containsEdge(target_segix, source_segix))
+							subgraph.addEdge(target_segix, source_segix);
+						if(!contained.contains(target_segix)) {
+							deque.add(target_segix);
+							contained.add(target_segix);
 						}
-						if(!g.containsEdge(target_segid, source_segid)) 
-							g.addEdge(target_segid, source_segid);
-					} else continue;
-
-					if(!contained.contains(target_segix)) {
-						deque.add(target_segix);
-						contained.add(target_segix);
 					}
 				}
 
 				processed.add(source_segix);
 			}
-
-			if(contained.size()!=g.vertexSet().size()) {
-				myLogger.info("@@@@@@@@");
-				for(final int k : contained) {
-					myLogger.info("@@"+seqBySubAll.get(k).toString());
-				}
-				myLogger.info("@@@@@@@@");
-			}
-
-			gs.add(g);
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			
-			source_segid = source_seg.qseqid();
-			subCov.clear();
-			subCov.add(source_seg.subCov);
-			
-			processed.add(i);
-			
-			
+			subgraphs.add(subgraph);
 		}
+		
+		if(debug) {
+			int numV = 0, numE = 0, maxV = -1, minV = Integer.MAX_VALUE;
+			int[] sizes = new int[10];
+			for(final DirectedWeightedPseudograph<Integer, DefaultWeightedEdge> subgraph : subgraphs) {
+				int nV = subgraph.vertexSet().size();
+				if(nV<2)        ++sizes[0];
+				else if(nV<10)  ++sizes[1];
+				else if(nV<50)  ++sizes[2];
+				else if(nV<100) ++sizes[3];
+				else            ++sizes[4];
+				if(maxV<nV) maxV = nV;
+				if(minV>nV) minV = nV;
+				numV += nV;
+				numE += subgraph.edgeSet().size();
+			}
+			int avgV = numV/subgraphs.size();
+			myLogger.info("#### "+subSeq+" ####\n"+
+					"#segments  : "+segBySubAll.size()+"\n"+
+					"#subgraphs : "+subgraphs.size()+"\n"+
+					"#E         : "+numE+"\n"+
+					"#V         : "+numV+"\n"+
+					"#max V     : "+maxV+"\n"+
+					"#min V     : "+minV+"\n"+
+					"#avg V     : "+avgV+"\n"+
+					"# size     : \n"+
+					"     1     : "+sizes[0]+"\n"+
+					"   <10     : "+sizes[1]+"\n"+
+					"   <50     : "+sizes[2]+"\n"+
+					"  <100     : "+sizes[3]+"\n"+
+					"  >100     : "+sizes[4]+"\n");
+		}
+		
+		elapsed[3]  = System.nanoTime();
+		myLogger.info("#elpased time 0 "+(elapsed[1]-elapsed[0])/1e9+"s");
+		myLogger.info("#elpased time 1 "+(elapsed[2]-elapsed[1])/1e9+"s");
+		myLogger.info("#elpased time 2 "+(elapsed[3]-elapsed[2])/1e9+"s");
+	}
+
+	private int extension(RangeSet<Integer> cov, Range<Integer> range) {
+		// TODO Auto-generated method stub
+		
+		RangeSet<Integer> ins = TreeRangeSet.create();
+		for(Range<Integer> r : cov.complement().asRanges())
+			if(range.isConnected(r))
+				ins.add(range.intersection(r));
+		int ln = 0;
+		for(Range<Integer> r : ins.asRanges())
+			ln += r.upperEndpoint()-r.lowerEndpoint();
+		return ln;
 	}
 
 	final SamReaderFactory factory =
@@ -1725,7 +1769,7 @@ public class Anchor extends Executor implements Serializable {
 			
 			for(int i=0; i<this.sub_seqs.size(); i++) {
 
-				final List<Traceable2> seqBySubAll = new ArrayList<>();
+				final List<Traceable> seqBySubAll = new ArrayList<>();
 				final List<SAMSegment> segs  = new ArrayList<SAMSegment>();
 				for(final String qry_seq : subgraph.vertexSet()) {
 					segs.clear();
@@ -1764,7 +1808,7 @@ public class Anchor extends Executor implements Serializable {
 						int slen = ls;
 						int qlen = lq;
 
-						seqBySubAll.add(new Traceable2(qry_seq, dict.getSequences().get(i).getSequenceName(), 
+						seqBySubAll.add(new Traceable(qry_seq, dict.getSequences().get(i).getSequenceName(), 
 								qstart, qend, sstart, send, subCov, qryCov, slen, qlen));
 
 						start = end;
@@ -1777,7 +1821,7 @@ public class Anchor extends Executor implements Serializable {
 				final Set<Integer> processed = new HashSet<>();
 				final Set<Integer> contained = new HashSet<>();
 				int root_segix, source_segix, target_segix;
-				Traceable2 root_seg, source_seg, target_seg;
+				Traceable root_seg, source_seg, target_seg;
 				String root_segid, source_segid, target_segid;
 				final Deque<Integer> deque = new ArrayDeque<Integer>();
 
@@ -1900,7 +1944,7 @@ public class Anchor extends Executor implements Serializable {
 					}
 
 					gs.add(g);
-				}	
+				}
 			}
 			
 			if(ddebug) {
@@ -2038,7 +2082,7 @@ public class Anchor extends Executor implements Serializable {
 						if(sub_seq.equals("Chr00")) return;
 						myLogger.info(">>>>>>>>>>>>>"+sub_seq+"<<<<<<<<<<<<<<<<");
 
-						final List<Traceable2> seqBySubAll = new ArrayList<>();
+						final List<Traceable> seqBySubAll = new ArrayList<>();
 						final List<SAMSegment> segs  = new ArrayList<SAMSegment>();
 						for(final String qry_seq : initPlace.keySet()) {
 							segs.clear();
@@ -2081,7 +2125,7 @@ public class Anchor extends Executor implements Serializable {
 								int slen = ls;
 								int qlen = lq;
 
-								seqBySubAll.add(new Traceable2(qry_seq, sub_seq, qstart, qend, sstart, send, subCov, qryCov, slen, qlen));
+								seqBySubAll.add(new Traceable(qry_seq, sub_seq, qstart, qend, sstart, send, subCov, qryCov, slen, qlen));
 
 								start = end;
 							}
@@ -2096,7 +2140,7 @@ public class Anchor extends Executor implements Serializable {
 						final Set<Integer> processed = new HashSet<>();
 						final Set<Integer> contained = new HashSet<>();
 						int root_segix, source_segix, target_segix;
-						Traceable2 root_seg, source_seg, target_seg;
+						Traceable root_seg, source_seg, target_seg;
 						String root_segid, source_segid, target_segid;
 						final Deque<Integer> deque = new ArrayDeque<Integer>();
 
@@ -2298,28 +2342,22 @@ public class Anchor extends Executor implements Serializable {
 		}
 		this.waitFor();
 	}
-
-	private final class Traceable extends SAMSegment {
+	
+	private final class Traceable extends CompoundAlignmentSegment {
 		private Traceable prev, next;
 		private double score;
-		private final Range<Integer> qryCov, subCov;
-		
-		public Traceable(SAMSegment seg){
-			super(seg.qseqid(), 
-					seg.sseqid(),
-					seg.qstart(),
-					seg.qend(),
-					seg.sstart(),
-					seg.send(),
-					seg.cigar(),
-					seg.qual(),
-					seg.nm(),
-					seg.as());
-			this.prev = null;
-			this.next = null;
-			this.score = 0d;
-			this.qryCov = Range.closed(seg.qstart(), seg.qend()).canonical(DiscreteDomain.integers());
-			this.subCov = Range.closed(seg.sstart(), seg.send()).canonical(DiscreteDomain.integers());
+
+		public Traceable(final String qseqid,   // query (e.g., gene) sequence id
+				final String sseqid,   // subject (e.g., reference genome) sequence id
+				final int qstart,      // start of alignment in query
+				final int qend,        // end of alignment in query
+				final int sstart,      // start of alignment in subject
+				final int send,         // end of alignment in subject
+				final RangeSet<Integer> subCov,
+				final RangeSet<Integer> qryCov,
+				final int slen,
+				final int qlen) {
+			super(qseqid, sseqid, qstart,qend,sstart,send, subCov, qryCov, slen, qlen);
 		}
 
 		public void setPrev(final Traceable prev) {
@@ -2339,56 +2377,6 @@ public class Anchor extends Executor implements Serializable {
 		}
 
 		public Traceable getNext() {
-			return this.next;
-		}
-
-		public Range<Integer> getSubCov() {
-			return this.subCov;
-		}
-		
-		public Range<Integer> getQryCov() {
-			return this.qryCov;
-		}
-		
-		public double getScore() {
-			return this.score;
-		}
-	}
-	
-	private final class Traceable2 extends CompoundAlignmentSegment {
-		private Traceable2 prev, next;
-		private double score;
-
-		public Traceable2(final String qseqid,   // query (e.g., gene) sequence id
-				final String sseqid,   // subject (e.g., reference genome) sequence id
-				final int qstart,      // start of alignment in query
-				final int qend,        // end of alignment in query
-				final int sstart,      // start of alignment in subject
-				final int send,         // end of alignment in subject
-				final RangeSet<Integer> subCov,
-				final RangeSet<Integer> qryCov,
-				final int slen,
-				final int qlen) {
-			super(qseqid, sseqid, qstart,qend,sstart,send, subCov, qryCov, slen, qlen);
-		}
-
-		public void setPrev(final Traceable2 prev) {
-			this.prev = prev;
-		}
-
-		public void setNext(final Traceable2 next) {
-			this.next = next;
-		}
-
-		public void setScore(final double score) {
-			this.score = score;
-		}
-
-		public Traceable2 getPrev() {
-			return this.prev;
-		}
-
-		public Traceable2 getNext() {
 			return this.next;
 		}
 
