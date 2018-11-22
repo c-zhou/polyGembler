@@ -540,17 +540,20 @@ public class Anchor extends Executor implements Serializable {
 		myLogger.info("####query seqs "+conv.size());
 		myLogger.info("####total length "+sL);
 		***/
-		
-		this.pileup();
+	
+		for(final String subSeq : sub_seqs.keySet())
+			if(!"Chr00".equals(subSeq))
+				this.pileup(subSeq);
+		// this.pileup("Chr07");
 	}
 	
 	private final int niche = 10;
 	
-	private void pileup() {
+	private void pileup(final String subSeq) {
 		// TODO Auto-generated method stub
 		elapsed[1]  = System.nanoTime();
 		
-		final String subSeq = "Chr07";
+		// final String subSeq = "Chr07";
 		final int subSeqIndex = dict.getSequenceIndex(subSeq);
 		
 		final List<Traceable> segBySubAll = new ArrayList<>();
@@ -623,7 +626,7 @@ public class Anchor extends Executor implements Serializable {
 		
 		final Set<Integer> processed = new HashSet<>();
 		final Set<Integer> contained = new HashSet<>();
-		int source_segix, target_segix;
+		int source_segix, target_segix, source_ln, target_ln;
 		Traceable source_seg, target_seg;
 		String source_segid, target_segid;
 		final Deque<Integer> deque = new ArrayDeque<Integer>();
@@ -631,7 +634,7 @@ public class Anchor extends Executor implements Serializable {
 		
 		for(int i=0; i<nSeg; i++) {
 
-			if(i%100000==0) myLogger.info("#SAM segments processed "+i+", #subgraph "+subgraphs.size());
+			if(i%100000==0) myLogger.info("#SAM segments processed "+i+(ddebug?", #subgraph "+subgraphs.size():""));
 			
 			if(processed.contains(i)) continue;
 			
@@ -645,10 +648,10 @@ public class Anchor extends Executor implements Serializable {
 
 			while(!deque.isEmpty()) {
 				
-				source_segix  = deque.pop();
-				source_seg    = segBySubAll.get(source_segix);
-				source_segid  = source_seg.qseqid();
-				search_radius = qry_seqs.get(source_segid).seq_ln()*niche;
+				source_segix = deque.pop();
+				source_seg   = segBySubAll.get(source_segix);
+				source_segid = source_seg.qseqid();
+				source_ln    = qry_seqs.get(source_segid).seq_ln();
 				
 				if(!subgraph.containsVertex(source_segix))
 					subgraph.addVertex(source_segix);
@@ -657,11 +660,14 @@ public class Anchor extends Executor implements Serializable {
 					target_segix = j;
 					target_seg   = segBySubAll.get(target_segix);
 					target_segid = target_seg.qseqid();
+                    target_ln    = qry_seqs.get(target_segid).seq_ln();
 
-					if(source_seg.sstart()-target_seg.sstart()>search_radius) break;
-					
+					if(source_seg.sstart()-target_seg.sstart()>hc_gap) break;
+                    search_radius = Math.max(source_ln, target_ln)*niche;
+				    if(AlignmentSegment.sdistance(source_seg, target_seg)>search_radius) continue;    
+
 					if(gfa.containsEdge(source_segid, target_segid)) {
-						if(!subgraph.containsVertex(target_segix))
+                        if(!subgraph.containsVertex(target_segix))
 							subgraph.addVertex(target_segix);
 						if(!subgraph.containsEdge(source_segix, target_segix))
 							subgraph.addEdge(source_segix, target_segix);
@@ -672,7 +678,7 @@ public class Anchor extends Executor implements Serializable {
 					}
 					
 					if(gfa.containsEdge(target_segid, source_segid)) {
-						if(!subgraph.containsVertex(target_segix))
+                        if(!subgraph.containsVertex(target_segix))
 							subgraph.addVertex(target_segix);
 						if(!subgraph.containsEdge(target_segix, source_segix))
 							subgraph.addEdge(target_segix, source_segix);
@@ -687,11 +693,14 @@ public class Anchor extends Executor implements Serializable {
 					target_segix = j;
 					target_seg   = segBySubAll.get(target_segix);
 					target_segid = target_seg.qseqid();
+                    target_ln    = qry_seqs.get(target_segid).seq_ln();
 
-					if(target_seg.sstart()-source_seg.sstart()>search_radius) break;
+					if(target_seg.sstart()-source_seg.sstart()>hc_gap) break;
+                    search_radius = Math.max(source_ln, target_ln)*niche;
+                    if(AlignmentSegment.sdistance(source_seg, target_seg)>search_radius) continue;
 
 					if(gfa.containsEdge(source_segid, target_segid)) {
-						if(!subgraph.containsVertex(target_segix))
+                        if(!subgraph.containsVertex(target_segix))
 							subgraph.addVertex(target_segix);
 						if(!subgraph.containsEdge(source_segix, target_segix))
 							subgraph.addEdge(source_segix, target_segix);
@@ -715,10 +724,46 @@ public class Anchor extends Executor implements Serializable {
 
 				processed.add(source_segix);
 			}
-			subgraphs.add(subgraph);
+			
+			if(ddebug) subgraphs.add(subgraph);
+			
+			if(subgraph.vertexSet().size()>1) {
+				final RangeSet<Integer> subCov = TreeRangeSet.create();
+				int sub_start = Integer.MAX_VALUE, sub_end = 0;
+				for(final int v : subgraph.vertexSet()) {
+					source_seg = segBySubAll.get(v);
+					sub_start = Math.min(sub_start, source_seg.sstart());
+					sub_end   = Math.max(sub_end  , source_seg.send());
+					subCov.addAll(source_seg.getSubCov());
+				}
+
+				int cov = 0;
+				for(Range<Integer> r : subCov.asRanges())
+					cov += r.upperEndpoint()-r.lowerEndpoint()+1;
+				int span = sub_end-sub_start+1;
+				double covr = (double) cov/span;
+				myLogger.info("#cov\t"+subSeq+"\t"+sub_start+"\t"+sub_end+"\t"+
+						subgraph.vertexSet().size()+"\t"+span+"\t"+cov+"\t"+covr);
+
+			}
+			/***
+			for(final int vertex : subgraph.vertexSet()) {
+				for(final int v : subgraph.vertexSet())
+					segBySubAll.get(v).reset();
+				
+				deque.clear();
+				deque.add(vertex);
+				
+				while(!deque.isEmpty()) {
+					source_segix = deque.pop();
+					source_seg   = segBySubAll.get(source_segix);
+					
+				}
+			}
+			***/
 		}
 		
-		if(debug) {
+		if(ddebug) {
 			int numV = 0, numE = 0, maxV = -1, minV = Integer.MAX_VALUE;
 			int[] sizes = new int[10];
 			for(final DirectedWeightedPseudograph<Integer, DefaultWeightedEdge> subgraph : subgraphs) {
@@ -2358,6 +2403,14 @@ public class Anchor extends Executor implements Serializable {
 				final int slen,
 				final int qlen) {
 			super(qseqid, sseqid, qstart,qend,sstart,send, subCov, qryCov, slen, qlen);
+			this.reset();
+		}
+
+		public void reset() {
+			// TODO Auto-generated method stub
+			this.prev = null;
+			this.next = null;
+			this.score = send-sstart+1;
 		}
 
 		public void setPrev(final Traceable prev) {
