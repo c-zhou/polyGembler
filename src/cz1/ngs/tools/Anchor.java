@@ -35,6 +35,7 @@ import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.DirectedWeightedPseudograph;
 
 import com.google.common.collect.DiscreteDomain;
+import com.google.common.collect.ImmutableRangeSet;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
@@ -43,6 +44,7 @@ import com.mxgraph.swing.mxGraphComponent;
 
 import cz1.ngs.model.AlignmentSegment;
 import cz1.ngs.model.AlignmentSegmentDirectedWeightedPseudograph;
+import cz1.ngs.model.Blast6Segment;
 import cz1.ngs.model.CompoundAlignmentSegment;
 import cz1.ngs.model.DirectedWeightedOverlapPseudograph;
 import cz1.ngs.model.GFA;
@@ -307,6 +309,7 @@ public class Anchor extends Executor implements Serializable {
 
 	@Override
 	public void run() {
+		
 		// this.blastReader();
 		// this.run_link();
 		
@@ -318,8 +321,9 @@ public class Anchor extends Executor implements Serializable {
 	
 	
 	GFA gfa;
-	final Map<String, List<Set<SAMSegment>>> initPlace = new HashMap<String, List<Set<SAMSegment>>>();
-	final Map<String, List<SAMSegment>> highQualSeg = new HashMap<String, List<SAMSegment>>();
+	final Map<String, List<Set<SAMSegment>>> initPlace = new HashMap<>();
+	final Map<String, List<SAMSegment>> highQualSeg = new HashMap<>();
+	final Map<String, ImmutableRangeSet<Integer>> sub_gaps = new HashMap<>();
 	SAMSequenceDictionary dict = null;
 	final long[] elapsed = new long[10];
 	
@@ -335,6 +339,23 @@ public class Anchor extends Executor implements Serializable {
 		qry_seqs = gfa.getSequenceMap();
 		sub_seqs = Sequence.parseFastaFileAsMap(subject_file);
 
+		
+		for(Map.Entry<String, Sequence> entry : sub_seqs.entrySet()) {
+			String seq_sn = entry.getKey();
+			String seq_str = entry.getValue().seq_str();
+
+			final RangeSet<Integer> range_set = TreeRangeSet.create();
+			char c;
+			for(int j=0; j<seq_str.length(); j++) {
+				c = seq_str.charAt(j);
+				if(c=='N'||c=='n')
+					// blast record is 1-based closed coordination
+					range_set.add(Range.closed(j+1, j+1).
+							canonical(DiscreteDomain.integers()));
+			}
+			sub_gaps.put(seq_sn, ImmutableRangeSet.copyOf(range_set));
+		}
+		
 		// read alignment file and place the query sequences
 		
 		try {
@@ -548,6 +569,8 @@ public class Anchor extends Executor implements Serializable {
 	}
 	
 	private final int niche = 10;
+	private final int minCov = 100;
+	private final double minCovR = 0.3;
 	
 	private void pileup(final String subSeq) {
 		// TODO Auto-generated method stub
@@ -555,6 +578,7 @@ public class Anchor extends Executor implements Serializable {
 		
 		// final String subSeq = "Chr07";
 		final int subSeqIndex = dict.getSequenceIndex(subSeq);
+		final ImmutableRangeSet<Integer> subGap = sub_gaps.get(subSeq);
 		
 		final List<Traceable> segBySubAll = new ArrayList<>();
 		final List<SAMSegment> segs  = new ArrayList<SAMSegment>();
@@ -631,7 +655,8 @@ public class Anchor extends Executor implements Serializable {
 		String source_segid, target_segid;
 		final Deque<Integer> deque = new ArrayDeque<Integer>();
 		final List<DirectedWeightedPseudograph<Integer, DefaultWeightedEdge>> subgraphs = new ArrayList<>();
-		
+		final List<List<Integer>> paths = new ArrayList<>();
+
 		for(int i=0; i<nSeg; i++) {
 
 			if(i%100000==0) myLogger.info("#SAM segments processed "+i+(ddebug?", #subgraph "+subgraphs.size():""));
@@ -727,25 +752,31 @@ public class Anchor extends Executor implements Serializable {
 			
 			if(ddebug) subgraphs.add(subgraph);
 			
-			if(subgraph.vertexSet().size()>1) {
-				final RangeSet<Integer> subCov = TreeRangeSet.create();
-				int sub_start = Integer.MAX_VALUE, sub_end = 0;
-				for(final int v : subgraph.vertexSet()) {
-					source_seg = segBySubAll.get(v);
-					sub_start = Math.min(sub_start, source_seg.sstart());
-					sub_end   = Math.max(sub_end  , source_seg.send());
-					subCov.addAll(source_seg.getSubCov());
-				}
-
-				int cov = 0;
-				for(Range<Integer> r : subCov.asRanges())
-					cov += r.upperEndpoint()-r.lowerEndpoint()+1;
-				int span = sub_end-sub_start+1;
-				double covr = (double) cov/span;
-				myLogger.info("#cov\t"+subSeq+"\t"+sub_start+"\t"+sub_end+"\t"+
-						subgraph.vertexSet().size()+"\t"+span+"\t"+cov+"\t"+covr);
-
+			final RangeSet<Integer> graph_subCov = TreeRangeSet.create();
+			int graph_subStart = Integer.MAX_VALUE, graph_subEnd = 0;
+			for(final int v : subgraph.vertexSet()) {
+				source_seg = segBySubAll.get(v);
+				graph_subStart = Math.min(graph_subStart, source_seg.sstart());
+				graph_subEnd   = Math.max(graph_subEnd  , source_seg.send());
+				graph_subCov.addAll(source_seg.getSubCov());
 			}
+
+			int graph_cov = 0;
+			for(Range<Integer> r : graph_subCov.asRanges()) graph_cov += r.upperEndpoint()-r.lowerEndpoint();
+			int graph_span = graph_subEnd-graph_subStart+1;
+			final RangeSet<Integer> graph_subSpan = TreeRangeSet.create();
+			graph_subSpan.add(Range.closed(graph_subStart, graph_subEnd).canonical(DiscreteDomain.integers()));
+			final RangeSet<Integer> gaps = subGap.intersection(ImmutableRangeSet.copyOf(graph_subSpan));
+			int graph_gapLn = 0;
+			for(final Range<Integer> gap : gaps.asRanges()) graph_gapLn += gap.upperEndpoint()-gap.lowerEndpoint(); 
+			graph_span -= graph_gapLn;
+			double graph_covr = (double) graph_cov/graph_span;
+			myLogger.info("#cov\t"+subSeq+"\t"+graph_subStart+"\t"+graph_subEnd+"\t"+
+					subgraph.vertexSet().size()+"\t"+graph_span+"\t"+graph_cov+"\t"+graph_covr);
+			
+			// now we find a path from the subgraph to cover sub sequence as much as possible (without reusing nodes)
+			
+			
 			/***
 			for(final int vertex : subgraph.vertexSet()) {
 				for(final int v : subgraph.vertexSet())
