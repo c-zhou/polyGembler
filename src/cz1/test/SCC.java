@@ -10,6 +10,7 @@ import org.jgrapht.alg.KosarajuStrongConnectivityInspector;
 import org.jgrapht.alg.interfaces.StrongConnectivityAlgorithm;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.DirectedWeightedPseudograph;
+import org.jgrapht.traverse.TopologicalOrderIterator;
 
 public class SCC {
 
@@ -26,22 +27,37 @@ public class SCC {
 		graph.addVertex("H");
 		graph.addVertex("I");
 		
-		graph.addEdge("A", "H");
-		graph.addEdge("C", "I");
 		graph.addEdge("A", "B");
+		graph.addEdge("A", "C");
 		graph.addEdge("B", "C");
-		graph.addEdge("C", "E");
-		graph.addEdge("E", "F");
-		graph.addEdge("F", "G");
-		graph.addEdge("G", "A");
-		graph.addEdge("A", "D");
+		graph.addEdge("B", "D");
+		graph.addEdge("C", "D");
+		graph.addEdge("C", "G");
 		graph.addEdge("D", "E");
-
+		graph.addEdge("F", "G");
+		graph.addEdge("G", "D");
+		graph.addEdge("G", "H");
+		graph.addEdge("I", "E");
+		graph.addEdge("I", "H");
+		
+		
+		
 		final StrongConnectivityAlgorithm<String, DefaultWeightedEdge> sscDetector = new KosarajuStrongConnectivityInspector<>(graph);
 		List<Graph<String, DefaultWeightedEdge>> sccs = sscDetector.getStronglyConnectedComponents();
 		for(final Graph<String, DefaultWeightedEdge> scc : sccs) {
 			System.out.println(scc.vertexSet().size());
 		}
+		
+		final TopologicalOrderIterator<String, DefaultWeightedEdge> topoIter = new TopologicalOrderIterator<>(graph);
+		try {
+			while(topoIter.hasNext()) {
+				System.out.println(topoIter.next());
+			}
+		} catch (IllegalArgumentException e) {
+			System.out.println("Graph is not a DAG");
+		}
+
+		System.out.println("DONE.");
 	}
 
 }

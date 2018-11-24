@@ -33,6 +33,7 @@ import org.jgrapht.graph.AsSubgraph;
 import org.jgrapht.graph.DefaultListenableGraph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.DirectedWeightedPseudograph;
+import org.jgrapht.traverse.TopologicalOrderIterator;
 
 import com.google.common.collect.DiscreteDomain;
 import com.google.common.collect.ImmutableRangeSet;
@@ -656,7 +657,8 @@ public class Anchor extends Executor implements Serializable {
 		final Deque<Integer> deque = new ArrayDeque<Integer>();
 		final List<DirectedWeightedPseudograph<Integer, DefaultWeightedEdge>> subgraphs = new ArrayList<>();
 		final List<List<Integer>> paths = new ArrayList<>();
-
+		int nonDAG = 0;
+		
 		for(int i=0; i<nSeg; i++) {
 
 			if(i%100000==0) myLogger.info("#SAM segments processed "+i+(ddebug?", #subgraph "+subgraphs.size():""));
@@ -775,7 +777,84 @@ public class Anchor extends Executor implements Serializable {
 					subgraph.vertexSet().size()+"\t"+graph_span+"\t"+graph_cov+"\t"+graph_covr);
 			
 			// now we find a path from the subgraph to cover sub sequence as much as possible (without reusing nodes)
+			final TopologicalOrderIterator<Integer, DefaultWeightedEdge> topoIter = new TopologicalOrderIterator<>(subgraph);
+			int nV = subgraph.vertexSet().size();
+			final int[] topoSortedVtx = new int[nV];
+			try {
+				int w = 0;
+				while(topoIter.hasNext()) 
+					topoSortedVtx[w++] = topoIter.next();
+			} catch (IllegalArgumentException e) {
+				myLogger.info("Graph is not a DAG");
+				++nonDAG;
+				continue;
+			}
 			
+			// we get topological sorted segments for the subgraph
+			// now we find the path with the maxCov for the sub sequence
+			// the path will start from a non-incoming
+			double max_score = Double.NEGATIVE_INFINITY;
+			List<Integer> path = null;
+			final Set<Integer> outs = new HashSet<>();
+			final Set<Integer> ins  = new HashSet<>();
+			for(final int v : subgraph.vertexSet()) {
+				if(!subgraph.incomingEdgesOf(v).isEmpty()) outs.add(v);
+				if(!subgraph.outgoingEdgesOf(v).isEmpty()) ins.add(v);
+			}
+			
+			for(final int out : outs) {
+				for(int j : topoSortedVtx) segBySubAll.get(j).reset();
+				// process source seg / vertex v
+				// the corresponding topoSortedSeg is also processed
+				source_seg = segBySubAll.get(out);
+				source_seg.addCov(ImmutableRangeSet.copyOf(source_seg.getSubCov()));
+				source_seg.addScore(source_seg.getSubLen());
+				final List<Integer> trace = new ArrayList<>();
+				trace.add(out);
+				source_seg.addTrace(trace);
+				// now iterate through vertex in linearized topo order
+				for(int j=0; j<nV; j++) {
+					target_segix = topoSortedVtx[j];
+					target_seg   = segBySubAll.get(target_segix);
+					for(final DefaultWeightedEdge edge : subgraph.incomingEdgesOf(target_segix)) {
+						source_segix = subgraph.getEdgeSource(edge);
+						source_seg   = segBySubAll.get(source_segix);
+						final List<List<Integer>> source_traces= source_seg.getTrace();
+						if(source_traces.isEmpty()) continue;
+						final List<ImmutableRangeSet<Integer>> source_covs = source_seg.getCov();
+						final int n = source_traces.size();
+						for(int k=0; k<n; k++) {
+							final List<Integer> souce_trace = source_traces.get(k);
+							final ImmutableRangeSet<Integer> target_cov = source_covs.get(k).
+									union(target_seg.getSubCov());
+							final List<Integer> target_trace = new ArrayList<>();
+							target_trace.addAll(souce_trace);
+							target_trace.add(target_segix);
+							final double target_score = score(target_cov);
+							
+							target_seg.addCov(target_cov);
+							target_seg.addTrace(target_trace);
+							target_seg.addScore(target_score);
+						}
+					}
+				}
+				
+				for(final int in : ins) {
+					target_seg = segBySubAll.get(in);
+					final List<List<Integer>> traces = target_seg.getTrace();
+					final List<Double> scores = target_seg.getScore();
+					final int n = scores.size();
+					for(int k=0; k<n; k++) {
+						if(scores.get(k)>max_score) {
+							max_score = scores.get(k);
+							path = traces.get(k);
+						}
+					}
+				}
+			}
+			
+			if(path==null) throw new RuntimeException("!!!");
+			paths.add(path);
 			
 			/***
 			for(final int vertex : subgraph.vertexSet()) {
@@ -793,6 +872,8 @@ public class Anchor extends Executor implements Serializable {
 			}
 			***/
 		}
+		
+		myLogger.info("#None DAG "+nonDAG);
 		
 		if(ddebug) {
 			int numV = 0, numE = 0, maxV = -1, minV = Integer.MAX_VALUE;
@@ -830,6 +911,14 @@ public class Anchor extends Executor implements Serializable {
 		myLogger.info("#elpased time 0 "+(elapsed[1]-elapsed[0])/1e9+"s");
 		myLogger.info("#elpased time 1 "+(elapsed[2]-elapsed[1])/1e9+"s");
 		myLogger.info("#elpased time 2 "+(elapsed[3]-elapsed[2])/1e9+"s");
+	}
+
+	private double score(RangeSet<Integer> range) {
+		// TODO Auto-generated method stub
+		double ln = 0;
+		for(Range<Integer> r : range.asRanges())
+			ln += r.upperEndpoint()-r.lowerEndpoint();
+		return ln;
 	}
 
 	private int extension(RangeSet<Integer> cov, Range<Integer> range) {
@@ -2420,9 +2509,10 @@ public class Anchor extends Executor implements Serializable {
 	}
 	
 	private final class Traceable extends CompoundAlignmentSegment {
-		private Traceable prev, next;
-		private double score;
-
+		private List<ImmutableRangeSet<Integer>> cov = new ArrayList<>();
+		private List<Double> score = new ArrayList<>();
+		private List<List<Integer>> trace = new ArrayList<>();
+		
 		public Traceable(final String qseqid,   // query (e.g., gene) sequence id
 				final String sseqid,   // subject (e.g., reference genome) sequence id
 				final int qstart,      // start of alignment in query
@@ -2439,33 +2529,33 @@ public class Anchor extends Executor implements Serializable {
 
 		public void reset() {
 			// TODO Auto-generated method stub
-			this.prev = null;
-			this.next = null;
-			this.score = send-sstart+1;
+			this.cov.clear();
+			this.score.clear();
+			this.trace.clear();
+		}
+		
+		public void addTrace(final List<Integer> trace) {
+			this.trace.add(trace);
+		}
+		
+		public void addScore(final double score) {
+			this.score.add(score);
+		}
+		
+		public void addCov(final ImmutableRangeSet<Integer> cov) {
+			this.cov.add(cov);
 		}
 
-		public void setPrev(final Traceable prev) {
-			this.prev = prev;
-		}
-
-		public void setNext(final Traceable next) {
-			this.next = next;
-		}
-
-		public void setScore(final double score) {
-			this.score = score;
-		}
-
-		public Traceable getPrev() {
-			return this.prev;
-		}
-
-		public Traceable getNext() {
-			return this.next;
-		}
-
-		public double getScore() {
+		public List<Double> getScore() {
 			return this.score;
+		}
+		
+		public List<ImmutableRangeSet<Integer>> getCov() {
+			return this.cov;
+		}
+		
+		public List<List<Integer>> getTrace() {
+			return this.trace;
 		}
 	}
 }
