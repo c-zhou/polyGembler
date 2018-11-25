@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
@@ -668,6 +669,42 @@ public class Anchor extends Executor implements Serializable {
 			
 			for(int i=0; i<nSeg; i++) {
 
+				
+				
+				
+				
+				DirectedWeightedPseudograph<Integer, DefaultWeightedEdge> subgraph = 
+						new DirectedWeightedPseudograph<>(DefaultWeightedEdge.class);
+				try {
+					BufferedReader br = new BufferedReader(new FileReader("kkk"));
+					String line;
+					String[] s;
+					int source, target;
+					while( (line=br.readLine())!=null ) {
+						s = line.split("\\s+");
+						source = Integer.parseInt(s[0]);
+						target = Integer.parseInt(s[1]);
+
+						if(!subgraph.containsVertex(source))
+							subgraph.addVertex(source);
+						if(!subgraph.containsVertex(target))
+							subgraph.addVertex(target);
+						subgraph.addEdge(source, target);
+					}
+
+					br.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+
+				
+				
+				
+				
+				
+				
+				/***
+				
 				if(segBySubAll.get(i).sstart()<5700000) continue;
 				
 				if(i%100000==0) myLogger.info("#SAM segments processed "+i+(ddebug?", #subgraph "+subgraphs.size():""));
@@ -761,6 +798,9 @@ public class Anchor extends Executor implements Serializable {
 					processed.add(source_segix);
 				}
 
+	***/
+
+
 				if(subgraph.vertexSet().size()==1) continue;
 
 				if(subgraph.vertexSet().size()<80000) continue;
@@ -794,48 +834,62 @@ public class Anchor extends Executor implements Serializable {
 						subgraph.vertexSet().size()+"\t"+graph_span+"\t"+graph_cov+"\t"+graph_covr);
 
 				CycleDetector<Integer, DefaultWeightedEdge> cycleDetector = new CycleDetector<>(subgraph);
+				
 				if(cycleDetector.detectCycles()) {
 					myLogger.info("Graph is not a DAG");
 					++nonDAG;
 					
-					for(DefaultWeightedEdge edge : subgraph.edgeSet()) 
-						System.out.println(subgraph.getEdgeSource(edge)+"\t"+subgraph.getEdgeTarget(edge));
-					
-					long e_start = System.nanoTime();
-					HawickJamesSimpleCycles<Integer, DefaultWeightedEdge> hawickJames = new HawickJamesSimpleCycles<>(subgraph);
-					long nC = hawickJames.countSimpleCycles();
-					myLogger.info("#Cycles "+nC+", elapsed time "+(System.nanoTime()-e_start)/1e9+"s");
-					System.exit(1);
-					
 					DirectedWeightedPseudograph<Integer, DefaultWeightedEdge> max_subgraph = 
 							new DirectedWeightedPseudograph<>(DefaultWeightedEdge.class);
+					
 					int max_level = -1;
 					
-					for(int out : subgraph.vertexSet()) {
+					List<Integer> outsV = new ArrayList<>();
+					for(int v : subgraph.vertexSet()) 
+						if(subgraph.incomingEdgesOf(v).isEmpty())
+							outsV.add(v);
+					Collections.shuffle(outsV);
+					int w;
+					int zV = (int) Math.min(outsV.size(), Math.pow(10, 6-Math.ceil(Math.log10(subgraph.vertexSet().size()))));
+					
+					for(int z = 0; z<zV; z++) {
+						
+						int out = outsV.get(z);
 						Map<Integer, Integer> hierarch = new HashMap<>();
 
+						Set<Integer> upper_layer = new HashSet<>(), lower_layer = new HashSet<>();
 						int level = 0;
 						hierarch.put(out, level);
-						Set<Integer> upper_layer = new HashSet<>(), lower_layer = new HashSet<>();
 						upper_layer.add(out);
 
 						DirectedWeightedPseudograph<Integer, DefaultWeightedEdge> subgraph2 = 
 								new DirectedWeightedPseudograph<>(DefaultWeightedEdge.class);
-
+						
 						while(true) {
 							lower_layer.clear();
 							++level;
 							for(int v : upper_layer) {
+								if(!subgraph2.containsVertex(v))
+									subgraph2.addVertex(v);
 								for(DefaultWeightedEdge edge : subgraph.outgoingEdgesOf(v)) {
-									target_segix = subgraph.getEdgeTarget(edge);
-									if(!hierarch.containsKey(target_segix)) { 
-										
-										lower_layer.add(target_segix);
+									w = subgraph.getEdgeTarget(edge);
+									if(w==v) continue;
+									if(!hierarch.containsKey(w)) { 
+										lower_layer.add(w);
+										if(!subgraph2.containsVertex(w))
+											subgraph2.addVertex(w);
+										subgraph2.addEdge(v, w);
 									}
 								}
 							}
-							for(int z : lower_layer) 
-								hierarch.put(z, level);
+							for(int v : lower_layer) {
+								hierarch.put(v, level);
+								for(DefaultWeightedEdge edge : subgraph.outgoingEdgesOf(v)) { 
+									w = subgraph.getEdgeTarget(edge);
+									if(lower_layer.contains(w))
+										subgraph2.addEdge(v, w);
+								}
+							}
 							upper_layer.clear();
 							upper_layer.addAll(lower_layer);
 							if(upper_layer.isEmpty()) break;
@@ -846,8 +900,9 @@ public class Anchor extends Executor implements Serializable {
 							max_subgraph = subgraph2;
 						}
 					}
+					
 					subgraph = max_subgraph;
-
+					
 					myLogger.info("Graph reconstructed. "+"Elapsed time "+
 							(System.nanoTime()-elapsed_start)/1e9+"s, "+ "#L "+max_level+", #V "+subgraph.vertexSet().size()+", #E "+subgraph.edgeSet().size());
 				}
@@ -883,9 +938,12 @@ public class Anchor extends Executor implements Serializable {
 				List<List<Integer>> source_traces;
 				List<ImmutableRangeSet<Integer>> source_covs;
 				List<Integer> souce_trace, target_trace;
+				Set<Integer> visited = new HashSet<>();
+				boolean allNeighborsVisited;
 				ImmutableRangeSet<Integer> target_cov;
 				double target_score;
 
+				myLogger.info("#outs "+outs.size());
 				for(int out : outs) {
 					for(int j : topoSortedVtx) segBySubAll.get(j).reset();
 					// process source seg / vertex v
@@ -896,8 +954,13 @@ public class Anchor extends Executor implements Serializable {
 					trace = new ArrayList<>();
 					trace.add(out);
 					source_seg.addTrace(trace);
+					
+					visited.clear();
+					visited.add(out);
+					
 					// now iterate through vertex in linearized topo order
 					for(int j=0; j<nV; j++) {
+						if(j%100000==0) myLogger.info("#V processed "+j);
 						target_segix = topoSortedVtx[j];
 						target_seg   = segBySubAll.get(target_segix);
 						for(DefaultWeightedEdge edge : subgraph.incomingEdgesOf(target_segix)) {
@@ -916,7 +979,17 @@ public class Anchor extends Executor implements Serializable {
 								target_score = score(target_cov);
 								target_seg.add(target_score, target_trace, target_cov);
 							}
+							
+							allNeighborsVisited = true;
+							for(DefaultWeightedEdge edge2 : subgraph.outgoingEdgesOf(source_segix)) {
+								if(!visited.contains(subgraph.getEdgeTarget(edge2))) { 
+									allNeighborsVisited = false;
+									break;
+								}
+							}
+							if(allNeighborsVisited) segBySubAll.get(source_segix).reset();
 						}
+						visited.add(target_segix);
 					}
 
 					for(int in : ins) {
