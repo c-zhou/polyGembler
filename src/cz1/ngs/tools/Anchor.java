@@ -563,10 +563,10 @@ public class Anchor extends Executor implements Serializable {
 		myLogger.info("####total length "+sL);
 		***/
 	
-		for(final String subSeq : sub_seqs.keySet())
-			if(!"Chr00".equals(subSeq))
-				this.pileup(subSeq);
-		// this.pileup("Chr07");
+		//for(final String subSeq : sub_seqs.keySet())
+		//	if(!"Chr00".equals(subSeq))
+		//		this.pileup(subSeq);
+		this.pileup("Chr06");
 	}
 	
 	private final int niche = 10;
@@ -622,14 +622,14 @@ public class Anchor extends Executor implements Serializable {
 				int sstart = subSpan.lowerEndpoint();
 				int send   = subSpan.upperEndpoint();
 				int ls = 0;
-				for(final Range<Integer> r : subCov.asRanges())
+				for(Range<Integer> r : subCov.asRanges())
 					ls += r.upperEndpoint()-r.lowerEndpoint();
 
 				Range<Integer> qrySpan = qryCov.span();
 				int qstart = qrySpan.lowerEndpoint();
 				int qend   = qrySpan.upperEndpoint();
 				int lq = 0;
-				for(final Range<Integer> r : qryCov.asRanges())
+				for(Range<Integer> r : qryCov.asRanges())
 					lq += r.upperEndpoint()-r.lowerEndpoint();
 				int slen = ls;
 				int qlen = lq;
@@ -661,7 +661,9 @@ public class Anchor extends Executor implements Serializable {
 		
 		for(int i=0; i<nSeg; i++) {
 
-			if(i%100000==0) myLogger.info("#SAM segments processed "+i+(ddebug?", #subgraph "+subgraphs.size():""));
+            if(segBySubAll.get(i).sstart()<5700000) continue;
+			
+            if(i%100000==0) myLogger.info("#SAM segments processed "+i+(ddebug?", #subgraph "+subgraphs.size():""));
 			
 			if(processed.contains(i)) continue;
 			
@@ -670,7 +672,7 @@ public class Anchor extends Executor implements Serializable {
 			contained.clear();
 			contained.add(i);
 			
-			final DirectedWeightedPseudograph<Integer, DefaultWeightedEdge> subgraph = 
+			DirectedWeightedPseudograph<Integer, DefaultWeightedEdge> subgraph = 
 					new DirectedWeightedPseudograph<>(DefaultWeightedEdge.class);
 
 			while(!deque.isEmpty()) {
@@ -752,11 +754,23 @@ public class Anchor extends Executor implements Serializable {
 				processed.add(source_segix);
 			}
 			
+			if(subgraph.vertexSet().size()==1) continue;
+            
+            if(subgraph.vertexSet().size()<100) continue;
+            
+            if(subgraph.vertexSet().size()<80000) continue;
+            else {
+                myLogger.info("#V "+subgraph.edgeSet().size()+", #E "+subgraph.edgeSet().size());
+                for(DefaultWeightedEdge edge : subgraph.edgeSet()) 
+                    System.out.println(subgraph.getEdgeSource(edge)+"\t"+subgraph.getEdgeTarget(edge));
+                System.exit(0);
+            }
+
 			if(ddebug) subgraphs.add(subgraph);
 			
-			final RangeSet<Integer> graph_subCov = TreeRangeSet.create();
+		    RangeSet<Integer> graph_subCov = TreeRangeSet.create();
 			int graph_subStart = Integer.MAX_VALUE, graph_subEnd = 0;
-			for(final int v : subgraph.vertexSet()) {
+			for(int v : subgraph.vertexSet()) {
 				source_seg = segBySubAll.get(v);
 				graph_subStart = Math.min(graph_subStart, source_seg.sstart());
 				graph_subEnd   = Math.max(graph_subEnd  , source_seg.send());
@@ -766,20 +780,21 @@ public class Anchor extends Executor implements Serializable {
 			int graph_cov = 0;
 			for(Range<Integer> r : graph_subCov.asRanges()) graph_cov += r.upperEndpoint()-r.lowerEndpoint();
 			int graph_span = graph_subEnd-graph_subStart+1;
-			final RangeSet<Integer> graph_subSpan = TreeRangeSet.create();
+			RangeSet<Integer> graph_subSpan = TreeRangeSet.create();
 			graph_subSpan.add(Range.closed(graph_subStart, graph_subEnd).canonical(DiscreteDomain.integers()));
-			final RangeSet<Integer> gaps = subGap.intersection(ImmutableRangeSet.copyOf(graph_subSpan));
+			RangeSet<Integer> gaps = subGap.intersection(ImmutableRangeSet.copyOf(graph_subSpan));
 			int graph_gapLn = 0;
-			for(final Range<Integer> gap : gaps.asRanges()) graph_gapLn += gap.upperEndpoint()-gap.lowerEndpoint(); 
+			for(Range<Integer> gap : gaps.asRanges()) graph_gapLn += gap.upperEndpoint()-gap.lowerEndpoint(); 
 			graph_span -= graph_gapLn;
 			double graph_covr = (double) graph_cov/graph_span;
 			myLogger.info("#cov\t"+subSeq+"\t"+graph_subStart+"\t"+graph_subEnd+"\t"+
 					subgraph.vertexSet().size()+"\t"+graph_span+"\t"+graph_cov+"\t"+graph_covr);
 			
 			// now we find a path from the subgraph to cover sub sequence as much as possible (without reusing nodes)
-			final TopologicalOrderIterator<Integer, DefaultWeightedEdge> topoIter = new TopologicalOrderIterator<>(subgraph);
+			TopologicalOrderIterator<Integer, DefaultWeightedEdge> topoIter = new TopologicalOrderIterator<>(subgraph);
 			int nV = subgraph.vertexSet().size();
-			final int[] topoSortedVtx = new int[nV];
+			
+            int[] topoSortedVtx = new int[nV];
 			try {
 				int w = 0;
 				while(topoIter.hasNext()) 
@@ -797,53 +812,62 @@ public class Anchor extends Executor implements Serializable {
 			List<Integer> path = null;
 			final Set<Integer> outs = new HashSet<>();
 			final Set<Integer> ins  = new HashSet<>();
-			for(final int v : subgraph.vertexSet()) {
-				if(!subgraph.incomingEdgesOf(v).isEmpty()) outs.add(v);
-				if(!subgraph.outgoingEdgesOf(v).isEmpty()) ins.add(v);
+			for(int v : subgraph.vertexSet()) {
+				if(subgraph.incomingEdgesOf(v).isEmpty()) outs.add(v);
+				if(subgraph.outgoingEdgesOf(v).isEmpty()) ins.add(v);
 			}
 			
-			for(final int out : outs) {
+			final int[] max_path_pers = new int[]{10, 20, 30, 50, 100, Integer.MAX_VALUE};
+			
+			for(int kk=0; kk<3; kk++) {
+				long elapsed_start = System.nanoTime();
+				this.max_path_per = max_path_pers[kk];
+				
+            List<Integer> trace;
+            List<List<Integer>> source_traces;
+            List<ImmutableRangeSet<Integer>> source_covs;
+            List<Integer> souce_trace, target_trace;
+            ImmutableRangeSet<Integer> target_cov;
+            double target_score;
+
+			for(int out : outs) {
 				for(int j : topoSortedVtx) segBySubAll.get(j).reset();
 				// process source seg / vertex v
 				// the corresponding topoSortedSeg is also processed
 				source_seg = segBySubAll.get(out);
 				source_seg.addCov(ImmutableRangeSet.copyOf(source_seg.getSubCov()));
 				source_seg.addScore(source_seg.getSubLen());
-				final List<Integer> trace = new ArrayList<>();
+				trace = new ArrayList<>();
 				trace.add(out);
 				source_seg.addTrace(trace);
 				// now iterate through vertex in linearized topo order
 				for(int j=0; j<nV; j++) {
 					target_segix = topoSortedVtx[j];
 					target_seg   = segBySubAll.get(target_segix);
-					for(final DefaultWeightedEdge edge : subgraph.incomingEdgesOf(target_segix)) {
-						source_segix = subgraph.getEdgeSource(edge);
-						source_seg   = segBySubAll.get(source_segix);
-						final List<List<Integer>> source_traces= source_seg.getTrace();
+					for(DefaultWeightedEdge edge : subgraph.incomingEdgesOf(target_segix)) {
+						source_segix  = subgraph.getEdgeSource(edge);
+						source_seg    = segBySubAll.get(source_segix);
+						source_traces = source_seg.getTrace();
 						if(source_traces.isEmpty()) continue;
-						final List<ImmutableRangeSet<Integer>> source_covs = source_seg.getCov();
-						final int n = source_traces.size();
+						source_covs = source_seg.getCov();
+						int n = source_traces.size();
 						for(int k=0; k<n; k++) {
-							final List<Integer> souce_trace = source_traces.get(k);
-							final ImmutableRangeSet<Integer> target_cov = source_covs.get(k).
-									union(target_seg.getSubCov());
-							final List<Integer> target_trace = new ArrayList<>();
+							souce_trace = source_traces.get(k);
+							target_cov  = source_covs.get(k).union(target_seg.getSubCov());
+							target_trace = new ArrayList<>();
 							target_trace.addAll(souce_trace);
 							target_trace.add(target_segix);
-							final double target_score = score(target_cov);
-							
-							target_seg.addCov(target_cov);
-							target_seg.addTrace(target_trace);
-							target_seg.addScore(target_score);
+							target_score = score(target_cov);
+							target_seg.add(target_score, target_trace, target_cov);
 						}
 					}
 				}
 				
-				for(final int in : ins) {
+				for(int in : ins) {
 					target_seg = segBySubAll.get(in);
-					final List<List<Integer>> traces = target_seg.getTrace();
-					final List<Double> scores = target_seg.getScore();
-					final int n = scores.size();
+					List<List<Integer>> traces = target_seg.getTrace();
+					List<Double> scores = target_seg.getScore();
+					int n = scores.size();
 					for(int k=0; k<n; k++) {
 						if(scores.get(k)>max_score) {
 							max_score = scores.get(k);
@@ -855,6 +879,9 @@ public class Anchor extends Executor implements Serializable {
 			
 			if(path==null) throw new RuntimeException("!!!");
 			paths.add(path);
+			myLogger.info("#max "+max_path_pers[kk]+" "+(System.nanoTime()-elapsed_start)/1e9+"s "+max_score);
+			
+			}
 			
 			/***
 			for(final int vertex : subgraph.vertexSet()) {
@@ -2508,6 +2535,8 @@ public class Anchor extends Executor implements Serializable {
 		this.waitFor();
 	}
 	
+	private int max_path_per = 10;
+	
 	private final class Traceable extends CompoundAlignmentSegment {
 		private List<ImmutableRangeSet<Integer>> cov = new ArrayList<>();
 		private List<Double> score = new ArrayList<>();
@@ -2532,6 +2561,30 @@ public class Anchor extends Executor implements Serializable {
 			this.cov.clear();
 			this.score.clear();
 			this.trace.clear();
+		}
+		
+		public void add(final double score, 
+				final List<Integer> trace, 
+				final ImmutableRangeSet<Integer> cov) {
+			if(this.score.size()<max_path_per) {
+				this.trace.add(trace);
+				this.score.add(score);
+				this.cov.add(cov);
+			} else {
+				double min_score = Double.MAX_VALUE;
+				int min_i = -1;
+				for(int i=0; i<this.score.size(); i++) {
+					if(this.score.get(i)<min_score) {
+						min_i = i;
+						min_score = this.score.get(i);
+					}
+				}
+				if(score>min_score) {
+					this.score.set(min_i, score);
+					this.cov.set(min_i, cov);
+					this.trace.set(min_i, trace);
+				}
+			}
 		}
 		
 		public void addTrace(final List<Integer> trace) {
