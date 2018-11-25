@@ -572,6 +572,7 @@ public class Anchor extends Executor implements Serializable {
 	private final int niche = 10;
 	private final int minCov = 100;
 	private final double minCovR = 0.3;
+	private final int max_path_cyc = 100;
 	
 	private void pileup(final String subSeq) {
 		// TODO Auto-generated method stub
@@ -759,14 +760,10 @@ public class Anchor extends Executor implements Serializable {
             if(subgraph.vertexSet().size()<100) continue;
             
             if(subgraph.vertexSet().size()<80000) continue;
-            else {
-                myLogger.info("#V "+subgraph.edgeSet().size()+", #E "+subgraph.edgeSet().size());
-                for(DefaultWeightedEdge edge : subgraph.edgeSet()) 
-                    System.out.println(subgraph.getEdgeSource(edge)+"\t"+subgraph.getEdgeTarget(edge));
-                System.exit(0);
-            }
-
+           
 			if(ddebug) subgraphs.add(subgraph);
+			
+			long elapsed_start = System.nanoTime();
 			
 		    RangeSet<Integer> graph_subCov = TreeRangeSet.create();
 			int graph_subStart = Integer.MAX_VALUE, graph_subEnd = 0;
@@ -793,18 +790,60 @@ public class Anchor extends Executor implements Serializable {
 			// now we find a path from the subgraph to cover sub sequence as much as possible (without reusing nodes)
 			TopologicalOrderIterator<Integer, DefaultWeightedEdge> topoIter = new TopologicalOrderIterator<>(subgraph);
 			int nV = subgraph.vertexSet().size();
+			int[] topoSortedVtx = new int[nV];
 			
-            int[] topoSortedVtx = new int[nV];
 			try {
 				int w = 0;
 				while(topoIter.hasNext()) 
 					topoSortedVtx[w++] = topoIter.next();
+				
 			} catch (IllegalArgumentException e) {
 				myLogger.info("Graph is not a DAG");
 				++nonDAG;
-				continue;
+				int out = Integer.MAX_VALUE;
+				for(int v : subgraph.vertexSet()) out = Math.min(v, out);
+				
+				Map<Integer, Integer> hierarch = new HashMap<>();
+				
+				int level = 0;
+				hierarch.put(out, level);
+				Set<Integer> upper_layer = new HashSet<>(), lower_layer = new HashSet<>();
+				upper_layer.add(out);
+				
+				while(true) {
+					lower_layer.clear();
+					++level;
+					for(int v : upper_layer) {
+						for(DefaultWeightedEdge edge : subgraph.outgoingEdgesOf(v)) {
+							target_segix = subgraph.getEdgeTarget(edge);
+							if(!hierarch.containsKey(target_segix)) 
+								lower_layer.add(target_segix);
+						}
+					}
+					for(int z : lower_layer) 
+						hierarch.put(z, level);
+					upper_layer.clear();
+					upper_layer.addAll(lower_layer);
+					if(upper_layer.isEmpty()) break;
+				}
+				
+				DirectedWeightedPseudograph<Integer, DefaultWeightedEdge> subgraph2 = 
+						new DirectedWeightedPseudograph<>(DefaultWeightedEdge.class);
+				
+				for(int v : hierarch.keySet()) subgraph2.addVertex(v);
+				for(DefaultWeightedEdge edge : subgraph.edgeSet()) {
+					source_segix = subgraph.getEdgeSource(edge);
+					target_segix = subgraph.getEdgeTarget(edge);
+					if(hierarch.get(source_segix)<=hierarch.get(target_segix))
+						subgraph2.addEdge(source_segix, target_segix);
+				}
+				
+				subgraph = subgraph2;
+				
+				myLogger.info("Graph reconstructed. "+"Elapsed time "+
+						(System.nanoTime()-elapsed_start)/1e9+"s, #V "+subgraph.vertexSet().size()+", #E "+subgraph.edgeSet().size());
 			}
-			
+
 			// we get topological sorted segments for the subgraph
 			// now we find the path with the maxCov for the sub sequence
 			// the path will start from a non-incoming
@@ -816,19 +855,13 @@ public class Anchor extends Executor implements Serializable {
 				if(subgraph.incomingEdgesOf(v).isEmpty()) outs.add(v);
 				if(subgraph.outgoingEdgesOf(v).isEmpty()) ins.add(v);
 			}
-			
-			final int[] max_path_pers = new int[]{10, 20, 30, 50, 100, Integer.MAX_VALUE};
-			
-			for(int kk=0; kk<3; kk++) {
-				long elapsed_start = System.nanoTime();
-				this.max_path_per = max_path_pers[kk];
-				
-            List<Integer> trace;
-            List<List<Integer>> source_traces;
-            List<ImmutableRangeSet<Integer>> source_covs;
-            List<Integer> souce_trace, target_trace;
-            ImmutableRangeSet<Integer> target_cov;
-            double target_score;
+
+			List<Integer> trace;
+			List<List<Integer>> source_traces;
+			List<ImmutableRangeSet<Integer>> source_covs;
+			List<Integer> souce_trace, target_trace;
+			ImmutableRangeSet<Integer> target_cov;
+			double target_score;
 
 			for(int out : outs) {
 				for(int j : topoSortedVtx) segBySubAll.get(j).reset();
@@ -862,7 +895,7 @@ public class Anchor extends Executor implements Serializable {
 						}
 					}
 				}
-				
+
 				for(int in : ins) {
 					target_seg = segBySubAll.get(in);
 					List<List<Integer>> traces = target_seg.getTrace();
@@ -876,12 +909,10 @@ public class Anchor extends Executor implements Serializable {
 					}
 				}
 			}
-			
+
 			if(path==null) throw new RuntimeException("!!!");
 			paths.add(path);
-			myLogger.info("#max "+max_path_pers[kk]+" "+(System.nanoTime()-elapsed_start)/1e9+"s "+max_score);
-			
-			}
+			myLogger.info("Elapsed time "+(System.nanoTime()-elapsed_start)/1e9+", #max score "+max_score);
 			
 			/***
 			for(final int vertex : subgraph.vertexSet()) {
@@ -898,6 +929,7 @@ public class Anchor extends Executor implements Serializable {
 				}
 			}
 			***/
+			System.exit(0);
 		}
 		
 		myLogger.info("#None DAG "+nonDAG);
@@ -2535,7 +2567,7 @@ public class Anchor extends Executor implements Serializable {
 		this.waitFor();
 	}
 	
-	private int max_path_per = 10;
+	private final int max_path_per = 10;
 	
 	private final class Traceable extends CompoundAlignmentSegment {
 		private List<ImmutableRangeSet<Integer>> cov = new ArrayList<>();
