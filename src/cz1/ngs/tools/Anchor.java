@@ -882,14 +882,9 @@ public class Anchor extends Executor implements Serializable {
 									}
 								}
 							}
-							for(int v : lower_layer) {
+							for(int v : lower_layer) 
 								hierarch.put(v, level);
-								for(DefaultWeightedEdge edge : subgraph.outgoingEdgesOf(v)) { 
-									w = subgraph.getEdgeTarget(edge);
-									if(lower_layer.contains(w))
-										subgraph2.addEdge(v, w);
-								}
-							}
+							
 							upper_layer.clear();
 							upper_layer.addAll(lower_layer);
 							if(upper_layer.isEmpty()) break;
