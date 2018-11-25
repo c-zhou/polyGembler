@@ -844,6 +844,8 @@ public class Anchor extends Executor implements Serializable {
 						target_segix = subgraph.getEdgeTarget(edge);
 						bw2.write(source_segix+"\t"+target_segix+"\n");
 					}
+					
+					continue;
 					/***
 					List<Integer> outsV = new ArrayList<>();
 					for(int v : subgraph.vertexSet()) 
