@@ -80,6 +80,7 @@ public class Anchor extends Executor implements Serializable {
 				"\n\nUsage is as follows:\n"
 						+ " -s/--subject            Subject/reference sequences file in FASTA format.\n"
 						+ " -q/--query              Query sequences to anchor in FASTA format.\n"
+						+ " -c/--chromosome         Subject/reference chromosome.\n"
 						+ " -a/--align              Alignment file of query sequences to the subject sequences. \n"
 						+ "                         IMPORTANT: The alignment file need to be grouped by the query sequences,\n"
 						+ "                         i.e., the program assume all the alignment records for a query sequence \n"
@@ -123,6 +124,7 @@ public class Anchor extends Executor implements Serializable {
 	private double collinear_shift = 1.0; // maximum shift distance for two collinear alignment segments - 50% of the smaller segment size
 	private int kmer_size = -1;           // kmer size to construct the de bruijn assembly graph
 	private int minQual = 1;
+	private String subChr = null;
 
 	private int num_threads = Runtime.getRuntime().availableProcessors();
 	private String out_prefix = null;
@@ -141,6 +143,7 @@ public class Anchor extends Executor implements Serializable {
 			myArgsEngine.add("-s", "--subject", true);
 			myArgsEngine.add("-q", "--query", true);
 			myArgsEngine.add("-a", "--align", true);
+			myArgsEngine.add("-c", "--chromosome", true);
 			myArgsEngine.add("-g","--graph", true);
 			myArgsEngine.add("-1", null, true);
 			myArgsEngine.add("-2", null, true);
@@ -181,6 +184,13 @@ public class Anchor extends Executor implements Serializable {
 
 		if (myArgsEngine.getBoolean("-g")) {
 			this.asm_graph = myArgsEngine.getString("-g");
+		}
+		
+		if (myArgsEngine.getBoolean("-c")) {
+			this.subChr = myArgsEngine.getString("-c");
+		} else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify the subject chromosome.");
 		}
 
 		if (!(myArgsEngine.getBoolean("-1")&&myArgsEngine.getBoolean("-2"))&&!myArgsEngine.getBoolean("-12")) {
@@ -569,13 +579,14 @@ public class Anchor extends Executor implements Serializable {
 		//for(final String subSeq : sub_seqs.keySet())
 		//	if(!"Chr00".equals(subSeq))
 		//		this.pileup(subSeq);
-		this.pileup("Chr06");
+		// this.pileup("Chr06");
+		this.pileup(this.subChr);
 	}
 
 	private final int niche = 10;
 	private final int minCov = 100;
 	private final double minCovR = 0.3;
-	private final int max_path_cyc = 100;
+	private final int max_path_cyc = 1000;
 
 	private void pileup(final String subSeq) {
 		// TODO Auto-generated method stub
@@ -665,14 +676,12 @@ public class Anchor extends Executor implements Serializable {
 
 		try {
 			
-			BufferedWriter bw = Utils.getBufferedWriter(this.out_prefix+"_"+subSeq+".txt");
+			BufferedWriter bw1 = Utils.getBufferedWriter(this.out_prefix+"_"+subSeq+".txt");
+			BufferedWriter bw2 = Utils.getBufferedWriter(this.out_prefix+"_"+subSeq+".dag");
 			
 			for(int i=0; i<nSeg; i++) {
 
-				
-				
-				
-				
+				/***
 				DirectedWeightedPseudograph<Integer, DefaultWeightedEdge> subgraph = 
 						new DirectedWeightedPseudograph<>(DefaultWeightedEdge.class);
 				try {
@@ -696,16 +705,7 @@ public class Anchor extends Executor implements Serializable {
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
-
-				
-				
-				
-				
-				
-				
-				/***
-				
-				if(segBySubAll.get(i).sstart()<5700000) continue;
+				***/
 				
 				if(i%100000==0) myLogger.info("#SAM segments processed "+i+(ddebug?", #subgraph "+subgraphs.size():""));
 
@@ -798,12 +798,7 @@ public class Anchor extends Executor implements Serializable {
 					processed.add(source_segix);
 				}
 
-	***/
-
-
 				if(subgraph.vertexSet().size()==1) continue;
-
-				if(subgraph.vertexSet().size()<80000) continue;
 				
 				if(ddebug) subgraphs.add(subgraph);
 
@@ -835,174 +830,152 @@ public class Anchor extends Executor implements Serializable {
 
 				CycleDetector<Integer, DefaultWeightedEdge> cycleDetector = new CycleDetector<>(subgraph);
 				
+				double max_score = Double.NEGATIVE_INFINITY;
+				List<Integer> path = null;
+				
 				if(cycleDetector.detectCycles()) {
+					
 					myLogger.info("Graph is not a DAG");
 					++nonDAG;
-					
-					DirectedWeightedPseudograph<Integer, DefaultWeightedEdge> max_subgraph = 
-							new DirectedWeightedPseudograph<>(DefaultWeightedEdge.class);
-					
-					int max_level = -1;
-					
+
+					bw2.write("#DCG\n");
+					for(DefaultWeightedEdge edge : subgraph.edgeSet()) {
+						source_segix = subgraph.getEdgeSource(edge);
+						target_segix = subgraph.getEdgeTarget(edge);
+						bw2.write(source_segix+"\t"+target_segix+"\n");
+					}
+					/***
 					List<Integer> outsV = new ArrayList<>();
 					for(int v : subgraph.vertexSet()) 
 						if(subgraph.incomingEdgesOf(v).isEmpty())
 							outsV.add(v);
-					Collections.shuffle(outsV);
-					int w;
+					Collections.sort(outsV);
 					int zV = (int) Math.min(outsV.size(), Math.pow(10, 6-Math.ceil(Math.log10(subgraph.vertexSet().size()))));
 					
+					List<List<Integer>> max_paths  = new ArrayList<>(max_path_cyc);
+					List<Integer> max_scores = new ArrayList<>(max_path_cyc);
+					List<RangeSet<Integer>> max_subCovs = new ArrayList<>(max_path_cyc);
+					
 					for(int z = 0; z<zV; z++) {
-						
 						int out = outsV.get(z);
-						Map<Integer, Integer> hierarch = new HashMap<>();
-
-						Set<Integer> upper_layer = new HashSet<>(), lower_layer = new HashSet<>();
-						int level = 0;
-						hierarch.put(out, level);
-						upper_layer.add(out);
-
-						DirectedWeightedPseudograph<Integer, DefaultWeightedEdge> subgraph2 = 
-								new DirectedWeightedPseudograph<>(DefaultWeightedEdge.class);
+						List<Integer> max_path = new ArrayList<>();
+						max_path.add(z);
 						
-						while(true) {
-							lower_layer.clear();
-							++level;
-							for(int v : upper_layer) {
-								if(!subgraph2.containsVertex(v))
-									subgraph2.addVertex(v);
-								for(DefaultWeightedEdge edge : subgraph.outgoingEdgesOf(v)) {
-									w = subgraph.getEdgeTarget(edge);
-									if(w==v) continue;
-									if(!hierarch.containsKey(w)) { 
-										lower_layer.add(w);
-										if(!subgraph2.containsVertex(w))
-											subgraph2.addVertex(w);
-										subgraph2.addEdge(v, w);
+						
+						int score = 0;
+						
+						
+						
+						if(score>max_score) {
+							max_path = path;
+							max_score = score;
+						}
+					}
+					***/
+				} else {
+
+					// now we find a path from the subgraph to cover sub sequence as much as possible (without reusing nodes)
+					TopologicalOrderIterator<Integer, DefaultWeightedEdge> topoIter = new TopologicalOrderIterator<>(subgraph);
+					int nV = subgraph.vertexSet().size();
+					int[] topoSortedVtx = new int[nV];
+
+					try {
+						int w = 0;
+						while(topoIter.hasNext()) 
+							topoSortedVtx[w++] = topoIter.next();
+
+					} catch (IllegalArgumentException e) {
+						bw1.close();
+						bw2.close();
+						throw new RuntimeException("!!!");
+					}
+
+					// we get topological sorted segments for the subgraph
+					// now we find the path with the maxCov for the sub sequence
+					// the path will start from a non-incoming
+					final Set<Integer> outs = new HashSet<>();
+					final Set<Integer> ins  = new HashSet<>();
+					for(int v : subgraph.vertexSet()) {
+						if(subgraph.incomingEdgesOf(v).isEmpty()) outs.add(v);
+						if(subgraph.outgoingEdgesOf(v).isEmpty()) ins.add(v);
+					}
+
+					List<Integer> trace;
+					List<List<Integer>> source_traces;
+					List<ImmutableRangeSet<Integer>> source_covs;
+					List<Integer> souce_trace, target_trace;
+					Set<Integer> visited = new HashSet<>();
+					boolean allNeighborsVisited;
+					ImmutableRangeSet<Integer> target_cov;
+					double target_score;
+
+					myLogger.info("#outs "+outs.size());
+					for(int out : outs) {
+						for(int j : topoSortedVtx) segBySubAll.get(j).reset();
+						// process source seg / vertex v
+						// the corresponding topoSortedSeg is also processed
+						source_seg = segBySubAll.get(out);
+						source_seg.addCov(ImmutableRangeSet.copyOf(source_seg.getSubCov()));
+						source_seg.addScore(source_seg.getSubLen());
+						trace = new ArrayList<>();
+						trace.add(out);
+						source_seg.addTrace(trace);
+
+						visited.clear();
+						visited.add(out);
+
+						// now iterate through vertex in linearized topo order
+						for(int j=0; j<nV; j++) {
+							if(j%100000==0) myLogger.info("#V processed "+j);
+							target_segix = topoSortedVtx[j];
+							target_seg   = segBySubAll.get(target_segix);
+							for(DefaultWeightedEdge edge : subgraph.incomingEdgesOf(target_segix)) {
+								source_segix  = subgraph.getEdgeSource(edge);
+								source_seg    = segBySubAll.get(source_segix);
+								source_traces = source_seg.getTrace();
+								if(source_traces.isEmpty()) continue;
+								source_covs = source_seg.getCov();
+								int n = source_traces.size();
+								for(int k=0; k<n; k++) {
+									souce_trace = source_traces.get(k);
+									target_cov  = source_covs.get(k).union(target_seg.getSubCov());
+									target_trace = new ArrayList<>();
+									target_trace.addAll(souce_trace);
+									target_trace.add(target_segix);
+									target_score = score(target_cov);
+									target_seg.add(target_score, target_trace, target_cov);
+								}
+
+								allNeighborsVisited = true;
+								for(DefaultWeightedEdge edge2 : subgraph.outgoingEdgesOf(source_segix)) {
+									if(!visited.contains(subgraph.getEdgeTarget(edge2))) { 
+										allNeighborsVisited = false;
+										break;
 									}
 								}
+								if(allNeighborsVisited) segBySubAll.get(source_segix).reset();
 							}
-							for(int v : lower_layer) 
-								hierarch.put(v, level);
-							
-							upper_layer.clear();
-							upper_layer.addAll(lower_layer);
-							if(upper_layer.isEmpty()) break;
+							visited.add(target_segix);
 						}
-						
-						if(level>max_level) {
-							max_level = level;
-							max_subgraph = subgraph2;
-						}
-					}
-					
-					subgraph = max_subgraph;
-					
-					myLogger.info("Graph reconstructed. "+"Elapsed time "+
-							(System.nanoTime()-elapsed_start)/1e9+"s, "+ "#L "+max_level+", #V "+subgraph.vertexSet().size()+", #E "+subgraph.edgeSet().size());
-				}
-				
-				// now we find a path from the subgraph to cover sub sequence as much as possible (without reusing nodes)
-				TopologicalOrderIterator<Integer, DefaultWeightedEdge> topoIter = new TopologicalOrderIterator<>(subgraph);
-				int nV = subgraph.vertexSet().size();
-				int[] topoSortedVtx = new int[nV];
 
-				try {
-					int w = 0;
-					while(topoIter.hasNext()) 
-						topoSortedVtx[w++] = topoIter.next();
-
-				} catch (IllegalArgumentException e) {
-					bw.close();
-					throw new RuntimeException("!!!");
-				}
-
-				// we get topological sorted segments for the subgraph
-				// now we find the path with the maxCov for the sub sequence
-				// the path will start from a non-incoming
-				double max_score = Double.NEGATIVE_INFINITY;
-				List<Integer> path = null;
-				final Set<Integer> outs = new HashSet<>();
-				final Set<Integer> ins  = new HashSet<>();
-				for(int v : subgraph.vertexSet()) {
-					if(subgraph.incomingEdgesOf(v).isEmpty()) outs.add(v);
-					if(subgraph.outgoingEdgesOf(v).isEmpty()) ins.add(v);
-				}
-
-				List<Integer> trace;
-				List<List<Integer>> source_traces;
-				List<ImmutableRangeSet<Integer>> source_covs;
-				List<Integer> souce_trace, target_trace;
-				Set<Integer> visited = new HashSet<>();
-				boolean allNeighborsVisited;
-				ImmutableRangeSet<Integer> target_cov;
-				double target_score;
-
-				myLogger.info("#outs "+outs.size());
-				for(int out : outs) {
-					for(int j : topoSortedVtx) segBySubAll.get(j).reset();
-					// process source seg / vertex v
-					// the corresponding topoSortedSeg is also processed
-					source_seg = segBySubAll.get(out);
-					source_seg.addCov(ImmutableRangeSet.copyOf(source_seg.getSubCov()));
-					source_seg.addScore(source_seg.getSubLen());
-					trace = new ArrayList<>();
-					trace.add(out);
-					source_seg.addTrace(trace);
-					
-					visited.clear();
-					visited.add(out);
-					
-					// now iterate through vertex in linearized topo order
-					for(int j=0; j<nV; j++) {
-						if(j%100000==0) myLogger.info("#V processed "+j);
-						target_segix = topoSortedVtx[j];
-						target_seg   = segBySubAll.get(target_segix);
-						for(DefaultWeightedEdge edge : subgraph.incomingEdgesOf(target_segix)) {
-							source_segix  = subgraph.getEdgeSource(edge);
-							source_seg    = segBySubAll.get(source_segix);
-							source_traces = source_seg.getTrace();
-							if(source_traces.isEmpty()) continue;
-							source_covs = source_seg.getCov();
-							int n = source_traces.size();
+						for(int in : ins) {
+							target_seg = segBySubAll.get(in);
+							List<List<Integer>> traces = target_seg.getTrace();
+							List<Double> scores = target_seg.getScore();
+							int n = scores.size();
 							for(int k=0; k<n; k++) {
-								souce_trace = source_traces.get(k);
-								target_cov  = source_covs.get(k).union(target_seg.getSubCov());
-								target_trace = new ArrayList<>();
-								target_trace.addAll(souce_trace);
-								target_trace.add(target_segix);
-								target_score = score(target_cov);
-								target_seg.add(target_score, target_trace, target_cov);
-							}
-							
-							allNeighborsVisited = true;
-							for(DefaultWeightedEdge edge2 : subgraph.outgoingEdgesOf(source_segix)) {
-								if(!visited.contains(subgraph.getEdgeTarget(edge2))) { 
-									allNeighborsVisited = false;
-									break;
+								if(scores.get(k)>max_score) {
+									max_score = scores.get(k);
+									path = traces.get(k);
 								}
-							}
-							if(allNeighborsVisited) segBySubAll.get(source_segix).reset();
-						}
-						visited.add(target_segix);
-					}
-
-					for(int in : ins) {
-						target_seg = segBySubAll.get(in);
-						List<List<Integer>> traces = target_seg.getTrace();
-						List<Double> scores = target_seg.getScore();
-						int n = scores.size();
-						for(int k=0; k<n; k++) {
-							if(scores.get(k)>max_score) {
-								max_score = scores.get(k);
-								path = traces.get(k);
 							}
 						}
 					}
 				}
 
 				if(path==null) {
-					bw.close();
+					bw1.close();
+					bw2.close();
 					throw new RuntimeException("!!!");
 				}
 
@@ -1039,13 +1012,13 @@ public class Anchor extends Executor implements Serializable {
 					path_str.append(v);
 					path_str.append("-");
 				}
-				bw.write(subSeq+"\t"+graph_subStart+"\t"+graph_subEnd+"\t"+
+				bw1.write(subSeq+"\t"+graph_subStart+"\t"+graph_subEnd+"\t"+
 						path.size()+"\t"+graph_span+"\t"+graph_cov+"\t"+graph_covr+"\t"+path_str+"\n");
 			}
 			
-			bw.close();
+			bw1.close();
+			bw2.close();
 
-			System.exit(1);
 		} catch (IOException e) {
 			e.printStackTrace();
 			System.exit(1);
