@@ -834,7 +834,9 @@ public class Anchor extends Executor implements Serializable {
 				for(DefaultWeightedEdge edge : subgraph.edgeSet()) {
 					source_segix = subgraph.getEdgeSource(edge);
 					target_segix = subgraph.getEdgeTarget(edge);
-					if(hierarch.get(source_segix)<=hierarch.get(target_segix))
+					if(hierarch.containsKey(source_segix) &&
+							hierarch.containsKey(target_segix) && 
+							hierarch.get(source_segix)<=hierarch.get(target_segix))
 						subgraph2.addEdge(source_segix, target_segix);
 				}
 				
