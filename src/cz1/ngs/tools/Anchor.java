@@ -798,6 +798,9 @@ public class Anchor extends Executor implements Serializable {
 					myLogger.info("Graph is not a DAG");
 					++nonDAG;
 					
+					for(DefaultWeightedEdge edge : subgraph.edgeSet()) 
+						System.out.println(subgraph.getEdgeSource(edge)+"\t"+subgraph.getEdgeTarget(edge));
+					
 					long e_start = System.nanoTime();
 					HawickJamesSimpleCycles<Integer, DefaultWeightedEdge> hawickJames = new HawickJamesSimpleCycles<>(subgraph);
 					long nC = hawickJames.countSimpleCycles();
