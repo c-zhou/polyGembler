@@ -951,7 +951,7 @@ public class Anchor extends Executor implements Serializable {
 			olap = (int) gfa.getEdge(source, target).olapF();
 			str.append(qry_seqs.get(target).seq_str().substring(olap));
 		}
-		return null;
+		return str.toString();
 	}
 
 	private int interection(ImmutableRangeSet<Integer> cov1, ImmutableRangeSet<Integer> cov2) {
