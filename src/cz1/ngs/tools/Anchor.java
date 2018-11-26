@@ -811,9 +811,13 @@ public class Anchor extends Executor implements Serializable {
 			nScaf = distinctPreAssembled.size();
 			myLogger.info("####Preassembled SamSegment "+nScaf);
 			
-			BufferedWriter bw = Utils.getBufferedWriter(this.out_prefix+"_"+subSeq+".fa");
-			// for(Scaffold scaff : distinctPreAssembled)
-			//	bw.write(scaff.subStart+"\t"+scaff.subEnd+"\t"+scaff.subSpan+"\t"+scaff.qryStartClip+"\t"+scaff.qryEndClip+"\t"+scaff.numContig+"\t"+scaff.length+"\n");
+			BufferedWriter bw1 = Utils.getBufferedWriter(this.out_prefix+"_"+subSeq+".map");
+			for(Scaffold scaff : distinctPreAssembled)
+				bw1.write(scaff.subStart+"\t"+scaff.subEnd+"\t"+scaff.subSpan+"\t"+
+						scaff.qryStartClip+"\t"+scaff.qryEndClip+"\t"+scaff.numContig+"\t"+scaff.length+"\n");
+			bw1.close();
+
+			BufferedWriter bw2 = Utils.getBufferedWriter(this.out_prefix+"_"+subSeq+".fa");
 			
 			StringBuilder sequence = new StringBuilder();
 			int source_endClip, target_startClip, sub_olap, qry_clip;
@@ -844,8 +848,8 @@ public class Anchor extends Executor implements Serializable {
 					sequence.append(getSeqString(target_scaff.segments));
 				}
 			}
-			bw.write(Sequence.formatOutput(subSeq, sequence.toString()));
-			bw.close();
+			bw2.write(Sequence.formatOutput(subSeq, sequence.toString()));
+			bw2.close();
 			
 			for(Scaffold scaff : distinctPreAssembled) 
 				for(Traceable seg : scaff.segments)
