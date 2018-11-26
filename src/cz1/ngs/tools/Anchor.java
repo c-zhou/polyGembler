@@ -721,9 +721,11 @@ public class Anchor extends Executor implements Serializable {
 				int qryCov = 0;
 				for(Traceable seg : segments) qryCov += seg.getQryLen();
 				
-				diff = (double)(length-qryStartClip-qryEndClip)/subSpan;
-				cov  = (double)qryCov/length;
-				if(diff>0.5&&diff<2&&cov>0.1) {
+				//diff = (double)(length-qryStartClip-qryEndClip)/subSpan;
+				//cov  = (double)qryCov/length;
+				//if(diff>0.5&&diff<2&&cov>0.1) {
+				diff = 	(double)length/subSpan;
+				if(diff>0.5&&diff<2) {
 					for(String v : s) used_segs.add(Integer.parseInt(v));
 					preAssembled.add(new Scaffold(segments, ImmutableRangeSet.copyOf(subCov),
 							subStart, subEnd, subSpan, qryStartClip, qryEndClip, numContig, length));
@@ -739,9 +741,11 @@ public class Anchor extends Executor implements Serializable {
 					int subSpan = segment.send()-segment.sstart();
 					int qryStartClip = Math.max(segment.qstart()-1, 0);
 					int qryEndClip = Math.max(0, length-segment.qend());
-					diff = (double)(length-qryStartClip-qryEndClip)/subSpan;
-					cov  = (double)segment.qlength()/length;
-					if(diff>0.5&&diff<2&&cov>0.1) {
+					//diff = (double)(length-qryStartClip-qryEndClip)/subSpan;
+					//cov  = (double)segment.qlength()/length;
+					//if(diff>0.5&&diff<2&&cov>0.1) {
+					diff = (double)length/subSpan;
+					if(diff>0.5&&diff<2) {
 						preAssembled.add(new Scaffold(segments, ImmutableRangeSet.copyOf(segment.getSubCov()),
 								segment.sstart(), segment.send(), subSpan, qryStartClip, qryEndClip, 1, length));
 					}
