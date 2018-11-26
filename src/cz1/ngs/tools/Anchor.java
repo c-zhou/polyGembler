@@ -741,7 +741,7 @@ public class Anchor extends Executor implements Serializable {
 			
 			// we remove containment
 			Scaffold source_as, target_as;
-			int source_sstart, source_send, target_sstart, target_send, source_ln, target_ln, ins;
+			int source_sstart, source_send, target_sstart, target_send, source_ln, target_ln, source_clip, target_clip, ins;
 			Range<Integer> source_range, target_range, ins_range;
 			outerloop:
 				for(int w=0; w<nScaf; w++) {
@@ -749,7 +749,8 @@ public class Anchor extends Executor implements Serializable {
 					if(source_as==null) continue;
 					source_sstart = source_as.subStart;
 					source_send   = source_as.subEnd;
-					source_ln     = source_as.length-source_as.qryStartClip-source_as.qryEndClip;
+					source_ln     = source_as.length;
+                    source_clip   = source_as.qryStartClip+source_as.qryEndClip;
 					source_range  = Range.closed(source_sstart, source_send);
 					
 					innerloop:
@@ -758,7 +759,8 @@ public class Anchor extends Executor implements Serializable {
 							if(target_as==null) continue;
 							target_sstart = target_as.subStart;
 							target_send   = target_as.subEnd;
-							target_ln     = target_as.length-target_as.qryStartClip-target_as.qryEndClip;
+							target_ln     = target_as.length;
+                            target_clip   = target_as.qryStartClip+target_as.qryEndClip;
 							target_range  = Range.closed(target_sstart, target_send);
 							
 							if(!source_range.isConnected(target_range)) 
@@ -767,7 +769,7 @@ public class Anchor extends Executor implements Serializable {
 							ins_range = source_range.intersection(target_range);
 							ins = ins_range.upperEndpoint()-ins_range.lowerEndpoint();
 							
-							if(ins>=clip_rate*Math.min(source_ln, target_ln)) {
+							if(ins>=clip_rate*Math.min(source_ln-source_clip, target_ln-target_clip)) {
 								if(source_ln>target_ln) {
 									// target is contained
 									preAssembled.set(z, null);
