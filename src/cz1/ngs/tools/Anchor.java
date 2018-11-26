@@ -951,7 +951,7 @@ public class Anchor extends Executor implements Serializable {
 			target = segments.get( i ).qseqid();
 			olap = (int) gfa.getEdge(source, target).olapF();
 			seq = qry_seqs.get(target).seq_str();
-			str.append(seq.substring(Math.min(str.length(), olap)));
+			str.append(seq.substring(Math.min(seq.length(), olap)));
 		}
 		return str.toString();
 	}
