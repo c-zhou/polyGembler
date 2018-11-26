@@ -836,7 +836,8 @@ public class Anchor extends Executor implements Serializable {
 				if(sub_olap>qry_clip) {
 					// overlap
 					sequence.setLength(sequence.length()-source_endClip);
-					sequence.append(getSeqString(target_scaff.segments).substring(sub_olap+target_startClip));
+					String str = getSeqString(target_scaff.segments);
+					sequence.append(str.substring(Math.max(str.length(), sub_olap+target_startClip)));
 				} else {
 					// intrduce gap
 					sequence.append(Sequence.polyN(Math.max(100, target_sstart-source_send)));
