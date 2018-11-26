@@ -584,10 +584,14 @@ public class Anchor extends Executor implements Serializable {
 
 		//this.pileup(this.subChr);
 		//this.pileup2(this.subChr);
-		this.pileup3(this.subChr);
+		// this.pileup3(this.subChr);
+	
+		for(final String subSeq : sub_seqs.keySet())
+			if(!"Chr00".equals(subSeq))
+				this.pileup3(subSeq);
+				
 	}
 
-	
 	final int clip_penalty = -10;
 	final int match_score = 1;
 	final int gap_open = -1;
@@ -670,7 +674,7 @@ public class Anchor extends Executor implements Serializable {
 			final List<Scaffold> preAssembled = new ArrayList<>();
 			String line;
 			String[] s;
-			double diff;
+			double diff, cov;
 			while( (line=br1.readLine())!=null ) {
 				s = line.split("\\s+")[8].split("-");
 				final List<Traceable> segments = new ArrayList<>();
@@ -701,9 +705,12 @@ public class Anchor extends Executor implements Serializable {
 				Traceable segment = segments.get(numContig-1);
 				int qryEndClip = Math.max(0, qry_seqs.get(segment.qseqid()).seq_ln()-
 						segment.getQryCov().span().upperEndpoint());
+				int qryCov = 0;
+				for(Traceable seg : segments) qryCov += seg.getQryLen();
 				
-				diff = (double)length/subSpan;
-				if(diff>0.5&&diff<2) {
+				diff = (double)(length-qryStartClip-qryEndClip)/subSpan;
+				cov  = (double)qryCov/length;
+				if(diff>0.5&&diff<2&&cov>0.1) {
 					for(String v : s) used_segs.add(Integer.parseInt(v));
 					preAssembled.add(new Scaffold(segments, ImmutableRangeSet.copyOf(subCov),
 							subStart, subEnd, subSpan, qryStartClip, qryEndClip, numContig, length));
@@ -717,11 +724,13 @@ public class Anchor extends Executor implements Serializable {
 					segments.add(segment);
 					int length = qry_seqs.get(segment.qseqid()).seq_ln();
 					int subSpan = segment.send()-segment.sstart();
-					diff = (double)length/subSpan;
-					if(diff>0.5&&diff<2) {
+					int qryStartClip = Math.max(segment.qstart()-1, 0);
+					int qryEndClip = Math.max(0, length-segment.qend());
+					diff = (double)(length-qryStartClip-qryEndClip)/subSpan;
+					cov  = (double)segment.qlength()/length;
+					if(diff>0.5&&diff<2&&cov>0.1) {
 						preAssembled.add(new Scaffold(segments, ImmutableRangeSet.copyOf(segment.getSubCov()),
-								segment.sstart(), segment.send(), subSpan, Math.max(segment.qstart()-1, 0), 
-								Math.max(0, length-segment.qend()), 1, length));
+								segment.sstart(), segment.send(), subSpan, qryStartClip, qryEndClip, 1, length));
 					}
 				}
 			}
@@ -790,11 +799,39 @@ public class Anchor extends Executor implements Serializable {
 			myLogger.info("####Preassembled SamSegment "+nScaf);
 			
 			BufferedWriter bw = Utils.getBufferedWriter(this.out_prefix+"_"+subSeq+".fa");
-			for(Scaffold scaff : distinctPreAssembled)
-				bw.write(scaff.subStart+"\t"+scaff.subEnd+"\t"+scaff.subSpan+"\t"+scaff.qryStartClip+"\t"+scaff.qryEndClip+"\t"+scaff.numContig+"\t"+scaff.length+"\n");
+			// for(Scaffold scaff : distinctPreAssembled)
+			//	bw.write(scaff.subStart+"\t"+scaff.subEnd+"\t"+scaff.subSpan+"\t"+scaff.qryStartClip+"\t"+scaff.qryEndClip+"\t"+scaff.numContig+"\t"+scaff.length+"\n");
+			
+			StringBuilder sequence = new StringBuilder();
+			int source_endClip, target_startClip, sub_olap, qry_clip;
+			sequence.append(getSeqString(distinctPreAssembled.get(0).segments));
+			Scaffold source_scaff, target_scaff;
+			for(int i=1; i<nScaf; i++) {
+				source_scaff = distinctPreAssembled.get(i-1);
+				source_sstart = source_scaff.subStart;
+				source_send   = source_scaff.subEnd;
+				source_endClip   = source_scaff.qryEndClip;
+				
+				target_scaff = distinctPreAssembled.get( i );
+				target_sstart = target_scaff.subStart;
+				target_send   = target_scaff.subEnd;
+				target_startClip = target_scaff.qryStartClip;
+			
+				sub_olap = source_send-target_sstart;
+				qry_clip = source_endClip+target_startClip;
+				
+				if(sub_olap>qry_clip) {
+					// overlap
+					sequence.setLength(sequence.length()-source_endClip);
+					sequence.append(getSeqString(target_scaff.segments).substring(sub_olap+target_startClip));
+				} else {
+					// intrduce gap
+					sequence.append(Sequence.polyN(Math.max(100, target_sstart-source_send)));
+					sequence.append(getSeqString(target_scaff.segments));
+				}
+			}
+			bw.write(Sequence.formatOutput(subSeq, sequence.toString()));
 			bw.close();
-			
-			
 			
 			
 			/***
@@ -885,6 +922,22 @@ public class Anchor extends Executor implements Serializable {
 		
 	}
 	
+	private String getSeqString(List<Traceable> segments) {
+		// TODO Auto-generated method stub
+		String source, target;
+		int olap;
+		source = segments.get(0).qseqid();
+		StringBuilder str = new StringBuilder();
+		str.append(qry_seqs.get(source).seq_str());
+		for(int i=1; i<segments.size(); i++) {
+			source = segments.get(i-1).qseqid();
+			target = segments.get( i ).qseqid();
+			olap = (int) gfa.getEdge(source, target).olapF();
+			str.append(qry_seqs.get(target).seq_str().substring(olap));
+		}
+		return null;
+	}
+
 	private int interection(ImmutableRangeSet<Integer> cov1, ImmutableRangeSet<Integer> cov2) {
 		// TODO Auto-generated method stub
 		ImmutableRangeSet<Integer> cov = cov1.intersection(cov2);
