@@ -589,9 +589,22 @@ public class Anchor extends Executor implements Serializable {
 		for(final String subSeq : sub_seqs.keySet())
 			if(!"Chr00".equals(subSeq))
 				this.pileup3(subSeq);
-				
+		
+		try {
+			BufferedWriter bw = Utils.getBufferedWriter(this.out_prefix+".unused.fa");
+			for(String seq : qry_seqs.keySet()) {
+				if(!seq.endsWith("'")&&!contigs_used.contains(seq))
+					bw.write(qry_seqs.get(seq).formatOutput());
+			}
+			bw.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
+	final Set<String> contigs_used = new HashSet<String>();
+	
 	final int clip_penalty = -10;
 	final int match_score = 1;
 	final int gap_open = -1;
@@ -833,6 +846,9 @@ public class Anchor extends Executor implements Serializable {
 			bw.write(Sequence.formatOutput(subSeq, sequence.toString()));
 			bw.close();
 			
+			for(Scaffold scaff : distinctPreAssembled) 
+				for(Traceable seg : scaff.segments)
+					contigs_used.add(seg.qseqid().substring(0, 11));
 			
 			/***
 			final DirectedWeightedPseudograph<Integer, DefaultWeightedEdge> overlapGraph = 
