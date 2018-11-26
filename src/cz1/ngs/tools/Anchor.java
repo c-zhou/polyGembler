@@ -837,7 +837,7 @@ public class Anchor extends Executor implements Serializable {
 					// overlap
 					sequence.setLength(sequence.length()-source_endClip);
 					String str = getSeqString(target_scaff.segments);
-					sequence.append(str.substring(Math.max(str.length(), sub_olap+target_startClip)));
+					sequence.append(str.substring(Math.min(str.length(), sub_olap+target_startClip)));
 				} else {
 					// intrduce gap
 					sequence.append(Sequence.polyN(Math.max(100, target_sstart-source_send)));
@@ -941,7 +941,7 @@ public class Anchor extends Executor implements Serializable {
 	
 	private String getSeqString(List<Traceable> segments) {
 		// TODO Auto-generated method stub
-		String source, target;
+		String source, target, seq;
 		int olap;
 		source = segments.get(0).qseqid();
 		StringBuilder str = new StringBuilder();
@@ -950,7 +950,8 @@ public class Anchor extends Executor implements Serializable {
 			source = segments.get(i-1).qseqid();
 			target = segments.get( i ).qseqid();
 			olap = (int) gfa.getEdge(source, target).olapF();
-			str.append(qry_seqs.get(target).seq_str().substring(olap));
+			seq = qry_seqs.get(target).seq_str();
+			str.append(seq.substring(Math.min(str.length(), olap)));
 		}
 		return str.toString();
 	}
