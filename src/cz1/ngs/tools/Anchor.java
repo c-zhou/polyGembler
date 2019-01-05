@@ -325,15 +325,145 @@ public class Anchor extends Executor implements Serializable {
 	@Override
 	public void run() {
 
-		// this.blastReader();
+		//this.blastReader();
+		this.run5();
+		
 		// this.run_link();
 
 		// this.run1();
 		// this.run2();
 		// this.run3();
-		this.run4();
+		// this.run4();
 	}
 
+	final Map<String, Set<String>> contained = new HashMap<>();
+	
+	private void run5() {
+		// TODO Auto-generated method stub
+		
+		// read assembly graph file
+		gfa = new GFA(query_file, asm_graph);
+		myLogger.info("  GFA vertices: "+gfa.vertexSet().size());
+		myLogger.info("  GFA edges   : "+gfa.edgeSet().size()  );
+		qry_seqs = gfa.getSequenceMap();
+		
+		try {
+			BufferedReader br = Utils.getBufferedReader(this.align_file);
+			String line;
+			String[] s;
+			int sstart, qstart, send, qend;
+			int bqstart = max_dist, bqend, bsstart = max_dist, bsend, qlen, slen;
+			boolean q_from_start, q_to_end, s_from_start, s_to_end;
+			
+			while( (line=br.readLine())!=null ) {
+				s = line.split("\\s+");
+				qlen = qry_seqs.get(s[0]).seq_ln();
+				slen = qry_seqs.get(s[1]).seq_ln();
+
+				bqend = qlen-max_dist;
+				bsend = slen-max_dist;
+
+				qstart = Integer.parseInt(s[6]);
+				qend   = Integer.parseInt(s[7]);
+				sstart = Integer.parseInt(s[8]);
+				send   = Integer.parseInt(s[9]);
+				
+				q_from_start = qstart<bqstart;
+				q_to_end     = qend>bqend;
+				
+				if(send>sstart) {
+					s_from_start = sstart<bsstart;
+					s_to_end     = send>bsend;
+
+					if( q_from_start&&q_to_end ) {
+						if(!contained.containsKey(s[0])) {
+							contained.put(s[0],     new HashSet<>());
+							contained.put(s[0]+"'", new HashSet<>());
+						}
+						contained.get(s[0]).add(s[1]);
+						contained.get(s[0]+"'").add(s[1]+"'");
+					}
+					if(  s_from_start&&s_to_end ) {
+						if(!contained.containsKey(s[1])) {
+							contained.put(s[1],     new HashSet<>());
+							contained.put(s[1]+"'", new HashSet<>());
+						}
+						contained.get(s[1]).add(s[0]);
+						contained.get(s[1]+"'").add(s[0]+"'");
+					}
+				} else {
+					s_from_start = send<bsstart;
+					s_to_end     = sstart>bsend;
+					
+					if( q_from_start&&q_to_end ) {
+						if(!contained.containsKey(s[0])) {
+							contained.put(s[0],     new HashSet<>());
+							contained.put(s[0]+"'", new HashSet<>());
+						}
+						contained.get(s[0]).add(s[1]+"'");
+						contained.get(s[0]+"'").add(s[1]);
+					}
+					if(  s_from_start&&s_to_end ) {
+						if(!contained.containsKey(s[1])) {
+							contained.put(s[1],     new HashSet<>());
+							contained.put(s[1]+"'", new HashSet<>());
+						}
+						contained.get(s[1]).add(s[0]+"'");
+						contained.get(s[1]+"'").add(s[0]);
+					}
+				}
+			}
+			br.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
+		
+		this.test();
+	}
+
+	private void test() {
+		// TODO Auto-generated method stub
+		Set<String> duplicated = new HashSet<>();
+		for(String k : contained.keySet()) {
+			if(!k.endsWith("'"))
+				duplicated.add(k);
+		}
+		int L = 0, L2 = 0;
+		for(String k : duplicated) {
+			L += qry_seqs.get(k).seq_ln();
+			if(gfa.outgoingEdgesOf(k).isEmpty() && 
+					gfa.outgoingEdgesOf(k+"'").isEmpty() &&
+					gfa.incomingEdgesOf(k).isEmpty() && 
+					gfa.incomingEdgesOf(k+"'").isEmpty())
+				L2 += qry_seqs.get(k).seq_ln();
+		}
+		myLogger.info("####duplicated contgis summed to "+L);
+		myLogger.info("####duplicated contgis summed to "+L2);
+		
+		
+		final String source = "tig02796837'";
+		final List<OverlapEdge> edges = new ArrayList<>(gfa.outgoingEdgesOf(source));
+		int nE = edges.size();
+		myLogger.info("#outs "+nE);
+		String target1, target2;
+		int transitive = 0;
+		for(int i=0; i<nE; i++) {
+			target1 = gfa.getEdgeTarget(edges.get(i));
+			for(int j=i+1; j<nE; j++) {
+				target2 = gfa.getEdgeTarget(edges.get(j));
+				if(gfa.containsEdge(target1, target2) || 
+						gfa.containsEdge(target2, target1) ||
+						contained.containsKey(target1)&&contained.get(target1).contains(target2) || 
+						contained.containsKey(target2)&&contained.get(target2).contains(target1)) {
+					myLogger.info(target1+" "+target2);
+					++transitive;
+				}
+			}
+		}
+		myLogger.info(transitive+"/"+(nE-1)*nE/2);
+		myLogger.info("debug point");
+	}
 
 	GFA gfa;
 	final Map<String, List<Set<SAMSegment>>> initPlace = new HashMap<>();

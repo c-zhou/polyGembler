@@ -1,20 +1,14 @@
 package cz1.test;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
-import java.util.Map.Entry;
-import java.util.Set;
 
+import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
-import htsjdk.samtools.SAMFileHeader;
-import htsjdk.samtools.SAMFileHeader.SortOrder;
-import htsjdk.samtools.SAMFileWriter;
-import htsjdk.samtools.SAMFileWriterFactory;
-import htsjdk.samtools.SAMReadGroupRecord;
+import cz1.util.Utils;
 import htsjdk.samtools.SAMRecord;
-import htsjdk.samtools.SAMRecord.SAMTagAndValue;
 import htsjdk.samtools.SAMRecordIterator;
 import htsjdk.samtools.SamReader;
 import htsjdk.samtools.SamReaderFactory;
@@ -24,7 +18,9 @@ public class SAMtools extends Executor {
 
 	private String mySamFile;
 	private String myOutput;
-	private SAMFileHeader samHeader;
+	private String chrId;
+	private int chrStt;
+	private int chrEnd;
 	
 	public static void main(String[] args) {
 		SAMtools samTools = new SAMtools();
@@ -44,7 +40,8 @@ public class SAMtools extends Executor {
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-i", "--sam-file", true);
-			myArgsEngine.add("-o", "--prefix", true);
+			myArgsEngine.add("-r", "--range", true);
+			myArgsEngine.add("-o", "--output", true);
 			myArgsEngine.parse(args);
 		}
 
@@ -55,13 +52,24 @@ public class SAMtools extends Executor {
 			throw new IllegalArgumentException("Please specify your SAM/BAM file.");
 		}
 		
+		if(myArgsEngine.getBoolean("-r")) {
+			String range = myArgsEngine.getString("-r");
+			String[] s = range.split(":");
+			chrId = s[0];
+			s = s[1].split("-");
+			chrStt = Integer.parseInt(s[0]);
+			chrEnd = Integer.parseInt(s[1]);
+		} else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify your data range.");
+		}
+		
 		if (myArgsEngine.getBoolean("-o")) {
 			myOutput = myArgsEngine.getString("-o");
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your output file.");
 		}
-
 	}
 
 	@Override
@@ -73,39 +81,31 @@ public class SAMtools extends Executor {
 						SamReaderFactory.Option.VALIDATE_CRC_CHECKSUMS)
 				.validationStringency(ValidationStringency.SILENT);
 		final SamReader inputSam = factory.open(new File(mySamFile));
-		
-		samHeader = inputSam.getFileHeader();
-		samHeader.setSortOrder(SortOrder.unsorted);
-		SAMRecordIterator iter=inputSam.iterator();
-		Set<Entry<String, String>> attr = samHeader.getAttributes();
-		
-		List<SAMReadGroupRecord> rgs = samHeader.getReadGroups();
-		
-		SAMReadGroupRecord rg = new SAMReadGroupRecord("cz1");
-		rg.setSample("cz1");
-		samHeader.addReadGroup(rg);
-		
-		
-		//samHeader.setAttribute("RG", "cz1");
-		final SAMFileWriter outSam = new SAMFileWriterFactory().
-				makeSAMOrBAMWriter(samHeader,
-						true, new File(myOutput));
-		
-		for(int i=0; i<100; i++) {
-			SAMRecord record = iter.next();
-			List<SAMTagAndValue> tags = record.getAttributes();
-			record.setAttribute("RG", "cz1");
-			List<SAMTagAndValue> tags2 = record.getAttributes();
-			outSam.addAlignment(record);
-		}
-		myLogger.info("exit...");
-		
+		if(!inputSam.hasIndex()) throw new RuntimeException("BAM file need to be indexed!!!");
+		final SAMRecordIterator iter = inputSam.query(chrId, chrStt, chrEnd, false);
+		final BufferedWriter bw = Utils.getBufferedWriter(myOutput);
 		try {
+			SAMRecord record;
+			int readStt, readEnd;
+			String readStr;
+			while(iter.hasNext()) {
+				record = iter.next();
+				if(record.getAlignmentStart()>chrStt || 
+						record.getAlignmentEnd()<chrEnd ||
+						record.isSecondaryAlignment() ||
+						record.getSupplementaryAlignmentFlag())
+					continue;
+				readStr = record.getReadString();
+				readStt = record.getReadPositionAtReferencePosition(chrStt, true);
+				readEnd = record.getReadPositionAtReferencePosition(chrEnd, true);
+				bw.write(Sequence.formatOutput(record.getReadName(), readStr.substring(readStt-1, readEnd), 100));
+			}
+			iter.close();
 			inputSam.close();
+			bw.close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		outSam.close();
 	}
 }
