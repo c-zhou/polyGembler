@@ -23,6 +23,7 @@ import cz1.ngs.tools.Redundas;
 import cz1.ngs.tools.Scaffolder;
 import cz1.simulation.tools.GBSSimulator;
 import cz1.simulation.tools.PopulationSimulator;
+import cz1.tenx.tools.TenXArcs;
 
 public class PolyGembler {
 	
@@ -143,6 +144,11 @@ public class PolyGembler {
 			scaffolder.setParameters(args2);
 			scaffolder.run();
 			break;
+		case "tenxarcs":
+			TenXArcs tenxarcs = new TenXArcs();
+			tenxarcs.setParameters(args2);
+			tenxarcs.run();
+			break;
 		default:
 			printUsage();
 			throw new RuntimeException("Undefined tool!!!");
@@ -171,6 +177,7 @@ public class PolyGembler {
 						+ " graphmap            Map noisy long reads (Nanopore and Pacbio) to an assembly graph.\n"
 						+ " contigger           Contigging using paired-end and/or long reads.\n"
 						+ " scaffolder          Scaffolding using paired-end and/or long reads.\n"
+						+ " tenxarcs            Scaffolding using 10x genomics' linked reads.\n"
 						+ " consensus           Consensus with paired reads link analysis.\n"
 						+ " redundas            Remove redundancies in the genome assembly.\n"
 						+ " a-stats             Compute Myers' a-statistic for a set of contigs using read alignments.\n"
