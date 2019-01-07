@@ -14,6 +14,7 @@ import java.util.Set;
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 
+import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Executor;
@@ -27,7 +28,7 @@ import htsjdk.samtools.SamReaderFactory;
 import htsjdk.samtools.ValidationStringency;
 
 public class TenXArcs extends Executor {
-	private static enum Task {link, arcs, zzz}
+	private static enum Task {link, arcs, gv, zzz}
 	private Task task_list = Task.zzz;
 
 	private String[] bamFiles = null;
@@ -37,6 +38,8 @@ public class TenXArcs extends Executor {
 	private int minQual = 10;
 	private String out = null;
 	private String bcList = null;
+	private String linkFile = null;
+	private String seqFile = null;
 	private int bcn = 3;
 
 	@Override
@@ -47,36 +50,45 @@ public class TenXArcs extends Executor {
 		case zzz:
 			myLogger.info(
 					"\n\nChoose a task from listed:\n"
-							+ " link                Count links.\n"
-							+ " arcs                Anchor contigs to generate scaffolds. \n"
+							+ " link                  Count links.\n"
+							+ " arcs                 Anchor contigs to generate scaffolds.\n"
+							+ " gv                    Convert link file to assembly graph file.\n"
 							+ "\n");
 			break;
 
 		case link:
 			myLogger.info(
 					"\n\nUsage is as follows:\n"
-							+ " -b/--bam-file       BAM file for the alignment records for read pairs.\n"
-							+ " -c/--config-file    Configuration file for BAM files.\n"
+							+ " -b/--bam-file          BAM file for the alignment records for read pairs.\n"
+							+ " -c/--config-file        Configuration file for BAM files.\n"
 							+ " -mp/--mate-pair     Mate-pair library.\n"
-							+ " -q/--min-qual       Minimum alignment quality (default: 10).\n"
-							+ " -i/--insert-size    Insert size of the library.\n"
-							+ " -e/--ins-error      Allowed insert size error.\n" 
-							+ " -t/--threads        Number of threads to use (default: all avaiable processors).\n"
-							+ " -o/--out            Output files.\n"
+							+ " -q/--min-qual          Minimum alignment quality (default: 10).\n"
+							+ " -i/--insert-size        Insert size of the library.\n"
+							+ " -e/--ins-error          Allowed insert size error.\n" 
+							+ " -t/--threads            Number of threads to use (default: all avaiable processors).\n"
+							+ " -o/--out                  Output files.\n"
 							+ "\n");
 			break;
 
 		case arcs:
 			myLogger.info(
 					"\n\nUsage is as follows:\n"
-							+ " -b/--bam-file       BAM file for the alignment records for read pairs.\n"
-							+ " -f/--bam-fof        File of BAM file list.\n"
-							+ " -w/--white-list     File of barcodes on the white list.\n"
+							+ " -b/--bam-file           BAM file for the alignment records for read pairs.\n"
+							+ " -f/--bam-fof            File of BAM file list.\n"
+							+ " -w/--white-list         File of barcodes on the white list.\n"
 							+ " -n/--read-number    Minimum number of read pair per barcode (defalt: 3).\n"
-							+ " -t/--threads        Number of threads to use (default: all avaiable processors).\n"
-							+ " -o/--out            Output file.\n\n");
+							+ " -t/--threads             Number of threads to use (default: all avaiable processors).\n"
+							+ " -o/--out                  Output file.\n\n");
 			break;
-
+			
+		case gv:
+			myLogger.info(
+					"\n\nUsage is as follows:\n"
+							+ " -l/--links                 Link file.\n"
+							+ "-s/--seqs                 Sequence file. \n"
+							+ " -o/--out                  Output file.\n\n");
+			break;
+			
 		default:
 			throw new RuntimeException("!!!");
 		}
@@ -97,6 +109,9 @@ public class TenXArcs extends Executor {
 		case "arcs":
 			this.task_list = Task.arcs;
 			break;
+		case "gv":
+			this.task_list = Task.gv;
+			break;
 		default:
 			printUsage();
 			throw new IllegalArgumentException("\n\nPlease use the above arguments/options.\n\n");	
@@ -116,6 +131,8 @@ public class TenXArcs extends Executor {
 			myArgsEngine.add("-f", "--bam-fof", true);
 			myArgsEngine.add("-w", "--white-list", true);
 			myArgsEngine.add("-n", "--read-number", true);
+			myArgsEngine.add("-l", "--links", true);
+			myArgsEngine.add("-s", "--seqs", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-o", "--out", true);
 			myArgsEngine.parse(args2);
@@ -220,6 +237,20 @@ public class TenXArcs extends Executor {
 
 			if(myArgsEngine.getBoolean("-n")) {
 				this.bcn = Integer.parseInt(myArgsEngine.getString("-n"));
+			}
+			break;
+		case gv:
+			if(myArgsEngine.getBoolean("-l")) {
+				this.linkFile = myArgsEngine.getString("-l");
+			} else {
+				printUsage();
+				throw new IllegalArgumentException("Please specify link file.");
+			}
+			if(myArgsEngine.getBoolean("-s")) {
+				this.seqFile = myArgsEngine.getString("-s");
+			} else {
+				printUsage();
+				throw new IllegalArgumentException("Please specify sequence file.");
 			}
 			break;
 		default:
@@ -686,7 +717,7 @@ public class TenXArcs extends Executor {
 			for(long key : linkCount.keySet()) {
 				target = seq_index.getKey((int)  key     );
 				source = seq_index.getKey((int) (key>>32));
-				bw.write(source+"\t"+target+"\t"+linkCount.get(key)+"\n");
+				bw.write(key+"\t"+source+"\t"+target+"\t"+linkCount.get(key)+"\n");
 			}
 			bw.close();
 		} catch (IOException e) {
@@ -695,6 +726,82 @@ public class TenXArcs extends Executor {
 		}
 	}
 
+	private void run_gv() {
+		// TODO Auto-generated method stub
+		try {
+			BufferedReader br = Utils.getBufferedReader(this.linkFile);
+			String line;
+			String[] s;
+			final Set<String> seqs = new HashSet<String>();
+			while( (line=br.readLine())!=null) {
+				s = line.split("\\s+");
+				seqs.add(s[1].replaceAll("'$", ""));
+				seqs.add(s[2].replaceAll("'$", ""));
+			}
+			br.close();
+			int index = 0;
+			final Map<String, Integer> seq_index = new HashMap<String, Integer>();
+			final Map<String, Integer> edges = new HashMap<String, Integer>();
+			final BidiMap<String, String> syms = new DualHashBidiMap<String, String>();
+			for(String seq : seqs) {
+				syms.put(seq, seq+"'");
+				syms.put(seq+"'", seq);
+				seq_index.put(seq,      index);
+				seq_index.put(seq+"'", index);
+				++index;
+			}
+			final List<Sequence> org_seqs = Sequence.parseFastaFileAsList(seqFile);
+			
+			BufferedReader br_link = Utils.getBufferedReader(this.linkFile);
+			BufferedWriter bw_origv = Utils.getBufferedWriter(this.out+"_original.gv");
+			BufferedWriter bw_dstgv = Utils.getBufferedWriter(this.out+".dist.gv");
+			bw_origv.write("graph G {\n");
+			bw_dstgv.write("digraph arcs {\n");
+			for(String seq : seq_index.keySet()) {
+				if(!seq.endsWith("'"))
+					bw_origv.write(seq_index.get(seq)+" [id="+seq+"];\n");
+			}
+			for(Sequence seq : org_seqs) {
+				bw_dstgv.write("\""+seq.seq_sn()+"+\" [l="+seq.seq_ln()+"]\n");
+				bw_dstgv.write("\""+seq.seq_sn()+"-\" [l="+seq.seq_ln()+"]\n");
+			}
+			
+			String sym;
+			int source, target, label = -1;
+			String source_id, target_id;
+			while( (line=br_link.readLine())!=null ) {
+				s = line.split("\\s+");
+				
+				source_id = s[1].replaceAll("'$", "")+(s[1].endsWith("'")?"-":"+");
+				target_id = s[2].replaceAll("'$", "")+(s[2].endsWith("'")?"-":"+");
+				bw_dstgv.write("\""+source_id+"\" -> \""+target_id+"\" [d=100 e=100.0 n="+s[3]+"]\n");
+				
+				sym = syms.get(s[2])+"+"+syms.get(s[1]);
+				if(edges.containsKey(sym)) {
+					if( !(edges.get(sym).intValue()==Integer.parseInt(s[3])) )
+						throw new RuntimeException("!!!");
+					continue;
+				}
+				if(s[1].endsWith("'") &&!s[2].endsWith("'")) label = 0;
+				if(s[1].endsWith("'") && s[2].endsWith("'")) label = 1;
+				if(!s[1].endsWith("'")&&!s[2].endsWith("'")) label = 2;
+				if(!s[1].endsWith("'")&& s[2].endsWith("'")) label = 3;
+				source = seq_index.get(s[1]);
+				target = seq_index.get(s[2]);
+				bw_origv.write(source+"--"+target+" [label="+label+", weight="+s[3]+"];\n");
+				edges.put(s[1]+"+"+s[2], Integer.parseInt(s[3]));
+			}
+			bw_origv.write("}\n");
+			bw_dstgv.write("}\n");
+			br_link.close();
+			bw_origv.close();
+			bw_dstgv.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
@@ -707,6 +814,9 @@ public class TenXArcs extends Executor {
 			break;
 		case arcs:
 			this.run_arcs();
+			break;
+		case gv:
+			this.run_gv();
 			break;
 		default:
 			throw new RuntimeException("!!!");
