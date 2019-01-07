@@ -5,8 +5,11 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,6 +44,7 @@ public class TenXArcs extends Executor {
 	private String linkFile = null;
 	private String seqFile = null;
 	private int bcn = 3;
+	private int maxGap = 30000;
 
 	@Override
 	public void printUsage() {
@@ -51,7 +55,7 @@ public class TenXArcs extends Executor {
 			myLogger.info(
 					"\n\nChoose a task from listed:\n"
 							+ " link                  Count links.\n"
-							+ " arcs                 Anchor contigs to generate scaffolds.\n"
+							+ " arcs                  Anchor contigs to generate scaffolds.\n"
 							+ " gv                    Convert link file to assembly graph file.\n"
 							+ "\n");
 			break;
@@ -59,34 +63,35 @@ public class TenXArcs extends Executor {
 		case link:
 			myLogger.info(
 					"\n\nUsage is as follows:\n"
-							+ " -b/--bam-file          BAM file for the alignment records for read pairs.\n"
-							+ " -c/--config-file        Configuration file for BAM files.\n"
-							+ " -mp/--mate-pair     Mate-pair library.\n"
-							+ " -q/--min-qual          Minimum alignment quality (default: 10).\n"
-							+ " -i/--insert-size        Insert size of the library.\n"
-							+ " -e/--ins-error          Allowed insert size error.\n" 
-							+ " -t/--threads            Number of threads to use (default: all avaiable processors).\n"
-							+ " -o/--out                  Output files.\n"
-							+ "\n");
+							+ " -b/--bam-file         BAM file for the alignment records for read pairs.\n"
+							+ " -c/--config-file      Configuration file for BAM files.\n"
+							+ " -mp/--mate-pair       Mate-pair library.\n"
+							+ " -q/--min-qual         Minimum alignment quality (default: 10).\n"
+							+ " -i/--insert-size      Insert size of the library.\n"
+							+ " -e/--ins-error        Allowed insert size error.\n" 
+							+ " -t/--threads          Number of threads to use (default: all avaiable processors).\n"
+							+ " -o/--out              Output files.\n\n");
 			break;
 
 		case arcs:
 			myLogger.info(
 					"\n\nUsage is as follows:\n"
-							+ " -b/--bam-file           BAM file for the alignment records for read pairs.\n"
-							+ " -f/--bam-fof            File of BAM file list.\n"
-							+ " -w/--white-list         File of barcodes on the white list.\n"
-							+ " -n/--read-number    Minimum number of read pair per barcode (defalt: 3).\n"
-							+ " -t/--threads             Number of threads to use (default: all avaiable processors).\n"
-							+ " -o/--out                  Output file.\n\n");
+							+ " -b/--bam-file         BAM file for the alignment records for read pairs.\n"
+							+ " -f/--bam-fof          File of BAM file list.\n"
+							+ " -q/--min-qual         Minimum min average quality scores per molecule (default: 10).\n"
+							+ " -w/--white-list       File of barcodes on the white list.\n"
+							+ " -n/--read-number      Minimum number of read pair per barcode (defalt: 3).\n"
+							+ " -g/--max-gap          Maximum gap size for two adjcent read pairs in a molecule (default: 30000).\n"
+							+ " -t/--threads          Number of threads to use (default: all avaiable processors).\n"
+							+ " -o/--out              Output file.\n\n");
 			break;
 			
 		case gv:
 			myLogger.info(
 					"\n\nUsage is as follows:\n"
-							+ " -l/--links                 Link file.\n"
-							+ "-s/--seqs                 Sequence file. \n"
-							+ " -o/--out                  Output file.\n\n");
+							+ " -l/--links            Link file.\n"
+							+ " -s/--seqs             Sequence file.\n"
+							+ " -o/--out              Output file.\n\n");
 			break;
 			
 		default:
@@ -131,6 +136,7 @@ public class TenXArcs extends Executor {
 			myArgsEngine.add("-f", "--bam-fof", true);
 			myArgsEngine.add("-w", "--white-list", true);
 			myArgsEngine.add("-n", "--read-number", true);
+			myArgsEngine.add("-g", "--max-gap", true);
 			myArgsEngine.add("-l", "--links", true);
 			myArgsEngine.add("-s", "--seqs", true);
 			myArgsEngine.add("-t", "--threads", true);
@@ -234,9 +240,17 @@ public class TenXArcs extends Executor {
 				printUsage();
 				throw new IllegalArgumentException("Please specify the barcode white list.");
 			}
-
+			
+			if(myArgsEngine.getBoolean("-g")) {
+				this.maxGap = Integer.parseInt(myArgsEngine.getString("-g"));
+			}
+			
 			if(myArgsEngine.getBoolean("-n")) {
 				this.bcn = Integer.parseInt(myArgsEngine.getString("-n"));
+			}
+			
+			if (myArgsEngine.getBoolean("-q")) {
+				this.minQual = Integer.parseInt(myArgsEngine.getString("-q"));
 			}
 			break;
 		case gv:
@@ -334,7 +348,10 @@ public class TenXArcs extends Executor {
 				}
 
 				if(records[0]!=null && records[1]!=null &&
-						records[0].getReferenceIndex().intValue()==records[1].getReferenceIndex().intValue()) {
+						records[0].getReferenceIndex().intValue()==records[1].getReferenceIndex().intValue() &&
+						records[0].getReadNegativeStrandFlag()!=records[1].getReadNegativeStrandFlag() && 
+						(records[0].getReadNegativeStrandFlag()&&records[0].getAlignmentStart()>records[1].getAlignmentStart() || 
+								records[1].getReadNegativeStrandFlag()&&records[1].getAlignmentStart()>records[0].getAlignmentEnd())) {
 					if(records[0].getInferredInsertSize()+records[1].getInferredInsertSize()!=0)
 						throw new RuntimeException("!!!");
 					bc_records.add(records);
@@ -357,10 +374,108 @@ public class TenXArcs extends Executor {
 		}
 	}
 
-	final int shift = 30;
-	final int rev = 1<<shift;
-	final Map<Long, Integer> arcs = new HashMap<Long, Integer>();
+	private class Molecule {
+		private List<SAMRecord[]> reads_list;
+		private String chr_id = null;
+		private int chr_start = -1;
+		private int chr_end = -1;
+		private boolean reverse = false;
+		
+		public Molecule() {
+			this.reads_list = new ArrayList<SAMRecord[]>();
+		}
 
+		public void add(SAMRecord[] record) {
+			this.reads_list.add(record);
+		}
+
+		public void construct() {
+			// TODO Auto-generated method stub
+			this.chr_id = this.reads_list.get(0)[0].getReferenceName();
+			int chr_start = Integer.MAX_VALUE;
+			int chr_end   = Integer.MIN_VALUE;
+			for(SAMRecord[] records : this.reads_list) {
+				for(SAMRecord record : records) {
+					if(record.getAlignmentStart()<chr_start)
+						chr_start = record.getAlignmentStart();	
+					if(record.getAlignmentEnd()>chr_end)
+						chr_end   = record.getAlignmentEnd();
+				}
+			}
+			this.chr_start = chr_start-1;
+			this.chr_end   = chr_end;
+		}
+
+		public boolean passQualityControl() {
+			// TODO Auto-generated method stub
+			// 1. need at least 'bcn' read pairs
+			if(this.reads_list.size()<bcn) 
+				return false;
+			// 2. need all read pairs aligned to the same direction
+			this.reverse = this.reads_list.get(0)[0].getReadNegativeStrandFlag();
+			for(SAMRecord[] rs : this.reads_list) {
+				if(rs[0].getReadNegativeStrandFlag()!=this.reverse)
+					return false;
+			}
+			// 3. need max quality score not smaller than 'minQual'
+			double qual = .0, q;
+			for(SAMRecord[] rs : this.reads_list) {
+				q = rs[0].getMappingQuality()+rs[1].getMappingQuality();
+				if(qual<q) qual = q;
+			}
+			if(qual/2<minQual) return false;
+			return true;
+		}
+	}
+	
+	private double middlePoint(SAMRecord[] record) {
+		// TODO Auto-generated method stub
+		return (double)(Math.min(record[0].getAlignmentStart(), record[1].getAlignmentStart())+
+				Math.max(record[0].getAlignmentEnd(), record[1].getAlignmentEnd()))/2;
+	}
+	
+	private List<Molecule> extractMoleculeFromList(List<SAMRecord[]> list) {
+		// TODO Auto-generated method stub
+		List<Molecule> mols = new ArrayList<Molecule>();
+		
+		if(list.isEmpty()) return mols; 
+		
+		Collections.sort(list, new Comparator<SAMRecord[]>() {
+			@Override
+			public int compare(SAMRecord[] record0, SAMRecord[] record1) {
+				// TODO Auto-generated method stub
+				int f = record0[0].getReferenceIndex().intValue()-
+						record1[0].getReferenceIndex().intValue();
+				return f==0 ? Double.compare(middlePoint(record0), middlePoint(record1)) : f;
+			}
+		});
+		
+		Iterator<SAMRecord[]> iter = list.iterator();
+		SAMRecord[] records = iter.next();
+		int chr_index = records[0].getReferenceIndex();
+		double chr_pos = middlePoint(records);
+		Molecule mol = new Molecule();
+		mol.add(records);
+		while(iter.hasNext()) {
+			records = iter.next();
+			if(records[0].getReferenceIndex()!=chr_index ||
+					middlePoint(records)-chr_pos>maxGap) {
+				mol.construct();
+				if(mol.passQualityControl()) 
+					mols.add(mol);
+				mol = new Molecule();		
+			}
+			chr_index = records[0].getReferenceIndex();
+			chr_pos = middlePoint(records);
+			mol.add(records);
+		}
+		mol.construct();
+		if(mol.passQualityControl())
+			mols.add(mol);
+		
+		return mols;
+	}
+	
 	public void run_arcs() {
 		// TODO Auto-generated method stub
 		final Set<String> bc_white = new HashSet<String>();
@@ -377,6 +492,8 @@ public class TenXArcs extends Executor {
 		}
 		final SamReader samReader = factory.open(new File(this.bamFiles[0]));
 		final SAMSequenceDictionary seqdict = samReader.getFileHeader().getSequenceDictionary();
+		final int nSeq = seqdict.size();
+		
 		try {
 			samReader.close();
 		} catch (IOException e1) {
@@ -384,6 +501,8 @@ public class TenXArcs extends Executor {
 			e1.printStackTrace();
 		}
 
+		final Map<Long, Integer> arcs = new HashMap<Long, Integer>();
+		
 		this.initial_thread_pool();
 		for(final String bamFile : bamFiles) {
 			this.executor.submit(new Runnable() {
@@ -395,15 +514,60 @@ public class TenXArcs extends Executor {
 					try {
 						final BAMBarcodeIterator iter = new BAMBarcodeIterator(this.bamFile);
 						List<SAMRecord[]> bc_records;
-						Map<String, List<SAMRecord[]>> bc_blocks;
+						List<Molecule> mols;
+						String seq1, seq2;
+						int ref1, ref2, tmp;
+						long refind;
+
 						while(iter.hasNext()) {
 							bc_records = iter.next();
 							if(bc_records.isEmpty() || 
 									!bc_white.contains(bc_records.get(0)[0].getStringAttribute("BX")))
 								continue;
-							bc_blocks = bin(bc_records);
-						}
+							mols = extractMoleculeFromList(bc_records);
+							
+							for(Molecule mol1 : mols) {
+								seq1 = mol1.chr_id;
+								ref1 = seqdict.getSequenceIndex(seq1);
+								
+								for(Molecule mol2 : mols) {
+									seq2 = mol2.chr_id;
+									ref2 = seqdict.getSequenceIndex(seq2);
+									
+									if(ref1==ref2) continue;
+									if(ref1>ref2) {
+										tmp  = ref1;
+										ref1 = ref2;
+										ref2 = tmp;
+									}
 
+									refind  = ref1;
+									refind <<= 32;
+									refind += ref2;
+									
+									if(mol1.reverse==mol2.reverse) {
+										// ref1 -> ref2
+										// ref2' -> ref1'
+										// ref2 -> ref1
+										// ref1' -> ref2'										
+									} else {
+										// ref1 -> ref2'
+										// ref2 -> ref1'
+										// ref2' -> ref1
+										// ref1' -> ref2
+										refind += nSeq;
+									}
+									
+									synchronized(lock) {
+										if(arcs.containsKey(refind)) {
+											arcs.put(refind, arcs.get(refind)+1);
+										} else {
+											arcs.put(refind, 1);
+										}
+									}
+								}
+							}
+						}
 						iter.close();
 					} catch (Exception e) {
 						Thread t = Thread.currentThread();
@@ -413,14 +577,7 @@ public class TenXArcs extends Executor {
 						System.exit(1);
 					}
 				}
-
-				private Map<String, List<SAMRecord[]>> bin(List<SAMRecord[]> bc_records) {
-					// TODO Auto-generated method stub
-					final Map<String, List<SAMRecord[]>> bc_blocks = new HashMap<String, List<SAMRecord[]>>();
-
-					return bc_blocks;
-				}
-
+				
 				public Runnable init(String bamFile) {
 					// TODO Auto-generated method stub
 					this.bamFile = bamFile;
@@ -430,6 +587,22 @@ public class TenXArcs extends Executor {
 			}.init(bamFile));
 		}
 		this.waitFor();
+		
+		try {
+			BufferedWriter bw = Utils.getBufferedWriter(this.out);
+			String source, target;
+			int tk;
+			for(long key : arcs.keySet()) {
+				tk = (int) key;
+				target = seqdict.getSequence(tk<nSeq?tk:tk-nSeq).getSequenceName()+(tk<nSeq?"":"'");
+				source = seqdict.getSequence((int)(key>>32)).getSequenceName();
+				bw.write(key+"\t"+source+"\t"+target+"\t"+arcs.get(key)+"\n");
+			}
+			bw.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
 	final Object lock = new Object();
