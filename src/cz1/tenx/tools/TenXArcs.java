@@ -4,19 +4,27 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
+import org.jgrapht.graph.DefaultEdge;
+import org.jgrapht.graph.DefaultWeightedEdge;
+import org.jgrapht.graph.DirectedPseudograph;
+import org.jgrapht.graph.DirectedWeightedPseudograph;
 
+import cz1.ngs.model.OverlapEdge;
 import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
 import cz1.util.Constants;
@@ -31,20 +39,24 @@ import htsjdk.samtools.SamReaderFactory;
 import htsjdk.samtools.ValidationStringency;
 
 public class TenXArcs extends Executor {
-	private static enum Task {link, arcs, gv, zzz}
+	private static enum Task {link, arcs, gv, dist, zzz}
 	private Task task_list = Task.zzz;
 
 	private String[] bamFiles = null;
 	private boolean[] matePair = null; // mate-pair library
 	private int[] inst = null;
 	private double[] insE = null;
-	private int minQual = 10;
+	private int minQual = 20;
 	private String out = null;
 	private String bcList = null;
 	private String linkFile = null;
 	private String seqFile = null;
 	private int bcn = 3;
 	private int maxGap = 30000;
+	private int minLink = 5;
+	private double minRatio = 0.2;
+	private int radius = 30000;
+	private String distFile = null;
 
 	@Override
 	public void printUsage() {
@@ -57,6 +69,7 @@ public class TenXArcs extends Executor {
 							+ " link                  Count links.\n"
 							+ " arcs                  Anchor contigs to generate scaffolds.\n"
 							+ " gv                    Convert link file to assembly graph file.\n"
+							+ " dist                  Make a distance matrix for a link graph with a given radius.\n"
 							+ "\n");
 			break;
 
@@ -66,7 +79,7 @@ public class TenXArcs extends Executor {
 							+ " -b/--bam-file         BAM file for the alignment records for read pairs.\n"
 							+ " -c/--config-file      Configuration file for BAM files.\n"
 							+ " -mp/--mate-pair       Mate-pair library.\n"
-							+ " -q/--min-qual         Minimum alignment quality (default: 10).\n"
+							+ " -q/--min-qual         Minimum alignment quality (default: 20).\n"
 							+ " -i/--insert-size      Insert size of the library.\n"
 							+ " -e/--ins-error        Allowed insert size error.\n" 
 							+ " -t/--threads          Number of threads to use (default: all avaiable processors).\n"
@@ -78,10 +91,11 @@ public class TenXArcs extends Executor {
 					"\n\nUsage is as follows:\n"
 							+ " -b/--bam-file         BAM file for the alignment records for read pairs.\n"
 							+ " -f/--bam-fof          File of BAM file list.\n"
-							+ " -q/--min-qual         Minimum min average quality scores per molecule (default: 10).\n"
+							+ " -q/--min-qual         Minimum min average quality scores per molecule (default: 20).\n"
 							+ " -w/--white-list       File of barcodes on the white list.\n"
 							+ " -n/--read-number      Minimum number of read pair per barcode (defalt: 3).\n"
 							+ " -g/--max-gap          Maximum gap size for two adjcent read pairs in a molecule (default: 30000).\n"
+							+ " -d/--dist             Distance file.\n"
 							+ " -t/--threads          Number of threads to use (default: all avaiable processors).\n"
 							+ " -o/--out              Output file.\n\n");
 			break;
@@ -94,6 +108,21 @@ public class TenXArcs extends Executor {
 							+ " -o/--out              Output file.\n\n");
 			break;
 			
+		case dist:
+			myLogger.info(
+					"\n\nUsage is as follows:\n"
+							+ " -l/--links            Link file.\n"
+							+ " -k/--min-links        Minimum #links to create a edge (default: 5).\n"
+							+ " -a/--ratio            Minimum link ratio between two best contig pairs (default: 0.2).\n"
+							+ "                       *higher values lead to more stringent link graph trimming*\n"
+							+ "                       e.g., a node of three edges with #links=100, 20 and 10, repectively,\n"
+							+ "                       -a 0.2 will keep two edges while -a 0.3 will only keep the first one.\n"
+							+ " -s/--seqs             Sequence file.\n"
+							+ " -r/--radius           Radius to search (default: 50000).\n"
+							+ " -t/--threads          Number of threads to use (default: all avaiable processors).\n"
+							+ " -o/--out              Output file.\n\n");
+			break;
+		
 		default:
 			throw new RuntimeException("!!!");
 		}
@@ -117,6 +146,9 @@ public class TenXArcs extends Executor {
 		case "gv":
 			this.task_list = Task.gv;
 			break;
+		case "dist":
+			this.task_list = Task.dist;
+			break;
 		default:
 			printUsage();
 			throw new IllegalArgumentException("\n\nPlease use the above arguments/options.\n\n");	
@@ -137,13 +169,17 @@ public class TenXArcs extends Executor {
 			myArgsEngine.add("-w", "--white-list", true);
 			myArgsEngine.add("-n", "--read-number", true);
 			myArgsEngine.add("-g", "--max-gap", true);
+			myArgsEngine.add("-d", "--dist", true);
 			myArgsEngine.add("-l", "--links", true);
 			myArgsEngine.add("-s", "--seqs", true);
+			myArgsEngine.add("-k", "--min-links", true);
+			myArgsEngine.add("-a", "--ratio", true);
+			myArgsEngine.add("-r", "--radius", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-o", "--out", true);
 			myArgsEngine.parse(args2);
 		}
-
+		
 		switch(this.task_list) {
 		case link:
 			if (!myArgsEngine.getBoolean("-b")&&!myArgsEngine.getBoolean("-c")) {
@@ -245,6 +281,13 @@ public class TenXArcs extends Executor {
 				this.maxGap = Integer.parseInt(myArgsEngine.getString("-g"));
 			}
 			
+			if(myArgsEngine.getBoolean("-d")) {
+				this.distFile = myArgsEngine.getString("-d");
+			} else {
+				printUsage();
+				throw new IllegalArgumentException("Please specify the distance file.");
+			}
+			
 			if(myArgsEngine.getBoolean("-n")) {
 				this.bcn = Integer.parseInt(myArgsEngine.getString("-n"));
 			}
@@ -262,6 +305,32 @@ public class TenXArcs extends Executor {
 			}
 			if(myArgsEngine.getBoolean("-s")) {
 				this.seqFile = myArgsEngine.getString("-s");
+			} else {
+				printUsage();
+				throw new IllegalArgumentException("Please specify sequence file.");
+			}
+			break;
+		case dist:
+			if(myArgsEngine.getBoolean("-l")) {
+				this.linkFile = myArgsEngine.getString("-l");
+			} else {
+				printUsage();
+				throw new IllegalArgumentException("Please specify link file.");
+			}
+			if(myArgsEngine.getBoolean("-s")) {
+				this.seqFile = myArgsEngine.getString("-s");
+			} else {
+				printUsage();
+				throw new IllegalArgumentException("Please specify sequence file.");
+			}
+			if(myArgsEngine.getBoolean("-k")) {
+				this.minLink = Integer.parseInt(myArgsEngine.getString("-k"));
+			}
+			if(myArgsEngine.getBoolean("-a")) {
+				this.minRatio = Double.parseDouble(myArgsEngine.getString("-a"));
+			}
+			if(myArgsEngine.getBoolean("-r")) {
+				this.radius = Integer.parseInt(myArgsEngine.getString("-r"));
 			} else {
 				printUsage();
 				throw new IllegalArgumentException("Please specify sequence file.");
@@ -324,8 +393,7 @@ public class TenXArcs extends Executor {
 				sn = samRecord.getReadName();
 
 				if( !samRecord.getReadUnmappedFlag() &&
-						!samRecord.getNotPrimaryAlignmentFlag()&&
-						!samRecord.getSupplementaryAlignmentFlag() ) {
+						!samRecord.isSecondaryOrSupplementary() ) {
 					if(samRecord.getFirstOfPairFlag())
 						records[0] = samRecord;
 					else if(samRecord.getSecondOfPairFlag())
@@ -336,8 +404,7 @@ public class TenXArcs extends Executor {
 
 				while( (samRecord = iter.hasNext() ? iter.next() : null)!=null && samRecord.getReadName().equals(sn)) {
 					if( !samRecord.getReadUnmappedFlag() &&
-							!samRecord.getNotPrimaryAlignmentFlag()&&
-							!samRecord.getSupplementaryAlignmentFlag() ) {
+							!samRecord.isSecondaryOrSupplementary()) {
 						if(samRecord.getFirstOfPairFlag())
 							records[0] = samRecord;
 						else if(samRecord.getSecondOfPairFlag())
@@ -479,13 +546,26 @@ public class TenXArcs extends Executor {
 	public void run_arcs() {
 		// TODO Auto-generated method stub
 		final Set<String> bc_white = new HashSet<String>();
-
+		final Map<String, Map<String, Double>> dist = new HashMap<>();
 		try {
-			final BufferedReader br_bc = Utils.getBufferedReader(this.bcList);
 			String line;
+			final BufferedReader br_bc = Utils.getBufferedReader(this.bcList);
 			while( (line=br_bc.readLine()) != null ) 
 				bc_white.add(line.split(",")[0]);
 			br_bc.close();
+			
+			final BufferedReader br_ds = Utils.getBufferedReader(this.distFile);
+			String[] s, s2;
+			while( (line=br_ds.readLine()) !=null ) {
+				s = line.trim().split("\\s+");
+				final Map<String, Double> ds = new HashMap<>();
+				for(int i=1; i<s.length; i++) {
+					s2 = s[i].trim().split(",");
+					ds.put(s2[0], Double.parseDouble(s2[1]));
+				}
+				dist.put(s[0], ds);
+			}
+			br_ds.close();
 		} catch (IOException e1) {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
@@ -505,18 +585,20 @@ public class TenXArcs extends Executor {
 		
 		this.initial_thread_pool();
 		for(final String bamFile : bamFiles) {
-			this.executor.submit(new Runnable() {
+			
+            this.executor.submit(new Runnable() {
 				private String bamFile;
 
 				@Override
 				public void run() {
 					// TODO Auto-generated method stub
+					myLogger.info("####Processing BAM file "+bamFile+".");
+			        
 					try {
 						final BAMBarcodeIterator iter = new BAMBarcodeIterator(this.bamFile);
 						List<SAMRecord[]> bc_records;
 						List<Molecule> mols;
-						String seq1, seq2;
-						int ref1, ref2, tmp;
+						String ref, ref1, ref2;
 						long refind;
 
 						while(iter.hasNext()) {
@@ -526,49 +608,30 @@ public class TenXArcs extends Executor {
 								continue;
 							mols = extractMoleculeFromList(bc_records);
 							
+							final DirectedPseudograph<String, DefaultEdge> g = new DirectedPseudograph<>(DefaultEdge.class);
+							for(Molecule mol : mols) {
+								ref = mol.chr_id;
+								if(!g.containsVertex(ref))
+									g.addVertex(ref);
+								if(!g.containsVertex(ref+"'"))
+									g.addVertex(ref+"'");
+							}
+							
 							for(Molecule mol1 : mols) {
-								seq1 = mol1.chr_id;
-								ref1 = seqdict.getSequenceIndex(seq1);
-								
+								ref1 = mol1.chr_id;
+								if(mol1.reverse) 
+									ref1 += "'";
 								for(Molecule mol2 : mols) {
-									seq2 = mol2.chr_id;
-									ref2 = seqdict.getSequenceIndex(seq2);
+									ref2 = mol2.chr_id;
+									if(mol2.reverse)
+										ref2 += "'";
 									
-									if(ref1==ref2) continue;
-									if(ref1>ref2) {
-										tmp  = ref1;
-										ref1 = ref2;
-										ref2 = tmp;
-									}
-
-									refind  = ref1;
-									refind <<= 32;
-									refind += ref2;
-									
-									if(mol1.reverse==mol2.reverse) {
-										// ref1 -> ref2
-										// ref2' -> ref1'
-										// ref2 -> ref1
-										// ref1' -> ref2'										
-									} else {
-										// ref1 -> ref2'
-										// ref2 -> ref1'
-										// ref2' -> ref1
-										// ref1' -> ref2
-										refind += nSeq;
-									}
-									
-									synchronized(lock) {
-										if(arcs.containsKey(refind)) {
-											arcs.put(refind, arcs.get(refind)+1);
-										} else {
-											arcs.put(refind, 1);
-										}
-									}
 								}
 							}
 						}
 						iter.close();
+
+                        myLogger.info("####BAM file "+bamFile+" processed.");
 					} catch (Exception e) {
 						Thread t = Thread.currentThread();
 						t.getUncaughtExceptionHandler().uncaughtException(t, e);
@@ -684,8 +747,7 @@ public class TenXArcs extends Executor {
 
 							readName = tmp.getReadName();
 							while(tmp!=null && tmp.getReadName().equals(readName)) {
-								if( !tmp.getNotPrimaryAlignmentFlag() && 
-										!tmp.getSupplementaryAlignmentFlag() &&
+								if( !tmp.isSecondaryOrSupplementary() &&
 										!tmp.getReadUnmappedFlag() &&
 										tmp.getMappingQuality()>=minQual) {
 									if(tmp.getFirstOfPairFlag())  r1 = tmp;
@@ -975,6 +1037,168 @@ public class TenXArcs extends Executor {
 		}
 	}
 	
+	private void run_dist() {
+		// TODO Auto-generated method stub
+		
+		final DirectedWeightedPseudograph<String, DefaultWeightedEdge> link_graph = this.makeLinkGraph();
+		this.trimLinkGraph(link_graph);
+		
+		final Map<String, Sequence> sequences = Sequence.parseFastaFileWithRevCmpAsMap(this.seqFile);
+		
+		final Map<String, Map<String, Double>> distMat = new HashMap<>();
+		
+		this.initial_thread_pool();
+		for(final String source : link_graph.vertexSet()) {
+			executor.submit(new Runnable() {
+
+				private String root;
+				
+				@Override
+				public void run() {
+					// TODO Auto-generated method stub
+					myLogger.info("####calulate distance array for "+root);
+
+					final Map<String, Double> dist = new HashMap<>();
+					final Map<String, Double> distPool = new HashMap<>();
+					distPool.put(root, .0);
+					
+					final Deque<String> queue = new ArrayDeque<>();
+					queue.push(root);
+					
+					String source, target;
+					double distance, d;
+					while(!queue.isEmpty()) {
+						source = queue.pop();
+						distance = distPool.get(source);
+						for(final DefaultWeightedEdge out : link_graph.outgoingEdgesOf(source)) {
+							target = link_graph.getEdgeTarget(out);
+							if(!dist.containsKey(target)||dist.get(target)>distance)
+								dist.put(target, distance);
+							d = distance+sequences.get(target).seq_ln();
+							if(d>radius) continue;
+							if(!distPool.containsKey(target)||distPool.get(target)>d) {
+								distPool.put(target, d);
+								queue.push(target);
+							}
+						}
+					}
+					
+					synchronized(lock) {
+						distMat.put(root, dist);
+					}
+				}
+
+				public Runnable init(String root) {
+					// TODO Auto-generated method stub
+					this.root = root;
+					return this;
+				}
+				
+			}.init(source));
+		}
+		this.waitFor();
+		
+		
+		try {
+			BufferedWriter bw = Utils.getBufferedWriter(this.out);
+			StringBuilder os = new StringBuilder();
+			for(Map.Entry<String, Map<String, Double>> entry : distMat.entrySet()) {
+				os.setLength(0);
+				os.append(entry.getKey());
+				for(Map.Entry<String, Double> entry2 : entry.getValue().entrySet()) {
+					os.append("\t");
+					os.append(entry2.getKey());
+					os.append(",");
+					os.append((int) entry2.getValue().doubleValue());
+				}
+				os.append("\n");
+				bw.write(os.toString());
+			}
+			bw.close();
+		} catch(IOException e) {
+			e.printStackTrace();
+		}
+		return;
+	}
+	
+	private void trimLinkGraph(DirectedWeightedPseudograph<String, DefaultWeightedEdge> link_graph) {
+		// TODO Auto-generated method stub
+		final Set<DefaultWeightedEdge> edges = new HashSet<>(link_graph.edgeSet());
+		for(final String v : link_graph.vertexSet()) {
+			trim(link_graph, v, true,  edges);
+			trim(link_graph, v, false, edges);
+		}
+		link_graph.removeAllEdges(edges);
+		myLogger.info("#### link graph trimming done.");
+		myLogger.info("    +V "+link_graph.vertexSet().size());
+		myLogger.info("    -E "+edges.size());
+		myLogger.info("    +E "+link_graph.edgeSet().size());
+		myLogger.info("########");
+		return;
+	}
+
+	private void trim(DirectedWeightedPseudograph<String, DefaultWeightedEdge> link_graph, String v, boolean out,
+			Set<DefaultWeightedEdge> edgeSet) {
+		// TODO Auto-generated method stub
+		DefaultWeightedEdge[] edges = out ? 
+				link_graph.outgoingEdgesOf(v).toArray(new DefaultWeightedEdge[link_graph.outDegreeOf(v)]) :
+					link_graph.incomingEdgesOf(v).toArray(new DefaultWeightedEdge[link_graph.inDegreeOf(v)]);
+		if(edges.length==0) return;
+		double[] weights = new double[edges.length];
+		double maxW = 0, w;
+		for(int i=0; i<weights.length; i++) {
+			w = link_graph.getEdgeWeight(edges[i]);
+			weights[i] = w;
+			if(maxW<w) maxW = w;
+		}
+		if(maxW==0) throw new RuntimeException("!!!");
+		for(int i=0; i<weights.length; i++) {
+			if(weights[i]/maxW>=this.minRatio) 
+				edgeSet.remove(edges[i]);
+		}
+		return;
+	}
+
+	private DirectedWeightedPseudograph<String, DefaultWeightedEdge> makeLinkGraph() {
+		// TODO Auto-generated method stub
+		final DirectedWeightedPseudograph<String, DefaultWeightedEdge> link_graph = new 
+				DirectedWeightedPseudograph<>(DefaultWeightedEdge.class);
+		try {
+			String line;
+			String[] s;
+			BufferedReader br_seqs = Utils.getBufferedReader(seqFile);
+			String seq;
+			while( (line=br_seqs.readLine())!=null ) {
+				if(line.startsWith(">")) {
+					seq = line.split("\\s+")[0].substring(1);
+					link_graph.addVertex(seq);
+					link_graph.addVertex(seq+"'");
+				}
+			}
+			br_seqs.close();
+			
+			BufferedReader br_link = Utils.getBufferedReader(linkFile);
+			int weight;
+			DefaultWeightedEdge edge;
+			while( (line=br_link.readLine())!=null ) {
+				s = line.split("\\s+");
+				weight = Integer.parseInt(s[3]);
+				if(weight<this.minLink) continue;
+				edge = link_graph.addEdge(s[1], s[2]);
+				link_graph.setEdgeWeight(edge, weight);
+			}
+			br_link.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		myLogger.info("#### link graph construction done.");
+		myLogger.info("    +V "+link_graph.vertexSet().size());
+		myLogger.info("    +E "+link_graph.edgeSet().size());
+		myLogger.info("########");
+		return link_graph;
+	}
+
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
@@ -990,6 +1214,9 @@ public class TenXArcs extends Executor {
 			break;
 		case gv:
 			this.run_gv();
+			break;
+		case dist:
+			this.run_dist();
 			break;
 		default:
 			throw new RuntimeException("!!!");

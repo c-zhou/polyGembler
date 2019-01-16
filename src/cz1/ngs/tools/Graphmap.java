@@ -592,7 +592,7 @@ public class Graphmap extends Executor {
 			final Map<String, Double> dist = new HashMap<String, Double>();
 			
 			while(!visitor.isEmpty()) {
-				// poll this nearst node
+				// poll the nearest node
 				
 				StringBuilder os = new StringBuilder();
 				for(Map.Entry<Double, Set<String>> entry : visitor.entrySet()) {

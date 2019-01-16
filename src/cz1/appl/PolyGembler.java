@@ -21,6 +21,7 @@ import cz1.ngs.tools.Graphmap;
 import cz1.ngs.tools.HetCorr;
 import cz1.ngs.tools.Redundas;
 import cz1.ngs.tools.Scaffolder;
+import cz1.ngs.tools.Stitcher;
 import cz1.simulation.tools.GBSSimulator;
 import cz1.simulation.tools.PopulationSimulator;
 import cz1.tenx.tools.TenXArcs;
@@ -149,6 +150,11 @@ public class PolyGembler {
 			tenxarcs.setParameters(args2);
 			tenxarcs.run();
 			break;
+		case "stitcher":
+			Stitcher stitcher = new Stitcher();
+			stitcher.setParameters(args2);
+			stitcher.run();
+			break;
 		default:
 			printUsage();
 			throw new RuntimeException("Undefined tool!!!");
@@ -178,7 +184,8 @@ public class PolyGembler {
 						+ " contigger           Contigging using paired-end and/or long reads.\n"
 						+ " scaffolder          Scaffolding using paired-end and/or long reads.\n"
 						+ " tenxarcs            Scaffolding using 10x genomics' linked reads.\n"
-						+ " consensus           Consensus with paired reads link analysis.\n"
+						+ " stitcher            Scaffolding using a reference.\n"
+                        + " consensus           Consensus with paired reads link analysis.\n"
 						+ " redundas            Remove redundancies in the genome assembly.\n"
 						+ " a-stats             Compute Myers' a-statistic for a set of contigs using read alignments.\n"
 						+ " gembler             Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.\n\n");

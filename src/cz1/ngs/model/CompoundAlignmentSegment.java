@@ -6,10 +6,32 @@ import com.google.common.collect.RangeSet;
 
 public class CompoundAlignmentSegment extends AlignmentSegment {
 
+	private String key = null;
 	private final RangeSet<Integer> subCov;
 	private final RangeSet<Integer> qryCov;
 	private final int slen;
 	private final int qlen;
+	
+	public CompoundAlignmentSegment(
+			final String key,      // key
+			final String qseqid,   // query (e.g., gene) sequence id
+			final String sseqid,   // subject (e.g., reference genome) sequence id
+			final int qstart,      // start of alignment in query
+			final int qend,        // end of alignment in query
+			final int sstart,      // start of alignment in subject
+			final int send,        // end of alignment in subject
+			final RangeSet<Integer> subCov,
+			final RangeSet<Integer> qryCov,
+			final int slen,
+			final int qlen) {
+	
+		super(qseqid, sseqid, qstart,qend,sstart,send, true);
+		this.key      = key;
+		this.subCov   = subCov;
+		this.qryCov   = qryCov;
+		this.slen     = slen;
+		this.qlen     = qlen;
+	}
 	
 	public CompoundAlignmentSegment(
 			final String qseqid,   // query (e.g., gene) sequence id
@@ -28,6 +50,10 @@ public class CompoundAlignmentSegment extends AlignmentSegment {
 		this.qryCov   = qryCov;
 		this.slen     = slen;
 		this.qlen     = qlen;
+	}
+	
+	public String getkey() {
+		return this.key;
 	}
 	
 	public int getSubLen() {
