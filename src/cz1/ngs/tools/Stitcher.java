@@ -308,7 +308,6 @@ public class Stitcher extends Executor {
 		Range<Integer> span;
 		String bx;
 		
-		this.initial_thread_pool();
 		while(iter.hasNext()) {
 			query_recs = iter.next();
 			if(query_recs.isEmpty()) continue;
@@ -352,7 +351,6 @@ public class Stitcher extends Executor {
 			}
 
 		}
-		this.waitFor();
 		iter.close();
 
 		// now process each subject
@@ -371,7 +369,18 @@ public class Stitcher extends Executor {
 						final List<CompoundAlignmentSegment> asmb = new ArrayList<>();
 						final RangeSet<Integer> molSubCov = TreeRangeSet.create();
 						final int subL = sub_seqs.get(this.sub_id).seq_ln();
-						final int[] molSubDepth = new int[subL];
+						final int[] subDepth = new int[subL];
+						RangeSet<Integer> cov;
+						int lb, ub;
+						for(CompoundAlignmentSegment as : init) {
+							cov = as.getSubCov();
+							for(Range<Integer> r : cov.asRanges()) {
+								lb = r.lowerEndpoint()-1;
+								ub = r.upperEndpoint()-1;
+								for(int i=lb; i<ub; i++)
+									++subDepth[i];
+							}
+						}
 						ImmutableRangeSet<Integer> subCov, subExt;
 
 						for(int iter = 0; iter<bs.length; iter++) {
