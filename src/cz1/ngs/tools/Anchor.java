@@ -1422,7 +1422,7 @@ public class Anchor extends Executor implements Serializable {
 					for(int in : ins) {
 						target_seg = segBySubAll.get(in);
 						List<List<Integer>> traces = target_seg.getTrace();
-						List<Double> scores = target_seg.getScore();
+						List<Double> scores = target_seg.getScores();
 						int n = scores.size();
 						for(int k=0; k<n; k++) {
 							if(scores.get(k)>max_score) {
@@ -1926,7 +1926,7 @@ public class Anchor extends Executor implements Serializable {
 						for(int in : ins) {
 							target_seg = segBySubAll.get(in);
 							List<List<Integer>> traces = target_seg.getTrace();
-							List<Double> scores = target_seg.getScore();
+							List<Double> scores = target_seg.getScores();
 							int n = scores.size();
 							for(int k=0; k<n; k++) {
 								if(scores.get(k)>max_score) {
@@ -3746,7 +3746,7 @@ public class Anchor extends Executor implements Serializable {
 			this.cov.add(cov);
 		}
 
-		public List<Double> getScore() {
+		public List<Double> getScores() {
 			return this.score;
 		}
 
