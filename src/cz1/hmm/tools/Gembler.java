@@ -73,7 +73,7 @@ public class Gembler extends Executor {
 						+ "     -S/--random-seed            Random seed for this run.\n"
 						+ "     -t/--threads                Threads (default 1).\n"
 						+ "     -rlib/--R-external-libs     External library paths that you want R to search for packages.\n"
-						+ "                                 This could be useful if you are root users and install R \n"
+						+ "                                 This could be useful if you are not root users and install R \n"
 						+ "                                 packages in directories other than default. \n"
 						+ "                                 Multiple paths separated by ':' could be provided.\n"
 						+ "\n"

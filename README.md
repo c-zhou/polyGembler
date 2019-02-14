@@ -228,7 +228,7 @@ Common:
 -S/--random-seed                 Random seed for this run.
 -t/--threads                     Threads (default 1).
 -rlib/--R-external-libs          External library paths that you want R to search for packages.
-                                 This could be useful if you are root users and install R
+                                 This could be useful if you are not root users and install R
                                  packages in directories other than default.
                                  Multiple paths separated by ':' could be provided.
 
