@@ -33,7 +33,6 @@ public class Gembler extends Executor {
 	private String in_vcf = null;
 	private String assembly_file = null;
 	private String out_prefix = null;
-	private boolean vbt = false;
 	private int max_iter = 100;
 	private Field field = Field.PL;
 	
@@ -94,7 +93,6 @@ public class Gembler extends Executor {
 						+ "     -L/--genotype-likelihood    Use genotype likelihoods to infer haplotypes. Mutually \n"
 						+ "                                 exclusive with option -G/--genotype and -L/--allele-depth \n"
 						+ "                                 (default).\n"
-						+ "     -b/--segmental-kmeans       Use Vitering training instead of Baum-Welch algorithm.\n"
 						+ "     -c/--min-snp-count          Minimum number of SNPs on a scaffold to run.\n"
 						+ "     -r/--repeat                 Repeat haplotype inferring for multiple times as EM algorithm \n"
 						+ "                                 could be trapped in local optima. The program takes three values \n"
@@ -139,7 +137,6 @@ public class Gembler extends Executor {
 			myArgsEngine.add("-G", "--genotype", false);
 			myArgsEngine.add("-D", "--allele-depth", false);
 			myArgsEngine.add("-L", "--genotype-likelihood", false);
-			myArgsEngine.add("-b", "--segmental-kmeans", false);
 			myArgsEngine.add("-S", "--random-seed", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-l", "--min-depth", true);
@@ -211,11 +208,6 @@ public class Gembler extends Executor {
 		if(c>1) throw new IllegalArgumentException("Options -G/--genotype, "
 				+ "-D/--allele-depth, and -L/--genotype-likelihood "
 				+ "are exclusive!!!");
-		
-		if(myArgsEngine.getBoolean("-b")) {
-			vbt = true;
-			throw new RuntimeException("Viterbi training not supported yet!!!");
-		}
 		
 		if(myArgsEngine.getBoolean("-S")) {
 			Constants.seed = Long.parseLong(myArgsEngine.getString("-S"));
@@ -477,8 +469,7 @@ public class Gembler extends Executor {
 									field,
 									expr_id,
 									max_iter,
-									true,
-									vbt).run();
+									true).run();
 							synchronized (task_table) {
 								task_table[i][j]--;
 								task_table.notify();
@@ -563,8 +554,7 @@ public class Gembler extends Executor {
 												field,
 												expr_id,
 												max_iter,
-												true,
-												vbt).run();
+												true).run();
 										synchronized (task_table) {
 											task_table[i][j]--;
 											task_table.notify();
@@ -780,8 +770,7 @@ public class Gembler extends Executor {
 									Constants._ploidy_H,
 									field,
 									expr_id,
-									max_iter,
-									vbt).run();
+									max_iter).run();
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();
 							t.getUncaughtExceptionHandler().uncaughtException(t, e);
@@ -822,8 +811,7 @@ public class Gembler extends Executor {
 									field,
 									expr_id,
 									max_iter,
-									true,
-									vbt).run();
+									true).run();
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();
 							t.getUncaughtExceptionHandler().uncaughtException(t, e);

@@ -191,7 +191,12 @@ gembler                          Run PolyGembler pipeline to construct genetic l
 -i/--input                       Input zipped file.
 -o/--prefix                      Output file location.
 -ex/--experiment-id              Common prefix of haplotype files for this experiment.
+-hf/--hmm-file                   A zipped HMM file. If provided the initial transition 
+                                 and emission probabilities will be read from the file instead
+                                 of randomly selected.
 -c/--scaffold                    The scaffold/contig/chromosome id will run.
+-cs/--start-position             The start position of the scaffold/contig/chromosome.
+-ce/--end-position               The end position of the scaffold/contig/chromosome.
 -x/--max-iter                    Maxmium rounds for EM optimization (default 100).
 -p/--ploidy                      Ploidy of genome (default 2).
 -f/--parent                      Parent samples (separated by a \":\").
@@ -211,7 +216,6 @@ gembler                          Run PolyGembler pipeline to construct genetic l
 -L/--genotype-likelihood         Use genotype likelihoods to infer haplotypes. Mutually
                                  exclusive with option -G/--genotype and -L/--allele-depth 
                                  (default).
--b/--segmental-kmeans            Use Viterbi training instead of Baum-Welch algorithm.
 -e/--train-exp                   Re-estimate transition probabilities between founder/parental
                                  haplotypes at each step.
 -S/--random-seed                 Random seed for this run.

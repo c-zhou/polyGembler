@@ -50,7 +50,6 @@ public class Haplotyper extends Executor {
 	private String[] scaff = null;
 	private double[] seperation = null;
 	private boolean trainExp = false;
-	private boolean vbt = false;
 	private boolean[] reverse = new boolean[]{false};
 	private int max_iter = 100;
 	private Field field = Field.PL;
@@ -70,7 +69,6 @@ public class Haplotyper extends Executor {
 			String[] scaff,
 			double[] seperation,
 			boolean trainExp,
-			boolean vbt,
 			boolean[] reverse,
 			int max_iter,
 			int ploidy,
@@ -80,7 +78,6 @@ public class Haplotyper extends Executor {
 		this.scaff = scaff;
 		this.seperation = seperation;
 		this.trainExp = trainExp;
-		this.vbt = vbt;
 		this.reverse = reverse;
 		this.max_iter = max_iter;
 		Constants.ploidy(ploidy);
@@ -96,7 +93,6 @@ public class Haplotyper extends Executor {
 			String[] scaff,
 			double[] seperation,
 			boolean trainExp,
-			boolean vbt,
 			boolean[] reverse,
 			int max_iter,
 			int ploidy,
@@ -107,7 +103,6 @@ public class Haplotyper extends Executor {
 		this.scaff = scaff;
 		this.seperation = seperation;
 		this.trainExp = trainExp;
-		this.vbt = vbt;
 		this.reverse = reverse;
 		this.max_iter = max_iter;
 		Constants.ploidy(ploidy);
@@ -138,8 +133,7 @@ public class Haplotyper extends Executor {
 			int ploidy, 
 			Field field,
 			String expr_id,
-			int max_iter,
-			boolean vbt) {
+			int max_iter) {
 		// TODO Auto-generated constructor stub
 		this.in_zip = in_zip;
 		this.out_prefix = out_prefix;
@@ -148,7 +142,6 @@ public class Haplotyper extends Executor {
 		this.field = field;
 		this.expr_id = expr_id;
 		this.max_iter = max_iter;
-		this.vbt = vbt;
 	}
 	
 	public Haplotyper(String in_zip,
@@ -160,8 +153,7 @@ public class Haplotyper extends Executor {
 			Field field,
 			String expr_id,
 			int max_iter,
-			boolean trainExp,
-			boolean vbt) {
+			boolean trainExp) {
 		// TODO Auto-generated constructor stub
 		this.in_zip = in_zip;
 		this.out_prefix = out_prefix;
@@ -179,7 +171,6 @@ public class Haplotyper extends Executor {
 		this.expr_id = expr_id;
 		this.max_iter = max_iter;
 		this.trainExp = trainExp;
-		this.vbt = vbt;
 	}
 
 	@Override
@@ -191,7 +182,7 @@ public class Haplotyper extends Executor {
 							+" -o/--prefix                  Output file location.\n"
 							+" -ex/--experiment-id          Common prefix of haplotype files for this experiment.\n"
 							+" -hf/--hmm-file               A zipped HMM file. If provided the initial transition and \n"
-							+"                              and emission probabilities will be read from the file instead \n"
+							+"                              emission probabilities will be read from the file instead \n"
 							+"                              of randomly selected. \n"
 							+" -c/--scaffold                The scaffold/contig/chromosome id will run.\n"
 							+" -cs/--start-position         The start position of the scaffold/contig/chromosome.\n"
@@ -199,7 +190,6 @@ public class Haplotyper extends Executor {
 							+" -x/--max-iter                Maxmium rounds for EM optimization (default 100).\n"
 							+" -p/--ploidy                  Ploidy of genome (default 2).\n"
 							+" -f/--parent                  Parent samples (separated by a \":\").\n"
-							+" -fc/--founder-hap-coeff      Founder haplotypes weight coefficient.\n"
 							+" -s/--initial-seperation      Initialisations of distances between the adjacent scaffolds \n"
 							+"                              if multiple scaffolds will be jointly inferred. The separation \n"
 							+"                              could be either physical distances or recombination frequencies, \n"
@@ -216,11 +206,8 @@ public class Haplotyper extends Executor {
 							+" -L/--genotype-likelihood     Use genotype likelihoods to infer haplotypes. Mutually \n"
 							+"                              exclusive with option -G/--genotype and -L/--allele-depth \n"
 							+"                              (default).\n"
-							+" -ld/--loglike-diff           Log likelihood difference for Veterbi path (default 0)."
-							+" -b/--segmental-kmeans        Use Viterbi training instead of Baum-Welch algorithm.\n"
 							+" -e/--train-exp               Re-estimate transition probabilities between founder/parental \n"
 							+"                              haplotypes at each step.\n"
-							+" -rs/--resampling             Resampling from the HMM (default 100).\n"
 							+" -S/--random-seed             Random seed for this run.\n"
 							+" -pp/--print-plot             Plot the hidden Markov model.\n"
 							+" -sp/--save-plot              Save the plot as a pdf file. The file name should be provided here.\n"
@@ -249,17 +236,13 @@ public class Haplotyper extends Executor {
 			myArgsEngine.add("-x", "--max-iter", true);
 			myArgsEngine.add("-p", "--ploidy", true);
 			myArgsEngine.add("-f", "--parent", true);
-			myArgsEngine.add("-fc", "--founder-hap-coeff", true);
 			myArgsEngine.add("-s", "--initial-seperation", true);
 			myArgsEngine.add("-r", "--reverse", true);
 			myArgsEngine.add("-G", "--genotype", false);
 			myArgsEngine.add("-D", "--allele-depth", false);
 			myArgsEngine.add("-L", "--genotype-likelihood", false);
-			myArgsEngine.add("-b", "--segmental-kmeans", false);
-			myArgsEngine.add("-ld", "--loglike-diff", true);
 			myArgsEngine.add("-e", "--train-exp", false);
 			myArgsEngine.add("-S", "--random-seed", true);
-			myArgsEngine.add("-rs", "--resampling", true);
 			myArgsEngine.add("-pp", "--print-plot", false);
 			myArgsEngine.add("-sp", "--save-plot", true);
 			myArgsEngine.parse(args);
@@ -340,14 +323,6 @@ public class Haplotyper extends Executor {
 			throw new IllegalArgumentException("Please specify the parent samples (seperated by a \":\").");
 		}
 		
-		if(myArgsEngine.getBoolean("-fc")) {
-			founder_hap_coeff = Double.parseDouble(myArgsEngine.getString("-fc"));
-		}
-		
-		if(myArgsEngine.getBoolean("-ld")) {
-			loglik_diff = Double.parseDouble(myArgsEngine.getString("-ld"));
-		}
-		
 		if(myArgsEngine.getBoolean("-s")) {
 			String[] ss = myArgsEngine.getString("-s").split(":");
 			if(ss.length<scaff.length-1)
@@ -399,18 +374,9 @@ public class Haplotyper extends Executor {
 				+ "-D/--allele-depth, and -L/--genotype-likelihood "
 				+ "are exclusive!!!");
 		
-		if(myArgsEngine.getBoolean("-b")) {
-			vbt = true;
-			// throw new RuntimeException("Viterbi training not supported yet!!!");
-		}
-		
 		if(myArgsEngine.getBoolean("-S")) {
 			Constants.seed = Long.parseLong(myArgsEngine.getString("-S"));
 			Constants.setRandomGenerator();
-		}
-		
-		if(myArgsEngine.getBoolean("-rs")) {
-			resampling = Integer.parseInt(myArgsEngine.getString("-rs"));;
 		}
 		
 		if(myArgsEngine.getBoolean("-e")) {
