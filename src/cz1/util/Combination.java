@@ -10,8 +10,6 @@ import org.paukov.combinatorics.Factory;
 import org.paukov.combinatorics.Generator;
 import org.paukov.combinatorics.ICombinatoricsVector;
 
-import cz1.tenx.model.HiddenMarkovModel;
-
 public class Combination {
 
 	private final static Logger myLogger = Logger.getLogger(Combination.class);

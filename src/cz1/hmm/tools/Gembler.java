@@ -356,7 +356,7 @@ public class Gembler extends Executor {
 	
 		//#### STEP 04 recombination frequency estimation
 		final String rf_prefix = metafile_prefix+prefix_vcf;
-		new RFEstimatorML (out, 
+		new RFEstimator (out, 
 				rf_prefix,
 				expr_id, 
 				Constants._ploidy_H,
@@ -396,7 +396,7 @@ public class Gembler extends Executor {
 		
 		//#### STEP 07 recombination frequency estimation
 		final String mm_rf_prefix = metafile_prefix+"2nn_"+prefix_vcf;
-		new RFEstimatorML (mm_out, 
+		new RFEstimator (mm_out, 
 				mm_rf_prefix,
 				expr_id, 
 				Constants._ploidy_H,
@@ -513,7 +513,7 @@ public class Gembler extends Executor {
 					final String out_refine_ij_haps = out_refine_ij+"haplotypes/";
 					final String mm_rf_prefix_ij = out_refine_ij+"1";
 					
-					new RFEstimatorML (out_refine_ij_haps, 
+					new RFEstimator (out_refine_ij_haps, 
 							mm_rf_prefix_ij,
 							expr_id, 
 							Constants._ploidy_H,

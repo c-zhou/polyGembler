@@ -32,9 +32,7 @@ import com.itextpdf.text.pdf.PdfWriter;
 import cz1.hmm.data.DataCollection;
 import cz1.hmm.data.DataEntry;
 import cz1.hmm.model.HiddenMarkovModel;
-import cz1.hmm.model.HiddenMarkovModelBWT;
-import cz1.hmm.model.HiddenMarkovModelRST;
-import cz1.hmm.model.HiddenMarkovModelVBT;
+import cz1.hmm.model.HMMTrainer;
 import cz1.hmm.swing.HMMFrame;
 import cz1.hmm.swing.HMMPanel;
 import cz1.hmm.swing.Printer;
@@ -441,12 +439,9 @@ public class Haplotyper extends Executor {
 			DataCollection.readDataEntry(in_zip, scaff, start_pos, end_pos);
 
 				// DataEntry[] de = DataCollection.readDataEntry(in_zip, Constants._ploidy_H);
-		final HiddenMarkovModel hmm = vbt ? 
-			new HiddenMarkovModelVBT(de, seperation, reverse, trainExp, field, founder_hap_coeff):
-			//new HiddenMarkovModelRST(de, seperation, reverse, trainExp, field, resampling):
-			(hmm_file==null ?
-			new HiddenMarkovModelBWT(de, seperation, reverse, trainExp, field, founder_hap_coeff):
-			new HiddenMarkovModelBWT(de, seperation, reverse, trainExp, field, founder_hap_coeff, hmm_file));
+		final HiddenMarkovModel hmm = (hmm_file==null ?
+			new HMMTrainer(de, seperation, reverse, trainExp, field, founder_hap_coeff):
+			new HMMTrainer(de, seperation, reverse, trainExp, field, founder_hap_coeff, hmm_file));
 		
 		if(Constants.plot()){
 			Runnable run = new Runnable(){

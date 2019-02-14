@@ -47,7 +47,7 @@ import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Utils;
 
-public class AssemblyError extends RFEstimatorML {
+public class AssemblyError extends RFEstimator {
 	private final static double breakage_thres = 0.05;
 	
 	public AssemblyError (String in_haps, 

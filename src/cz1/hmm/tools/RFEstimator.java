@@ -28,8 +28,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import java.text.NumberFormat;
@@ -59,13 +57,11 @@ import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.math3.exception.MathIllegalArgumentException;
 import org.apache.commons.math3.stat.StatUtils;
-import org.apache.commons.math3.stat.correlation.KendallsCorrelation;
-import org.apache.commons.math3.stat.correlation.SpearmansCorrelation;
 import org.apache.commons.math3.stat.inference.ChiSquareTest;
 import org.apache.commons.math3.stat.inference.GTest;
 
-// recombination frequency estimator from resampling
-public class RFEstimatorRS2 extends RFUtils {	
+// recombination frequency estimator from most likely paths
+public class RFEstimator extends RFUtils {	
 
 	// private static long[] scale_times = new long[10]; 
 
@@ -159,7 +155,7 @@ public class RFEstimatorRS2 extends RFUtils {
 		}
 		
 		if(myArgsEngine.getBoolean("-phi")) {
-			skew_phi = Double.parseDouble(myArgsEngine.getString("-phi"));
+			skew_phi = Integer.parseInt(myArgsEngine.getString("-phi"));
 		}
 		
 		if(myArgsEngine.getBoolean("-nd")) {
@@ -190,7 +186,16 @@ public class RFEstimatorRS2 extends RFUtils {
 		}
 		try {
 			for(String scaff : kept_scaffs)
-					rfMinimumWriter.write("##"+scaff+"\n");
+				rfMinimumWriter.write("##"+scaff+"\n");
+			for(Map.Entry<String, double[]> entry : this.conjPairRFs.entrySet()) {
+				String key = entry.getKey();
+				String[] s = key.split(Constants.scaff_collapsed_str);
+				double[] rf = entry.getValue();
+				String w = StatUtils.min(rf)+"\t";
+				for(int k=0; k<rf.length; k++) w += rf[k]+"\t";
+				w += s[0]+"\t"+s[1]+"\n";
+				rfMinimumWriter.write(w);
+			}
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -229,149 +234,37 @@ public class RFEstimatorRS2 extends RFUtils {
 				int[] start_end) {
 			// TODO Auto-generated constructor stub
 			super(file, markers, start_end);
-			this.indentical_gametes = 
-					this.makeIndenticalGameteMap(start_end[0],start_end[1]);
 		}
-
-		final boolean[][][][] indentical_gametes;
-		private boolean[][][][] data;
+		
+		protected boolean[][][][] data;
+		protected int[][][] hashcode;
 		
 		protected MyPhasedDataCollection(String file,
 				String[] markers, 
 				int[] start_end,
-				boolean[][][][] indentical_gametes,
 				boolean[][][][] data) {
 			// TODO Auto-generated constructor stub
 			super(file, markers, start_end);
-			this.indentical_gametes = indentical_gametes;
 			this.data = data;
 		}
 		
-		private boolean[][][][] makeIndenticalGameteMap(int start, int end) {
+		protected void hash() {
 			// TODO Auto-generated method stub
-			final boolean[][][][] indentical_gametes = 
-					new boolean[2][combinant_ploidy][][];
-			int nM = end-start+1;
-			String[][] alleles = new String[nM][Constants._haplotype_z];
-			try {
-				InputStreamObj isObj = new InputStreamObj(this.file);
-				isObj.getInputStream("EMISS");
-				BufferedReader br = Utils.getBufferedReader(isObj.is);
-				for(int i=1; i<start; i++) br.readLine();
-				
-				String[] probs_str;
-				String line;
-				Pattern pat = Pattern.compile("\\{(.*?)\\}");
-				for(int i=start; i<=end; i++) {
-					line = br.readLine();
-					Matcher m = pat.matcher(line);
-					m.find(); // skip dummy hidden state
-					for(int j=0; j<Constants._haplotype_z; j++) {
-						m.find();
-						probs_str = m.group(1).split(",|;");
-						String a = probs_str[0];
-						double p = Double.parseDouble(probs_str[1]);
-						for(int k=2; k<probs_str.length-1; k+=2) { 
-							double q = Double.parseDouble(probs_str[k+1]);
-							if(q>p) {
-								a = probs_str[k];
-								p = q;
-							}
-						}
-						alleles[i-start][j] = a;
-					}
-				}
-				br.close();
-				isObj.close();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			
+			this.hashcode = new int[2][2][nF1];
 			for(int i=0; i<2; i++) {
-				int sf = i*Constants._ploidy_H;
-				boolean[][] eq = new boolean[Constants._ploidy_H][Constants._ploidy_H];
-				for(int j=0; j<Constants._ploidy_H; j++) {
-					eq[j][j] = true;
-					for(int k=0; k<Constants._ploidy_H; k++) {
-						int a = 0;
-						for(int l=0; l<nM; l++)
-							if(alleles[l][j+sf].equals(alleles[l][k+sf])) 
-								a++;
-							else break;
-						if(a==nM) {
-							eq[j][k] = true;
-							eq[j][k] = true;
-						}
-					}
-				}
-
-				for(int j=0; j<combinant_ploidy; j++) {	
-					boolean[] gamete_j = gamete_ref[j];
-					int[] gamete = new int[Constants._ploidy_H/2];
-					int z = 0;
-					for(int k=0; k<Constants._ploidy_H; k++)
-						if(gamete_j[k]) gamete[z++] = k;
-					int[][] na = new int[Constants._ploidy_H/2][];
-					int[] n = new int[Constants._ploidy_H/2];
-					int N = 1;
-					for(int k=0; k<Constants._ploidy_H/2; k++) {
-						na[k] = getIndeticalAllele(eq[gamete[k]]);
-						n[k] = na[k].length;
-						N *= n[k];
-					}
-					int[][] indices = new int[N][Constants._ploidy_H/2];
-					
-					int rep_a = 1, rep_b = N;
-					for(int k=0; k<Constants._ploidy_H/2; k++) {
-						rep_b /= n[k];
-						int i_n = 0;
-						for(int l=0; l<rep_a; l++) 
-							for(int w=0; w<n[k]; w++)
-								for(int v=0; v<rep_b; v++)
-									indices[i_n++][k] = na[k][w];
-						rep_a *= n[k];
-					}
-					for(int k=0; k<N; k++) Arrays.sort(indices[k]);
-					Set<Integer> keys = new HashSet<Integer>();
-					List<Integer> keys_retained = new ArrayList<Integer>();
-					outerloop:
-						for(int k=0; k<N; k++) {
-							for(int l=1; l<Constants._ploidy_H/2; l++)
-								if(indices[k][l-1]==indices[k][l])
-									continue outerloop;
-							int key = intKeyFromIntArray(indices[k]);
-							if(!keys.contains(key)) {
-								keys.add(key);
-								keys_retained.add(k);
-							}
-						}
-					if(!keys.contains(intKeyFromIntArray(gamete)))
-						throw new RuntimeException("!!!");
-					
-					indentical_gametes[i][j] = new boolean[Constants._ploidy_H][keys_retained.size()];
-					for(int k=0; k<keys_retained.size(); k++) {
-						int w = keys_retained.get(k);
-						for(int l=0; l<Constants._ploidy_H/2; l++)
-							indentical_gametes[i][j][indices[w][l]][k] = true;
+				for(int j=0; j<2; j++) {
+					boolean[][] d = this.data[i][j];
+					int[] code = this.hashcode[i][j];
+					for(int k=0; k<nF1; k++) {
+						int key = 0;
+						for(int p=0; p<Constants._ploidy_H; p++)
+							key = (key<<mask_length)+(d[p][k] ? 1 : 0);
+						code[k] = key;
 					}
 				}
 			}
-			
-			return indentical_gametes;
 		}
 		
-		private int[] getIndeticalAllele(boolean[] bs) {
-			// TODO Auto-generated method stub
-			int n = 0;
-			for(boolean b : bs) if(b) n++;
-			int[] na = new int[n];
-			int k = 0;
-			for(int i=0; i<bs.length; i++) 
-				if(bs[i]) na[k++] = i;
-			return na;
-		}
-
 		protected void data() {
 			// TODO Auto-generated method stub
 			this.data = this.data(
@@ -380,23 +273,16 @@ public class RFEstimatorRS2 extends RFUtils {
 		}
 
 		protected MyPhasedDataCollection clone() {
+			final boolean[][][][] data = 
+					new boolean[2][2][Constants._ploidy_H][nF1];
+			for(int i=0; i<2; i++) 
+				for(int j=0; j<2; j++)
+					for(int k=0; k<Constants._ploidy_H; k++)
+						data[i][j][k] = this.data[i][j][k].clone();
 			return new MyPhasedDataCollection(this.file, 
 					this.markers, 
 					this.start_end_position,
-					this.cloneIndenticalGameteMap(),
-					this.cloneData());
-		}
-		
-		private boolean[][][][] cloneIndenticalGameteMap() {
-			// TODO Auto-generated method stub
-			final boolean[][][][] indentical_gametes = 
-					new boolean[2][combinant_ploidy][Constants._ploidy_H][];
-			for(int p=0; p<2; p++)
-				for(int i=0; i<combinant_ploidy; i++)
-					for(int j=0; j<Constants._ploidy_H; j++) 
-						indentical_gametes[p][i][j] = 
-						this.indentical_gametes[p][i][j].clone();
-			return indentical_gametes;
+					data);
 		}
 		
 		protected boolean[][][][] cloneData() {
@@ -421,25 +307,35 @@ public class RFEstimatorRS2 extends RFUtils {
 				String line;
 				String[] s;
 				String stateStr;
+				int n=0;
 
-				br.readLine();
-				br.readLine();
-				outerloop:
-					for(int i=0; i<nF1; i++) {
-						for(int k=0; k<Constants._ploidy_H; k++) {
-							line = br.readLine();
-							s = line.split("\\s+|:");
-							if(Arrays.asList(founder_haps).contains(s[2])) {
-								for(int z=0; z<Constants._ploidy_H-1; z++) br.readLine();
-								i--;
-								continue outerloop;
-							}
-							stateStr = s[s.length-1];
-							int p = k<Constants._ploidy_H/2 ? 0 : 1;
-							data[p][0][hap_index[stateStr.charAt(start)]][i] = true;
-							data[p][1][hap_index[stateStr.charAt(end)]][i] = true;
-						}
+				while( (line=br.readLine())!=null ) {
+
+					if(!line.startsWith("#")) continue;
+					s = line.split("\\s+|:");
+					if(Arrays.asList(founder_haps).contains(s[2])) continue;
+
+					stateStr = s[s.length-1];
+					data[0][0][hap_index[stateStr.charAt(start)]][n] = true;
+					data[0][1][hap_index[stateStr.charAt(end)]][n] = true;
+
+					for(byte i=1; i<Constants._ploidy_H/2; i++) {
+						line = br.readLine();
+						s = line.split("\\s+");
+						stateStr = s[s.length-1];
+						data[0][0][hap_index[stateStr.charAt(start)]][n] = true;
+						data[0][1][hap_index[stateStr.charAt(end)]][n] = true;
 					}
+					for(byte i=0; i<Constants._ploidy_H/2; i++) {
+						line = br.readLine();
+						s = line.split("\\s+");
+						stateStr = s[s.length-1];
+						data[1][0][hap_index[stateStr.charAt(start)]][n] = true;
+						data[1][1][hap_index[stateStr.charAt(end)]][n] = true;
+					}
+
+					n++;
+				}
 				br.close();
 				isObj.close();
 			} catch (IOException e) {
@@ -468,6 +364,7 @@ public class RFEstimatorRS2 extends RFUtils {
 						try {
 							if(dc[i][j]==null) return;
 							dc[i][j].data();
+							dc[i][j].hash();
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();
 							t.getUncaughtExceptionHandler().uncaughtException(t, e);
@@ -496,9 +393,9 @@ public class RFEstimatorRS2 extends RFUtils {
 	private int shift_bits2 = mask_length*2;
 	private final Set<String> scaff_only = new HashSet<String>();	
 
-	public RFEstimatorRS2() {}
+	public RFEstimator() {}
 			
-	public RFEstimatorRS2 (String in_haps, 
+	public RFEstimator (String in_haps, 
 				String out_prefix,
 				String expr_id, 
 				int ploidy, 
@@ -523,13 +420,10 @@ public class RFEstimatorRS2 extends RFUtils {
 		setHaps();
 	}
 	
-	private boolean[][] gamete_ref = null;
 	private char[][] haps = null;
 	private int factorial_ploidy = -1;
-	private int combinant_ploidy = -1;
 	private int[][] johnson_trotter_permutation;
-	private List<Map<Integer, Integer>> johnson_trotter_swap_index;
-			
+	
 	private void setHaps() {
 		factorial_ploidy = (int) Permutation.factorial(Constants._ploidy_H);
 		List<List<Character>> haps_list = new ArrayList<List<Character>>();
@@ -555,60 +449,8 @@ public class RFEstimatorRS2 extends RFUtils {
 		}
 		johnson_trotter_permutation = JohnsonTrotter.perm(Constants._ploidy_H);
 		initialiseRFactory();
-		
-		Integer[] h = new Integer[Constants._ploidy_H];
-		for(int i=0; i<Constants._ploidy_H; i++) h[i] = i;
-		ArrayList<List<Integer>> combs = Combination.combination(h, Constants._ploidy_H/2);
-		combinant_ploidy = combs.size();
-		gamete_ref = new boolean[combinant_ploidy][Constants._ploidy_H];
-		for(int i=0; i<combinant_ploidy; i++) {
-			List<Integer> comb = combs.get(i);
-			for(Integer j : comb) gamete_ref[i][j] = true;
-		}
-		
-		johnson_trotter_swap_index = new ArrayList<Map<Integer, Integer>>();
-		boolean[][] gametes = new boolean[combinant_ploidy][Constants._ploidy_H];
-		for(int i=0; i<combinant_ploidy; i++) gametes[i] = gamete_ref[i].clone();
-		
-		for(int i=0; i<factorial_ploidy; i++) {
-			Map<Integer, Integer> map_i = new HashMap<Integer, Integer>();
-			int[] jt = johnson_trotter_permutation[i];
-			swapCol(gametes, jt[0], jt[1]);
-			for(int j=0; j<combinant_ploidy; j++) 
-				map_i.put(intKeyFromBoolArray(gametes[j]), j);
-			johnson_trotter_swap_index.add(map_i);
-		}
 	}
 	
-
-	private void swapCol(final boolean[][] arr, 
-			final int i, 
-			final int j) {
-		// TODO Auto-generated method stub
-		for(int k=0; k<arr.length; k++) {
-			boolean tmp = arr[k][i];
-			arr[k][i] = arr[k][j];
-			arr[k][j] = tmp;
-		}
-	}
-
-	private int intKeyFromBoolArray(boolean[] bool) {
-		// TODO Auto-generated method stub
-		int key = 0;
-		for(boolean b : bool) {
-			key <<= 1;
-			if(b) key += 1;
-		}
-		return key;
-	}
-	
-	private int intKeyFromIntArray(int[] ints) {
-		// TODO Auto-generated method stub
-		boolean[] bool = new boolean[Constants._ploidy_H];
-		for(int i : ints) 
-			bool[i] = true;
-		return intKeyFromBoolArray(bool);
-	}
 
 	private void initialiseRFactory() {
 		// TODO Auto-generated method stub
@@ -734,27 +576,36 @@ public class RFEstimatorRS2 extends RFUtils {
 			// TODO Auto-generated constructor stub
 			super(i, j);
 		}
-		
+	
 		@Override
 		public void run() {
 			// TODO Auto-generated method stub
+			
 			try {
 				MyPhasedDataCollection[] dc_i = dc[this.i];
 				MyPhasedDataCollection[] dc_j = dc[this.j];
 				String contig=null, contig2=null;
 				int ii = 0;
+				//String fi = null;
 				while(ii<dc_i.length && contig==null) {
 					contig = dc_i[ii]==null ? null : 
 						dc_i[ii].markers[0].replaceAll("_[0-9]{1,}$", "");
+					//fi = new File(dc_i[ii].file).getName().split("\\.")[1];
 					ii++;
 				}
 				int jj = 0;
+				//String fj = null;
 				while(jj<dc_j.length && contig2==null) {
 					contig2 = dc_j[jj]==null ? null : 
 						dc_j[jj].markers[0].replaceAll("_[0-9]{1,}$", "");
+					//fj = new File(dc_j[jj].file).getName().split("\\.")[1];
 					jj++;
 				}
 				if(contig==null || contig2==null) return;
+				if(conjPairRFs.containsKey(contig+Constants.scaff_collapsed_str+contig2) || 
+						conjPairRFs.containsKey(contig2+Constants.scaff_collapsed_str+contig) )
+					return;
+				
 				if(!scaff_only.isEmpty() && 
 						!scaff_only.contains(contig) && 
 						!scaff_only.contains(contig2)) return;
@@ -763,12 +614,15 @@ public class RFEstimatorRS2 extends RFUtils {
 				double[][] rf_all = new double[m*n][4];
 				for(int k=0; k<rf_all.length; k++)
 					Arrays.fill(rf_all[k], -1);
-	
+				
+				// boolean executed = conj ? calcConjRFs(rf_all) : false;
+				// if(!executed) {
 				for(int k=0; k<m; k++) 
 					for(int s=0; s<n; s++) 
 						if(dc_i[k]!=null && dc_j[s]!=null)
 							rf_all[k*m+s] = calcRFs(k, s);
-	
+				//}
+				
 				rf_all = Algebra.transpose(rf_all);
 				StringBuilder os = new StringBuilder();
 				os.append("#");
@@ -809,97 +663,158 @@ public class RFEstimatorRS2 extends RFUtils {
 			}
 		}
 	
+		/***
+		private boolean calcConjRFs(final double[][] rf) {
+			// TODO Auto-generated method stub
+			MyPhasedDataCollection[] dc_i = dc[this.i];
+			MyPhasedDataCollection[] dc_j = dc[this.j];
+
+			int[] key4 = new int[4], key2 = new int[4];
+			long key;
+			int[][] hash_i = new int[2][nF1],
+					hash_j = new int[2][nF1];
+
+			int m = dc_i.length, n = dc_j.length;
+			
+			for(int k=0; k<m; k++) System.out.println(dc_i[k].file);
+			for(int k=0; k<n; k++) System.out.println(dc_j[k].file);
+			
+			int z = 0;
+			for(int k=0; k<m; k++) {
+				if(dc_i[k]==null) continue;
+
+				for(int l=0; l<n; l++) {
+					if(dc_j[l]==null) continue;
+					if(dc_i[k].file.equals(dc_j[l].file)) {
+						Arrays.fill(rf[z], 0);
+						for(int p=0; p<2; p++) {
+							hash_i = dc_i[k].hashcode[p];
+							hash_j = dc_j[l].hashcode[p];
+							for(int u=0; u<nF1; u++) {
+								key4[0] = hash_i[0][u];
+								key4[1] = hash_i[1][u];
+								key4[2] = hash_j[0][u];
+								key4[3] = hash_j[1][u];
+
+								key = ((((((long) key4[0]
+										<<shift_bits2)+key4[1])
+										<<shift_bits2)+key4[2])
+										<<shift_bits2)+key4[3];
+
+								if(rf_pool.containsKey(key)) {
+									add(rf[z], rf_pool.get(key));
+								} else {
+									add(rf[z], key4, key2, key);
+
+								}
+							}
+						}
+						mininus(1, divide(rf[z], nF1*Constants._ploidy_H));
+						z++;
+					}
+				}
+			}
+			return z>0;
+		}
+		**/
+		
 		private double[] calcRFs(int phase, int phase2) {
 			// TODO Auto-generated method stub
-			boolean[][][][] dc_i = dc[i][phase].data;
-			boolean[][][][] iden_i = dc[i][phase].indentical_gametes;
+			MyPhasedDataCollection dc_i = dc[i][phase];
+			int[] key4 = new int[4], key2 = new int[4];
+			long key;
+			int[][] hash_i = new int[2][nF1],
+					hash_j = new int[2][nF1];
+	
 			double[] rf = new double[4];
 			boolean[][][][] data_j = dc[j][phase2].cloneData();
-			boolean[][][][] iden_j = dc[j][phase2].cloneIndenticalGameteMap();
-			
+	
 			for(int p=0; p<2; p++) {
+	
 				boolean[][][] data_j_p = data_j[p];
-				boolean[][][] iden_j_p = iden_j[p];
-				
+				hash_i = dc_i.hashcode[p];
+	
 				double[][] rf_all_p = new double[factorial_ploidy][4];
-				
 				for(int f=0; f<factorial_ploidy; f++) {
-					next(data_j_p, iden_j_p, f);
-					rf_all_p[f] = calcRFs(dc_i[p], 
-							iden_i[p], 
-							johnson_trotter_swap_index.get(0), // dc_i next changed 
-							data_j_p, 
-							iden_j_p, 
-							johnson_trotter_swap_index.get(f)); // has been swapped
+	
+					next(data_j_p, f, hash_j);
+					
+					for(int n=0; n<nF1; n++) {
+						key4[0] = hash_i[0][n];
+						key4[1] = hash_i[1][n];
+						key4[2] = hash_j[0][n];
+						key4[3] = hash_j[1][n];
+	
+						key = ((((((long) key4[0]
+								<<shift_bits2)+key4[1])
+								<<shift_bits2)+key4[2])
+								<<shift_bits2)+key4[3];
+						
+						
+						if(rf_pool.containsKey(key)) {
+							add(rf_all_p[f], rf_pool.get(key));
+						} else {
+							add(rf_all_p[f], key4, key2, key);
+					
+						}
+					}
 				}
 				add(rf, max(rf_all_p));
 			}
-			return mininus(1, divide(rf, Constants._ploidy_H*nF1));
+			return mininus(1, divide(rf, nF1*Constants._ploidy_H));
 		}
-
-		private double[] calcRFs(boolean[][][] data, 
-				boolean[][][] iden, 
-				Map<Integer, Integer> swap_index, 
-				boolean[][][] data2,
-				boolean[][][] iden2, 
-				Map<Integer, Integer> swap_index2) {
+	
+		private void add(double[] ds, byte[] bs) {
 			// TODO Auto-generated method stub
-			double[] rf = new double[4];
-			for(int m=0; m<2; m++) {
-				boolean[][] data_m = Algebra.transpose(data[m]);
-				for(int k=0; k<2; k++) {
-					boolean[][] data_k = Algebra.transpose(data2[k]);
-					double z = 0;
-					for(int w=0; w<nF1; w++) { 
-						boolean[] data_m_w = data_m[w];
-						boolean[] data_k_w = data_k[w];
-						int key_m = intKeyFromBoolArray(data_m_w);
-						int key_k = intKeyFromBoolArray(data_k_w);
-						boolean[][] iden_m = iden[swap_index.get(key_m)];
-						boolean[][] iden_k = iden2[swap_index2.get(key_k)];
-						int x = iden_m[0].length, y = iden_k[0].length;
-						double[] fs = new double[x*y];
-						int q = 0;
-						for(int u=0; u<x; u++) {
-							for(int v=0; v<y; v++) {
-								int c = 0;
-								for(int a=0; a<Constants._ploidy_H; a++)
-									if(iden_m[a][u]&&iden_k[a][v])
-										c++;
-								fs[q++] = c;
-							}
-						}
-						z += StatUtils.max(fs);
-					}
-					rf[m*2+k] = z;
-				}
-			}
-			return rf;
+			for(int i=0; i<4; i++) ds[i] += bs[i];
 		}
-
-		private double[] doubles(int[] ints) {
+	
+		private void add(double[] ds, int[] key4, int[] key2, long key) {
 			// TODO Auto-generated method stub
-			double[] ds = new double[ints.length];
-			for(int i=0; i!=ints.length; i++)
-				ds[i] = (double) ints[i];
-			return ds;
+			key2[0] = (key4[0]<<shift_bits2)+key4[2];
+			key2[1] = (key4[0]<<shift_bits2)+key4[3];
+			key2[2] = (key4[1]<<shift_bits2)+key4[2];
+			key2[3] = (key4[1]<<shift_bits2)+key4[3];
+			byte[] bsall = new byte[4];
+			for(int i=0; i<4; i++)
+				bsall[i] = rf_factory.get(key2[i]);
+			add(ds, bsall);
+			rf_pool.put(key, bsall);
 		}
-
-		private void next(boolean[][][] data, boolean[][][] iden, int f) {
+	
+		private double sum(byte[] bs) {
+			// TODO Auto-generated method stub
+			double sum = 0;
+			for(byte b : bs) sum += b;
+			return sum;
+		}
+	
+		private double min(byte[] bs) {
+			// TODO Auto-generated method stub
+			byte min = Byte.MAX_VALUE;
+			for(byte b : bs)
+				if(b<min) min = b;
+			return min;
+		}
+	
+		private void next(boolean[][][] data, int f, int[][] hash) {
 			// TODO Auto-generated method stub
 			final int i = johnson_trotter_permutation[f][0],
 					i2 = johnson_trotter_permutation[f][1];
+			boolean[] tmp;
+			boolean[][] tmps;
+			int key;
 			for(int m=0; m<2; m++) {
-				boolean[][] tmps = data[m];
-				boolean[] tmp = tmps[i];
+				tmps = data[m];
+				tmp = tmps[i];
 				tmps[i] = tmps[i2];
 				tmps[i2] = tmp;
-			}
-			for(int m=0; m<combinant_ploidy; m++) {
-				boolean[][] tmps = iden[m];
-				boolean[] tmp = tmps[i];
-				tmps[i] = tmps[i2];
-				tmps[i2] = tmp;
+				for(int n=0; n<nF1; n++) {
+					key = 0;
+					for(int p=0; p<Constants._ploidy_H; p++)
+						key=(key<<mask_length)+(tmps[p][n] ? 1 : 0);
+					hash[m][n] = key;
+				}
 			}
 		}
 	
@@ -915,28 +830,103 @@ public class RFEstimatorRS2 extends RFUtils {
 			return minus;
 		}
 	
+		private void divide(double[][][] rfs, int deno) {
+			// TODO Auto-generated method stub
+			for(int i=0; i<rfs.length; i++) 
+				for(int j=0; j<rfs[i].length; j++)
+					for(int k=0; k<rfs[i][j].length; k++)
+						rfs[i][j][k] /= deno;
+		}
+	
+		private void print(double[][] ds) {
+			// TODO Auto-generated method stub
+			//AnsiConsole.systemInstall();
+	
+			for(int i=0; i<ds.length; i++) {
+				double m = StatUtils.min(ds[i]);
+				for(int j=0; j<ds[i].length; j++) { 
+					if(ds[i][j]==m) { 
+						//System.out.print(ansi().fg(RED).
+						//		a(formatter.format(ds[i][j])+"\t").reset());
+						System.out.print(formatter.format(ds[i][j])+"\t");
+						System.out.flush();
+					} else {
+						System.out.print(formatter.format(ds[i][j])+"\t");
+						System.out.flush();
+					}
+				}
+				System.out.println();
+				System.out.flush();
+			}
+			System.out.println();
+			System.out.flush();
+			//AnsiConsole.systemUninstall();
+		}
+	
+		private double[] search(double[][][] rfs) {
+			// TODO Auto-generated method stub
+	
+			double[] rf = new double[rfs[0][0].length];
+			for(int i=0; i<rf.length; i++) {
+				double p1=0.0, p2=0.0;
+				boolean shift1 = true, shift2 = true;
+				while (true) {
+					if(shift1) {
+						p1 = rfs[0][0][i];
+						for(int j=0; j<factorial_ploidy; j++) 
+							if(rfs[0][j][i]<p1) 
+								p1 = rfs[0][j][i];
+						for(int x=0; x<rfs[0].length; x++)
+							if(rfs[0][x][i]==p1)
+								rfs[0][x][i] = Double.POSITIVE_INFINITY;
+					}
+					if(shift2) {
+						p2 = rfs[1][0][i];
+						for(int j=0; j<factorial_ploidy; j++) 
+							if(rfs[1][j][i]<p2) 
+								p2 = rfs[1][j][i];
+						for(int x=0; x<rfs[0].length; x++)
+							if(rfs[1][x][i]==p2)
+								rfs[1][x][i] = Double.POSITIVE_INFINITY;
+					}
+					double d = Math.abs(p1-p2);
+					if( Math.abs(d)>.1) {
+						if(p1>p2) {
+							shift2 = true;
+							shift1 = false;
+						} else {
+							shift1 = true;
+							shift2 = false;
+						}
+					} else if(p1==Double.POSITIVE_INFINITY ||
+							p2==Double.POSITIVE_INFINITY) { 
+						break;
+					} else {
+						break;
+					}
+				}
+				rf[i] = p1+p2;
+				if(rf[i]>.5) rf[i] = .5;
+			}
+			return rf;
+		}
+	
 		private void add(double[] ds, double[] ds2) {
 			// TODO Auto-generated method stub
 			for(int i=0; i<4; i++) ds[i] += ds2[i];
 		}
 	
-		private double[] max(double[][] ds) {
+		private double[] min2(double[][] ds) {
 			// TODO Auto-generated method stub
-			double tot=Double.NEGATIVE_INFINITY, 
-					rf=Double.NEGATIVE_INFINITY;
-			double f;
-			int r = -1;
-			int n = ds.length;
-			for(int i=0; i<n; i++) 
-				if( (f=StatUtils.max(ds[i]))>rf ||
-						f==rf && StatUtils.sum(ds[i])>tot ) {
-					rf = f;
-					tot = StatUtils.sum(ds[i]);
-					r = i;
-				}
-			return ds[r];
+			double[] dss = new double[ds[0].length];
+			Arrays.fill(dss, Double.POSITIVE_INFINITY);
+			for(int i=0; i<ds.length; i++)
+				for(int j=0; j<ds[i].length; j++)
+					if(ds[i][j]<dss[j])
+						dss[j] = ds[i][j];
+			return dss;
 		}
-		
+	
 		private double[] min(double[][] ds) {
 			// TODO Auto-generated method stub
 			double tot=Double.POSITIVE_INFINITY, 
@@ -947,6 +937,23 @@ public class RFEstimatorRS2 extends RFUtils {
 			for(int i=0; i<n; i++) 
 				if( (f=StatUtils.min(ds[i]))<rf ||
 						f==rf && StatUtils.sum(ds[i])<tot ) {
+					rf = f;
+					tot = StatUtils.sum(ds[i]);
+					r = i;
+				}
+			return ds[r];
+		}
+	
+	
+		private double[] max(double[][] ds) {
+			// TODO Auto-generated method stub
+			double tot=Double.NEGATIVE_INFINITY, 
+					rf=Double.NEGATIVE_INFINITY;
+			double f;
+			int r = -1;
+			for(int i=0; i<ds.length; i++) 
+				if( (f=StatUtils.max(ds[i]))>rf ||
+						f==rf && StatUtils.sum(ds[i])>tot ) {
 					rf = f;
 					tot = StatUtils.sum(ds[i]);
 					r = i;
