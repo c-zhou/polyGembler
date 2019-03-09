@@ -377,7 +377,7 @@ public class GBS {
 			BufferedWriter bw = getBufferedWriter(GBSOutputDir+SEP+flowcell+"_"+lane+"_key"+".txt");
 			bw.write("Flowcell\tLane\tBarcode\tDNASample\tLibraryPlate\tRow\tCol\t"+
 					"LibraryPrepID\tLibraryPlateID\tEnzyme\tBarcodeWell\tDNA_Plate\t"+
-					"SampleDNA_Well\tGenus\tSpecies\tPedigree\tPopulation\tSeedLot "+
+					"SampleDNA_Well\tGenus\tSpecies\tPedigree\tPopulation\tSeedLot\t"+
 					"FullSampleName\n");
 			String dnaSample, paddedcol, pedigree;
 			char row; int col;
@@ -405,6 +405,7 @@ public class GBS {
 				bw.write(species+"\t");
 				bw.write(pedigree+"\t");
 				bw.write(pedigree+"\t");
+				bw.write("\t");
 				bw.write(dnaSample+":"+flowcell+":"+lane+":"+libraryPrepID+paddedcol+"\n");
 			}
 			bw.close();
@@ -455,7 +456,7 @@ public class GBS {
 			BufferedReader br = getBufferedReader(fastaFilePath);
 			line = br.readLine();
 			while( line != null ) {
-				name = parseSampleName(fastaFilePath)+"|"+line.replaceFirst(">","");
+				name = parseSampleName(fastaFilePath)+":"+line.replaceFirst(">","").replaceAll(" ", "_");
 				chromosome = new StringBuilder();
 				while( (line=br.readLine()) !=null && !line.startsWith(">") ) {
 					chromosome.append(line);
@@ -478,7 +479,7 @@ public class GBS {
 						fastq = generateFastqRead(chromosome.substring(cut.get(i-1),cut.get(i)), 
 								recognization.get(i-1),
 								fastaFileBarcodeMap.get(fastaFilePath), 
-								"@"+name+"|"+cut.get(i-1)+"|"+j, false);
+								"@"+name+":"+cut.get(i-1)+":0:"+j, false);
 						//writeFastqRead(fastq);
 						oos.setLength(0);
 						oos.append(fastq.identifier);
@@ -506,7 +507,7 @@ public class GBS {
 						fastq = generateFastqRead(chromosome.substring(cut.get(i-1),cut.get(i)), 
 								recognization.get(i-1),
 								fastaFileBarcodeMap.get(fastaFilePath), 
-								"@"+name+"|"+cut.get(i-1)+"|1", true);
+								"@"+name+":"+cut.get(i-1)+":1:"+j, true);
 						//writeFastqRead(fastq);
 						oos.setLength(0);
 						oos.append(fastq.identifier);
@@ -549,7 +550,7 @@ public class GBS {
 
 	public FastqRead generateFastqRead(String dnaInsert, int recognization, String barcode, 
 			String identifier, boolean reverse) {
-		int i = reverse ? 1 : 0;
+		final int i = reverse ? 1 : 0;
 		String toSequence = barcode+
 				enzymeOverhang[recognization][i]+
 				dnaInsert+
@@ -558,6 +559,7 @@ public class GBS {
 		StringBuilder quality = new StringBuilder();
 		Character prev_base = null, prev_qual = null;
 		int b = 0, p = 0, indel, l = toSequence.length(), u;
+		int sub = 0, ins = 0, del = 0;
 		while(b<readLength && p<l) {
 			if(random.nextFloat() < baseSubIndelErrorRate) {
 				indel = random.nextInt(3);
@@ -568,10 +570,12 @@ public class GBS {
 							.get(random.nextInt(INV_PROBS_PRECISION));
 					sequence.append(prev_base);
 					quality.append(prev_qual);
-					p++; b++;
+					p++; 
+					b++;
+					sub++;
 				} else if (indel==1) { /*** insertion */
 					u = (int) Math.ceil(-Math.log(1.0-random.nextFloat())/baseIndelErrorProbabilityLambda);
-					u = Math.min(u, readLength-b);
+					u = Math.max(1, Math.min(u, readLength-b));
 					sequence.append(insertionSeqFactory(u));
 					for(int t=0; t<u; t++) {
 						prev_qual = qualityTransitionProbabilityMap.get(b).get(prev_qual)
@@ -580,8 +584,10 @@ public class GBS {
 						b++;
 					}
 					prev_base = sequence.charAt(b-1);
+					ins++;
 				} else { /*** deletion */
 					p += Math.ceil(-Math.log(1.0-random.nextFloat())/baseIndelErrorProbabilityLambda);
+					del++;
 				}
 			} else {
 				if(prev_base==MISSING_BASE_SYMBOL && 
@@ -600,14 +606,15 @@ public class GBS {
 					sequence.append(prev_base);
 					quality.append(prev_qual);
 				}
-				p++; b++;
+				p++; 
+				b++;
 			}
 		}
 		while(b++<readLength) {
 			sequence.append(MISSING_BASE_SYMBOL);
 			quality.append(MISSING_QUAL_SCORE);
 		}
-		return new FastqRead(identifier, sequence.toString(),"+", quality.toString());
+		return new FastqRead(identifier+":"+sub+":"+ins+":"+del, sequence.toString(),"+", quality.toString());
 	}
 
 	public void writeFastqRead(FastqRead fastq, BufferedWriter writer) throws IOException {
