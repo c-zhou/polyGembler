@@ -33,7 +33,8 @@ public class Digest {
 
         ArrayList<Integer> cut = new ArrayList<Integer>();
         ArrayList<Integer> recognization = new ArrayList<Integer>();
-        cut.add(0); recognization.add(-1);
+        cut.add(0); 
+        recognization.add(-1);
         for(int i=0; i<sequence.length(); i++) {
             base = sequence.charAt(i);
             buffer[buffered++] = Character.toUpperCase(base);
@@ -49,7 +50,8 @@ public class Digest {
                 }
             }
         }
-        cut.add(sequence.length()); recognization.add(-1);
+        cut.add(sequence.length()); 
+        recognization.add(-1);
         return new Digestion(cut, recognization);
 	}
 

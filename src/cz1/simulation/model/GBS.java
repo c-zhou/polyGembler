@@ -75,7 +75,6 @@ public class GBS {
 	private final String COMMON_ADAPTER = "AGATCGGAAGAGCGGTTCAGCAGGAATGCCGAG";
 	private final Enzyme enzyme;
 	private final String[][] enzymeOverhang;
-	private final String[][] enzymeRemainWithCommanAdapter;
 	private final HashMap<Character, Character> baseComplementaryMap;
 	private final Random random;
 	private String GBSOutputDir;
@@ -217,15 +216,8 @@ public class GBS {
 		this.baseComplementaryMap = getBaseComplementaryMap();
 		this.baseSubstitutionErrorProbabilityMap = getBaseSubstitutionErrorProbabilityMap();
 		this.enzymeOverhang = enzyme.getOverhang();
-		this.enzymeRemainWithCommanAdapter = new String[enzymeOverhang.length][2]; 
-		for(int i=0; i<enzymeOverhang.length; i++)
-			this.enzymeRemainWithCommanAdapter[i] = enzymeOverhang[i][0].equals("") ?
-					new String[]{enzymeOverhang[i][1]+COMMON_ADAPTER,COMMON_ADAPTER} :
-						new String[]{COMMON_ADAPTER,enzymeOverhang[i][0]+COMMON_ADAPTER} ;
-					this.getFastaFileList(fastaFileDir);
-					this.getFastaFileBarcodeMap(fastaFileList, 
-							enzymeName,
-							this.setBarcode(barcodeFilePath));
+		this.getFastaFileList(fastaFileDir);
+		this.getFastaFileBarcodeMap(fastaFileList, enzymeName, this.setBarcode(barcodeFilePath));
 	}
 
 	private InputStream setBarcode(String barcodeFilePath) {
@@ -472,14 +464,15 @@ public class GBS {
 				//System.out.println(getSystemTime()+">>> simulate starting...");
 				// simulate 5'-3' end genome
 				int coverage;
-				for(int i=2; i<cut.size(); i++) {
+				for(int i=2; i<cut.size()-1; i++) {
 					if(cut.get(i)-cut.get(i-1)<MIN_FRAGMENT_SIZE) continue;
 					coverage = (int) Math.round(meanDepth+random.nextGaussian()*sdDepth);
 					for(int j=0; j<coverage; j++) {
 						fastq = generateFastqRead(chromosome.substring(cut.get(i-1),cut.get(i)), 
 								recognization.get(i-1),
+								recognization.get( i ),
 								fastaFileBarcodeMap.get(fastaFilePath), 
-								"@"+name+":"+cut.get(i-1)+":0:"+j, false);
+								"@"+name+":"+cut.get(i-1)+":0:"+j);
 						//writeFastqRead(fastq);
 						oos.setLength(0);
 						oos.append(fastq.identifier);
@@ -498,16 +491,23 @@ public class GBS {
 				chromosome.reverse();
 				for(int i=0; i<l; i++) 
 					chromosome.setCharAt(i,baseComplementaryMap.get(chromosome.charAt(i)));
-				for(int i=0; i<cut.size(); i++) cut.set(i,l-cut.get(i));
 				Collections.reverse(cut);
-				for(int i=2; i<cut.size(); i++) {
+				for(int i=0; i<cut.size(); i++) cut.set(i,l-cut.get(i));
+				Collections.reverse(recognization);
+				int r;
+				for(int i=1; i<recognization.size()-1; i++) {
+					r = recognization.get(i);
+					recognization.set(i,r+(r%2==0?1:-1));
+				}
+				for(int i=2; i<cut.size()-1; i++) {
 					if(cut.get(i)-cut.get(i-1)<MIN_FRAGMENT_SIZE) continue;
 					coverage = (int) Math.round(meanDepth+random.nextGaussian()*sdDepth);
 					for(int j=0; j<coverage; j++) {
 						fastq = generateFastqRead(chromosome.substring(cut.get(i-1),cut.get(i)), 
 								recognization.get(i-1),
+								recognization.get( i ),
 								fastaFileBarcodeMap.get(fastaFilePath), 
-								"@"+name+":"+cut.get(i-1)+":1:"+j, true);
+								"@"+name+":"+cut.get(i-1)+":1:"+j);
 						//writeFastqRead(fastq);
 						oos.setLength(0);
 						oos.append(fastq.identifier);
@@ -548,13 +548,13 @@ public class GBS {
 		return insertion.toString();
 	}
 
-	public FastqRead generateFastqRead(String dnaInsert, int recognization, String barcode, 
-			String identifier, boolean reverse) {
-		final int i = reverse ? 1 : 0;
+	public FastqRead generateFastqRead(String dnaInsert, int recog5, int recog3, 
+			String barcode, String identifier) {
 		String toSequence = barcode+
-				enzymeOverhang[recognization][i]+
+				enzymeOverhang[recog5][0]+
 				dnaInsert+
-				enzymeRemainWithCommanAdapter[recognization][i];
+				enzymeOverhang[recog3][1]+
+				COMMON_ADAPTER;
 		StringBuilder sequence = new StringBuilder();
 		StringBuilder quality = new StringBuilder();
 		Character prev_base = null, prev_qual = null;
