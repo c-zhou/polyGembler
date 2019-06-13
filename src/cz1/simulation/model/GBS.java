@@ -491,14 +491,20 @@ public class GBS {
 				chromosome.reverse();
 				for(int i=0; i<l; i++) 
 					chromosome.setCharAt(i,baseComplementaryMap.get(chromosome.charAt(i)));
-				Collections.reverse(cut);
-				for(int i=0; i<cut.size(); i++) cut.set(i,l-cut.get(i));
+				
 				Collections.reverse(recognization);
 				int r;
 				for(int i=1; i<recognization.size()-1; i++) {
 					r = recognization.get(i);
 					recognization.set(i,r+(r%2==0?1:-1));
 				}
+				
+				Collections.reverse(cut);
+				for(int i=1; i<cut.size()-1; i++) {
+					r = recognization.get(i);
+					cut.set(i,l-cut.get(i)+enzymeOverhang[r][0].length()-enzymeOverhang[r][1].length());
+				}
+				
 				for(int i=2; i<cut.size()-1; i++) {
 					if(cut.get(i)-cut.get(i-1)<MIN_FRAGMENT_SIZE) continue;
 					coverage = (int) Math.round(meanDepth+random.nextGaussian()*sdDepth);
