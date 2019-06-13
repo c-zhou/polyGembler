@@ -494,9 +494,13 @@ public class GBS {
 				
 				Collections.reverse(recognization);
 				int r;
-				for(int i=1; i<recognization.size()-1; i++) {
-					r = recognization.get(i);
-					recognization.set(i,r+(r%2==0?1:-1));
+				if(enzyme.getRecognizationSequence().length>1) {
+					if(enzyme.getRecognizationSequence().length%2==1)
+						throw new RuntimeException("!!!");
+					for(int i=1; i<recognization.size()-1; i++) {
+						r = recognization.get(i);
+						recognization.set(i,r+(r%2==0?1:-1));
+					}
 				}
 				
 				Collections.reverse(cut);
