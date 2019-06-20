@@ -46,7 +46,7 @@ public class HMMTrainer extends HiddenMarkovModel {
 	private FB[] forward, backward;
 	
 	// ----founder haplotypes coefficients----
-	private double founder_hap_coeff = 0.5;
+	private double founder_hap_coeff = 0.1;
 	// higher quality data get more weights for training the model
 	private double[][] weights;
 	

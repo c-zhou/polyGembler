@@ -755,7 +755,7 @@ public abstract class HiddenMarkovModel {
 		protected final boolean isparent; // is valid for parents only
 		protected final int[] state;
 		protected final String[] state_str;
-		protected final boolean isdupstate;
+		protected final boolean iscompound;
 		protected final ST[] stateperm;
 
 		public ST(int[] state,
@@ -766,7 +766,7 @@ public abstract class HiddenMarkovModel {
 			this.isparent = isparent;
 			this.state = state;
 			this.state_str = state_str;
-			this.isdupstate = isdupstate;
+			this.iscompound = isdupstate;
 			this.stateperm = this.stateperm();
 		}
 
@@ -777,13 +777,13 @@ public abstract class HiddenMarkovModel {
 			this.isparent = isparent;
 			this.state_str = state_str;
 			this.state = state;
-			this.isdupstate = false;
+			this.iscompound = false;
 			this.stateperm = null;
 		}
 
 		protected ST[] stateperm() {
 			// TODO Auto-generated method stub
-			if(!isdupstate||isparent) return new ST[]{
+			if(!iscompound||isparent) return new ST[]{
 					new ST(this.state,
 							this.state_str,
 							this.isparent)};
@@ -883,25 +883,38 @@ public abstract class HiddenMarkovModel {
 			// TODO Auto-generated method stub
 			int _a_ = this.statespace.length;
 			for(int a=0; a<_a_; a++) {
-				int[] s_a = this.statespace[a].state;
-				for(int b=0; b<_a_; b++) { 
-					ST[] st_b = this.statespace[b].stateperm();
-					int _i_ = st_b.length;
-					int _j_ = st_b[0].state.length;
-					
-					if(this.prior[a][b]==null) 
-						this.prior[a][b] = new double[_i_];
-					final double[] prior = this.prior[a][b];
-				
-					Arrays.fill(prior, 1.0);
-					for(int i=0; i<_i_; i++) {
-						int[] s_i = st_b[i].state;
-						for(int j=0; j<_j_; j++)
-							prior[i] *= tp.probsMat[s_a[j]][s_i[j]];
+				if(this.statespace[a].isparent) {
+					for(int b=0; b<_a_; b++) { 
+						if(this.prior[a][b]==null) 
+							this.prior[a][b] = new double[1];
+						final double[] prior = this.prior[a][b];
+						if(a==b) prior[0] = 1.0;
+						else prior[0] = 0.0;
+						
+						this.probsMat[a][b] = StatUtils.sum(prior);
+						Algebra.normalize(prior);
 					}
-					
-					this.probsMat[a][b] = StatUtils.sum(prior);
-					Algebra.normalize(prior);
+				} else {
+					int[] s_a = this.statespace[a].state;
+					for(int b=0; b<_a_; b++) { 
+						ST[] st_b = this.statespace[b].stateperm();
+						int _i_ = st_b.length;
+						int _j_ = st_b[0].state.length;
+
+						if(this.prior[a][b]==null) 
+							this.prior[a][b] = new double[_i_];
+						final double[] prior = this.prior[a][b];
+
+						Arrays.fill(prior, 1.0);
+						for(int i=0; i<_i_; i++) {
+							int[] s_i = st_b[i].state;
+							for(int j=0; j<_j_; j++)
+								prior[i] *= tp.probsMat[s_a[j]][s_i[j]];
+						}
+
+						this.probsMat[a][b] = StatUtils.sum(prior);
+						Algebra.normalize(prior);
+					}
 				}
 			}
 		}
