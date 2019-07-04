@@ -38,7 +38,7 @@ public class Constants {
 	public final static double _mu_theta_e = 1;
 	public final static double _mu_J_e = 1e5;
 	public final static double _mu_J_m = 0.1;
-	public final static double _mu_A_e = 1;
+	public final static double _mu_A_e = 10;
 	public final static double _mu_A_m = 0.1;
 	/*** background probability of recombination between consecutive bases **/
 	public final static double _con_base_r = 1e-8;
