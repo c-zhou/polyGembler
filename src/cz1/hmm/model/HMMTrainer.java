@@ -200,7 +200,6 @@ public class HMMTrainer extends HiddenMarkovModel {
 	private void forward() {
 		// TODO Auto-generated method stub
 		for(int i=0; i<N; i++) {
-			boolean isparent = i==parents_i[0]||i==parents_i[1];
 			
 			Integer[] ss = sspace.get(i);
 			double pi = 1.0/ss.length;
@@ -227,10 +226,6 @@ public class HMMTrainer extends HiddenMarkovModel {
 						tmp += probsMat[j-1][z]
 								*t.trans(z, k);
 					probsMat[j][k] = emiss[k]*tmp;
-					
-					if(isparent && probsMat[j][k]<Constants.threshMin) {
-						
-					}
 				}
 				
 				logscale[j] = ob[j].getLogScale(i);
