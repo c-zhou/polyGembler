@@ -21,7 +21,7 @@ import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 
 import cz1.hmm.data.DataCollection;
-import cz1.util.Algebra;
+import cz1.math.Algebra;
 import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Executor;
@@ -468,8 +468,7 @@ public class Gembler extends Executor {
 									Constants._ploidy_H,
 									field,
 									expr_id,
-									max_iter,
-									true).run();
+									max_iter).run();
 							synchronized (task_table) {
 								task_table[i][j]--;
 								task_table.notify();
@@ -553,8 +552,7 @@ public class Gembler extends Executor {
 												Constants._ploidy_H,
 												field,
 												expr_id,
-												max_iter,
-												true).run();
+												max_iter).run();
 										synchronized (task_table) {
 											task_table[i][j]--;
 											task_table.notify();
@@ -810,8 +808,7 @@ public class Gembler extends Executor {
 									Constants._ploidy_H,
 									field,
 									expr_id,
-									max_iter,
-									true).run();
+									max_iter).run();
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();
 							t.getUncaughtExceptionHandler().uncaughtException(t, e);

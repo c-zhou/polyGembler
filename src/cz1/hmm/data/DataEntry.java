@@ -12,8 +12,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.stat.StatUtils;
 import org.apache.commons.math3.stat.inference.ChiSquareTest;
 
-import cz1.util.Algebra;
-import cz1.util.Combination;
+import cz1.math.Combination;
+import cz1.math.Algebra;
 import cz1.util.Constants;
 import cz1.util.Utils;
 

@@ -1,4 +1,4 @@
-package cz1.util;
+package cz1.math;
 
 import java.util.ArrayList;
 import java.util.List;

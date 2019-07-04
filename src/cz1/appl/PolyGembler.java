@@ -13,8 +13,7 @@ import cz1.simulation.tools.PopulationSimulator;
 
 public class PolyGembler {
 	
-	protected final static Logger myLogger = 
-			Logger.getLogger(PolyGembler.class);
+	protected final static Logger myLogger = Logger.getLogger(PolyGembler.class);
 	
 	public static void main(String[] args) {
 	
@@ -35,13 +34,6 @@ public class PolyGembler {
 			gbssimulator.setParameters(args2);
 			gbssimulator.run();
 			break;
-		/***
-		case "gbspileup":
-			GBSpileup gbspileup = new GBSpileup();
-			gbspileup.setParameters(args2);
-			gbspileup.run();
-			break;
-		**/
 		case "datapreparation":
 			DataPreparation datapreparation = new DataPreparation();
 			datapreparation.setParameters(args2);
@@ -84,7 +76,6 @@ public class PolyGembler {
 				"\n\nUsage is as follows:\n"
 						+ " popsimulation       Simulate a full-sib mapping population. \n"
 						+ " gbssimulation       Simulate GBS data. \n"
-						//+ " gbspileup           Variant calling from GBS data. \n"
 						+ " datapreparation     Prepare data for haplotype phasing. \n"
 						+ " haplotyper          Contig/scaffold haplotype construction from a mapping population.\n"
 						+ " rfestimator         Recombination fraction estimation.\n"

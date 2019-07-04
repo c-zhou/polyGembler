@@ -1,22 +1,13 @@
 package cz1.hmm.model;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.distribution.BetaDistribution;
@@ -24,71 +15,43 @@ import org.apache.commons.math3.stat.StatUtils;
 import org.apache.log4j.Logger;
 
 import cz1.hmm.data.DataEntry;
-import cz1.hmm.tools.VCFtools;
-import cz1.util.Algebra;
-import cz1.util.Combination;
+import cz1.math.Combination;
+import cz1.math.Permutation;
+import cz1.math.SaddlePointExpansion;
 import cz1.util.Constants;
 import cz1.util.Constants.Field;
-import cz1.util.Utils;
-import cz1.util.Permutation;
-import cz1.util.Dirichlet;
 
 public abstract class HiddenMarkovModel {
 	protected final static Logger myLogger = Logger.getLogger(HiddenMarkovModel.class);
-	
-	protected final static Runtime runtime = Runtime.getRuntime();
-	
-	protected int iteration = 0;
-	
+
 	protected final Field field;
 	protected final DataEntry de;
-	protected final DP[][] dp;
-	protected final ST[] statespace;
-	protected final OB[] obspace;
-	protected final String[] hs; // all hidden states 1,2,3,4,5,6,7,8
-	protected final String[] str_statespace;
-	protected final double[] bfrac;
-	protected final boolean train_exp;
-	protected final Set<Integer> exp_b = new HashSet<Integer>();
 
+	protected int M; // #markers
+	protected int N; // #individuals
+	protected int H; // #founder haplotypes
+	protected int K; // #compound hidden states
+	protected String[] samples;
+	protected String[] parents;
+	protected int[] parents_i;
+	protected int[] progeny_i;
 	protected double[] distance;
-	protected TP[] transProbs;
-	protected EP[] emissProbs;
 	
-	protected String[] sample;
-	protected String[] parent;
-	protected int[] parent_i;
-	protected int N;
-	protected int M;
-	protected Viterbi vb[];
-	protected boolean[][] miss;
-
-	protected CompoundTP[] compoundTransProbs;
-	protected CompoundEP[] compoundEmissProbs;
+	protected List<Integer[]> sspace; // state space for each sample
 	
-	protected final int[] pedigree; //0 and 1 represent two parents, and -1s represent F1 offspring
-	protected final List<Integer[]> validStateSpace; //valid statespace for each sample
-
-	protected final Map<String, int[][]> spMap;
+	protected StateUnit state;
+	protected ObUnit[][] obs;
+	protected EmissionUnit[] emission;
+	protected TransitionUnit[] transition;
+	protected ViterbiUnit[] vbs;
 	
 	public HiddenMarkovModel(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse,
-			boolean trainExp,
 			Field field) {
 		this.field = field;
-		this.train_exp = trainExp;
 		this.de = this.catDE(de, seperation, reverse);
 		this.initialise();
-		this.hs = this.makeHS();
-		this.bfrac = this.bfrac();
-		this.obspace = this.makeOB();
-		this.statespace = this.makeST();
-		this.str_statespace = this.makeSS();
-		this.dp = this.makeDP();
-		this.spMap = this.makeSpMap();
-		this.pedigree = this.pedigree();
-		this.validStateSpace = this.validStateSpace();
 	}
 	
 	public abstract void train();
@@ -99,292 +62,313 @@ public abstract class HiddenMarkovModel {
 	public abstract void write(String output, 
 			String experiment, 
 			String contig,
-			int resampling,
 			double loglik_diff);
 	public abstract void print(boolean details);
-	protected abstract void EM();
-	public abstract int[][][] resample(final int n);
-	public void resample() {
-		this.resample(1);
-	}
+	
 	public void print() {this.print(false);}
-	
-	protected void printViterbiPath() {
-		for(int i=0; i<this.sample.length; i++) {
-			String[] path = this.vb[i].path_str[0];
-			List<String[]> path_s = new ArrayList<String[]>();
-			for(int j=0; j<path.length; j++)
-				path_s.add(path[j].split("_"));
-			for(int j=0; j<Constants._ploidy_H; j++) {
-				System.out.print(("# id "+this.sample[i]+":"+(j+1)+"\t\t\t"));
-				for(int k=0; k<path_s.size(); k++)
-					System.out.print(path_s.get(k)[j]);
-				System.out.print("\n");
-			}
-		}
-	}
-	
-	protected DataEntry catDE(DataEntry[] de2, 
+
+	protected DataEntry catDE(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse) {
 		// TODO Auto-generated method stub
-		for(int i=0; i<de2.length; i++)
-			if(reverse[i]) de2[i].reverse();
-		for(int i=1; i<de2.length; i++) {
-			if(this.train_exp)
-				this.exp_b.add(de2[0].modelLength());
-			de2[0].addAll(de2[i], seperation[i-1]);
+		for(int i=0; i<de.length; i++)
+			if(reverse[i]) de[i].reverse();
+		for(int i=1; i<de.length; i++) {
+			de[0].addAll(de[i], seperation[i-1]);
 		}
-		return de2[0];
+		return de[0];
 	}
 
-	protected double[] bfrac() {
+	private void initialise() {
 		// TODO Auto-generated method stub
-		String[] sample = this.de.getSample();
-		Set<Integer> p = new HashSet<Integer>();
-		for(int i=0; i<sample.length; i++)
-			if(!isParent(this.sample[i]))
-				p.add(i);
-		double[] baf = new double[this.M];
-		
-		switch(this.field) {
-		case GT:
-			List<List<String[]>> gt = this.de.getGenotype();
-			if(gt==null) throw new RuntimeException("GT field not available!!! Try PL/GL (-L/--genotype-likelihood) or AD (-D/--allele-depth) option.");
-			for(int i=0; i<this.M; i++) {
-				double acnt = 0, bcnt = 0;
-				String[] allele = this.de.getAllele().get(i);
-				for(int j : p) {
-					String[] g = gt.get(i).get(j);
-					for(int k=0; k<g.length; k++) {
-						acnt += (g[k].equals(allele[0]) ? 1 : 0);
-						bcnt += (g[k].equals(allele[1]) ? 1 : 0);
-					}
-				}
-				if(acnt+bcnt==0) baf[i] = .5;
-				baf[i] = bcnt/(acnt+bcnt);
-				if(baf[i]==0 || baf[i]==1) baf[i] = .5;
-			}
-			break;
-		case PL:
-		case GL:
-			List<List<double[]>> gl = this.de.getGenotypeLikelihood();
-			if(gl==null) throw new RuntimeException("PL/GL feild not available!!! Try GT (-G/--genotype) or AD (-D/--allele-depth) option.");
-			int cp = gl.get(0).get(0).length-1;
-			for(int i=0; i<this.M; i++) {
-				double acnt = 0;
-				double bcnt = 0;
-				for(int j : p) {
-					double[] ll = gl.get(i).get(j);
-					if(ll[0]<0) continue;
-					for(int k=0; k<ll.length; k++) {
-						acnt += ll[k]*(cp-k);
-						bcnt += ll[k]*k;
-					}
-				}
-				if(acnt+bcnt==0) baf[i] = .5;
-				baf[i] = bcnt/(acnt+bcnt);
-				if(baf[i]==0 || baf[i]==1) baf[i] = .5;
-			}
-			break;
-
-		case AD:
-			List<List<int[]>> ad = this.de.getAlleleDepth();
-			if(ad==null) throw new RuntimeException("AD feild not available!!! Try PL/GL (-L/--genotype-likelihood) or GT (-G/--genotype) options.");
-			for(int i=0; i<this.M; i++) {
-				double acnt = 0, bcnt = 0;
-				for(int j : p) {
-					int[] aa = ad.get(i).get(j);
-					acnt += aa[0];
-					bcnt += aa[1];
-				}
-				if(acnt+bcnt==0) baf[i] = .5;
-				baf[i] = bcnt/(acnt+bcnt);
-				if(baf[i]==0 || baf[i]==1) baf[i] = .5;
-			}
-			break;
-		default:
-			throw new RuntimeException("Undefined Field!!!");
-		}
-		return baf;
-	}
-
-	protected void trainAllExp() {
-		// TODO Auto-generated method stub
-		for(int i=0; i<this.M; i++)
-			this.exp_b.add(i);
-	}
-	
-	protected String[] makeSS() {
-		// TODO Auto-generated method stub
-		String[] str_states = new String[this.statespace.length];
-		for(int i=0; i<str_states.length; i++) 
-			str_states[i] = StringUtils.join(
-					this.statespace[i].state_str,"_");
-		return str_states;
-	}
-
-	protected Map<String, int[][]> makeSpMap() {
-		// TODO Auto-generated method stub
-		Map<String, int[][]> spMap = 
-				new HashMap<String, int[][]>();
-				for(ST s : this.statespace) {
-					ST[] perms = s.stateperm();
-					int[][] p = new int[perms.length] 
-							[s.state.length];
-					for(int i=0; i<p.length; i++)
-						p[i] = perms[i].state;
-					spMap.put(StringUtils.join(
-							s.state_str,"_"),p);
-				}
-				return spMap;
-	}
-
-	protected List<Integer[]> validStateSpace() {
-		// TODO Auto-generated method stub
-		Integer[] validP0, validP1, validF1;
-		validP0 = new Integer[]{0,1};
-		validP1 = new Integer[]{0,2};
-		validF1 = new Integer[this.statespace.length-2];
-		validF1[0] = 0;
-		for(int i=1; i<validF1.length; i++)
-			validF1[i] = i+2;
-		List<Integer[]> validSS = new ArrayList<Integer[]>();
-		for(int i=0; i<this.pedigree.length; i++)
-			if(this.pedigree[i]==0)
-				validSS.add(validP0);
-			else if(this.pedigree[i]==1)
-				validSS.add(validP1);
-			else
-				validSS.add(validF1);
-		return validSS;
-	}
-
-	protected int[] pedigree() {
-		// TODO Auto-generated method stub
-		int pedigree[] = new int[this.sample.length];
-		this.parent_i = new int[this.parent.length];
-		Arrays.fill(pedigree, -1);
-		Arrays.fill(this.parent_i, -1);
-		for(int i=0; i<pedigree.length; i++) {
-			for(int j=0; j<this.parent.length; j++) {
-				if(this.sample[i].equals(this.parent[j])) {
-					pedigree[i] = j;
-					parent_i[j] = i;
-				}
-			}
-		}
-		return pedigree;
-	}
-
-	protected void initialise() {
-		// TODO Auto-generated method stub
-		this.sample = de.getSample();
-		this.parent = Constants._founder_haps.split(":");
-		this.N = this.sample.length;
+		this.samples = de.getSample();
 		this.M = this.de.getAllele().size();
+		this.N = this.samples.length;
+		this.H = Constants._ploidy_H;
+		this.state = new StateUnit(H);
+		this.K = state.hsc.length;
+		
+		this.parents = Constants._founder_haps.split(":");
+		List<Integer> pars = new ArrayList<Integer>();
+		List<Integer> pros = new ArrayList<Integer>();
+		for(int i=0; i<samples.length; i++) {
+			boolean isprogeny = true;
+			for(int j=0; j<parents.length; j++) {
+				if(samples[i].equals(parents[j])) {
+					pars.add(i);
+					isprogeny = false;
+					break;
+				}
+			}
+			if(isprogeny) pros.add(i);
+		}
+		this.parents_i = ArrayUtils.toPrimitive(pars.toArray(new Integer[pars.size()]));
+		this.progeny_i = ArrayUtils.toPrimitive(pros.toArray(new Integer[pros.size()]));
 		double[] position = de.getPosition();
 		this.distance = new double[this.M-1];
 		for(int i=0; i<distance.length; i++)
 			distance[i] = position[i+1]-position[i];
+		this.sspace = new ArrayList<>(N);
+		for(int i=0; i<N; i++) sspace.add(null);
+		sspace.set(parents_i[0], new Integer[]{0});
+		sspace.set(parents_i[1], new Integer[]{1});
+		Integer[] progeny_s = new Integer[K-2];
+		for(int i=0; i<K-2; i++) progeny_s[i] = i+2;
+		for(int i : progeny_i) sspace.set(i, progeny_s);
+		
+		this.makeObUnits();
+		this.makeEmissionUnits();
+		this.makeTransitionUnits();
+		this.makeViterbiUnits();
 	}
 
-	protected void printExpTrain() {
+	private void makeViterbiUnits() {
 		// TODO Auto-generated method stub
-		for(final Integer i : this.exp_b) {
-			double cumR = 0.0;
-			double[][] tp_i = this.transProbs[i].probsMat;
-			for(int j=0; j<tp_i.length; j++)
-				for(int k=0; k<tp_i[j].length; k++)
-					if(j!=k) cumR+=tp_i[j][k];
-			myLogger.info("********** sep "+i+" "+cumR/(tp_i.length-1));
+		vbs = new ViterbiUnit[N];
+		for(int i=0; i<N; i++) vbs[i] = new ViterbiUnit();
+	}
+
+	private final int allele_d = 10; 
+	private void makeObUnits() {
+		// TODO Auto-generated method stub
+		this.obs = new ObUnit[N][M];
+		switch(this.field) {
+		case AD:
+			List<List<int[]>> ad = this.de.getAlleleDepth();
+			if(ad==null) throw new RuntimeException("AD feild not available!!! Try GT (-G/--genotype) options.");
+			for(int i=0; i<N; i++) {
+				for(int j=0; j<M; j++) {
+					int[] dp = ad.get(j).get(i);
+					obs[i][j] = new ObUnit(dp[0]+dp[1], dp[0], K);
+				}
+			}
+			break;
+		case GT:
+			List<List<String[]>> gt = this.de.getGenotype();
+			if(gt==null) throw new RuntimeException("GT field not available!!! Try AD (-D/--allele-depth) option.");
+			List<String[]> allele = this.de.getAllele();
+			int acnt, bcnt;
+			for(int i=0; i<this.M; i++) {
+				String[] a = allele.get(i);
+				for(int j=0; j<this.N; j++) {
+					String[] g = gt.get(i).get(j);
+					acnt = 0;
+					bcnt = 0;
+					for(int k=0; k<H; k++) {
+						acnt += (g[k].equals(a[0]) ? 1 : 0);
+						bcnt += (g[k].equals(a[1]) ? 1 : 0);
+					}
+					acnt *= allele_d;
+					bcnt *= allele_d;
+					obs[j][i] = new ObUnit(acnt+bcnt, acnt, K);
+				}
+			}
+			break;
+		default:
+			throw new RuntimeException("!!!");
 		}
 	}
 
-	protected void updateDP() {
+	private void makeEmissionUnits() {
 		// TODO Auto-generated method stub
-		for(int i=0; i<M; i++) {
-			String[] dosaS = this.obspace[i].dosaS;
-			int _d_ = dosaS.length;
-			// Map<String, Integer[]> dgMap = this.obspace[i].dgMap;
-			CompoundEP ep1 = this.compoundEmissProbs[i];
+		this.emission = new EmissionUnit[M];
+		for(int i=0; i<M; i++) 
+			emission[i] = new EmissionUnit(de.getAllele().get(i),
+					H*2,
+					K,
+					bfrac(i));
+	}
+	
+	private double bfrac(final int i) {
+		// TODO Auto-generated method stub
+		double baf = 0.5, acnt, bcnt;
+		switch(this.field) {
+		case AD:
+			if(this.de.getAlleleDepth()==null)
+				throw new RuntimeException("AD feild not available!!! Try GT (-G/--genotype) options.");
+			List<int[]> ad = this.de.getAlleleDepth().get(i);
+			acnt = 0;
+			bcnt = 0;
 			for(int j=0; j<N; j++) {
-				Integer[] vst = this.validStateSpace.get(j);
-				
-				DP dp1 = this.dp[i][j];
-				for(int k : vst) {
-					double ss = 0;
-					for(int a=0; a<_d_; a++) {
-						/***
-						Integer[] ix = dgMap.get(dosaS[a]);
-						for(int c : ix)
-							ss += dp1.likelihood[a]*ep1.probsMat[k][c];
-						 **/
-						ss += dp1.likelihood[a]*ep1.probsDosaMat[k][a];
-					}
-					dp1.emiss[k] = ss;
-					//this.dp[i][j].emiss[k] = 
-					//		StatUtils.sum(this.dp[i][j].emissG[k]);
-					//for(int b=0; b<this.dp[i][j].emissG[k].length; b++)
-					//	this.dp[i][j].emissG[k][b] /= this.dp[i][j].emiss[k];
+				int[] aa = ad.get(j);
+				acnt += aa[0];
+				bcnt += aa[1];
+			}
+			if(acnt!=0&&bcnt!=0) baf = bcnt/(acnt+bcnt);
+			break;
+		case GT:
+			if(this.de.getGenotype()==null)
+				throw new RuntimeException("GT field not available!!! Try AD (-D/--allele-depth) option.");
+			List<String[]> gt = this.de.getGenotype().get(i);
+			String[] allele = this.de.getAllele().get(i);
+			acnt = 0;
+			bcnt = 0;
+			for(int j=0; j<N; j++) {
+				String[] g = gt.get(j);
+				for(int k=0; k<H; k++) {
+					acnt += (g[k].equals(allele[0]) ? 1 : 0);
+					bcnt += (g[k].equals(allele[1]) ? 1 : 0);
 				}
+			}
+			if(acnt!=0&&bcnt!=0) baf = bcnt/(acnt+bcnt);
+			break;
+		default:
+			throw new RuntimeException("!!!");
+		}
+		return baf;
+	}
+
+	private void makeTransitionUnits() {
+		// TODO Auto-generated method stub
+		this.transition = new TransitionUnit[M-1];
+		for(int i=0; i<M-1; i++)
+			transition[i] = new TransitionUnit(distance[i], state.confs);
+	}
+	
+	protected void refresh() {
+		// refresh emission probabilities for obs
+		double[] emissc;
+		for(int i=0; i<M; i++) {
+			emissc = emission[i].emissc;
+			for(int j=0; j<N; j++) {
+				obs[j][i].updateEmiss(emissc);
 			}
 		}
 	}
-
-	protected double[][] normalise(double[][] mat, boolean byrow,
-			boolean logspace) {
+	
+	protected double findViterbiPath() {
 		// TODO Auto-generated method stub
-		if(!byrow) mat = transpose(mat);
-		for(int i=0; i<mat.length; i++) {
-			double s = Algebra.sum(mat[i]);
-			if(s==0) continue;
-			for(int j=0; j<mat[i].length; j++)
-				mat[i][j] /= s;
+		// not sure if this makes much difference
+		double probability = 0.0;
+		for(int i=0; i<N; i++) {
+			Integer[] ss = this.sspace.get(i);
+			ObUnit[] ob = obs[i];
+			double pi = 1.0/ss.length; // init probability
+			
+			this.vbs[i].clear();
+			double[][] v = this.vbs[i].v;
+			int[][] trace = this.vbs[i].trace;
+			double[] logscale = this.vbs[i].logscale;
+			
+			double[] emiss = ob[0].emiss;;
+			TransitionUnit t;
+			
+			for(int k : ss) v[0][k] = pi*emiss[k];
+			logscale[0] = ob[0].getLogScale(i);
+			for(int j=1; j<M; j++) {
+				emiss = ob[j].emiss;
+				t = transition[j-1];
+
+				for(int k : ss) {
+					double a, b = 0, c = 0;
+					int s = k;
+					for(int z : ss) {
+						a = v[j-1][z]*t.trans(z, k);
+						if(a > c) {
+							c = a;
+							s = z;
+						}
+						if(z==k) b = a;
+					}
+
+					if(b==c) s = k;
+					a = emiss[k]*c;
+					trace[j-1][k] = s;
+					v[j][k] = a;
+				}
+				logscale[j] = ob[j].getLogScale(i);
+				vbs[i].scale(j);
+			}
+
+			this.vbs[i].finalise();
+			probability += this.vbs[i].probability();
 		}
-		if(!byrow) mat = transpose(mat);
-		if(logspace) mat = logspace(mat);
-		return mat;
-	}
 
-	protected double[][] logspace(double[][] mat) {
+		return probability;
+	}
+	
+	protected double findViterbiPath1() {
 		// TODO Auto-generated method stub
-		for(int i=0; i<mat.length; i++)
-			mat[i] = logspace(mat[i]);
-		return mat;
-	}
+		// not sure yet if this makes much difference
+		// cause we need to calculate a lot of logs
+		double probability = 0.0;
+		for(int i=0; i<N; i++) {
+			Integer[] ss = this.sspace.get(i);
+			ObUnit[] ob = obs[i];
+			double pi = 1.0/ss.length; // init probability
+			
+			// pre-calculation for a lower bound for Viterbi path
+			// used to get rid of of some paths later
+			double lower_bound = Double.NEGATIVE_INFINITY;
+			for(int k : ss) {
+				double x = pi*ob[0].emiss[k];
+				double logscale = ob[0].getLogScale(i);
+				
+				for(int j=1; j<M; j++) {
+					x *= ob[j].emiss[k]*transition[j-1].trans(k,k);
+					logscale += ob[j].getLogScale(i);
+					if(x<Constants.threshMin) {
+						logscale += Constants.logThreshMax;
+						x /= Constants.threshMax;
+					}
+				}
+				x = Math.log(x)+logscale;
+				if(lower_bound < x) lower_bound = x;
+			}
+			lower_bound -= 0.04139268515;
 
-	protected double[] logspace(double[] array) {
-		// TODO Auto-generated method stub
-		for(int i=0; i<array.length; i++)
-			array[i] = Math.log(array[i]);
-		return array;
-	}
+			this.vbs[i].clear();
+			double[][] v = this.vbs[i].v;
+			int[][] trace = this.vbs[i].trace;
+			double[] logscale = this.vbs[i].logscale;
+			
+			Set<Integer> ss_copy   = new HashSet<Integer>(Arrays.asList(ss));
+			Set<Integer> ss_from = new HashSet<Integer>();
+			double[] emiss;
+			TransitionUnit t;
+			
+			for(int k : ss) v[0][k] = pi*ob[0].emiss[k];
+			logscale[0] = ob[0].getLogScale(i);
+			for(int j=1; j<M; j++) {
+				ss_from.clear();
+				ss_from.addAll(ss_copy);
+				ss_copy.clear();
+				emiss = ob[j].emiss;
+				t = transition[j-1];
 
-	protected double[][] normalspace(double[][] mat) {
-		// TODO Auto-generated method stub
-		for(int i=0; i<mat.length; i++)
-			mat[i] = normalspace(mat[i]);
-		return mat;
-	}
+				for(int k : ss) {
+					double a, b = 0, c = 0;
+					int s = k;
+					for(int z : ss_from) {
+						a = v[j-1][z]*t.trans(z, k);
+						if(a > c) {
+							c = a;
+							s = z;
+						}
+						if(z==k) b = a;
+					}
 
-	protected double[] normalspace(double[] array) {
-		// TODO Auto-generated method stub
-		for(int i=0; i<array.length; i++)
-			array[i] = Math.exp(array[i]);
-		return array;
-	}
+					if(b==c) s = k;
+					a = emiss[k]*c;
+					
+					if(Math.log(a)+logscale[j-1]+ob[j].getLogScale(i)>=lower_bound) {
+						trace[j-1][k] = s;
+						v[j][k] = a;
+						ss_copy.add(k);
+					}
+				}
+				logscale[j] = ob[j].getLogScale(i);
+				vbs[i].scale(j);
+			}
 
-	protected double[][] transpose(double[][] mat) {
-		// TODO Auto-generated method stub
-		double[][] tMat = new double[mat[0].length][mat.length];
-		for (int i = 0; i < mat.length; i++)
-			for (int j = 0; j < mat[0].length; j++)
-				tMat[j][i] = mat[i][j];
-		return tMat;
-	}
+			this.vbs[i].finalise();
+			probability += this.vbs[i].probability();
+		}
 
-	protected void clear(double[][][] matrix) {
+		return probability;
+	}
+	
+	protected static void clear(double[][][] matrix) {
 		// TODO Auto-generated method stub
 		int r = matrix.length, 
 				c = matrix[0].length;
@@ -394,1012 +378,532 @@ public abstract class HiddenMarkovModel {
 
 	}
 
-	protected void clear(double[][] matrix) {
+	protected static void clear(double[][] matrix) {
 		// TODO Auto-generated method stub
 		int r = matrix.length;
 		for(int i=0; i<r; i++)
 			Arrays.fill(matrix[i], 0);
 	}
 
-	protected void clear(int[][] matrix) {
+	protected static void clear(int[][] matrix) {
 		// TODO Auto-generated method stub
 		int r = matrix.length;
 		for(int i=0; i<r; i++)
 			Arrays.fill(matrix[i], 0);
 	}
-
-	protected int maxIndex(int[][] trace, 
-			int j, 
-			int k, 
-			double[] ss) {
+	
+	public static void clear(double[] array) {
 		// TODO Auto-generated method stub
-		int i = Algebra.maxIndex(ss);
-		if(j>1 && ss[trace[j-2][k]]==ss[i])
-			i = trace[j-2][k];
-		trace[j-1][k] = i;
-		return i;
-	}
-
-	protected String[] makeHS() {
-		// TODO Auto-generated method stub
-		String[] hs = new String[Constants._haplotype_z+1];
-		hs[0] = ".";
-		for(int k=1; k<hs.length; k++)
-			hs[k] = k<10 ? ""+k : ""+(char)('a'+k-10);
-		return hs;
-	}
-
-	protected void makeCompoundEP() {
-		// TODO Auto-generated method stub
-		for(final CompoundEP ep : this.compoundEmissProbs) ep.update();
-	}
-
-	protected void makeCompoundTP() {
-		// TODO Auto-generated method stub
-		for(int i=0; i<this.M; i++)
-			if(this.exp_b.contains(i))  
-				this.compoundTransProbs[i].update();
+		Arrays.fill(array, 0);
 	}
 	
-	protected double makeViterbi() {
-		// TODO Auto-generated method stub
-		int _m_ = this.dp.length+1;
-		int _n_ = this.dp[0].length;
+	protected class ObUnit {
+		private final int cov;	// depth of coverage
+		private final int aa;	// A-allele depth
+		protected final double[] emiss; // place holder for emission probs
+		protected final double[] logscale;
 		
-		double probability = 0.0;
-		for(int i=0; i<_n_; i++) {
+		public ObUnit(final int cov,
+				final int aa, 
+				final int k) {
+			this.cov = cov;
+			this.aa = aa;
+			this.emiss = new double[k];
+			this.logscale = new double[3];
+		}
+
+		public double getLogScale(final int i) {
+			// TODO Auto-generated method stub
+			if(i==parents_i[0])
+				return logscale[0];
+			else if(i==parents_i[1])
+				return logscale[1];
+			else
+				return logscale[2];
+		}
+
+		public void updateEmiss(double[] emissA) {
+			if(emiss.length!=emissA.length) 
+				throw new RuntimeException("!!!");
+			if(cov==0) {
+				Arrays.fill(emiss, 1.0/emiss.length);
+				return;
+			}
+			for(int i=0; i<emiss.length; i++)
+				emiss[i] = SaddlePointExpansion.logBinomialProbability(aa, cov, emissA[i]);
 			
-			Integer[] vst = this.validStateSpace.get(i);
-			Set<Integer> vst_copy;
-			double[][] v = this.vb[i].v;
-			int[][] trace = this.vb[i].trace;
-			clear(v);
-			clear(trace);
-			v[0][0] = 1.0;
+			logscale[0] = emiss[0];
+			emiss[0] = 1.0;
+			logscale[1] = emiss[1];
+			emiss[1] = 1.0;
+			logscale[2] = StatUtils.max(emiss, 2, K-2);
+			for(int i=2; i<K; i++) {
+				emiss[i] = Math.exp(emiss[i]-logscale[2]);
+			}
+		}
+
+		public int getCov() {
+			return this.cov;
+		}
+
+		public int getAa() {
+			return this.aa;
+		}
+
+		public double[] getEmiss() {
+			return this.emiss;
+		}
+	}
+
+	public class StateUnit {
+		private final char[] hs; // hidden states
+		private final int[][] hsc; // compound hidden states
+		private final String[] hsc_str; // compound hidden states str
+		private final int confs; // #confs
+		private final int[][] confs_hsc; // confs of compound hidden states
+		
+		private final int[][] confs_tab; // summary of confs
+		private final int[][] confs_cnt; // confs for probability calculation
+		/***
+		 * p is the probability of jumps
+		 * 
+		 * 			(1-p)^0*p^k		(1-p)^1*p^(k-1)		(1-p)^2*p^(k-2)		...		(1-p)^k*p^0
+		 * 	1			
+		 * 	2
+		 * 	3
+		 * 	...
+		 */
+		
+		public StateUnit(final int h) {
+			hs = makeHs(h*2);
+			hsc = makeHsc();
+			hsc_str = makeHscStr();
+			confs = (h/2+1)*(h/2+2)/2+1;
+			confs_tab = new int[confs][2];
+			confs_hsc = new int[hsc.length][hsc.length];
+			confs_cnt = new int[confs][h+1];
 			
-			double lower_bound = Double.NEGATIVE_INFINITY;
-			for(int k : vst) {
-				double x = this.dp[0][i].emiss[k]*
-						this.compoundTransProbs[0].probsMat[0][k];
-				double logscale = 0.0;
-				for(int j=2; j<_m_; j++) {
-					x *= this.dp[j-1][i].emiss[k]*
-							this.compoundTransProbs[j-1].probsMat[k][k];
-					if(x<Constants.threshMin) {
-						logscale += Constants.logThreshMax;
-						x /= Constants.threshMax;
-					}
+			this.configure();
+		}
+
+		private void configure() {
+			// TODO Auto-generated method stub
+			final int h = hs.length/4;
+			final int k = hsc.length;
+			// make confs look up table
+			final Map<String, Integer> confs_str = new HashMap<>();
+			int c = 0;
+			for(int i=0; i<=h; i++) {
+				for(int j=i; j<=h; j++) {
+					++c;
+					confs_str.put(i+"_"+j, c);
+					confs_str.put(j+"_"+i, c);
+					confs_tab[c][0] = i;
+					confs_tab[c][1] = j;
 				}
-				x = Math.log(x)+logscale;
-				if(lower_bound < x) lower_bound = x;
+			}
+			// make compound states look up table
+			int comn0, comn1;
+			int[] h0i = new int[h], 
+					h1i = new int[h],
+					h0j = new int[h], 
+					h1j = new int[h];
+			for(int i=0; i<k; i++) {
+				if(i<2) {
+					Arrays.fill(confs_hsc[i], -1);
+					confs_hsc[i][i] = 0;
+					continue;
+				}
+				System.arraycopy(hsc[i], 0, h0i, 0, h);
+				System.arraycopy(hsc[i], h, h1i, 0, h);
+				for(int j=0; j<k; j++) {
+					if(j<2) {
+						confs_hsc[i][j] = -1;
+						continue;
+					}
+					System.arraycopy(hsc[j], 0, h0j, 0, h);
+					System.arraycopy(hsc[j], h, h1j, 0, h);
+					comn0 = hsComn(h0i, h0j);
+					comn1 = hsComn(h1i, h1j);
+					confs_hsc[i][j] = confs_str.get(comn0+"_"+comn1);
+				}
+			}
+			// make probability calculation look up table
+			int[][] comns = new int[h+1][h+1];
+			for(int i=0; i<=h; i++) {
+				for(int j=0; j<=i; j++) {
+					comns[i][j] = f(h, i, j);
+				}
 			}
 			
-			for(int j=1; j<_m_; j++) {
-				
-				double logscale_j = this.vb[i].logscale[j];
-				
-				vst_copy = new HashSet<Integer>(Arrays.asList(vst));
-				for(int k : vst)
-					if(Math.log(v[j-1][k])+logscale_j < lower_bound)
-						vst_copy.remove(k);
-				
-				DP dp1 = this.dp[j-1][i];
-				CompoundTP tp1 = this.compoundTransProbs[j-1];
-				
-				for(int k : vst) {
-					double ss = 0.0, ss0 = 0.0, ss_tmp;
-					int st = -1;
-					
-					for(int a : vst_copy) {
-						ss_tmp = v[j-1][a]*tp1.probsMat[a][k];
-						if(ss_tmp > ss) {
-							ss = ss_tmp;
-							st = a;
-						}
-						if(a==k) ss0 = ss_tmp;
-					}
-					
-					if(ss0==ss) st = k;
-					trace[j-1][k] = st;
-					v[j][k] = dp1.emiss[k]*ss;
-				}
-				
-				this.vb[i].scale(j);
-			}
-			
-			this.vb[i].finalise();
-			this.vb[i].traceAll();
-			probability += this.vb[i].probability();
-		}
-		
-		return probability;
-	}
-
-	protected OB[] makeOB() {
-		// TODO Auto-generated method stub
-		List<String[]> allele = this.de.getAllele();
-		OB[] obs = new OB[allele.size()];
-		for(int i=0; i<obs.length; i++)
-			obs[i] = new OB(allele.get(i));
-		return obs;
-	}
-
-	protected ST[] makeST() {
-		// TODO Auto-generated method stub
-		int mid1 = this.hs.length/2;
-		int[] dot = new int[mid1];
-		String[] dot_str = new String[mid1];
-		Arrays.fill(dot_str, ".");
-		Arrays.fill(dot, 0);
-		int[] p1 = new int[mid1], p2 = new int[mid1];
-		for(int i=0; i<mid1; i++) {
-			p1[i] = i+1;
-			p2[i] = mid1+i+1;
-		}
-		String[] p1_str = new String[mid1],
-				p2_str = new String[mid1];
-		System.arraycopy(this.hs, 1, p1_str, 0, mid1);
-		System.arraycopy(this.hs, mid1+1, p2_str, 0, mid1);
-		
-		//List<List<String>> com1 = Permutation.multiPermutation(p1, mid1/2),
-		//		com2 = Permutation.multiPermutation(p2, mid1/2);
-		List<List<Integer>> com1 = Combination.combination(p1, mid1/2),
-				com2 = Combination.combination(p2, mid1/2);
-		List<Integer> com;
-		int _n_ = com1.size();
-		_n_ = _n_*_n_+3;
-		ST[] st = new ST[_n_];
-		int k=0;
-		st[k++] = new ST(dot, dot_str, false, false);
-		st[k++] = new ST(p1, p1_str, true, true);
-		st[k++] = new ST(p2, p2_str, true, true);
-		for(int i=0; i<com1.size(); i++) {
-			for(int j=0; j<com2.size(); j++) {
-				com = new ArrayList<Integer>(com1.get(i));
-				com.addAll(com2.get(j));
-				Integer[] tmp = new Integer[mid1];
-				com.toArray(tmp);
-				String[] tmp_str = new String[mid1];
-				for(int m=0; m<mid1; m++)
-					tmp_str[m] = this.hs[tmp[m]];
-				st[k++] = new ST(ArrayUtils.toPrimitive(tmp),
-						tmp_str,
-						false,
-						true);
-			}
-		}
-		return st;
-	}
-
-	protected DP[][] makeDP() {
-		// TODO Auto-generated method stub
-		DP[][] dp = new DP[this.M][this.N];
-		miss = new boolean[this.M][this.N];
-		switch(this.field) {
-		
-		case GT:
-			//TO-DO: calculate genotype likelihoods from genotype
-			List<List<String[]>> gt = this.de.getGenotype();
-			List<String[]> allele = this.de.getAllele();
-			if(gt==null) throw new RuntimeException("GT field not available!!! Try PL/GL (-L/--genotype-likelihood) or AD (-D/--allele-depth) option.");
-			for(int i=0; i<this.M; i++) {
-				Arrays.fill(miss[i], true);
-				for(int j=0; j<this.N; j++) {
-					double[] ll =  VCFtools.fitGL(gt.get(i).get(j), allele.get(i)[0]);
-					double l = 0;
-					for(int k=1; k<ll.length; k++) {
-						if(ll[k]!=l) {
-							miss[i][j] = false;
-							break;
-						}
-					}
-					dp[i][j] = new DP(ll,
-							this.statespace.length,
-							this.obspace[i].genotype.length,
-							isParent(this.sample[j]),
-							false);
-				}
-			}
-			break;
-			
-		case PL:
-		case GL:
-			List<List<double[]>> gl = this.de.getGenotypeLikelihood();
-			if(gl==null) throw new RuntimeException("PL/GL feild not available!!! Try GT (-G/--genotype) or AD (-D/--allele-depth) option.");
-			for(int i=0; i<this.M; i++) {
-				for(int j=0; j<this.N; j++) {
-					double[] ll = gl.get(i).get(j);
-					double l = 0;
-					for(int k=1; k<ll.length; k++) {
-						if(ll[k]!=l) {
-							miss[i][j] = false;
-							break;
-						}
-					}
-					dp[i][j] = new DP(ll,
-							this.statespace.length,
-							this.obspace[i].genotype.length,
-							isParent(this.sample[j]),
-							false);
-				}
-			}
-			break;
-			
-		case AD:
-			//TO-DO: calculate genotype likelihoods from allele depth
-			List<List<int[]>> ad = this.de.getAlleleDepth();
-			if(ad==null) throw new RuntimeException("AD feild not available!!! Try PL/GL (-L/--genotype-likelihood) or GT (-G/--genotype) options.");
-			for(int i=0; i<this.M; i++) {
-				for(int j=0; j<this.N; j++) {
-					double[] ll = VCFtools.fitGL(ad.get(i).get(j), Constants._ploidy_H);
-					double l = 0;
-					for(int k=1; k<ll.length; k++) {
-						if(ll[k]!=l) {
-							miss[i][j] = false;
-							break;
-						}
-					}
-					dp[i][j] = new DP(ll, 
-							this.statespace.length,
-							this.obspace[i].genotype.length,
-							isParent(this.sample[j]),
-							false);
-				}
-			}
-			break;
-		
-		default:
-			throw new RuntimeException("Invalid field provided. "
-					+ "Should be \"PL\", \"GL\", \"AD\", or \"GT\". ");
-		}
-		return dp;
-	}
-
-	protected boolean isParent(String sample) {
-		// TODO Auto-generated method stub
-		return new HashSet<String>(Arrays.asList(this.parent)).contains(sample);
-	}
-
-	protected long memory(String type) {
-		switch(type) {
-		case "total":
-			return runtime.totalMemory();
-		case "free":
-			return runtime.freeMemory();
-		case "used":
-			return runtime.totalMemory()-
-					runtime.freeMemory();
-		case "max":
-			return runtime.maxMemory();
-		default:
-			System.err.println("Error.");
-			System.exit(1);
-		}
-		return -1;
-	}
-	
-	public class OB {
-		protected final String[] allele;
-		protected final String[][] genotype;
-		protected final String[][] dosage;
-		protected final String[] dosaS;
-		protected final String[] genoS;
-
-		protected Map<String, Integer[]> dgMap; // dosage and genotype map
-
-		public OB(String[] allele) {
-			// TODO Auto-generated constructor stub
-			this.allele = allele;
-			this.dosage = this.dosage();
-			this.genotype = this.genotype();
-			this.dosaS = this.makeDosaS();
-			this.genoS = this.makeGenoS();
-		}
-
-		private String[] makeGenoS() {
-			// TODO Auto-generated method stub
-			String[] genoS = new String[this.genotype.length];	
-			for(int i=0; i<genoS.length; i++) 
-				genoS[i] = StringUtils.join(this.genotype[i],"_");
-
-			return genoS;
-		}
-
-		private String[] makeDosaS() {
-			// TODO Auto-generated method stub
-			String[] dosaS = new String[this.dosage.length];
-			for(int i=0; i<dosaS.length; i++) 
-				dosaS[i] = StringUtils.join(this.dosage[i],"_");
-			return dosaS;
-		}
-
-		private String[][] genotype() {
-			// TODO Auto-generated method stub
-			String[][] genotype = new String[(int)Math.pow(
-					this.allele.length, 
-					Constants._ploidy_H)][Constants._ploidy_H];
-			this.dgMap = new HashMap<String, Integer[]>();
-			int k = 0;
-			for(int a=0; a<this.dosage.length; a++) {
-				String[] dos = dosage[a];
-				List<List<String>> perms = 
-						Permutation.permutation(dos);
-				Integer[] idx = new Integer[perms.size()];
-				int i = 0;
-				for(List<String> perm : perms) {
-					perm.toArray(genotype[k]);
-					idx[i++] = k++;
-				}
-				this.dgMap.put(StringUtils.join(dos, "_"), idx);
-			}
-			return genotype;
-		}
-
-		private String[][] dosage() {
-			// TODO Auto-generated method stub
-			List<List<String>> mc = Combination.multiCombination(this.allele,
-					Constants._ploidy_H);
-			String[][] dosage = new String[mc.size()][Constants._ploidy_H];
-			for(int i=0; i<mc.size(); i++) 
-				mc.get(i).toArray(dosage[i]);
-			return dosage;
-		}
-
-		public String[] allele() {
-			// TODO Auto-generated method stub
-			return this.allele;
-		}
-	}
-	
-	protected class ST {
-		protected final boolean isparent; // is valid for parents only
-		protected final int[] state;
-		protected final String[] state_str;
-		protected final boolean iscompound;
-		protected final ST[] stateperm;
-
-		public ST(int[] state,
-				String[] state_str, 
-				boolean isparent, 
-				boolean isdupstate) {
-			// TODO Auto-generated constructor stub
-			this.isparent = isparent;
-			this.state = state;
-			this.state_str = state_str;
-			this.iscompound = isdupstate;
-			this.stateperm = this.stateperm();
-		}
-
-		public ST(int[] state,
-				String[] state_str, 
-				boolean isparent) {
-			// TODO Auto-generated constructor stub
-			this.isparent = isparent;
-			this.state_str = state_str;
-			this.state = state;
-			this.iscompound = false;
-			this.stateperm = null;
-		}
-
-		protected ST[] stateperm() {
-			// TODO Auto-generated method stub
-			if(!iscompound||isparent) return new ST[]{
-					new ST(this.state,
-							this.state_str,
-							this.isparent)};
-			int mid1 = Constants._ploidy_H/2;
-			int n = this.state.length;
-			int[] p = new int[mid1];
-			System.arraycopy(this.state, 0, p, 0, mid1);
-			List<List<Integer>> perm1 = Permutation.permutation(p);
-			System.arraycopy(this.state, mid1, p, 0, mid1);
-			List<List<Integer>> perm2 = Permutation.permutation(p);
-			ST[] stateperm = new ST[perm1.size()*perm2.size()];
-			int i = 0;
-			for(List<Integer> p1 : perm1) {
-				for(List<Integer> p2 : perm2) {
-					List<Integer> s = new ArrayList<Integer>(p1);
-					s.addAll(p2);
-					Integer[] st = new Integer[n];
-					s.toArray(st);
-					String[] ss = new String[n];
-					for(int j=0; j<n; j++)
-						ss[j] = hs[st[j]];
-					stateperm[i++] = new ST(
-							ArrayUtils.toPrimitive(st),
-							ss,
-							this.isparent,
-							false);
-				}
-			}
-			return stateperm;
-		}
-	}
-	
-	protected class DP {
-
-		protected final boolean isparent; // is parent
-		protected final double[] likelihood; // likelihood of different dosage
-		protected final double[] hweDist1;
-		protected boolean allowtrans; // if transition is allowed
-		protected boolean logspace; // if is in log space
-		protected double[] emiss; // product of likelihood and emiss for dosa
-		//private double[][] emissG; // product of likelihood and emiss for genotype
-
-		public DP(double[] likelihood, 
-				int es,
-				int esg,
-				boolean isparent, 
-				boolean logspace) {
-			// TODO Auto-generated constructor stub
-			this.isparent = isparent;
-			this.allowtrans = !isparent;
-			this.emiss = new double[es];
-			//this.emissG = new double[es][esg];
-			this.hweDist1 = new double[likelihood.length];
-			Arrays.fill(hweDist1, 1.0/likelihood.length);
-			if(logspace) likelihood = normalspace(likelihood);
-			if(StatUtils.max(likelihood)<=0.0) 
-				Arrays.fill(likelihood, 1.0);
-			likelihood = Algebra.normalize(likelihood);
-			for(int i=0; i<likelihood.length; i++)
-				likelihood[i] = hweDist1[i]*Constants._soften_ + 
-				likelihood[i]*(1-Constants._soften_);
-			this.likelihood = likelihood;
-			if(logspace) this.setNormalspace();
-		}
-
-		private void setLogspace() {
-			for(int i=0; i<likelihood.length; i++) 
-				likelihood[i] = Math.log(likelihood[i]);
-			this.logspace = true;
-		}
-
-		private void setNormalspace() {
-			for(int i=0; i<likelihood.length; i++) 
-				likelihood[i] = Math.exp(likelihood[i]);
-			this.logspace = false;
-		}
-	}
-	
-	public class CompoundTP {
-		protected final TP tp;
-		protected final ST[] statespace;
-		
-		protected double[][][] prior;
-		protected double[][] probsMat;
-		
-		public CompoundTP(final TP tp,
-				final ST[] statespace) {
-			this.tp = tp;
-			this.statespace = statespace;
-			final int _m_ = this.statespace.length;
-			this.probsMat = new double[_m_][_m_];
-			this.prior = new double[_m_][_m_][];
-			this.update();
-		}
-
-		private void update() {
-			// TODO Auto-generated method stub
-			int _a_ = this.statespace.length;
-			for(int a=0; a<_a_; a++) {
-				if(this.statespace[a].isparent) {
-					for(int b=0; b<_a_; b++) { 
-						if(this.prior[a][b]==null) 
-							this.prior[a][b] = new double[1];
-						final double[] prior = this.prior[a][b];
-						if(a==b) prior[0] = 1.0;
-						else prior[0] = 0.0;
-						
-						this.probsMat[a][b] = StatUtils.sum(prior);
-						Algebra.normalize(prior);
-					}
-				} else {
-					int[] s_a = this.statespace[a].state;
-					for(int b=0; b<_a_; b++) { 
-						ST[] st_b = this.statespace[b].stateperm();
-						int _i_ = st_b.length;
-						int _j_ = st_b[0].state.length;
-
-						if(this.prior[a][b]==null) 
-							this.prior[a][b] = new double[_i_];
-						final double[] prior = this.prior[a][b];
-
-						Arrays.fill(prior, 1.0);
-						for(int i=0; i<_i_; i++) {
-							int[] s_i = st_b[i].state;
-							for(int j=0; j<_j_; j++)
-								prior[i] *= tp.probsMat[s_a[j]][s_i[j]];
-						}
-
-						this.probsMat[a][b] = StatUtils.sum(prior);
-						Algebra.normalize(prior);
-					}
-				}
-			}
-		}
-	}
-	
-	public class TP {
-		protected final boolean isDotState;
-		protected final double distance;
-		protected final String[] str_statespace;
-		protected final boolean trainExp;
-		protected final double[][] probsMat;
-		
-		protected boolean logspace;
-		protected double[][] count;
-		protected double exp;
-		protected double[][] alpha;
-
-		public TP(String[] str_statespace, 
-				double distance, 
-				boolean isDotState,
-				boolean trainExp) {
-			this.str_statespace = str_statespace;
-			this.distance = distance;
-			this.isDotState = isDotState;
-			this.prior();
-			this.trainExp = trainExp;
-			int _n_=this.str_statespace.length;
-			this.probsMat = new double[_n_][_n_];
-			this.count = new double[_n_][_n_];
-			this.logspace = false;
-			this.update();
-		}
-
-		public TP(String[] str_statespace, 
-				double distance, 
-				boolean isDotState, 
-				boolean trainExp, 
-				String tranProbs) {
-			// TODO Auto-generated constructor stub
-			this.str_statespace = str_statespace;
-			this.distance = distance;
-			this.isDotState = isDotState;
-			this.prior();
-			this.trainExp = trainExp;
-			int _n_=this.str_statespace.length;
-			this.probsMat = new double[_n_][_n_];
-			this.count = new double[_n_][_n_];
-			this.logspace = false;
-			this.update(tranProbs);
-		}
-		
-		protected void update() {
-			// TODO Auto-generated method stub
-			int z = Constants._haplotype_z/2;
-			if(this.isDotState) {
-				for(int i=0; i<2; i++) {
-					for(int j=1; j<=z; j++)
-						this.probsMat[0][i*z+j] = alpha[i][j-1]/2;
-				}
-			} else {
-				for(int i=0; i<2; i++) {
-					int start = 1, end = z;
-					if(i==1) {
-						start += z;
-						end += z;
-					}
-					for(int j=start; j<=end; j++) {
-						for(int k=start; k<=end; k++)
-							if(j==k) this.probsMat[j][k] = (1-exp)+exp*alpha[i][k-start];
-							else this.probsMat[j][k] = exp*alpha[i][k-start];
-					}
-				}
+			int[] probs;
+			int[] comns0, comns1;
+			for(int i=1; i<confs; i++) {
+				comn0 = confs_tab[i][0];
+				comn1 = confs_tab[i][1];
+				comns0 = comns[comn0];
+				comns1 = comns[comn1];
+				probs = confs_cnt[i];
+				for(int u=0; u<=comn0; u++)
+					for(int v=0; v<=comn1; v++) 
+						probs[u+v] += comns0[u]*comns1[v];
 			}
 		}
 		
-		private void update(String tranProbs) {
+		private int f(int n, int a, int b) {
 			// TODO Auto-generated method stub
-			Pattern p = Pattern.compile("\\{(.*?)\\}");
-			Matcher m = p.matcher(tranProbs);
-			
-			int _n_ = this.str_statespace.length;
-			String[] prob_str;
-			double[] probs;
-			for(int a=0; a<_n_; a++) {
-				probs = this.probsMat[a];
-				m.find();
-				prob_str = m.group(1).split(",|;");
-				for(int b=0; b<_n_; b++) 
-					probs[b] = Double.parseDouble(prob_str[b*2+1]);
-			}
-		}
-		
-		private void prior() {
-			// TODO Auto-generated method stub	
-			double e = Math.exp(-this.distance*Constants._con_base_r);
-			double alpha = Math.max(Constants._mu_J_e*(1-e), Constants.eps);
-			double beta = Math.max(Constants._mu_J_e*e, Constants.eps);
-			this.exp = new BetaDistribution(Constants.rg, alpha, beta).sample();
-			// TODO should be fixed? should be a smaller number?
-			// this.exp = Math.max(this.exp, 1e-3);
-			int z = Constants._haplotype_z/2;
-			this.alpha = new double[2][z];
-			//Dirichlet diri = new Dirichlet(distz(z), Constants._mu_alpha_e);
-			for(int i=0; i<2; i++)
-				//this.alpha[i] = ArrayUtils.toPrimitive(diri.sample());
-				Arrays.fill(this.alpha[i], 1.0/z);
-			return;
-		}
-
-		protected void posterior() {
-			// TODO Auto-generated method stub	
-			int z = Constants._haplotype_z/2;
-			if(this.isDotState) {
-				double[] c = new double[z];
-				for(int i=0; i<2; i++) {
-					System.arraycopy(count[0], i*z+1, c, 0, z);
-					alpha(i, z, c);
-				}
-				this.update();
-			} else if(this.trainExp) {
-				double s = 0, exp_c = 0;
-				for(int i=0; i<2; i++) {
-					int start = 1, end = z;
-					if(i==1) {
-						start += z;
-						end += z;
-					}
-					double[] alpha_c = new double[z];
-					for(int j=start; j<=end; j++) {
-						for(int k=start; k<=end; k++) {
-							s += count[j][k];
-							if(k==j) {
-								exp_c += (1-exp)/probsMat[j][k]*count[j][k];
-								alpha_c[k-i*z-1] += exp*alpha[i][k-start]/
-										probsMat[j][k]*count[j][k];
-							} else {
-								alpha_c[k-i*z-1] += count[j][k];
-							}
-						}
-					}
-					alpha(i, z, alpha_c);
-				}
-				exp = 1-exp_c/s;
-				this.update();
-			}
-		}
-
-		public double[][] pseudo() {
-			// TODO Auto-generated method stub
-			
-			//TODO
-			//for pair haplotype phasing
-			//need to update distance!!!
-			
+			// inefficient but straightforward
 			/***
-			int _n_=this.str_statespace.length;
-			for(int i=0; i<_n_; i++) {
-				Arrays.fill(this.count[i], .0);
+			 * f(n,a,b) = c(a,b)*f(n-b,a-b,0)
+			 * f(n,a,0) = n!-f(n,a,1)-f(n,a,2)-...-f(n,a,a) 
+			 */
+			if(n<a||n<b||a<b) return 0;
+			if(b==0) {
+				long f = Permutation.factorial(n);
+				if(f>Integer.MAX_VALUE) throw new RuntimeException("!!!");
+				for(int i=1; i<=a; i++) f -= f(n,a,i);
+				return (int) f;
 			}
-			***/
-			double e = Math.exp(-this.distance*Constants._con_base_r);
-			double alpha_m = Math.max(Constants._pseudo_[2]*(1-e), Constants.eps);
-			double beta_m = Math.max(Constants._pseudo_[2]*e, Constants.eps);
-			double ab = alpha_m/(alpha_m+beta_m);
+			return Combination.nchoosek(a, b)*f(n-b,a-b,0);
+		}
 
-			int z = Constants._haplotype_z/2;
-			if(this.isDotState) {
-				for(int i=0; i<2; i++) {
-					for(int j=1; j<=z; j++)
-						this.count[0][i*z+j] = ab/z;
-				}
-			} else {
-				for(int i=0; i<2; i++) {
-					int start = 1, end = z;
-					if(i==1) {
-						start += z;
-						end += z;
-					}
-					for(int j=start; j<=end; j++) {
-						for(int k=start; k<=end; k++)
-							if(j==k) this.count[j][k] = (1-ab)+ab/z;
-							else this.count[j][k] = ab/z;
-					}
+		public void calcProbs(double[] trans, double[][] cnts, double jump) {
+			final int h = hs.length/2;
+			trans[0] = 1.0;
+			cnts[0][0] = 0.0;
+			cnts[0][1] = h;
+			int[] cnt;
+			final double stay = 1-jump;
+			for(int i=1; i<confs; i++) {
+				cnt = confs_cnt[i];
+				double[] probs = new double[h+1];
+				for(int j=0; j<=h; j++) 
+					probs[j] = cnt[j]*Math.pow(jump, h-j)*Math.pow(stay, j);
+				trans[i] = StatUtils.sum(probs);
+				for(int j=0; j<=h; j++) {
+					cnts[i][0] += (h-j)*probs[j]/trans[i];
+					cnts[i][1] += j*probs[j]/trans[i];
 				}
 			}
-			return count;
+		}
+		
+		private char[] makeHs(int h) {
+			// TODO Auto-generated method stub
+			char[] hs = new char[h];
+			for(int k=0; k<h; k++) {
+				hs[k] = k<10 ? (char)('1'+k) : (char)('a'+k-10);
+			}
+			return hs;
 		}
 
-		private void alpha(final int i, 
-				final int z, 
-				final double[] c) {
+		private int[][] makeHsc() {
 			// TODO Auto-generated method stub
-			for(int j=0; j<c.length; j++)
-				c[j] += Constants._pseudo_[0]/z;
-			double s = StatUtils.sum(c);
-			for(int j=0; j<alpha[i].length; j++)
-				alpha[i][j] = c[j]/s;
+			int mid1 = this.hs.length/2;
+			int[] p1 = new int[mid1], p2 = new int[mid1];
+			for(int i=0; i<mid1; i++) {
+				p1[i] = i;
+				p2[i] = mid1+i;
+			}
+
+			List<List<Integer>> com1 = Combination.combination(p1, mid1/2),
+					com2 = Combination.combination(p2, mid1/2);
+			int k = com1.size();
+			int k2 = k*k+2;
+			int[][] hsc = new int[k2][mid1];
+			hsc[0] = p1;
+			hsc[1] = p2;
+			for(int i=0; i<k; i++) {
+				for(int j=0; j<k; j++) {
+					List<Integer> com = new ArrayList<Integer>(com1.get(i));
+					com.addAll(com2.get(j));
+					hsc[i*k+j+2] = ArrayUtils.toPrimitive(com.toArray(new Integer[mid1]));
+				}
+			}
+			return hsc;
 		}
 
-		private void setLogspace() {
+		private String[] makeHscStr() {
 			// TODO Auto-generated method stub
-			for(int i=0; i<this.probsMat.length; i++)
-				for(int j=0; j<this.probsMat[i].length; j++)
-					this.probsMat[i][j] = Math.log(this.probsMat[i][j]);
-			this.logspace = true;
+			int K = this.hsc.length;
+			int h = this.hs.length/2;
+			String[] hsc_str = new String[K];
+			char[] st = new char[h];
+			for(int i=0; i<K; i++) {
+				for(int j=0; j<h; j++) {
+					st[j] = hs[hsc[i][j]];
+				}
+				hsc_str[i] = StringUtils.join(st, '_');
+			}
+			return hsc_str;
 		}
 
-		private void setNormalspace() {
+		private int hsComn(int[] h1, int[] h2) {
 			// TODO Auto-generated method stub
-			for(int i=0; i<this.probsMat.length; i++)
-				for(int j=0; j<this.probsMat[i].length; j++)
-					this.probsMat[i][j] = Math.exp(this.probsMat[i][j]);
-			this.logspace = false;
+			int h = h1.length;
+			int u = 0, v = 0, c = 0;
+			while (u<h && v<h) {
+				if(h1[u]==h2[v]) {
+					++c;
+					++u;
+					++v;
+				} else if (h1[u] < h2[v]) {
+					++u;
+				} else {
+					++v;
+				}
+			}
+			return c;
+		}
+		
+		protected char[] getHs() {
+			return this.hs;
+		}
+		
+		protected int[][] getHsc() {
+			return this.hsc;
+		}
+		
+		protected String[] getHscStr() {
+			return this.hsc_str;
 		}
 
-		public double[][] probs() {
-			// TODO Auto-generated method stub
-			return this.probsMat;
+		protected int getConfs() {
+			return this.confs;
+		}
+		
+		protected int[][] getConfsHsc() {
+			return this.confs_hsc;
+		}
+		
+		protected int hsc(int i, int j) {
+			return confs_hsc[i][j];
 		}
 	}
 
-	public class CompoundEP {
-		protected final EP ep;
-		protected final OB ob;
-		protected final ST[] statespace;
-		protected final double[][] probsMat;
-		protected final double[][] probsDosaMat;
-
-		public CompoundEP(EP ep,
-				OB obspace,
-				ST[] statespace) {
-			// TODO Auto-generated constructor stub
-			this.ep = ep;
-			this.ob = obspace;
-			this.statespace = statespace;
-			int _n_ = this.statespace.length;
-			int _g_ = obspace.genotype.length;
-			int _k_ = obspace.dosage.length;
-			this.probsMat = new double[_n_][_g_];
-			this.probsDosaMat = new double[_n_][_k_];
-			this.update();
-		}
-
-		private void update() {
-			// TODO Auto-generated method stub
-			final int _s_ = this.statespace.length;
-			
-			for(int i=0; i<_s_; i++) {
-				int[] state = this.statespace[i].state;
-				String[][] geno = ob.genotype;
-				int _m_ = geno.length;
-				int _n_ = geno[0].length;
-				Map<String, Integer> esMap = ep.esMap;
-				for(int a=0; a<_m_; a++) {
-					String[] g = geno[a];
-					double ss=1.0;
-					for(int b=0; b<_n_; b++) 
-						ss *= ep.probsMat[state[b]]
-								[esMap.get(g[b])];
-					this.probsMat[i][a] = ss;
-				}
-
-				Map<String, Integer[]> dgMap = ob.dgMap;
-				String[] dosa = ob.dosaS;
-				int _k_ = dosa.length;
-				int _i_;
-				for(int k=0; k<_k_; k++) {
-					Integer[] idx = dgMap.get(dosa[k]);
-					_i_ = idx.length;
-					double ss = 0.0;
-					for(int l=0; l<_i_; l++)
-						ss += this.probsMat[i][idx[l]];
-					this.probsDosaMat[i][k] = ss;
-				}
-			}
-		}
-	}
-	
-	public class EP {
-
-		protected final String[] statespace;
-		protected final String[] allele;
-		protected final double bfrac;
-		protected final double[][] probsMat;
-		protected boolean logspace;
-		protected double[][] count;
-
-		protected final Map<String, Integer> ssMap;
-		protected final Map<String, Integer> esMap;
-
-		public EP(String[] statespace, 
-				String[] allele, 
-				double bfrac) {
-			// TODO Auto-generated constructor stub
-			this.statespace = statespace;
+	protected class EmissionUnit {
+		private final String[] allele;
+		private final double[] emiss;
+		private final double[] emissc;
+		private final double pseudo;
+		private final double[][] count;
+		private final double[][][] cnts_prior; // priors for counting
+		
+		public EmissionUnit(final String[] allele,
+				int H,
+				int K,
+				final double pseudo) {
 			this.allele = allele;
-			this.bfrac = bfrac;
-			int _a_ = this.statespace.length;
-			int _b_ = this.allele.length;
-			this.probsMat = new double[_a_][_b_];
-			this.count = new double[_a_][_b_];
+			this.emiss = new double[H];
+			this.emissc = new double[K];
+			this.pseudo = pseudo;
+			this.count = new double[H][allele.length];
+			this.cnts_prior = new double[K][H/2][2];
 			this.prior();
-			this.ssMap = new HashMap<String, Integer>();
-			for(int i=0; i<_a_; i++)
-				this.ssMap.put(statespace[i], i);
-			this.esMap = new HashMap<String, Integer>();
-			for(int i=0; i<_b_; i++)
-				this.esMap.put(allele[i], i);
-			this.logspace = false;
-		}
-
-		public EP(String[] statespace,
-				String[] allele, 
-				double bfrac, 
-				String emissProbs) {
-			// TODO Auto-generated constructor stub
-			this.statespace = statespace;
-			this.allele = allele;
-			this.bfrac = bfrac;
-			int _a_ = this.statespace.length;
-			int _b_ = this.allele.length;
-			this.probsMat = new double[_a_][_b_];
-			this.count = new double[_a_][_b_];
-			this.prior(emissProbs);
-			this.ssMap = new HashMap<String, Integer>();
-			for(int i=0; i<statespace.length; i++)
-				this.ssMap.put(statespace[i], i);
-			this.esMap = new HashMap<String, Integer>();
-			for(int i=0; i<allele.length; i++)
-				this.esMap.put(allele[i], i);
-			this.logspace = false;
-			this.count = new double[this.statespace.length][this.allele.length];
-		}
-
-		private void prior(String emissProbs) {
-			// TODO Auto-generated method stub
-			Pattern p = Pattern.compile("\\{(.*?)\\}");
-			Matcher m = p.matcher(emissProbs);
-			
-			int _a_ = this.statespace.length;
-			int _b_ = this.allele.length;
-			String[] prob_str;
-			double[] probs;
-			
-			for(int a=0; a<_a_; a++) {
-				probs = this.probsMat[a];
-				m.find();
-				prob_str = m.group(1).split(",|;");
-				for(int b=0; b<_b_; b++) 
-					probs[b] = Double.parseDouble(prob_str[b*2+1]);
-			}
+			this.updatec();
 		}
 
 		protected void prior() {
 			// TODO Auto-generated method stub
-			Arrays.fill(this.probsMat[0], 0);
-			for(int i=1; i<this.probsMat.length; i++) {
-				//Dirichlet diri = new Dirichlet(distz(this.allele.length), 
-				//		Constants._mu_theta_e);
-				Dirichlet diri = new Dirichlet(new double[]{1-bfrac, bfrac}, 
-						Constants._mu_theta_e);
-				this.probsMat[i] = ArrayUtils.toPrimitive(diri.sample());
+			BetaDistribution beta = new BetaDistribution(Constants.rg, 
+					(1-pseudo)*Constants._mu_A_e, pseudo*Constants._mu_A_e);
+			for(int i=0; i<emiss.length; i++) {
+				emiss[i] = beta.sample();
+				if(emiss[i]==0) emiss[i] = 0.001;
+				if(emiss[i]==1) emiss[i] = 0.999;
 			}
 		}
 
-		public void getCounts(double[] hittingProb) {
-			int _i_ = count.length;
-			double sum = 0;
-			for(int i=1; i<_i_; i++) {
-				hittingProb[i] = StatUtils.sum(count[i]);
-				sum += hittingProb[i];
+		public void addCount(int s, double acnt, double bcnt) {
+			// TODO Auto-generated method stub
+			int[] hs = state.hsc[s];
+			double[][] prior = cnts_prior[s];
+			for(int i=0; i<H; i++) {
+				count[hs[i]][0] += acnt*prior[i][0];
+				count[hs[i]][1] += bcnt*prior[i][1];
 			}
-			if(sum==0) 
-				for(int i=1; i<_i_; i++) 
-					hittingProb[i] = 1.0/(_i_-1);
-			else
-				for(int i=1; i<_i_; i++) 
-					hittingProb[i] /= sum;
 		}
 		
-		protected void posterior() {
+		protected void update() {
 			// TODO Auto-generated method stub
-			int _i_ = count.length,
-					_j_ = count[0].length;
-			for(int i=1; i<_i_; i++) {
-				double s = StatUtils.sum(count[i]);
-				if(s==0)
-					for(int j=0; j<_j_; j++)
-						probsMat[i][j] = 1.0/count[i].length;
-				else
-					for(int j=0; j<_j_; j++)
-						probsMat[i][j] = count[i][j]/s;
+			for(int i=0; i<emiss.length; i++) {
+				emiss[i] = count[i][0]/
+				(count[i][0]+count[i][1]);
 			}
+			this.updatec();
 		}
 
-		public double[][] pseudo() {
+		protected void updatec() {
 			// TODO Auto-generated method stub
-			int _i_ = count.length;
-			for(int i=1; i<_i_; i++) {
-				//Arrays.fill(count[i], 
-				//		1.0/this.allele.length*Constants._mu_theta_m);
-				count[i][0] = (1-bfrac)*Constants._pseudo_[1];
-				count[i][1] = bfrac*Constants._pseudo_[1];
+			int[][] hsc = state.hsc;
+			for(int i=0; i<emissc.length; i++) {
+				double p = 0, p1;
+				for(int j=0; j<H; j++)
+					p += emiss[hsc[i][j]];
+				p1 = H-p;
+				for(int j=0; j<H; j++) {
+					cnts_prior[i][j][0] = emiss[hsc[i][j]]/p;
+					cnts_prior[i][j][1] = (1-emiss[hsc[i][j]])/p1;
+				}
+				emissc[i] = p/H;
 			}
+		}
+		
+		protected String[] getAllele() {
+			return this.allele;
+		}
+		
+		protected double[] getEmiss() {
+			return this.emiss;
+		}
+		
+		protected double[] getEmissc() {
+			return this.emissc;
+		}
+		
+		protected double getPseudoCount() {
+			return this.pseudo;
+		}
+		
+		protected double[][] getCount() {
+			return this.count;
+		}
+		
+		protected void pseudo() {
+			for(int i=0; i<count.length; i++) {
+				count[i][0] = (1-pseudo)*Constants._mu_A_m;
+				count[i][1] = pseudo*Constants._mu_A_m;
+			}
+		}
+	}
+
+	protected class TransitionUnit {
+		private final double[] trans;
+		private final double distance;
+		private final double pseudo;
+		private double jump;
+		protected final double[] count;
+		private final double[][] cnts_prior; // priors for counting jumps
+		
+		
+		public TransitionUnit(final double distance,
+				final int K) {
+			this.distance = distance;
+			this.pseudo = Math.exp(-distance*Constants._con_base_r);
+			this.jump = prior();
+			this.trans = new double[K];
+			this.count = new double[2];
+			this.cnts_prior = new double[K][2];
+			this.updatec();
+		}
+
+		private void updatec() {
+			// TODO Auto-generated method stub
+			state.calcProbs(trans, cnts_prior, jump);
+		}
+
+		protected void update(double jump) {
+			// TODO Auto-generated method stub
+			this.jump = jump;
+			this.updatec();
+		}
+		
+		protected void update() {
+			// TODO Auto-generated method stub
+			double c = count[0]+count[1];
+			if(c==0) jump = 0.5;
+			else jump = count[0]/c;
+			this.updatec();
+		}
+		
+		private double prior() {
+			// TODO Auto-generated method stub
+			double p = new BetaDistribution(Constants.rg, 
+					(1-pseudo)*Constants._mu_J_e, pseudo*Constants._mu_J_e).sample();
+			if(p==0) p = 1e-12;
+			if(p==1) p = 1-1e-12;
+			return p;
+		}
+		
+		protected void addCount(int from, int to, double n) {
+			int hsc = state.hsc(from, to);
+			count[0] += cnts_prior[hsc][0]*n;
+			count[1] += cnts_prior[hsc][1]*n;
+		}
+		
+		protected double trans(int from, int to) {
+			return trans[state.hsc(from, to)];
+		}
+		
+		protected double[] getTrans() {
+			return trans;
+		}
+		
+		protected double[] getCount() {
 			return count;
 		}
-
-		private void setLogspace() {
-			// TODO Auto-generated method stub
-			for(int i=0; i<this.probsMat.length; i++)
-				for(int j=0; j<this.probsMat[i].length; j++)
-					this.probsMat[i][j] = Math.log(this.probsMat[i][j]);
-			this.logspace = true;
+		
+		protected double getDistance() {
+			return distance;
 		}
-
-		private void setNormalspace() {
-			// TODO Auto-generated method stub
-			for(int i=0; i<this.probsMat.length; i++)
-				for(int j=0; j<this.probsMat[i].length; j++)
-					this.probsMat[i][j] = Math.exp(this.probsMat[i][j]);
-			this.logspace = false;
+		
+		protected double getJump() {
+			return jump;
 		}
-
-		public double[][] probs() {
-			// TODO Auto-generated method stub
-			return this.probsMat;
+		
+		protected void pseudo() {
+			count[0] = (1-pseudo)*Constants._mu_J_m;
+			count[1] = pseudo*Constants._mu_J_m;
 		}
 	}
 	
-	protected class Viterbi {
+	protected class ViterbiUnit {
 		protected double[][] v;
-		protected int m;
 		protected int[][] trace;
-		protected String[] statespace;
 		protected double[] logscale;
-		protected String[][] path_str;
-		protected int[][] path;
-		protected double[] probability;
-		protected int[] sortv;
+		protected String[] path_str;
+		protected int[] path;
+		protected int ends = -1; // end state
+		protected double probability = 0;
 		
-		public Viterbi(int _m_, int _n_, String[] statespace) {
+		public ViterbiUnit() {
 			// TODO Auto-generated constructor stub
-			this.v = new double[_m_][_n_];
-			this.sortv = new int[_n_];
-			this.m = _m_;
-			this.trace = new int[_m_-1][_n_];
-			this.statespace = statespace;
-			this.logscale = new double[_m_];
-			this.path_str = new String[_n_][_m_-1];
-			this.path = new int[_n_][_m_-1];
-			this.probability = new double[_n_];
+			this.v = new double[M][K];
+			this.trace = new int[M-1][K];
+			this.logscale = new double[M];
+			this.path_str = new String[M];
+			this.path = new int[M];
 		}
 
-		public double probability(final int i) {
-			// TODO Auto-generated method stub
-			return probability[i];
-		}
-		
 		public double probability() {
 			// TODO Auto-generated method stub
-			return probability(0);
+			return probability;
 		}
 
 		public void finalise() {
-			this.sortv = IntStream.range(0, v[m-1].length)
-					.boxed().sorted((i, j) -> Double.compare(v[m-1][j], v[m-1][i]))
-					.mapToInt(ele -> ele).toArray();
-			for(int i=0; i<probability.length; i++)
-				this.probability[i] = Math.log(this.v[m-1][sortv[i]])+this.logscale[m-1];
+			for(int i=0; i<K; i++) {
+				if(v[M-1][i]>probability) {
+					ends = i;
+					probability = v[M-1][i];
+				}
+			}
+			probability = Math.log(probability)+logscale[M-1];
+			this.trace();
 		}
 		
-		protected void trace(int v) {
-			int tr = sortv[v];
-			this.path[v][m-2] = tr;
-			this.path_str[v][m-2] = this.statespace[tr];
-			for(int i=m-3; i>=0; i--) {
-				tr = trace[i+1][tr];
-				this.path[v][i] = tr;
-				this.path_str[v][i] = maxMatch(this.statespace[tr], 
-						this.path_str[v][i+1]);
+		protected void trace() {
+			int tr = ends;
+			this.path[M-1] = tr;
+			this.path_str[M-1] = state.hsc_str[tr];
+			for(int i=M-2; i>=0; i--) {
+				tr = trace[i][tr];
+				this.path[i] = tr;
+				this.path_str[i] = maxMatch(state.hsc_str[tr], 
+						this.path_str[i+1]);
 			}
 			return;
 		}
 		
-		private String maxMatch(String str1, String str2) {
+		protected String maxMatch(String str1, String str2) {
 			// TODO Auto-generated method stub
 			final String[] s1 = str1.split("_");
 			final String[] s2 = str2.split("_");
@@ -1424,18 +928,8 @@ public abstract class HiddenMarkovModel {
 			return StringUtils.join(s, '_');
 		}
 
-		protected void trace() {
-			this.trace(0);
-		}
-		
-		protected void traceAll() {
-			for(int i=0; i<this.path.length; i++)
-				this.trace(i);
-		}
-		
 		protected void scale(final int i) {
 			// TODO Auto-generated method stub
-			if(i==0) return;
 			double[] probs = this.v[i];
 			double min = Double.POSITIVE_INFINITY,
 					max = Double.NEGATIVE_INFINITY;
@@ -1446,35 +940,41 @@ public abstract class HiddenMarkovModel {
 				}
 			}
 
-			this.logscale[i] = this.logscale[i-1];
+			this.logscale[i] += this.logscale[i-1];
 			if(min<Constants.threshMin &&
 					max<Constants.threshMax) {
-				this.logscale[i] += 
-						Constants.logThreshMax;
+				this.logscale[i] += Constants.logThreshMax;
 				for(int k=0; k<probs.length; k++)
 					probs[k] /= Constants.threshMax;
 			}
 		}
+		
+		protected void clear() {
+			// TODO Auto-generated method stub
+			HiddenMarkovModel.clear(v);
+			HiddenMarkovModel.clear(trace);
+			HiddenMarkovModel.clear(logscale);
+		}
 	}
 	
-	protected class FB { /** forward/backward algorithm object */
-		protected double probability;
+	protected class FBUnit { /** forward/backward unit */
 		protected double[][] probsMat;
-		protected boolean logspace;
 		protected double[] logscale;
+		protected double probability;
 		protected final boolean backward;
 
-		public FB(boolean backward,
-				int m,
-				int s) {
+		public FBUnit(boolean backward) {
 			this.backward = backward;
-			this.probsMat = new double[m][s];
 			this.probability = 0;
-			this.logscale = new double[m];
-			Arrays.fill(this.logscale, 0.0);
-			this.logspace = false;
+			this.probsMat = new double[M][K];
+			this.logscale = new double[M];
 		}
 
+		public double probability() {
+			// TODO Auto-generated method stub
+			return this.probability;
+		}
+		
 		public void probability(double p) {
 			// TODO Auto-generated method stub
 			if(this.backward)
@@ -1483,6 +983,17 @@ public abstract class HiddenMarkovModel {
 				this.probability = Math.log(p)+
 				this.logscale[this.logscale.length-1];
 		}
+		
+		public void probability(double p, double logscale) {
+			// TODO Auto-generated method stub
+			if(this.backward)
+				this.probability = Math.log(p)+this.logscale[0];
+			else
+				this.probability = Math.log(p)+
+				this.logscale[this.logscale.length-1];
+			this.probability += logscale;
+		}
+
 
 		protected void scale() {
 			// TODO Auto-generated method stub
@@ -1497,11 +1008,6 @@ public abstract class HiddenMarkovModel {
 
 		protected void scale(final int i) {
 			// TODO Auto-generated method stub
-			if(i==this.logscale.length-1 && this.backward) 
-				return;
-			if(i==0 && !this.backward) return;
-			int dv = -1;
-			if(this.backward) dv = 1;
 			double[] probs = this.probsMat[i];
 			double min = Double.POSITIVE_INFINITY,
 					max = Double.NEGATIVE_INFINITY;
@@ -1512,7 +1018,8 @@ public abstract class HiddenMarkovModel {
 				}
 			}
 
-			this.logscale[i] = this.logscale[i+dv];
+			int dv = this.backward ? 1 : -1;
+			this.logscale[i] += this.logscale[i+dv];
 			if(min<Constants.threshMin &&
 					max<Constants.threshMax) {
 				this.logscale[i] += 
@@ -1521,57 +1028,5 @@ public abstract class HiddenMarkovModel {
 					probs[k] /= Constants.threshMax;
 			}
 		}
-
-		private void setLogspace() {
-			// TODO Auto-generated method stub
-			for(int i=0; i<this.probsMat.length; i++)
-				for(int j=0; j<this.probsMat[i].length; j++)
-					this.probsMat[i][j] = Math.log(this.probsMat[i][j]);
-			this.probability = Math.log(this.probability);
-			this.logspace = true;
-		}
-
-		private void setNormalspace() {
-			// TODO Auto-generated method stub
-			for(int i=0; i<this.probsMat.length; i++)
-				for(int j=0; j<this.probsMat[i].length; j++)
-					this.probsMat[i][j] = Math.exp(this.probsMat[i][j]);
-			this.probability = Math.exp(this.probability);
-			this.logspace = false;
-		}
-	}
-
-	public int hs() {
-		// TODO Auto-generated method stub
-		return this.hs.length;
-	}
-
-	public EP ep(int i) {
-		// TODO Auto-generated method stub
-		return this.emissProbs[i];
-	}
-	
-	public TP tp(int i) {
-		return this.transProbs[i];
-	}
-
-	public int noSnps() {
-		// TODO Auto-generated method stub
-		return this.M;
-	}
-
-	public OB ob(int i) {
-		// TODO Auto-generated method stub
-		return this.obspace[i];
-	}
-
-	public DataEntry de() {
-		// TODO Auto-generated method stub
-		return this.de;
-	}
-	
-	public String[] state_str() {
-		// TODO Auto-generated method stub
-		return this.str_statespace;
 	}
 }

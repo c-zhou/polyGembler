@@ -42,7 +42,7 @@ import org.apache.commons.math3.stat.inference.GTest;
 import cz1.hmm.tools.RFUtils.FileExtraction;
 import cz1.hmm.tools.RFUtils.FileLoader;
 import cz1.hmm.tools.RFUtils.FileObject;
-import cz1.util.Algebra;
+import cz1.math.Algebra;
 import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Utils;

@@ -1,4 +1,4 @@
-package cz1.util;
+package cz1.math;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -96,7 +96,6 @@ public class Permutation {
 			myLogger.error("Can NOT factorial a negative number. Program halted.");
 			System.exit(1);
 		}
-		if(n==0) return 1;
 		long f=1;
 		for(int k=1; k<=n; k++) {
 			if(Long.MAX_VALUE/f<n) { 

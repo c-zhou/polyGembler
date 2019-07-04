@@ -1,4 +1,4 @@
-package cz1.util;
+package cz1.math;
 
 import java.io.PrintStream;
 import java.io.OutputStream;
@@ -94,11 +94,5 @@ public class JohnsonTrotter {
             perm(n+1, p, pi, dir, swap); 
         }
         dir[n] = -dir[n];
-    }
-
-    public static void main(String[] args) {
-        int[][] swap = perm(6);
-        for(int i=0; i<swap.length; i++)
-        	StdOut.printf("(%d %d)\n", swap[i][0], swap[i][1]);
     }
 }

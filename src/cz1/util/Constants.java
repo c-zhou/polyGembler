@@ -11,30 +11,17 @@ import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.apache.commons.math3.distribution.BetaDistribution;
 import org.apache.commons.math3.random.RandomGenerator;
 import org.apache.commons.math3.random.Well19937c;
 import org.apache.log4j.Logger;
-import org.biojava.nbio.alignment.Alignments;
-import org.biojava.nbio.alignment.SimpleGapPenalty;
-import org.biojava.nbio.alignment.Alignments.PairwiseSequenceAlignerType;
-import org.biojava.nbio.alignment.template.PairwiseSequenceAligner;
-import org.biojava.nbio.core.alignment.matrices.SimpleSubstitutionMatrix;
-import org.biojava.nbio.core.alignment.matrices.SubstitutionMatrixHelper;
-import org.biojava.nbio.core.alignment.template.SequencePair;
-import org.biojava.nbio.core.alignment.template.SubstitutionMatrix;
-import org.biojava.nbio.core.exceptions.CompoundNotFoundException;
-import org.biojava.nbio.core.sequence.DNASequence;
-import org.biojava.nbio.core.sequence.compound.AmbiguityDNACompoundSet;
-import org.biojava.nbio.core.sequence.compound.DNACompoundSet;
-import org.biojava.nbio.core.sequence.compound.NucleotideCompound;
 
 public class Constants {
+	private final static Logger myLogger = Logger.getLogger(Constants.class);
+	
 	public final static double eps = 1e-12;
 	public static long seed = System.nanoTime();
 	public static Random rand = new Random(seed);
 	public static RandomGenerator rg = new Well19937c(seed);
-	//public final static String file_sep = System.getProperty("file.separator");
 	public final static String file_sep = "/";
 	public final static String line_sep = System.getProperty("line.separator");
 	public final static String user_dir = System.getProperty("user.dir");
@@ -45,22 +32,16 @@ public class Constants {
 	public final static double MIN_EXP_DOUBLE = Math.log(Double.MIN_VALUE);
 	public final static double MAX_EXP_DOUBLE = Math.log(Double.MAX_VALUE);
 	public final static double log2 = Math.log(2);
-	
 	public final static Object public_lock = new Object(); 
-	
-	/*** constants for Dirichlet and Beta distribution
-	 * e for E-step
-	 * m for M-step 
-	 */
 	public final static String _use_field_ = "PL";
-	
 	public final static double _mu_alpha_e = 1;
 	public final static double _mu_theta_e = 1;
 	public final static double _mu_J_e = 1e5;
-	public final static double[] _pseudo_ = new double[]{1E10, 1, 1, 1 ,1};
+	public final static double _mu_J_m = 0.1;
+	public final static double _mu_A_e = 1;
+	public final static double _mu_A_m = 0.1;
 	/*** background probability of recombination between consecutive bases **/
 	public final static double _con_base_r = 1e-8;
-	public final static double _soften_ = 1e-12;
 	public final static double _max_initial_seperation = 1e7; 
 	/*** ploidy **/
 	public static int _ploidy_H = 2;
@@ -75,36 +56,16 @@ public class Constants {
 	
 	public static enum Field { PL, AD, GT, GL }
 	public final static char _universal_A_allele = 'A';
-	
 	public static String _founder_haps = "P1:P2";
-	//public final static String _founder_haps = "Tetra_TrifidaP1:Tetra_TrifidaP2";
-	//public final static String _founder_haps = "Atlantic:B1829";
-	//public final static String _founder_haps = "Trifida_D_P1:Trifida_D_P2";
-	public final static double _beta_alpha=0.5;
-	public final static double _beta_beta=0.5;
-	public final static int _beta_mean=1000000;
-	public final static double _max_af=0;
-	//public final static double _max_af=0.1;
-	
-	public final static int _n_samples = 190;
-	public final static double _outlier_thresh = 0.05;
-	public final static double _drop_thres = 0.5;
-	
 	public final static double threshMax = 1e-100d;
 	public final static double threshMin = 1e-200d;
-	//public final static double threshMax = 1e-10d;
-	//public final static double threshMin = 1e-20d;
 	public final static double logThreshMax = Math.log(threshMax);
 	public final static double logThreshMin = Math.log(threshMin);
 	
 	public final static double minImprov = 1e-4;
-	
-	public final static double seq_err = 0.01;
-	
+	public final static double seq_err = 0.01;	
 	public final static String scaff_collapsed_str = "____";
 
-	private final static Logger myLogger = Logger.getLogger(Constants.class);
-	
 	public static final float state_brightness = 0.3f;
 	public static final boolean CHECK = false;
 	
@@ -118,41 +79,6 @@ public class Constants {
 	public static int universer_counter = 0;
 	
 	public static int omp_threads = 1;
-	
-	public static final SimpleGapPenalty penalty = new SimpleGapPenalty(6,1);
-	//public static final SubstitutionMatrix<NucleotideCompound> subMat = SubstitutionMatrixHelper.getNuc4_4();
-	// match score 1 and mismatch penalty 4
-	public static final SubstitutionMatrix<NucleotideCompound> subMat = 
-			new SimpleSubstitutionMatrix<NucleotideCompound>(AmbiguityDNACompoundSet.getDNACompoundSet(), (short)1, (short)-4);
-	
-	public static SequencePair<DNASequence, NucleotideCompound> localPairMatcher(String querySeq, String targetSeq) {
-		try {			
-			/***
-			DNASequence query  = new DNASequence(querySeq, AmbiguityDNACompoundSet.getDNACompoundSet());
-			DNASequence target = new DNASequence(targetSeq, AmbiguityDNACompoundSet.getDNACompoundSet());
-			
-			PairwiseSequenceAligner<DNASequence, NucleotideCompound> aligner = Alignments.getPairwiseAligner(
-					query,
-					target,
-					PairwiseSequenceAlignerType.LOCAL,
-					penalty, 
-					subMat);
-			SequencePair<DNASequence, NucleotideCompound> seqAlnPair = aligner.getPair();
-			return seqAlnPair;
-			**/
-			
-			return Alignments.getPairwiseAligner(
-					new DNASequence(querySeq, AmbiguityDNACompoundSet.getDNACompoundSet()),
-					new DNASequence(targetSeq, AmbiguityDNACompoundSet.getDNACompoundSet()),
-					PairwiseSequenceAlignerType.LOCAL,
-					penalty, 
-					subMat).getPair();
-		} catch (CompoundNotFoundException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		}
-		return null;
-	}
 	
 	@SuppressWarnings("unused")
 	private static void check() {

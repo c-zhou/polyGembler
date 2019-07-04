@@ -1,7 +1,5 @@
 package cz1.simulation.model;
 
-import cz1.util.ArgsEngine;
-
 import java.io.File;
 import java.io.FileReader;
 import java.io.BufferedWriter;
@@ -9,12 +7,8 @@ import java.io.FileWriter;
 import java.io.BufferedReader;
 import java.lang.StringBuilder;
 import java.util.Random;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionHandler;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
@@ -22,12 +16,9 @@ import java.io.OutputStreamWriter;
 import java.util.zip.GZIPOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.FileInputStream;
-import java.io.Reader;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.HashMap;
 import java.util.Calendar;
 import java.util.List;
@@ -40,8 +31,6 @@ import PedigreeSim.Chromosome;
 import PedigreeSim.Locus;
 import PedigreeSim.Individual;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
 
 //TODO

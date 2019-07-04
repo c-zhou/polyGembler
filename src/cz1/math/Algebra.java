@@ -1,4 +1,4 @@
-package cz1.util;
+package cz1.math;
 
 import java.util.Arrays;
 import java.util.List;
@@ -7,6 +7,8 @@ import java.util.Collections;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.commons.math3.stat.StatUtils;
+
+import cz1.util.Constants;
 
 public class Algebra {
 	public static int largestElementIndex(double[] array) {

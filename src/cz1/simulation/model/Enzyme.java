@@ -1,4 +1,4 @@
-package cz1.gbs.core;
+package cz1.simulation.model;
 
 public class Enzyme {
 

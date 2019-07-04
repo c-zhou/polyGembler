@@ -1,41 +1,12 @@
 package cz1.hmm.tools;
 
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
-import java.awt.print.PageFormat;
-import java.awt.print.PrinterException;
-import java.awt.print.PrinterJob;
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.Arrays;
-
-import javax.imageio.ImageIO;
-import javax.swing.JFrame;
-
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
-
-import com.itextpdf.awt.PdfGraphics2D;
-import com.itextpdf.text.Document;
-import com.itextpdf.text.DocumentException;
-import com.itextpdf.text.Rectangle;
-import com.itextpdf.text.pdf.PdfContentByte;
-import com.itextpdf.text.pdf.PdfTemplate;
-import com.itextpdf.text.pdf.PdfWriter;
 
 import cz1.hmm.data.DataCollection;
 import cz1.hmm.data.DataEntry;
 import cz1.hmm.model.HiddenMarkovModel;
 import cz1.hmm.model.HMMTrainer;
-import cz1.hmm.swing.HMMFrame;
-import cz1.hmm.swing.HMMPanel;
-import cz1.hmm.swing.Printer;
 import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Constants.Field;
@@ -43,23 +14,17 @@ import cz1.util.Executor;
 
 public class Haplotyper extends Executor {
 
-	private HMMFrame hmmf = null;
-	private HMMPanel hmmp = null;
 	private String in_zip = null;
 	private String out_prefix = null;
 	private String[] scaff = null;
 	private double[] seperation = null;
-	private boolean trainExp = false;
 	private boolean[] reverse = new boolean[]{false};
-	private int max_iter = 100;
-	private Field field = Field.PL;
-	private String plot_pdf = null;
+	private int max_iter = 1000;
+	private Field field = Field.AD;
 	private String expr_id = null;
 	private int[] start_pos = null;
 	private int[] end_pos = null;
 	private String hmm_file = null;
-	private int resampling = 0;
-	private double founder_hap_coeff = 0.1;
 	private double loglik_diff = 0.05129329;
 	
 	public Haplotyper() {}
@@ -68,7 +33,6 @@ public class Haplotyper extends Executor {
 			String out_prefix,
 			String[] scaff,
 			double[] seperation,
-			boolean trainExp,
 			boolean[] reverse,
 			int max_iter,
 			int ploidy,
@@ -77,7 +41,6 @@ public class Haplotyper extends Executor {
 		this.out_prefix = out_prefix;
 		this.scaff = scaff;
 		this.seperation = seperation;
-		this.trainExp = trainExp;
 		this.reverse = reverse;
 		this.max_iter = max_iter;
 		Constants.ploidy(ploidy);
@@ -92,7 +55,6 @@ public class Haplotyper extends Executor {
 			String out_prefix,
 			String[] scaff,
 			double[] seperation,
-			boolean trainExp,
 			boolean[] reverse,
 			int max_iter,
 			int ploidy,
@@ -102,7 +64,6 @@ public class Haplotyper extends Executor {
 		this.out_prefix = out_prefix;
 		this.scaff = scaff;
 		this.seperation = seperation;
-		this.trainExp = trainExp;
 		this.reverse = reverse;
 		this.max_iter = max_iter;
 		Constants.ploidy(ploidy);
@@ -152,8 +113,7 @@ public class Haplotyper extends Executor {
 			int ploidy, 
 			Field field,
 			String expr_id,
-			int max_iter,
-			boolean trainExp) {
+			int max_iter) {
 		// TODO Auto-generated constructor stub
 		this.in_zip = in_zip;
 		this.out_prefix = out_prefix;
@@ -170,7 +130,6 @@ public class Haplotyper extends Executor {
 		this.field = field;
 		this.expr_id = expr_id;
 		this.max_iter = max_iter;
-		this.trainExp = trainExp;
 	}
 
 	@Override
@@ -200,17 +159,10 @@ public class Haplotyper extends Executor {
 							+"                              scaffold is reversed before inferring haplotypes. Multiple \n"
 							+"                              scaffolds are separated by \":\".\n"
 							+" -G/--genotype                Use genotypes to infer haplotypes. Mutually exclusive with \n"
-							+"                              option -D/--allele-depth and -L/--genetype likelihood.\n"
+							+"                              option -D/--allele-depth.\n"
 							+" -D/--allele-depth            Use allele depth to infer haplotypes. Mutually exclusive \n"
-							+"                              with option -G/--genotype and -L/--genetype likelihood.\n"
-							+" -L/--genotype-likelihood     Use genotype likelihoods to infer haplotypes. Mutually \n"
-							+"                              exclusive with option -G/--genotype and -L/--allele-depth \n"
-							+"                              (default).\n"
-							+" -e/--train-exp               Re-estimate transition probabilities between founder/parental \n"
-							+"                              haplotypes at each step.\n"
+							+"                              with option -G/--genotype (default).\n"
 							+" -S/--random-seed             Random seed for this run.\n"
-							+" -pp/--print-plot             Plot the hidden Markov model.\n"
-							+" -sp/--save-plot              Save the plot as a pdf file. The file name should be provided here.\n"
 							);
 	}
 
@@ -240,7 +192,6 @@ public class Haplotyper extends Executor {
 			myArgsEngine.add("-r", "--reverse", true);
 			myArgsEngine.add("-G", "--genotype", false);
 			myArgsEngine.add("-D", "--allele-depth", false);
-			myArgsEngine.add("-L", "--genotype-likelihood", false);
 			myArgsEngine.add("-e", "--train-exp", false);
 			myArgsEngine.add("-S", "--random-seed", true);
 			myArgsEngine.add("-pp", "--print-plot", false);
@@ -366,31 +317,12 @@ public class Haplotyper extends Executor {
 			i++;
 		}
 		
-		if(myArgsEngine.getBoolean("-L")) {
-			field = Field.PL;
-			i++;
-		}
 		if(i>1) throw new RuntimeException("Options -G/--genotype, "
-				+ "-D/--allele-depth, and -L/--genotype-likelihood "
-				+ "are exclusive!!!");
+				+ "-D/--allele-depth are mutually exclusive!!!");
 		
 		if(myArgsEngine.getBoolean("-S")) {
 			Constants.seed = Long.parseLong(myArgsEngine.getString("-S"));
 			Constants.setRandomGenerator();
-		}
-		
-		if(myArgsEngine.getBoolean("-e")) {
-			trainExp = true;
-		}
-		
-		if(myArgsEngine.getBoolean("-pp")) {
-			Constants.plot(true);
-		}
-		
-		if(myArgsEngine.getBoolean("-sp")) {
-			plot_pdf = myArgsEngine.getString("-sp");
-			Constants.plot(true);
-			Constants.printPlots(true);
 		}
 	}
 
@@ -404,75 +336,23 @@ public class Haplotyper extends Executor {
 			DataCollection.readDataEntry(in_zip, scaff) :
 			DataCollection.readDataEntry(in_zip, scaff, start_pos, end_pos);
 
-				// DataEntry[] de = DataCollection.readDataEntry(in_zip, Constants._ploidy_H);
 		final HiddenMarkovModel hmm = (hmm_file==null ?
-			new HMMTrainer(de, seperation, reverse, trainExp, field, founder_hap_coeff):
-			new HMMTrainer(de, seperation, reverse, trainExp, field, founder_hap_coeff, hmm_file));
+			new HMMTrainer(de, seperation, reverse, field):
+			new HMMTrainer(de, seperation, reverse, field, hmm_file));
 		
-		if(Constants.plot()){
-			Runnable run = new Runnable(){
-				public void run(){
-					try {
-						hmmf = new HMMFrame();
-						hmmf.clearTabs();
-						if(Constants.showHMM) 
-							hmmp = hmmf.addHMMTab(hmm, hmm.de(), 
-									new File(out_prefix));
-					} catch (Exception e) {
-						Thread t = Thread.currentThread();
-						t.getUncaughtExceptionHandler().uncaughtException(t, e);
-						e.printStackTrace();
-					}
-				}
-			};
-			Thread th = new Thread(run);
-			th.run();
-		}
-
-		if(Constants.plot()){
-			hmmf.pack();
-			hmmf.setVisible(true);
-		}
-
+		
 		double ll, ll0 = hmm.loglik();
 		
 		for(int i=0; i<max_iter; i++) {
 			hmm.train();
-			
-			if(Constants.plot()) hmmp.update();
 			ll = hmm.loglik();
-			myLogger.info("----------loglik "+ll);
-			if(ll<ll0) {
-				//throw new RuntimeException("Fatal error!!!");
-				myLogger.info("LOGLIK DECREASED!!!");
-				//break;
-                ll0=ll;
-                continue;
-			}
+			myLogger.info("#iteration "+i+": loglik "+ll);
+			if(ll<ll0)
+				throw new RuntimeException("Fatal error, likelihood decreased!");
 			if( ll0!=Double.NEGATIVE_INFINITY && 
 					Math.abs((ll-ll0)/ll0) < Constants.minImprov)
 				break;
 			ll0 = ll;
-		}
-
-		if(Constants.printPlots()){
-			try {
-				float width = hmmf.jframe.getSize().width,
-						height = hmmf.jframe.getSize().height;
-				Document document = new Document(new Rectangle(width, height));
-				PdfWriter writer = PdfWriter.getInstance(document, new FileOutputStream(plot_pdf));
-				document.open();
-				PdfContentByte canvas = writer.getDirectContent();
-				PdfTemplate template = canvas.createTemplate(width, height);
-				Graphics2D g2d = new PdfGraphics2D(template, width, height);
-				hmmf.jframe.paint(g2d);
-				g2d.dispose();
-				canvas.addTemplate(template, 0, 0);
-				document.close();
-			} catch (FileNotFoundException | DocumentException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
 		}
 
 		String scaff_str = scaff[0]+
@@ -489,8 +369,6 @@ public class Haplotyper extends Executor {
 			}
 		}
 		
-		
-		
-		hmm.write(out_prefix, expr_id, scaff_str, resampling, loglik_diff);
+		hmm.write(out_prefix, expr_id, scaff_str, loglik_diff);
 	}
 }

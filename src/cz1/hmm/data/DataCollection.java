@@ -22,8 +22,8 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.stat.StatUtils;
 
 import cz1.hmm.tools.VCFtools;
-import cz1.util.Algebra;
-import cz1.util.Combination;
+import cz1.math.Combination;
+import cz1.math.Algebra;
 import cz1.util.Constants;
 import cz1.util.Utils;
 

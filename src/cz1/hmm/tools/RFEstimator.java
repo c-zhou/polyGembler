@@ -2,63 +2,26 @@ package cz1.hmm.tools;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.Serializable;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
-import java.util.Calendar;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.HashSet;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
-import java.text.NumberFormat;
-import java.text.DecimalFormat;
+import java.util.HashSet;
 import java.lang.StringBuilder;
 
-import cz1.hmm.tools.RFUtils.FileExtraction;
-import cz1.hmm.tools.RFUtils.FileLoader;
-import cz1.hmm.tools.RFUtils.FileObject;
-import cz1.hmm.tools.RFUtils.InputStreamObj;
-import cz1.hmm.tools.RFUtils.PhasedDataCollection;
-import cz1.util.Algebra;
+import cz1.math.Combination;
+import cz1.math.Algebra;
+import cz1.math.JohnsonTrotter;
+import cz1.math.Permutation;
 import cz1.util.ArgsEngine;
-import cz1.util.Combination;
 import cz1.util.Constants;
 import cz1.util.Utils;
-import cz1.util.JohnsonTrotter;
-import cz1.util.Permutation;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.lang3.builder.EqualsBuilder;
-import org.apache.commons.lang3.builder.HashCodeBuilder;
-import org.apache.commons.math3.exception.MathIllegalArgumentException;
 import org.apache.commons.math3.stat.StatUtils;
-import org.apache.commons.math3.stat.inference.ChiSquareTest;
-import org.apache.commons.math3.stat.inference.GTest;
 
 // recombination frequency estimator from most likely paths
 public class RFEstimator extends RFUtils {	
