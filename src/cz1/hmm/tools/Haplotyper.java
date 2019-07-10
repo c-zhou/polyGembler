@@ -5,8 +5,8 @@ import java.util.Arrays;
 
 import cz1.hmm.data.DataCollection;
 import cz1.hmm.data.DataEntry;
-import cz1.hmm.model.HiddenMarkovModel;
-import cz1.hmm.model.HMMTrainer;
+import cz1.hmm.model.BaumWelchTrainer;
+import cz1.hmm.model.ModelTrainer;
 import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Constants.Field;
@@ -24,8 +24,6 @@ public class Haplotyper extends Executor {
 	private String expr_id = null;
 	private int[] start_pos = null;
 	private int[] end_pos = null;
-	private String hmm_file = null;
-	private double loglik_diff = 0.05129329;
 	
 	public Haplotyper() {}
 	
@@ -140,9 +138,6 @@ public class Haplotyper extends Executor {
 							+" -i/--input                   Input zipped file.\n"
 							+" -o/--prefix                  Output file location.\n"
 							+" -ex/--experiment-id          Common prefix of haplotype files for this experiment.\n"
-							+" -hf/--hmm-file               A zipped HMM file. If provided the initial transition and \n"
-							+"                              emission probabilities will be read from the file instead \n"
-							+"                              of randomly selected. \n"
 							+" -c/--scaffold                The scaffold/contig/chromosome id will run.\n"
 							+" -cs/--start-position         The start position of the scaffold/contig/chromosome.\n"
 							+" -ce/--end-position           The end position of the scaffold/contig/chromosome.\n"
@@ -220,10 +215,6 @@ public class Haplotyper extends Executor {
 					replaceAll(".zip$", "").
 					replace(".", "").
 					replace("_", "");
-		}
-		
-		if(myArgsEngine.getBoolean("-hf")) {
-			hmm_file = myArgsEngine.getString("-hf");
 		}
 		
 		if(myArgsEngine.getBoolean("-c")) {
@@ -331,22 +322,18 @@ public class Haplotyper extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info("Random seed - "+Constants.seed);
 
-		
-		DataEntry[] de = start_pos==null ?
-			DataCollection.readDataEntry(in_zip, scaff) :
+		DataEntry[] de = start_pos==null ? DataCollection.readDataEntry(in_zip, scaff) :
 			DataCollection.readDataEntry(in_zip, scaff, start_pos, end_pos);
 
-		final HiddenMarkovModel hmm = (hmm_file==null ?
-			new HMMTrainer(de, seperation, reverse, field):
-			new HMMTrainer(de, seperation, reverse, field, hmm_file));
+		double ll, ll0;
 		
-		
-		double ll, ll0 = hmm.loglik();
-		
+		myLogger.info("=> STAGE I. training emission model with no transitions allowed.");
+		final ModelTrainer model = new ModelTrainer(de, seperation, reverse, field);
+		ll0 = Double.NEGATIVE_INFINITY;
 		for(int i=0; i<max_iter; i++) {
-			hmm.train();
-			ll = hmm.loglik();
-			myLogger.info("#iteration "+i+": loglik "+ll);
+			model.train();
+			ll = model.loglik();
+			myLogger.info("#iteration "+model.iteration()+": loglik "+ll);
 			if(ll<ll0)
 				throw new RuntimeException("Fatal error, likelihood decreased!");
 			if( ll0!=Double.NEGATIVE_INFINITY && 
@@ -355,6 +342,21 @@ public class Haplotyper extends Executor {
 			ll0 = ll;
 		}
 
+		myLogger.info("=> STAGE II. training emission model with transitions allowed.");
+		final BaumWelchTrainer model1 = BaumWelchTrainer.copyOf(model);
+		ll0 = Double.NEGATIVE_INFINITY;
+		for(int i=0; i<max_iter; i++) {
+			model1.train();
+			ll = model1.loglik();
+			myLogger.info("#iteration "+model1.iteration()+": loglik "+ll);
+			if(ll<ll0)
+				throw new RuntimeException("Fatal error, likelihood decreased!");
+			if( ll0!=Double.NEGATIVE_INFINITY && 
+					Math.abs((ll-ll0)/ll0) < Constants.minImprov)
+				break;
+			ll0 = ll;
+		}
+		
 		String scaff_str = scaff[0]+
 				(start_pos==null||start_pos[0]==Integer.MIN_VALUE?"":"_"+start_pos[0])+
 				(end_pos==null||end_pos[0]==Integer.MAX_VALUE?"":"_"+end_pos[0]);
@@ -369,6 +371,6 @@ public class Haplotyper extends Executor {
 			}
 		}
 		
-		hmm.write(out_prefix, expr_id, scaff_str, loglik_diff);
+		model1.write(out_prefix, expr_id, scaff_str);
 	}
 }
