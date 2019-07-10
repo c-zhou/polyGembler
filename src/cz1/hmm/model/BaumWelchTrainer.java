@@ -26,8 +26,8 @@ import cz1.util.Constants.Field;
 public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTrainer {
 	protected final static Logger myLogger = Logger.getLogger(BaumWelchTrainer.class);
 
-	final boolean updateEmiss;
-	final boolean updateTrans;
+	private final boolean updateEmiss;
+	private final boolean updateTrans;
 	
 	protected StateUnit1 state;
 	protected TransitionUnit[] transition;
@@ -104,6 +104,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		hmm.obs = model.obs;
 		hmm.emission = model.emission;
 		hmm.logspace = model.logspace;
+		hmm.conjs.addAll(model.conjs);
 		hmm.initialise1();
 		hmm.makeNaiveTrainer();
 		return hmm;
@@ -281,99 +282,112 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 	@Override
 	public void em() {
 		// TODO Auto-generated method stub
+		if(updateEmiss)
+			for(int i=0; i<M; i++) updateEmiss(i);
 		
+		if(updateTrans) {
+			for(int i=0; i<M-1; i++) updateTrans(i);
+		} else {
+			double jump1, jump2;
+			for(int i : conjs) {
+				jump1 = transition[i].jump;
+				updateTrans(i);
+				jump2 = transition[i].jump;
+				myLogger.info("    >jump probability at conjunction #"+i+" updated: "+jump1+"->"+jump2+";");
+			}
+		}
+	}
+
+	private void updateTrans(final int i) {
+		// TODO Auto-generated method stub
 		FBUnit fw1, bw1;
 		ObUnit ob1;
 		double exp_c, exp, count;
 		Integer[] ss;
-		
-		if(updateEmiss) {
-			
-			int acnt, bcnt;
-			EmissionUnit e1;
-			for(int i=0; i<M; i++) {
-				e1 = emission[i];
-				e1.pseudo();
 
-				for(int j=0;j<N; j++) {
-					ss = sspace.get(j);
-					fw1 = forward[j];
-					bw1 = backward[j];
-					ob1 = obs[j][i];
-					acnt = ob1.getAa();
-					bcnt = ob1.getCov()-acnt;
-					exp_c = fw1.logscale[i]+
-							bw1.logscale[i]-
-							fw1.probability;
+		TransitionUnit t1;
+		t1 = transition[i];
+		t1.pseudo();
+		for(int j=0;j<N; j++) {
+			ss = sspace.get(j);
+			fw1 = forward[j];
+			bw1 = backward[j];
+			ob1 = obs[j][i+1];
+			exp_c = fw1.logscale[i]+
+					bw1.logscale[i+1]+
+					ob1.getLogScale(j)-
+					fw1.probability;
 
-					if(exp_c>Constants.MAX_EXP_DOUBLE) {
-						for(int a : ss) {
-							count = Math.exp(Math.log(
-									fw1.probsMat[i][a]*
-									bw1.probsMat[i][a])+
-									exp_c);
-							e1.addCount(a, count*acnt, count*bcnt);
-						}
-					} else {
-						exp = Math.exp(exp_c);
-						for(int a : ss) {
-							count = fw1.probsMat[i][a]*
-									bw1.probsMat[i][a]*
-									exp;
-							e1.addCount(a, count*acnt, count*bcnt);
-						}
+			if(exp_c>Constants.MAX_EXP_DOUBLE) { 
+				for(int a : ss) {
+					for(int b : ss) { 
+						count = Math.exp(Math.log(
+								fw1.probsMat[i][a]*
+								t1.trans(a, b)*
+								ob1.emiss[b]*
+								bw1.probsMat[i+1][b])+
+								exp_c);
+						t1.addCount(a, b, count);
 					}
 				}
-				e1.update();
-			}
-		}
-		
-		if(updateTrans) {
-
-			TransitionUnit t1;
-			for(int i=0; i<M-1; i++) {
-				// transitions
-				t1 = transition[i];
-				t1.pseudo();
-				for(int j=0;j<N; j++) {
-					ss = sspace.get(j);
-					fw1 = forward[j];
-					bw1 = backward[j];
-					ob1 = obs[j][i+1];
-					exp_c = fw1.logscale[i]+
-							bw1.logscale[i+1]+
-							ob1.getLogScale(j)-
-							fw1.probability;
-
-					if(exp_c>Constants.MAX_EXP_DOUBLE) { 
-						for(int a : ss) {
-							for(int b : ss) { 
-								count = Math.exp(Math.log(
-										fw1.probsMat[i][a]*
-										t1.trans(a, b)*
-										ob1.emiss[b]*
-										bw1.probsMat[i+1][b])+
-										exp_c);
-								t1.addCount(a, b, count);
-							}
-						}
-					} else {
-						exp = Math.exp(exp_c);
-						for(int a : ss) {
-							for(int b : ss) { 
-								count = fw1.probsMat[i][a]*
-										t1.trans(a, b)*
-										ob1.emiss[b]*
-										bw1.probsMat[i+1][b]*
-										exp;
-								t1.addCount(a, b, count);
-							}
-						}
+			} else {
+				exp = Math.exp(exp_c);
+				for(int a : ss) {
+					for(int b : ss) { 
+						count = fw1.probsMat[i][a]*
+								t1.trans(a, b)*
+								ob1.emiss[b]*
+								bw1.probsMat[i+1][b]*
+								exp;
+						t1.addCount(a, b, count);
 					}
 				}
-				t1.update();
 			}
 		}
+		t1.update();
+	}
+
+	private void updateEmiss(final int i) {
+		// TODO Auto-generated method stub
+		FBUnit fw1, bw1;
+		ObUnit ob1;
+		double exp_c, exp, count;
+		Integer[] ss;
+		int acnt, bcnt;
+	
+		EmissionUnit e1;
+		e1 = emission[i];
+		e1.pseudo();
+		for(int j=0;j<N; j++) {
+			ss = sspace.get(j);
+			fw1 = forward[j];
+			bw1 = backward[j];
+			ob1 = obs[j][i];
+			acnt = ob1.getAa();
+			bcnt = ob1.getCov()-acnt;
+			exp_c = fw1.logscale[i]+
+					bw1.logscale[i]-
+					fw1.probability;
+
+			if(exp_c>Constants.MAX_EXP_DOUBLE) {
+				for(int a : ss) {
+					count = Math.exp(Math.log(
+							fw1.probsMat[i][a]*
+							bw1.probsMat[i][a])+
+							exp_c);
+					e1.addCount(a, count*acnt, count*bcnt);
+				}
+			} else {
+				exp = Math.exp(exp_c);
+				for(int a : ss) {
+					count = fw1.probsMat[i][a]*
+							bw1.probsMat[i][a]*
+							exp;
+					e1.addCount(a, count*acnt, count*bcnt);
+				}
+			}
+		}
+		e1.update();
 	}
 
 	@Override

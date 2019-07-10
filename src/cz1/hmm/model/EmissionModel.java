@@ -39,6 +39,8 @@ public class EmissionModel {
 	protected ObUnit[][] obs;
 	protected EmissionUnit[] emission;
 	
+	protected final List<Integer> conjs = new ArrayList<>(); // conjunctive position
+	
 	protected boolean logspace;
 	
 	public EmissionModel(DataEntry[] de, 
@@ -71,6 +73,7 @@ public class EmissionModel {
 		for(int i=0; i<de.length; i++)
 			if(reverse[i]) de[i].reverse();
 		for(int i=1; i<de.length; i++) {
+			conjs.add(de[0].modelLength());
 			de[0].addAll(de[i], seperation[i-1]);
 		}
 		return de[0];

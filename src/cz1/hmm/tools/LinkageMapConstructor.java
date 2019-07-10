@@ -12,6 +12,8 @@ public class LinkageMapConstructor extends Executor {
 	private String map_file = null;
 	private String out_prefix = null;
 	private String RLibPath = null;
+	private double lod_thres = 3;
+	private int ns;
 	private boolean one = false;
 	private boolean two = false;
 	
@@ -23,6 +25,8 @@ public class LinkageMapConstructor extends Executor {
 						+ " Common:\n"
 						+ "     -i/--rf                     Recombination frequency file.\n"
 						+ "     -m/--map                    Recombination map file.\n"
+						+ "     -n/--hap-size               #haplotypes (popsize*ploidy). \n"
+						+ "     -l/--lod                    LOD score threshold (default: 3).\n"
 						+ "     -1/--one-group              One group. \n"
 						+ "     -2/--check-group            Re-check linkage groups. \n"
 						+ "     -o/--prefix                 Output file prefix.\n"
@@ -42,6 +46,8 @@ public class LinkageMapConstructor extends Executor {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-i", "--rf", true);
 			myArgsEngine.add("-m", "--map", true);
+			myArgsEngine.add("-n", "--pop-size", true);
+			myArgsEngine.add("-l", "--lod", true);
 			myArgsEngine.add("-1", "--one-group", false);
 			myArgsEngine.add("-2", "--check-group", false);
 			myArgsEngine.add("-o", "--prefix", true);
@@ -61,6 +67,17 @@ public class LinkageMapConstructor extends Executor {
 		}  else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your recombination map file.");
+		}
+		
+		if(myArgsEngine.getBoolean("-n")) {
+			ns = Integer.parseInt(myArgsEngine.getString("-n"));
+		} else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify the number of haplotypes (popsize*ploidy).");
+		}
+		
+		if(myArgsEngine.getBoolean("-l")) {
+			lod_thres = Double.parseDouble(myArgsEngine.getString("-l"));
 		}
 		
 		if(myArgsEngine.getBoolean("-1")) {
@@ -99,6 +116,7 @@ public class LinkageMapConstructor extends Executor {
 				"Rscript "+mklgR_path+" "
 				+ "-i "+out_prefix+".RData "
 				+ "-m "+map_file+" "
+				+ "-r "+calcRfFromLOD(lod_thres, ns)+" "
 				+ (one?"-1 ":" ")
 				+ (two?"-2 ":" ")
 				+ "-o "+out_prefix+" "
@@ -108,5 +126,28 @@ public class LinkageMapConstructor extends Executor {
 		
 		new File(temfile_prefix).delete();
 	}
-
+	
+	private static double calcRfFromLOD(double lod_thres, int n) {
+		// TODO Auto-generated method stub
+		double lb = 0, ub = 0.5;
+		double rf;
+		double lod;
+		while(true) {
+			rf = (lb+ub)/2;
+			lod = calcLODFromRF(rf, n);
+			if(lod<lod_thres) {
+				ub = rf;
+			} else if(lod-lod_thres<1e-6) {
+				return rf;
+			} else {
+				lb = rf;
+			}
+		}
+	}
+	
+	private static double calcLODFromRF(double theta, int n) {
+		// TODO Auto-generated method stub
+		double r = n*theta;
+		return (n-r)*Math.log10(1-theta)+r*Math.log10(theta)-n*Math.log10(0.5);
+	}
 }
