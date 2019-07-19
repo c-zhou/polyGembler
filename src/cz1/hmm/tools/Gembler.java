@@ -42,7 +42,8 @@ public class Gembler extends Executor {
 	private int min_qual = 0;
 	private double min_maf = 0.1;
 	private double max_missing = 0.5;
-	private String[] founder_haps;
+	private String[] parents;
+	private int ploidy;
 	
 	private int[] repeat = new int[]{30,30,10};
 	private int refine_round = 10;
@@ -179,12 +180,11 @@ public class Gembler extends Executor {
 		}
 		
 		if(myArgsEngine.getBoolean("-p")) {
-			Constants.ploidy(Integer.parseInt(myArgsEngine.getString("-p")));
+			this.ploidy = Integer.parseInt(myArgsEngine.getString("-p"));
 		}
 		
 		if(myArgsEngine.getBoolean("-f")) {
-			Constants._founder_haps = myArgsEngine.getString("-f");
-			founder_haps = Constants._founder_haps.split(":");
+			this.parents = myArgsEngine.getString("-f").split(":");
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify the parent samples (seperated by a \":\").");
@@ -292,7 +292,7 @@ public class Gembler extends Executor {
 		//#### STEP 01 filter SNPs and create ZIP file
 		Utils.makeOutputDir(out_prefix+"/data");
 		new DataPreparation(in_vcf,
-				Constants._ploidy_H, 
+				ploidy, 
 				min_depth, 
 				max_depth, 
 				min_qual, 
@@ -320,8 +320,8 @@ public class Gembler extends Executor {
 		AssemblyError assemblyError = new AssemblyError(out, 
 				ass_err_map,
 				expr_id, 
-				Constants._ploidy_H,
-				founder_haps,
+				ploidy,
+				parents,
 				THREADS,
 				phi,
 				drop,
@@ -348,11 +348,9 @@ public class Gembler extends Executor {
 	
 		//#### STEP 04 recombination frequency estimation
 		final String rf_prefix = metafile_prefix+prefix_vcf;
-		new RFEstimator (out, 
+		new TwoPointAnalysis (out, 
 				rf_prefix,
 				expr_id, 
-				Constants._ploidy_H,
-				founder_haps,
 				THREADS,
 				phi,
 				drop,
@@ -388,11 +386,9 @@ public class Gembler extends Executor {
 		
 		//#### STEP 07 recombination frequency estimation
 		final String mm_rf_prefix = metafile_prefix+"2nn_"+prefix_vcf;
-		new RFEstimator (mm_out, 
+		new TwoPointAnalysis (mm_out, 
 				mm_rf_prefix,
 				expr_id, 
-				Constants._ploidy_H,
-				founder_haps,
 				THREADS,
 				phi,
 				drop,
@@ -465,7 +461,7 @@ public class Gembler extends Executor {
 									scaff_i,
 									mm_seperation.get(scaff_i),
 									mm_reverse.get(scaff_i),
-									Constants._ploidy_H,
+									ploidy,
 									field,
 									expr_id,
 									max_iter).run();
@@ -503,11 +499,9 @@ public class Gembler extends Executor {
 					final String out_refine_ij_haps = out_refine_ij+"haplotypes/";
 					final String mm_rf_prefix_ij = out_refine_ij+"1";
 					
-					new RFEstimator (out_refine_ij_haps, 
+					new TwoPointAnalysis (out_refine_ij_haps, 
 							mm_rf_prefix_ij,
 							expr_id, 
-							Constants._ploidy_H,
-							founder_haps,
 							THREADS,
 							Double.POSITIVE_INFINITY,
 							drop,
@@ -549,7 +543,7 @@ public class Gembler extends Executor {
 												scaff_i,
 												mm_seperation_i.get(scaff_i),
 												mm_reverse_i.get(scaff_i),
-												Constants._ploidy_H,
+												ploidy,
 												field,
 												expr_id,
 												max_iter).run();
@@ -594,7 +588,7 @@ public class Gembler extends Executor {
 		//#### STEP 10 pseudo molecules construction
 		if(assembly_file==null) myLogger.info("No assembly file provided, "
 				+ "pseudomolecule construction module skipped.");
-		new PseudoMoleculeConstructor(
+		new Pseudomolecule(
 				metafile_prefix+"genetic_linkage_map.mct",
 				this.assembly_file,
 				this.genome_size,
@@ -765,7 +759,7 @@ public class Gembler extends Executor {
 							new Haplotyper(in_zip,
 									out,
 									new String[]{scaff},
-									Constants._ploidy_H,
+									ploidy,
 									field,
 									expr_id,
 									max_iter).run();
@@ -805,7 +799,7 @@ public class Gembler extends Executor {
 									scaff,
 									seperation.get(scaff),
 									reverse.get(scaff),
-									Constants._ploidy_H,
+									ploidy,
 									field,
 									expr_id,
 									max_iter).run();

@@ -2,12 +2,15 @@ package cz1.appl;
 
 import org.apache.log4j.Logger;
 
+import cz1.hmm.tools.AssemblyError;
 import cz1.hmm.tools.DataPreparation;
 import cz1.hmm.tools.Gembler;
 import cz1.hmm.tools.Haplotyper;
-import cz1.hmm.tools.LinkageMapConstructor;
-import cz1.hmm.tools.RFEstimator;
-import cz1.hmm.tools.TwoPointConstructor;
+import cz1.hmm.tools.Linkagemap;
+import cz1.hmm.tools.NNsuperscaffold;
+import cz1.hmm.tools.Pseudomolecule;
+import cz1.hmm.tools.SinglePointAnalysis;
+import cz1.hmm.tools.TwoPointAnalysis;
 import cz1.simulation.tools.GBSSimulator;
 import cz1.simulation.tools.PopulationSimulator;
 
@@ -44,21 +47,36 @@ public class PolyGembler {
 			haplotyper.setParameters(args2);
 			haplotyper.run();
 			break;
-        case "rfestimator":
-            RFEstimator rfEstimator = new RFEstimator();
+		case "singlepoint":
+			SinglePointAnalysis singlepoint = new SinglePointAnalysis();
+			singlepoint.setParameters(args2);
+			singlepoint.run();
+			break;
+        case "twopoint":
+            TwoPointAnalysis rfEstimator = new TwoPointAnalysis();
             rfEstimator.setParameters(args2);
             rfEstimator.run();
             break;
+        case "asmerr":
+        	AssemblyError asmErr = new AssemblyError();
+        	asmErr.setParameters(args2);
+        	asmErr.run();
+        	break;
         case "map":
-            LinkageMapConstructor lgc = new LinkageMapConstructor();
-            lgc.setParameters(args2);
-            lgc.run();
+            Linkagemap linkagemap = new Linkagemap();
+            linkagemap.setParameters(args2);
+            linkagemap.run();
             break;
-        case "twopoint":
-            TwoPointConstructor twopoint = new TwoPointConstructor();
-            twopoint.setParameters(args2);
-            twopoint.run();
-            break;
+        case "superscaffold":
+        	NNsuperscaffold superscaffold = new NNsuperscaffold();
+        	superscaffold.setParameters(args2);
+        	superscaffold.run();
+        	break;
+        case "chromosomer":
+        	Pseudomolecule pseudoM = new Pseudomolecule();
+        	pseudoM.setParameters(args2);
+        	pseudoM.run();
+        	break;
         case "gembler":
 			Gembler gembler = new Gembler();
 			gembler.setParameters(args2);
@@ -74,13 +92,16 @@ public class PolyGembler {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " popsimulation       Simulate a full-sib mapping population. \n"
-						+ " gbssimulation       Simulate GBS data. \n"
-						+ " datapreparation     Prepare data for haplotype phasing. \n"
-						+ " haplotyper          Contig/scaffold haplotype construction from a mapping population.\n"
-						+ " rfestimator         Recombination fraction estimation.\n"
-						+ " twopoint            Make two-point superscaffolds.\n"
-						+ " map                 Contruct linkage maps.\n"
+						+ " popsimulation       Simulate a full-sib mapping population.\n"
+						+ " gbssimulation       Simulate GBS data.\n"
+						+ " datapreparation     Prepare data for haplotype phasing.\n"
+						+ " haplotyper          Haplotype phasing from a mapping population.\n"
+						+ " singlepoint         Signle-point analysis: estimate recombination fraction between markers within contigs/scaffolds.\n"
+						+ " twopoint            Two-point analysis: estimate pairwise recombination fraction between contigs/scaffolds.\n"
+						+ " asmerr              Correct assembly errors.\n"
+						+ " map                 Construct linkage maps.\n"
+						+ " superscaffold       Construct superscaffold using nearest neighbour joining.\n"
+						+ " chromosomer         Construct pseudo chromosomes. \n"
 						+ " gembler             Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.\n\n");
 	}
 }

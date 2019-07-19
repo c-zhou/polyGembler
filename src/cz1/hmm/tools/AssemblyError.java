@@ -2,59 +2,32 @@ package cz1.hmm.tools;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.text.DecimalFormat;
-import java.text.NumberFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.math3.exception.MathIllegalArgumentException;
-import org.apache.commons.math3.stat.StatUtils;
-import org.apache.commons.math3.stat.inference.ChiSquareTest;
-import org.apache.commons.math3.stat.inference.GTest;
+import org.apache.log4j.Logger;
 
-import cz1.hmm.tools.RFUtils.FileExtraction;
-import cz1.hmm.tools.RFUtils.FileLoader;
-import cz1.hmm.tools.RFUtils.FileObject;
-import cz1.math.Algebra;
 import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Utils;
 
-public class AssemblyError extends RFEstimator {
+public class AssemblyError extends RFUtils {
+	private final static Logger myLogger = Logger.getLogger(AssemblyError.class);
 	private final static double breakage_thres = 0.05;
+	
+	private String out_prefix;
 	
 	public AssemblyError (String in_haps, 
 			String out_prefix,
 			String expr_id, 
 			int ploidy, 
-			String[] founder_haps,
+			String[] parents,
 			int threads,
 			double skew_phi,
 			int drop_thres,
@@ -62,8 +35,8 @@ public class AssemblyError extends RFEstimator {
 		this.in_haps = in_haps;
 		this.out_prefix = out_prefix;
 		this.expr_id = expr_id;
-		Constants.ploidy(ploidy);
-		this.founder_haps = founder_haps;
+		this.ploidy = ploidy;
+		this.parents = parents;
 		this.THREADS = threads;
 		this.drop_thres = drop_thres;
 		this.skew_phi = skew_phi;
@@ -72,6 +45,11 @@ public class AssemblyError extends RFEstimator {
 		this.best_n = best_n;
 	}
 	
+	public AssemblyError() {
+		// TODO Auto-generated constructor stub
+		super();
+	}
+
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub
@@ -80,8 +58,6 @@ public class AssemblyError extends RFEstimator {
 						+ " -i/--hap-file				Directory with input haplotype files.\n"
 						+ " -o/--prefix					Output file prefix.\n"
 						+ " -ex/--experiment-id			Common prefix of haplotype files for this experiment.\n"
-						+ " -f/--parent					Parent samples (seperated by a \":\").\n"
-						+ " -p/--ploidy					Ploidy of genome (default 2).\n"
 						+ " -nb/--best					The most likely nb haplotypes will be used (default 10).\n"
 						+ " -phi/--skew-phi				For a haplotype inference, the frequencies of parental \n"
 						+ "								haplotypes need to be in the interval [1/phi, phi], \n"
@@ -105,8 +81,6 @@ public class AssemblyError extends RFEstimator {
 			myArgsEngine.add( "-ex", "--experiment-id", true);
 			myArgsEngine.add( "-i", "--hap-file", true);
 			myArgsEngine.add( "-o", "--prefix", true);
-			myArgsEngine.add( "-f", "--parent", true);
-			myArgsEngine.add( "-p", "--ploidy", true);
 			myArgsEngine.add( "-nb", "--best", true);
 			myArgsEngine.add( "-t", "--threads", true);
 			myArgsEngine.add( "-phi", "--skew-phi", true);
@@ -135,21 +109,6 @@ public class AssemblyError extends RFEstimator {
 			myLogger.warn("No experiment prefix provided, I guess it's "+expr_id+". Please\n"
 					+ "specify it with -ex/--experiment-id option if it's incorrect.");
 		}
-
-		if(myArgsEngine.getBoolean("-f")) {
-			founder_haps = myArgsEngine.getString("-f").split(":");
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify the parent samples (seperated by a \":\").");
-		}
-		
-		if(myArgsEngine.getBoolean("-p")) {
-			int ploidy = Integer.parseInt(myArgsEngine.getString("-p"));
-			Constants.ploidy(ploidy);
-			Constants._haplotype_z = ploidy*2;
-			probs_uniform = new double[ploidy*2];
-			Arrays.fill(probs_uniform, .5/ploidy);
-		}
 		
 		if(myArgsEngine.getBoolean("-nb")) {
 			best_n = Integer.parseInt(myArgsEngine.getString("-nb"));
@@ -174,21 +133,14 @@ public class AssemblyError extends RFEstimator {
 		// TODO Auto-generated method stub
 		this.initialise();
 		
-		this.initial_thread_pool();
-		
-		for(int i=0; i<dc.length; i++) 
-			executor.submit(new MyMapCalculator(i));
-		this.waitFor();
-
-		writeMap();
-		
-		render();
+		//render();
 		
 		myLogger.info("["+Utils.getSystemTime()+"] DONE.");
 	}
 	
 	final private Map<String, int[][]> errs = new HashMap<String, int[][]>();
 	
+	/***
 	private void render() {
 		// TODO Auto-generated method stub
 		for(int i=0; i<dc.length; i++) {
@@ -221,6 +173,7 @@ public class AssemblyError extends RFEstimator {
 		}
 		return;
 	}
+	***/
 	
 	public Map<String, int[][]> errs() {
 		return this.errs;

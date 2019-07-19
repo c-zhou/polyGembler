@@ -15,7 +15,7 @@ import cz1.util.ArgsEngine;
 import cz1.util.Executor;
 import cz1.util.Utils;
 
-public class PseudoMoleculeConstructor extends Executor {
+public class Pseudomolecule extends Executor {
 	
 	private String assembly_file = null;
 	private String out_file = null;
@@ -27,7 +27,7 @@ public class PseudoMoleculeConstructor extends Executor {
 	private final Map<String, List<Scaffold>> pseudo_molecule = 
 			new HashMap<String, List<Scaffold>>();
 	
-	public PseudoMoleculeConstructor(String mct_file,
+	public Pseudomolecule(String mct_file,
 			String assembly_file, 
 			String out_file) {
 		this.assembly_file = assembly_file;
@@ -37,7 +37,7 @@ public class PseudoMoleculeConstructor extends Executor {
 		this.geneticMapReader();
 	}
 	
-	public PseudoMoleculeConstructor(String mct_file,
+	public Pseudomolecule(String mct_file,
 			String assembly_file, 
 			double genome_size,
 			double frac_thresh,
@@ -53,6 +53,11 @@ public class PseudoMoleculeConstructor extends Executor {
 		this.geneticMapReader();
 	}
 	
+	public Pseudomolecule() {
+		// TODO Auto-generated constructor stub
+		super();
+	}
+
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub

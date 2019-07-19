@@ -13,9 +13,11 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 	public ModelTrainer(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse, 
-			Field field) {
+			Field field,
+			int ploidy,
+			String[] parents) {
 		// TODO Auto-generated constructor stub
-		super(de, seperation, reverse, field, true);
+		super(de, seperation, reverse, field, ploidy, parents, true);
 		this.makeNaiveTrainer();
 	}
 

@@ -1,17 +1,12 @@
 package cz1.hmm.model;
 
-import java.io.BufferedOutputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.stat.StatUtils;
@@ -24,12 +19,16 @@ import cz1.util.Constants;
 import cz1.util.Constants.Field;
 
 public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTrainer {
-	protected final static Logger myLogger = Logger.getLogger(BaumWelchTrainer.class);
-
+	private final static Logger myLogger = Logger.getLogger(BaumWelchTrainer.class);
+	
+	protected final static double mu_J_e = 1e5;
+	protected final static double mu_J_m = 0.1;
+	protected final static double con_base_r = 1e-8;
+	
 	private final boolean updateEmiss;
 	private final boolean updateTrans;
 	
-	protected StateUnit1 state;
+	protected StateUnit1 state1;
 	protected TransitionUnit[] transition;
 	protected ViterbiUnit[] vbs;
 	private FBUnit[] forward, backward;
@@ -37,8 +36,10 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 	public BaumWelchTrainer(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse,
-			Field field) {
-		super(de, seperation, reverse, field, false);
+			Field field,
+			int ploidy,
+			String[] parents) {
+		super(de, seperation, reverse, field, ploidy, parents, false);
 		this.updateEmiss = true;
 		this.updateTrans = false;
 		initialise1();
@@ -48,9 +49,11 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			double[] seperation, 
 			boolean[] reverse,
 			Field field,
+			int ploidy,
+			String[] parents,
 			boolean updateEmiss, 
 			boolean updateTrans) {
-		super(de, seperation, reverse, field, false);
+		super(de, seperation, reverse, field, ploidy, parents, false);
 		this.updateEmiss = updateEmiss;
 		this.updateTrans = updateTrans;
 		initialise1();
@@ -72,7 +75,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 	
 	protected void initialise1() {
 		// TODO Auto-generated method stub
-		this.state = new StateUnit1(H);
+		this.state1 = new StateUnit1(H);
 		this.makeTransitionUnits();
 		this.makeViterbiUnits();
 		this.makeNaiveTrainer();
@@ -91,6 +94,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		hmm.N = model.N; // #individuals
 		hmm.H = model.H; // #founder haplotypes
 		hmm.K = model.K; // #compound hidden states
+		hmm.state = model.state;
 		hmm.samples = model.samples;
 		hmm.parents = model.parents;
 		hmm.parents_i = model.parents_i;
@@ -102,6 +106,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		else
 			model.logspace = false;
 		hmm.obs = model.obs;
+		hmm.pas = model.pas;
 		hmm.emission = model.emission;
 		hmm.logspace = model.logspace;
 		hmm.conjs.addAll(model.conjs);
@@ -132,7 +137,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		// TODO Auto-generated method stub
 		this.transition = new TransitionUnit[M-1];
 		for(int i=0; i<M-1; i++)
-			transition[i] = new TransitionUnit(distance[i], state.confs);
+			transition[i] = new TransitionUnit(distance[i], state1.confs);
 	}
 	
 	@Override
@@ -181,6 +186,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			}
 
 			this.vbs[i].finalise();
+			this.vbs[i].trace(pas[i].path, pas[i].path_str);
 			probability += this.vbs[i].probability();
 		}
 
@@ -262,6 +268,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			}
 
 			this.vbs[i].finalise();
+			this.vbs[i].trace(pas[i].path, pas[i].path_str);
 			probability += this.vbs[i].probability();
 		}
 
@@ -511,98 +518,33 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		this.findPath();
 
 		String root = experiment+"."+scaff+"."+System.nanoTime();
+		ModelWriter1 writer1 = new ModelWriter1(output+"/"+root+".zip");
+		writer1.writeHaplotype();
+		writer1.writeDosage();
+		writer1.writeGenotype();
+		writer1.writeEmissionModel();
+		writer1.writeTransitionModel();
+		writer1.writeSNP();
+		writer1.writeRunInfo();
+		writer1.close();		
+	}
+	
+	protected class ModelWriter1 extends ModelWriter {
 
-		try {
-			ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(new 
-					FileOutputStream(output+"/"+root+".zip"), 65536));
-
-			out.putNextEntry(new ZipEntry("phasedStates/"+experiment+".txt"));
-			out.write((""+this.loglik()+"\n").getBytes());
-			out.write((""+M+"\n").getBytes());
-			for(int i=0; i<N; i++) {
-				String[] path = this.vbs[i].path_str;
-				List<String[]> path_s = new ArrayList<String[]>();
-				for(int k=0; k<path.length; k++)
-					path_s.add(path[k].split("_"));
-				for(int k=0; k<Constants._ploidy_H; k++) {
-					out.write(("# id "+this.samples[i]+":"+(k+1)+"\t\t\t").getBytes());
-					for(int s=0; s<path_s.size(); s++)
-						out.write(path_s.get(s)[k].getBytes());
-					out.write("\n".getBytes());
-				}
+		public ModelWriter1(String file) {
+			// TODO Auto-generated constructor stub
+			super(file);
+		}
+		
+		private void writeTransitionModel() {
+			try {
+				out.putNextEntry(new ZipEntry("transition.txt"));
+				for(int i=0; i<M-1; i++)
+					out.write((de.getId()+"_"+de.getPosition()[i]+"\t\t\t"+transition[i].getJump()+"\n").getBytes());
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
 			}
-			
-			out.putNextEntry(new ZipEntry("phased_genotypes"+experiment+".txt"));
-			for(int i=0; i<N; i++) {
-				int[] path = this.vbs[i].path;
-				for(int j=0; j<M; j++) {
-					int[] states = this.state.getHsc()[path[j]];
-					double[] emiss = this.emission[j].getEmiss();
-					int dosa = 0;
-					for(int k=0; k<H; k++)
-						if(emiss[states[k]]<0.5)
-							++dosa;
-					out.write((""+dosa+"\t").getBytes());
-				}
-				out.write("\n".getBytes());
-			}
-
-			out.putNextEntry(new ZipEntry("results_hmm/emissionModel.txt"));
-			for(int i=0; i<M; i++) {
-				double[] emiss = this.emission[i].getEmiss();
-				String[] allele = this.de.getAllele().get(i);
-				out.write((this.de.getId()+"_"+this.de.getPosition()[i]+"\t\t\t").getBytes());
-				for(int j=0; j<emiss.length; j++) {
-					out.write((this.state.getHs()[j]+"-> {").getBytes());
-					out.write((allele[0]+","+emiss[j]+";").getBytes());
-					out.write((allele[1]+","+(1-emiss[j])+";").getBytes());
-					out.write("} ".getBytes());
-				}
-				out.write("\n".getBytes());
-			}
-
-			out.putNextEntry(new ZipEntry("results_hmm/transitionModel.txt"));
-			for(int i=0; i<M-1; i++)
-				out.write((this.de.getId()+"_"+this.de.getPosition()[i]+"\t\t\t"+this.transition[i].getJump()+"\n").getBytes());
-			
-			out.putNextEntry(new ZipEntry("stderr_true"));
-
-			out.write("cz1.model.HiddenMarkovModel:\n".getBytes());
-			out.write("cz1.model.HiidenMarkovModel$EM:\n".getBytes());
-			out.write(("log prob is "+this.loglik()+" at "+iteration+"\n").getBytes());
-			out.write(("random seed is "+Constants.seed).getBytes());
-
-			out.putNextEntry(new ZipEntry("snp_"+experiment+".txt"));
-
-			StringBuilder os = new StringBuilder();
-			List<String[]> allele = de.getAllele();
-			double[] position = de.getPosition();
-			String[] markers_id = de.getMarker();
-			String id = de.getId();
-			for(int i=0; i<position.length; i++) {
-				os.setLength(0);
-				os.append(id);
-				os.append("\t");
-				int p = (int) position[i];
-				os.append(p);
-				os.append("\t");
-				os.append(p);
-				os.append("\t");
-				os.append(markers_id[i]);
-				os.append("\t");
-				for(int j=0; j<allele.get(i).length; j++) {
-					os.append(allele.get(i)[j]);
-					os.append("\t");
-				}
-				os.append(experiment);
-				os.append("\t");
-				os.append("false\n");
-				out.write(os.toString().getBytes());
-			}			
-			out.close();
-		} catch (IOException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
 		}
 	}
 	
@@ -779,7 +721,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		public TransitionUnit(final double distance,
 				final int K) {
 			this.distance = distance;
-			this.pseudo = Math.exp(-distance*Constants._con_base_r);
+			this.pseudo = Math.exp(-distance*con_base_r);
 			this.jump = prior();
 			this.trans = new double[K];
 			this.count = new double[2];
@@ -789,7 +731,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 
 		private void updatec() {
 			// TODO Auto-generated method stub
-			state.calcProbs(trans, cnts_prior, jump);
+			state1.calcProbs(trans, cnts_prior, jump);
 		}
 
 		protected void update(double jump) {
@@ -809,7 +751,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		private double prior() {
 			// TODO Auto-generated method stub
 			//double p = new BetaDistribution(Constants.rg, 
-			//		(1-pseudo)*Constants._mu_J_e, pseudo*Constants._mu_J_e).sample();
+			//		(1-pseudo)*mu_J_e, pseudo*mu_J_e).sample();
 			//if(p==0) p = 1e-16;
 			//if(p==1) p = 1-1e-16;
 			//return p;
@@ -817,13 +759,13 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		}
 		
 		protected void addCount(int from, int to, double n) {
-			int hsc = state.hsc(from, to);
+			int hsc = state1.hsc(from, to);
 			count[0] += cnts_prior[hsc][0]*n;
 			count[1] += cnts_prior[hsc][1]*n;
 		}
 		
 		protected double trans(int from, int to) {
-			return trans[state.hsc(from, to)];
+			return trans[state1.hsc(from, to)];
 		}
 		
 		protected double[] getTrans() {
@@ -843,8 +785,8 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		}
 		
 		protected void pseudo() {
-			count[0] = (1-pseudo)*Constants._mu_J_m;
-			count[1] = pseudo*Constants._mu_J_m;
+			count[0] = (1-pseudo)*mu_J_m;
+			count[1] = pseudo*mu_J_m;
 		}
 	}
 	
@@ -852,18 +794,15 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		protected double[][] v;
 		protected int[][] trace;
 		protected double[] logscale;
-		protected String[] path_str;
-		protected int[] path;
 		protected int ends = -1; // end state
 		protected double probability = 0;
 		
 		public ViterbiUnit() {
 			// TODO Auto-generated constructor stub
+			super();
 			this.v = new double[M][K];
 			this.trace = new int[M-1][K];
 			this.logscale = new double[M];
-			this.path_str = new String[M];
-			this.path = new int[M];
 		}
 
 		public double probability() {
@@ -879,18 +818,17 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 				}
 			}
 			probability = Math.log(probability)+logscale[M-1];
-			this.trace();
 		}
 		
-		protected void trace() {
+		protected void trace(int[] path, String[] path_str) {
 			int tr = ends;
-			this.path[M-1] = tr;
-			this.path_str[M-1] = state.hsc_str[tr];
+			path[M-1] = tr;
+			path_str[M-1] = state1.hsc_str[tr];
 			for(int i=M-2; i>=0; i--) {
 				tr = trace[i][tr];
-				this.path[i] = tr;
-				this.path_str[i] = maxMatch(state.hsc_str[tr], 
-						this.path_str[i+1]);
+				path[i] = tr;
+				path_str[i] = maxMatch(state1.hsc_str[tr], 
+						path_str[i+1]);
 			}
 			return;
 		}

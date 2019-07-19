@@ -1,14 +1,19 @@
 package cz1.hmm.model;
 
+import java.io.BufferedOutputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.distribution.BetaDistribution;
 import org.apache.commons.math3.stat.StatUtils;
-import org.apache.log4j.Logger;
 
 import cz1.hmm.data.DataEntry;
 import cz1.math.Combination;
@@ -16,8 +21,11 @@ import cz1.math.SaddlePointExpansion;
 import cz1.util.Constants;
 import cz1.util.Constants.Field;
 
-public class EmissionModel {
-	protected final static Logger myLogger = Logger.getLogger(EmissionModel.class);
+public abstract class EmissionModel {
+	
+	protected final static double mu_A_e = 10;
+	protected final static double mu_A_m = 0.1;
+	
 	protected static int iteration = 0;
 	
 	protected Field field;
@@ -38,27 +46,40 @@ public class EmissionModel {
 	protected StateUnit state;
 	protected ObUnit[][] obs;
 	protected EmissionUnit[] emission;
+	protected PathUnit[] pas;
 	
 	protected final List<Integer> conjs = new ArrayList<>(); // conjunctive position
 	
 	protected boolean logspace;
 	
+	abstract double loglik();
+	abstract double findPath();
+	abstract void write(String output, 
+			String experiment, 
+			String contig);
+	
 	public EmissionModel(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse,
 			Field field,
+			int ploidy,
+			String[] parents,
 			boolean logspace) {
 		this.field = field;
 		this.de = this.catDE(de, seperation, reverse);
 		this.logspace = logspace;
+		this.H = ploidy;
+		this.parents = parents;
 		this.initialise();
 	}
 	
 	public EmissionModel(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse,
-			Field field) {
-		this(de, seperation, reverse, field, true);
+			Field field,
+			int ploidy,
+			String[] parents) {
+		this(de, seperation, reverse, field, ploidy, parents, true);
 	}
 	
 	public EmissionModel() {
@@ -84,11 +105,9 @@ public class EmissionModel {
 		this.samples = de.getSample();
 		this.M = this.de.getAllele().size();
 		this.N = this.samples.length;
-		this.H = Constants._ploidy_H;
 		this.state = new StateUnit(H);
 		this.K = state.hsc.length;
 		
-		this.parents = Constants._founder_haps.split(":");
 		List<Integer> pars = new ArrayList<Integer>();
 		List<Integer> pros = new ArrayList<Integer>();
 		for(int i=0; i<samples.length; i++) {
@@ -117,6 +136,7 @@ public class EmissionModel {
 		for(int i : progeny_i) sspace.set(i, progeny_s);
 		
 		this.makeObUnits();
+		this.makePathUnits();
 		this.makeEmissionUnits();
 	}
 
@@ -169,6 +189,13 @@ public class EmissionModel {
 					H*2,
 					K,
 					bfrac(i));
+	}
+	
+
+	private void makePathUnits() {
+		// TODO Auto-generated method stub
+		this.pas = new PathUnit[N];
+		for(int i=0; i<N; i++) pas[i] = new PathUnit();
 	}
 	
 	protected void switchNumericalSpace() {
@@ -451,7 +478,7 @@ public class EmissionModel {
 		protected void prior() {
 			// TODO Auto-generated method stub
 			BetaDistribution beta = new BetaDistribution(Constants.rg, 
-					(1-bfrac)*Constants._mu_A_e, bfrac*Constants._mu_A_e);
+					(1-bfrac)*mu_A_e, bfrac*mu_A_e);
 			for(int i=0; i<emiss.length; i++) {
 				emiss[i] = beta.sample();
 				if(emiss[i]==0) emiss[i] = 0.001;
@@ -516,8 +543,237 @@ public class EmissionModel {
 		
 		protected void pseudo() {
 			for(int i=0; i<count.length; i++) {
-				count[i][0] = (1-bfrac)*Constants._mu_A_m;
-				count[i][1] = bfrac*Constants._mu_A_m;
+				count[i][0] = (1-bfrac)*mu_A_m;
+				count[i][1] = bfrac*mu_A_m;
+			}
+		}
+	}
+	
+	protected class PathUnit {
+		protected String[] path_str;
+		protected int[] path;
+		
+		public PathUnit() {
+			// TODO Auto-generated constructor stub
+			this.path_str = new String[M];
+			this.path = new int[M];
+		}
+	}
+	
+	protected class ModelWriter {
+		protected ZipOutputStream out = null;
+		
+		public ModelWriter(String file) {
+			try {
+				out = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(file), 65536));
+			} catch (FileNotFoundException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		public void writeHaplotype() {
+			try {
+			out.putNextEntry(new ZipEntry("haplotype.txt"));
+			out.write((""+loglik()+"\n").getBytes());
+			out.write((""+M+"\n").getBytes());
+			for(int i=0; i<N; i++) {
+				String[] path = pas[i].path_str;
+				List<String[]> path_s = new ArrayList<String[]>();
+				for(int k=0; k<path.length; k++)
+					path_s.add(path[k].split("_"));
+				for(int k=0; k<H; k++) {
+					out.write(("# id "+samples[i]+":"+(k+1)+"\t\t\t").getBytes());
+					for(int s=0; s<path_s.size(); s++)
+						out.write(path_s.get(s)[k].getBytes());
+					out.write("\n".getBytes());
+				}
+			}
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		public void writeDosage() {
+			try {
+				out.putNextEntry(new ZipEntry("dosage.txt"));
+				StringBuilder os = new StringBuilder();
+				os.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT");
+				for(String s : samples) {
+					os.append("\t");
+					os.append(s);
+				}
+				os.append("\n");
+				out.write(os.toString().getBytes());
+				
+				List<String[]> allele = de.getAllele();
+				double[] position = de.getPosition();
+				String[] markers_id = de.getMarker();
+				String id = de.getId();
+				int[] states;
+				double[] emiss;
+				for(int i=0; i<M; i++) {
+					os.setLength(0);
+					os.append(id);
+					os.append("\t");
+					os.append((int) position[i]);
+					os.append("\t");
+					os.append(markers_id[i]);
+					os.append("\t");
+					os.append(allele.get(i)[0]);
+					os.append("\t");
+					os.append(allele.get(i)[1]);
+					os.append("\t.\t.\t.\tGT");
+					
+					emiss = emission[i].getEmiss();
+					for(int j=0; j<N; j++) {
+						states = state.getHsc()[pas[j].path[i]];
+						int dosa = 0;
+						for(int k=0; k<H; k++) 
+							if(emiss[states[k]]>=0.5)
+								++dosa;
+						os.append("\t");
+						os.append(dosa);
+					}
+					os.append("\n");
+					out.write(os.toString().getBytes());
+				}
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		public void writeGenotype() {
+			try {
+				out.putNextEntry(new ZipEntry("genotype.txt"));
+				StringBuilder os = new StringBuilder();
+				os.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT");
+				for(String s : samples) {
+					os.append("\t");
+					os.append(s);
+				}
+				os.append("\n");
+				out.write(os.toString().getBytes());
+				
+				List<String[]> allele = de.getAllele();
+				double[] position = de.getPosition();
+				String[] markers_id = de.getMarker();
+				String id = de.getId();
+				int[] states;
+				double[] emiss;
+				for(int i=0; i<M; i++) {
+					os.setLength(0);
+					os.append(id);
+					os.append("\t");
+					os.append((int) position[i]);
+					os.append("\t");
+					os.append(markers_id[i]);
+					os.append("\t");
+					os.append(allele.get(i)[0]);
+					os.append("\t");
+					os.append(allele.get(i)[1]);
+					os.append("\t.\t.\t.\tGT");
+					
+					emiss = emission[i].getEmiss();
+					for(int j=0; j<N; j++) {
+						states = state.getHsc()[pas[j].path[i]];
+						os.append("\t");
+						os.append(emiss[states[0]]<0.5?1:0);
+						for(int k=1; k<H; k++) {
+							os.append("|");
+							os.append(emiss[states[k]]<0.5?1:0);
+						}
+					}
+					os.append("\n");
+					out.write(os.toString().getBytes());
+				}
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		public void writeEmissionModel() {
+			try {
+				out.putNextEntry(new ZipEntry("emission.txt"));
+				for(int i=0; i<M; i++) {
+					double[] emiss = emission[i].getEmiss();
+					String[] allele = de.getAllele().get(i);
+					out.write((de.getId()+"_"+de.getPosition()[i]+"\t\t\t").getBytes());
+					for(int j=0; j<emiss.length; j++) {
+						out.write((state.getHs()[j]+"-> {").getBytes());
+						out.write((allele[0]+","+emiss[j]+";").getBytes());
+						out.write((allele[1]+","+(1-emiss[j])+";").getBytes());
+						out.write("} ".getBytes());
+					}
+					out.write("\n".getBytes());
+				}
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		public void writeSNP() {
+			try {
+				out.putNextEntry(new ZipEntry("snp.txt"));
+
+				StringBuilder os = new StringBuilder();
+				List<String[]> allele = de.getAllele();
+				double[] position = de.getPosition();
+				String[] markers_id = de.getMarker();
+				String id = de.getId();
+				for(int i=0; i<position.length; i++) {
+					os.setLength(0);
+					os.append(id);
+					os.append("\t");
+					os.append((int) position[i]);
+					os.append("\t");
+					os.append(markers_id[i]);
+					os.append("\t");
+					os.append(allele.get(i)[0]);
+					os.append("\t");
+					os.append(allele.get(i)[1]);
+					os.append("\n");
+					out.write(os.toString().getBytes());
+				}
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		public void writeRunInfo() {
+			try {
+				out.putNextEntry(new ZipEntry("runinfo.txt"));
+				out.write(("##marker: "+M+"\n").getBytes());
+				out.write(("##sample: "+N+"\n").getBytes());
+				out.write(("##ploidy: "+H+"\n").getBytes());
+				out.write(("##parents: "+parents[0]+" "+parents[1]+"\n").getBytes());
+				out.write(("##progeny:").getBytes());
+				for(int i : progeny_i) out.write((" "+samples[i]).getBytes());
+				out.write(("\n").getBytes());
+				out.write(("##distance:").getBytes());
+				for(double d : distance) out.write( (" "+(int)d).getBytes());
+				out.write(("\n").getBytes());
+				out.write(("##seed: "+Constants.seed+"\n").getBytes());
+				out.write(("##iteration: "+iteration+"\n").getBytes());
+				out.write(("##loglik: "+loglik()+"\n").getBytes());
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+
+		public void close() {
+			// TODO Auto-generated method stub
+			try {
+				out.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
 			}
 		}
 	}

@@ -6,7 +6,7 @@ import cz1.util.ArgsEngine;
 import cz1.util.Executor;
 import cz1.util.Utils;
 
-public class SuperScaffoldConstructor extends Executor {
+public class NNsuperscaffold extends Executor {
 
 	private String rf_file = null;
 	private String out_prefix = null;

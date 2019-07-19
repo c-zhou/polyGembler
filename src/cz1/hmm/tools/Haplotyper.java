@@ -13,7 +13,10 @@ import cz1.util.Constants.Field;
 import cz1.util.Executor;
 
 public class Haplotyper extends Executor {
-
+	
+	private final static double minImprov = 1e-4;
+	private final static double max_init_seperation = 1e7; 
+	
 	private String in_zip = null;
 	private String out_prefix = null;
 	private String[] scaff = null;
@@ -24,6 +27,8 @@ public class Haplotyper extends Executor {
 	private String expr_id = null;
 	private int[] start_pos = null;
 	private int[] end_pos = null;
+	private int ploidy;
+	private String[] parents;
 	
 	public Haplotyper() {}
 	
@@ -41,7 +46,7 @@ public class Haplotyper extends Executor {
 		this.seperation = seperation;
 		this.reverse = reverse;
 		this.max_iter = max_iter;
-		Constants.ploidy(ploidy);
+		this.ploidy = ploidy;
 		this.field = field;
 		this.expr_id = new File(in_zip).getName().
 				replaceAll(".zip$", "").
@@ -64,7 +69,7 @@ public class Haplotyper extends Executor {
 		this.seperation = seperation;
 		this.reverse = reverse;
 		this.max_iter = max_iter;
-		Constants.ploidy(ploidy);
+		this.ploidy = ploidy;
 		this.field = field;
 		this.expr_id = expr_id;
 	}
@@ -78,7 +83,7 @@ public class Haplotyper extends Executor {
 		this.in_zip = in_zip;
 		this.out_prefix = out_prefix;
 		this.scaff = scaff;
-		Constants.ploidy(ploidy);
+		this.ploidy = ploidy;
 		this.field = field;
 		this.expr_id = new File(in_zip).getName().
 				replaceAll(".zip$", "").
@@ -97,7 +102,7 @@ public class Haplotyper extends Executor {
 		this.in_zip = in_zip;
 		this.out_prefix = out_prefix;
 		this.scaff = scaff;
-		Constants.ploidy(ploidy);
+		this.ploidy = ploidy;
 		this.field = field;
 		this.expr_id = expr_id;
 		this.max_iter = max_iter;
@@ -124,7 +129,7 @@ public class Haplotyper extends Executor {
 		this.reverse = new boolean[s.length];
 		for(int i=0; i<s.length; i++) 
 			this.reverse[i] = Boolean.parseBoolean(s[i]);
-		Constants.ploidy(ploidy);
+		this.ploidy = ploidy;
 		this.field = field;
 		this.expr_id = expr_id;
 		this.max_iter = max_iter;
@@ -255,11 +260,11 @@ public class Haplotyper extends Executor {
 		}
 		
 		if(myArgsEngine.getBoolean("-p")) {
-			Constants.ploidy(Integer.parseInt(myArgsEngine.getString("-p")));
+			this.ploidy = Integer.parseInt(myArgsEngine.getString("-p"));
 		}
 		
 		if(myArgsEngine.getBoolean("-f")) {
-			Constants._founder_haps = myArgsEngine.getString("-f");
+			this.parents = myArgsEngine.getString("-f").split(":");
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify the parent samples (seperated by a \":\").");
@@ -277,12 +282,15 @@ public class Haplotyper extends Executor {
 			for(int i=0; i<seperation.length; i++)
 				seperation[i] = Math.max(Math.round(
 						Constants.rand.nextDouble()*
-						Constants._max_initial_seperation),1);
+						max_init_seperation),1);
 		}
-		boolean isRF = Constants.isRF(seperation);
+		boolean isRF = true;
+		for(int i=0; i<seperation.length; i++)
+			if(seperation[i]>1.0)
+				isRF = false;
 		if(isRF) {
 			for(int i=0; i<seperation.length; i++) 
-				seperation[i] = Constants.haldane(seperation[i]);
+				seperation[i] = -.5*Math.log(1-2*seperation[i])*10000000;
 		}
 		
 		if(myArgsEngine.getBoolean("-r")) {
@@ -322,13 +330,13 @@ public class Haplotyper extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info("Random seed - "+Constants.seed);
 
-		DataEntry[] de = start_pos==null ? DataCollection.readDataEntry(in_zip, scaff) :
-			DataCollection.readDataEntry(in_zip, scaff, start_pos, end_pos);
+		DataEntry[] de = start_pos==null ? DataCollection.readDataEntry(in_zip, scaff, ploidy) :
+			DataCollection.readDataEntry(in_zip, scaff, start_pos, end_pos, ploidy);
 
 		double ll, ll0;
 		
 		myLogger.info("=> STAGE I. training emission model with no transitions allowed.");
-		final ModelTrainer model = new ModelTrainer(de, seperation, reverse, field);
+		final ModelTrainer model = new ModelTrainer(de, seperation, reverse, field, ploidy, parents);
 		ll0 = Double.NEGATIVE_INFINITY;
 		for(int i=0; i<max_iter; i++) {
 			model.train();
@@ -337,7 +345,7 @@ public class Haplotyper extends Executor {
 			if(ll<ll0)
 				throw new RuntimeException("Fatal error, likelihood decreased!");
 			if( ll0!=Double.NEGATIVE_INFINITY && 
-					Math.abs((ll-ll0)/ll0) < Constants.minImprov)
+					Math.abs((ll-ll0)/ll0) < minImprov)
 				break;
 			ll0 = ll;
 		}
@@ -352,7 +360,7 @@ public class Haplotyper extends Executor {
 			if(ll<ll0)
 				throw new RuntimeException("Fatal error, likelihood decreased!");
 			if( ll0!=Double.NEGATIVE_INFINITY && 
-					Math.abs((ll-ll0)/ll0) < Constants.minImprov)
+					Math.abs((ll-ll0)/ll0) < minImprov)
 				break;
 			ll0 = ll;
 		}
@@ -362,11 +370,11 @@ public class Haplotyper extends Executor {
 				(end_pos==null||end_pos[0]==Integer.MAX_VALUE?"":"_"+end_pos[0]);
 		for(int i=1; i<scaff.length; i++) {
 			if(scaff_str.length()+scaff[i].length()+32<=Constants.MAX_FILE_ID_LENGTH)
-				scaff_str += Constants.scaff_collapsed_str+scaff[i]+
+				scaff_str += Constants.collapsed_str+scaff[i]+
 				(start_pos==null||start_pos[i]==Integer.MIN_VALUE?"":"_"+start_pos[i])+
 				(end_pos==null||end_pos[i]==Integer.MAX_VALUE?"":"_"+end_pos[i]);
 			else {
-				scaff_str += Constants.scaff_collapsed_str+"etc"+scaff.length;
+				scaff_str += Constants.collapsed_str+"etc"+scaff.length;
 				break;
 			}
 		}

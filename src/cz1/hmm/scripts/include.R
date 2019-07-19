@@ -374,13 +374,13 @@ traverse <- function(adj_matrix) {
 
 .read_map_file <- function(in_map) {
 	cDx = readLines(in_map)
-	w = grep("\\*",cDx)
-	tC = gsub("\\*","",cDx[w])
+	w = grep("^C",cDx)
+	tC = gsub("^C ","",cDx[w])
 	w = c(w,length(cDx)+1)
 	dC = rep(NA, length(w)-1)
 	for(i in 1:length(dC)) {
-		rf = as.numeric(strsplit(cDx[w[i]+1],",")[[1]])
-		j = w[i]+2
+		rf = as.numeric(strsplit(cDx[w[i]+2],",")[[1]])
+		j = w[i]+3
 		while( j<w[i+1] ) {
 			rf = rbind(rf, as.numeric(strsplit(cDx[j],",")[[1]]))
 			j = j+1
