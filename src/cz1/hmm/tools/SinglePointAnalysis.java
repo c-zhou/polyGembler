@@ -161,14 +161,14 @@ public class SinglePointAnalysis extends RFUtils {
 				for(int i=0; i<m; i++) position[i] = lb+i;
 				int[] dists = new int[m-1];
 				System.arraycopy(distance, lb, dists, 0, m-1);
-				int[][] jumps = new int[n][];
+				double[][] jumps = new double[n][];
 				for(int i=0; i<n; i++) {
 					FileObject obj = objs.get(i);
 					modelReader = new ModelReader(obj.file);
 					Map<String, char[][]> haps = modelReader.getHaplotypeByPosition(position, ploidy);
 					modelReader.close();
 					for(String f : parents) haps.remove(f);
-					int[] jump = new int[m-1];
+					double[] jump = new double[m-1];
 					char[] h;
 					for(char[][] hap : haps.values()) {
 						for(int j=0; j<ploidy; j++) {
@@ -179,7 +179,7 @@ public class SinglePointAnalysis extends RFUtils {
 					}
 					jumps[i] = jump;
 				}
-				double deno = nF1*ploidy;
+				int deno = nF1*ploidy;
 				for(int i=0; i<n; i++)
 					for(int j=0; j<m-1; j++)
 						jumps[i][j] /= deno;
