@@ -12,6 +12,7 @@ import cz1.hmm.model.ModelReader;
 import cz1.math.JohnsonTrotter;
 import cz1.math.Permutation;
 import cz1.util.ArgsEngine;
+import cz1.util.Constants;
 import cz1.util.Utils;
 
 import org.apache.commons.math.stat.StatUtils;
@@ -221,7 +222,7 @@ public class LinkageAnalysis extends RFUtils {
 					double[] jump = new double[m-1];
 					d1 = new PhasedDataCollection(haps, 0);
 					dc[scfi][i][0] = d1;
-					for(int j=1; j<m; j++) {
+					for(int j=1; j<m; j++) {						
 						d0 = d1;
 						d1 = new PhasedDataCollection(haps, j);
 						comns(d0.f0, d1.f0, a0);
@@ -255,11 +256,13 @@ public class LinkageAnalysis extends RFUtils {
 	
 	private class TwoPointAnalysis implements Runnable {
 		private final int scfi, scfj;
+		private final boolean conj;
 		
 		public TwoPointAnalysis(int scfi, int scfj) {
 			// TODO Auto-generated constructor stub
 			this.scfi = scfi;
 			this.scfj = scfj;
+			this.conj = conjPair.contains(scaffolds[scfi]+Constants.collapsed_str+scaffolds[scfj]);
 		}
 
 		@Override
@@ -276,13 +279,20 @@ public class LinkageAnalysis extends RFUtils {
 					di = dc[scfi][i];
 					for(int j=0; j<dc[scfj].length; j++) {
 						dj = dc[scfj][j];
-						comns(di[0].f0, di[1].f0, dj[0].f0, dj[1].f0, a0);
-						comns(di[0].f1, di[1].f1, dj[0].f1, dj[1].f1, a1);
-						comns(di[0].f0, di[1].f0, dj[0].f1, dj[1].f1, a2);
-						comns(di[0].f1, di[1].f1, dj[0].f0, dj[1].f0, a3);
-						sum(a0, a1, a4);
-						sum(a2, a3, a5);
-						stat = max(a4, a5);
+						if(conj) {
+							comns(di[0].f0, di[1].f0, dj[0].f0, dj[1].f0, a0, true);
+							comns(di[0].f1, di[1].f1, dj[0].f1, dj[1].f1, a1, true);
+							sum(a0, a1, a4);
+							stat = a4;
+						} else {
+							comns(di[0].f0, di[1].f0, dj[0].f0, dj[1].f0, a0, true);
+							comns(di[0].f1, di[1].f1, dj[0].f1, dj[1].f1, a1, true);
+							comns(di[0].f0, di[1].f0, dj[0].f1, dj[1].f1, a2, true);
+							comns(di[0].f1, di[1].f1, dj[0].f0, dj[1].f0, a3, true);
+							sum(a0, a1, a4);
+							sum(a2, a3, a5);
+							stat = max(a4, a5);
+						}
 						if((max=max(stat))>maxc) {
 							System.arraycopy(stat, 0, comn, 0, 4);
 							maxc = max;
@@ -321,7 +331,7 @@ public class LinkageAnalysis extends RFUtils {
 	}
 	
 	private int comns(Map<Integer, Set<Integer>> a0, Map<Integer, Set<Integer>> a1,
-			Map<Integer, Set<Integer>> a2, Map<Integer, Set<Integer>> a3, final int[] a) {
+			Map<Integer, Set<Integer>> a2, Map<Integer, Set<Integer>> a3, final int[] a, boolean permutate) {
 		// TODO Auto-generated method stub
 		int[][][] comns = new int[4][][];
 		comns[0] = comns(a0, a2);
@@ -342,6 +352,8 @@ public class LinkageAnalysis extends RFUtils {
 		maxc = max(stat);
 		sumc = sum(stat);
 		int perm = 0;
+		
+		if(!permutate) return perm;
 		
 		int[] swap1;
 		int jt0, jt1, s;
@@ -463,7 +475,7 @@ public class LinkageAnalysis extends RFUtils {
 	}
 
 
-	private void reallocate(Map<Integer, Set<Integer>> f, final int p) {
+	protected void reallocate(Map<Integer, Set<Integer>> f, final int p) {
 		// TODO Auto-generated method stub
 		if(p==0) return;
 		Map<Integer, Set<Integer>> tmp = new HashMap<>();
