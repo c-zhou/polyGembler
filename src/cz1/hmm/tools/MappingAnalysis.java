@@ -17,7 +17,7 @@ import cz1.util.ArgsEngine;
 import cz1.util.Executor;
 import cz1.util.Utils;
 
-public class Linkagemap extends Executor {
+public class MappingAnalysis extends Executor {
 
 	private String rf_file = null;
 	private String map_file = null;

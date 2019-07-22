@@ -6,11 +6,10 @@ import cz1.hmm.tools.AssemblyError;
 import cz1.hmm.tools.DataPreparation;
 import cz1.hmm.tools.Gembler;
 import cz1.hmm.tools.Haplotyper;
-import cz1.hmm.tools.Linkagemap;
+import cz1.hmm.tools.MappingAnalysis;
 import cz1.hmm.tools.NNsuperscaffold;
 import cz1.hmm.tools.Pseudomolecule;
-import cz1.hmm.tools.SinglePointAnalysis;
-import cz1.hmm.tools.TwoPointAnalysis;
+import cz1.hmm.tools.LinkageAnalysis;
 import cz1.simulation.tools.GBSSimulator;
 import cz1.simulation.tools.PopulationSimulator;
 
@@ -47,25 +46,20 @@ public class PolyGembler {
 			haplotyper.setParameters(args2);
 			haplotyper.run();
 			break;
-		case "singlepoint":
-			SinglePointAnalysis singlepoint = new SinglePointAnalysis();
-			singlepoint.setParameters(args2);
-			singlepoint.run();
-			break;
-        case "twopoint":
-            TwoPointAnalysis rfEstimator = new TwoPointAnalysis();
-            rfEstimator.setParameters(args2);
-            rfEstimator.run();
-            break;
         case "asmerr":
         	AssemblyError asmErr = new AssemblyError();
         	asmErr.setParameters(args2);
         	asmErr.run();
         	break;
+        case "linkage":
+            LinkageAnalysis linkage = new LinkageAnalysis();
+            linkage.setParameters(args2);
+            linkage.run();
+            break;
         case "map":
-            Linkagemap linkagemap = new Linkagemap();
-            linkagemap.setParameters(args2);
-            linkagemap.run();
+            MappingAnalysis mapping = new MappingAnalysis();
+            mapping.setParameters(args2);
+            mapping.run();
             break;
         case "superscaffold":
         	NNsuperscaffold superscaffold = new NNsuperscaffold();
@@ -96,9 +90,8 @@ public class PolyGembler {
 						+ " gbssimulation       Simulate GBS data.\n"
 						+ " datapreparation     Prepare data for haplotype phasing.\n"
 						+ " haplotyper          Haplotype phasing from a mapping population.\n"
-						+ " singlepoint         Signle-point analysis: estimate recombination fraction between markers within contigs/scaffolds.\n"
-						+ " twopoint            Two-point analysis: estimate pairwise recombination fraction between contigs/scaffolds.\n"
 						+ " asmerr              Correct assembly errors.\n"
+						+ " linkage             Estimate recombination fractions.\n"
 						+ " map                 Construct linkage maps.\n"
 						+ " superscaffold       Construct superscaffold using nearest neighbour joining.\n"
 						+ " chromosomer         Construct pseudo chromosomes. \n"

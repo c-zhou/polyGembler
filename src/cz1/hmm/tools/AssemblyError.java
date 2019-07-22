@@ -17,7 +17,7 @@ import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Utils;
 
-public class AssemblyError extends RFUtils {
+public class AssemblyError extends LinkageAnalysis {
 	private final static Logger myLogger = Logger.getLogger(AssemblyError.class);
 	private final static double breakage_thres = 0.05;
 	

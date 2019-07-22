@@ -9,10 +9,8 @@ import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.zip.GZIPOutputStream;
 
 import javax.script.ScriptEngine;
@@ -32,7 +30,6 @@ import org.renjin.sexp.StringArrayVector;
 import org.renjin.sexp.StringVector;
 
 import cz1.hmm.model.ModelReader;
-import cz1.util.Constants;
 import cz1.util.Executor;
 import cz1.util.Utils;
 
@@ -53,7 +50,7 @@ public abstract class RFUtils extends Executor {
 
 	protected NumberFormat formatter = new DecimalFormat("#0.000");
 	protected int nF1;
-	protected final Set<String> conjPair = new HashSet<>();
+	// protected final Set<String> conjPair = new HashSet<>();
 	protected final Map<String, List<FileObject>> fileObj = new HashMap<>();
 	
 	protected final static Object lock = new Object();
@@ -218,6 +215,7 @@ public abstract class RFUtils extends Executor {
 				}
 				
 				// conjunctive pairs
+				/***
 				for(int i=0; i<scaff_n; i++) {
 					String scaff_i = scaff_all.get(i);
 					for(int j=i+1; j<scaff_n; j++) {
@@ -226,6 +224,7 @@ public abstract class RFUtils extends Executor {
 						conjPair.add(scaff_j+Constants.collapsed_str+scaff_i);
 					}
 				}
+				**/
 
 				for(String file : selected) {
 					for(int j=0; j<scaff_n; j++) {
@@ -379,6 +378,8 @@ public abstract class RFUtils extends Executor {
 		}
 		this.waitFor();
 		
+		myLogger.info("["+Utils.getSystemTime()+"] LOADING FILES DONE.");
+		myLogger.info("["+Utils.getSystemTime()+"] READING LOG LIKELIHOOD DONE.");
 		myLogger.info(map.keySet().size());
 	}
 	

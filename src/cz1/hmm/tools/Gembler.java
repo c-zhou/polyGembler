@@ -348,7 +348,7 @@ public class Gembler extends Executor {
 	
 		//#### STEP 04 recombination frequency estimation
 		final String rf_prefix = metafile_prefix+prefix_vcf;
-		new TwoPointAnalysis (out, 
+		new LinkageAnalysis (out, 
 				rf_prefix,
 				expr_id, 
 				THREADS,
@@ -386,7 +386,7 @@ public class Gembler extends Executor {
 		
 		//#### STEP 07 recombination frequency estimation
 		final String mm_rf_prefix = metafile_prefix+"2nn_"+prefix_vcf;
-		new TwoPointAnalysis (mm_out, 
+		new LinkageAnalysis (mm_out, 
 				mm_rf_prefix,
 				expr_id, 
 				THREADS,
@@ -499,7 +499,7 @@ public class Gembler extends Executor {
 					final String out_refine_ij_haps = out_refine_ij+"haplotypes/";
 					final String mm_rf_prefix_ij = out_refine_ij+"1";
 					
-					new TwoPointAnalysis (out_refine_ij_haps, 
+					new LinkageAnalysis (out_refine_ij_haps, 
 							mm_rf_prefix_ij,
 							expr_id, 
 							THREADS,
