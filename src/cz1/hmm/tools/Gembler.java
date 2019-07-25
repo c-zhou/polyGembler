@@ -320,8 +320,6 @@ public class Gembler extends Executor {
 		AssemblyError assemblyError = new AssemblyError(out, 
 				ass_err_map,
 				expr_id, 
-				ploidy,
-				parents,
 				THREADS,
 				phi,
 				drop,
@@ -348,7 +346,14 @@ public class Gembler extends Executor {
 	
 		//#### STEP 04 recombination frequency estimation
 		final String rf_prefix = metafile_prefix+prefix_vcf;
-		new LinkageAnalysis (out, 
+		new SinglePointAnalysis (out, 
+				rf_prefix,
+				expr_id, 
+				THREADS,
+				phi,
+				drop,
+				nB).run();
+		new TwoPointAnalysis (out, 
 				rf_prefix,
 				expr_id, 
 				THREADS,
@@ -386,7 +391,14 @@ public class Gembler extends Executor {
 		
 		//#### STEP 07 recombination frequency estimation
 		final String mm_rf_prefix = metafile_prefix+"2nn_"+prefix_vcf;
-		new LinkageAnalysis (mm_out, 
+		new SinglePointAnalysis (mm_out, 
+				mm_rf_prefix,
+				expr_id, 
+				THREADS,
+				phi,
+				drop,
+				nB).run();
+		new TwoPointAnalysis (mm_out, 
 				mm_rf_prefix,
 				expr_id, 
 				THREADS,
@@ -499,7 +511,14 @@ public class Gembler extends Executor {
 					final String out_refine_ij_haps = out_refine_ij+"haplotypes/";
 					final String mm_rf_prefix_ij = out_refine_ij+"1";
 					
-					new LinkageAnalysis (out_refine_ij_haps, 
+					new SinglePointAnalysis (out_refine_ij_haps, 
+							mm_rf_prefix_ij,
+							expr_id, 
+							THREADS,
+							Double.POSITIVE_INFINITY,
+							drop,
+							nB).run();
+					new TwoPointAnalysis (out_refine_ij_haps, 
 							mm_rf_prefix_ij,
 							expr_id, 
 							THREADS,

@@ -27,7 +27,7 @@ public class Haplotyper extends Executor {
 	private String expr_id = null;
 	private int[] start_pos = null;
 	private int[] end_pos = null;
-	private int ploidy;
+	private int ploidy = 2;
 	private String[] parents;
 	
 	public Haplotyper() {}

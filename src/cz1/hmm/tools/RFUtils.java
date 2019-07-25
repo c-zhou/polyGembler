@@ -334,6 +334,45 @@ public abstract class RFUtils extends Executor {
 		return expr_id;
 	}
 	
+	protected int[] max(int[] arr1, int[] arr2) {
+		// TODO Auto-generated method stub
+		int m1 = max(arr1), m2 = max(arr2);
+		if(m1>m2) return arr1;
+		else if(m1<m2) return arr2;
+		else {
+			int s1 = sum(arr1), s2 = sum(arr2);
+			if(s1>=s2) return arr1;
+			else return arr2;
+		}
+	}
+
+	protected int max(int[] arr) {
+		// TODO Auto-generated method stub
+		int m = Integer.MIN_VALUE;
+		for(int a : arr) 
+			if(a>m) m = a;
+		return m;
+	}
+	
+	protected void sum(int[] arr1, int[] arr2, int[] arr) {
+		// TODO Auto-generated method stub
+		for(int i=0; i<arr.length; i++)
+			arr[i] = arr1[i]+arr2[i];
+	}
+	
+	protected void sum(double[] arr1, double[] arr2, double[] arr) {
+		// TODO Auto-generated method stub
+		for(int i=0; i<arr.length; i++)
+			arr[i] = arr1[i]+arr2[i];
+	}
+
+	protected int sum(int[] arr) {
+		// TODO Auto-generated method stub
+		int s = 0;
+		for(int a : arr) s+=a;
+		return s;
+	}
+
 	protected void initialise() {
 		// TODO Auto-generated catch block
 		
@@ -379,8 +418,6 @@ public abstract class RFUtils extends Executor {
 		}
 		this.waitFor();
 		
-		myLogger.info("["+Utils.getSystemTime()+"] LOADING FILES DONE.");
-		myLogger.info("["+Utils.getSystemTime()+"] READING LOG LIKELIHOOD DONE.");
 		myLogger.info(map.keySet().size());
 	}
 	
@@ -486,6 +523,7 @@ public abstract class RFUtils extends Executor {
 	
 	public static double geneticDistance(double r, String mapFunc) {
 		// TODO Auto-generated method stub
+		if(r>=0.5) return Double.POSITIVE_INFINITY;
 		switch(mapFunc.toLowerCase()) {
 		case "kosambi":
 			return .25*Math.log((1+2*r)/(1-2*r));

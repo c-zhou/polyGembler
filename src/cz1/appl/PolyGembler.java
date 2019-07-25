@@ -9,7 +9,8 @@ import cz1.hmm.tools.Haplotyper;
 import cz1.hmm.tools.MappingAnalysis;
 import cz1.hmm.tools.NNsuperscaffold;
 import cz1.hmm.tools.Pseudomolecule;
-import cz1.hmm.tools.LinkageAnalysis;
+import cz1.hmm.tools.SinglePointAnalysis;
+import cz1.hmm.tools.TwoPointAnalysis;
 import cz1.simulation.tools.GBSSimulator;
 import cz1.simulation.tools.PopulationSimulator;
 
@@ -51,10 +52,15 @@ public class PolyGembler {
         	asmErr.setParameters(args2);
         	asmErr.run();
         	break;
-        case "linkage":
-            LinkageAnalysis linkage = new LinkageAnalysis();
-            linkage.setParameters(args2);
-            linkage.run();
+        case "singlepoint":
+            SinglePointAnalysis singlePoint = new SinglePointAnalysis();
+            singlePoint.setParameters(args2);
+            singlePoint.run();
+            break;
+        case "twopoint":
+            TwoPointAnalysis twoPoint = new TwoPointAnalysis();
+            twoPoint.setParameters(args2);
+            twoPoint.run();
             break;
         case "map":
             MappingAnalysis mapping = new MappingAnalysis();
@@ -91,8 +97,9 @@ public class PolyGembler {
 						+ " datapreparation     Prepare data for haplotype phasing.\n"
 						+ " haplotyper          Haplotype phasing from a mapping population.\n"
 						+ " asmerr              Correct assembly errors.\n"
-						+ " linkage             Estimate recombination fractions.\n"
-						+ " map                 Construct linkage maps.\n"
+                        + " singlepoint         Signle-point analysis: estimate recombination fraction between markers within contigs/scaffolds.\n"
+                        + " twopoint            Two-point analysis: estimate pairwise recombination fraction between contigs/scaffolds.\n"
+                        + " map                 Construct linkage maps.\n"
 						+ " superscaffold       Construct superscaffold using nearest neighbour joining.\n"
 						+ " chromosomer         Construct pseudo chromosomes. \n"
 						+ " gembler             Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.\n\n");
