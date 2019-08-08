@@ -25,7 +25,7 @@ public class AssemblyError extends RFUtils {
 	private double rf_thresh = 0.1;
 	private int wbp = 30000;
 	private int wnm = 30;
-	private String map_func = "haldane";
+	private String map_func = "kosambi";
 	
 	@Override
 	public void printUsage() {

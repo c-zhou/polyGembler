@@ -263,7 +263,7 @@ public class DataCollection {
 					}
 
 					if(miss) 
-						Arrays.fill(ll, -1);
+						Arrays.fill(ll, 0);
 					else
 						ll = Algebra.normalize(ll);
 

@@ -23,7 +23,7 @@ public class Haplotyper extends Executor {
 	private double[] seperation = null;
 	private boolean[] reverse = new boolean[]{false};
 	private int max_iter = 1000;
-	private Field field = Field.AD;
+	private Field field = Field.PL;
 	private String expr_id = null;
 	private int[] start_pos = null;
 	private int[] end_pos = null;
@@ -158,10 +158,12 @@ public class Haplotyper extends Executor {
 							+" -r/--reverse                 Take either 'true' or 'false', indicating whetherr the \n"
 							+"                              scaffold is reversed before inferring haplotypes. Multiple \n"
 							+"                              scaffolds are separated by \":\".\n"
+							+" -L/--genotype-likelihood     Use genotype likelihoods to infer haplotypes. Mutually \n"
+							+"                              exclusive with option -G/--genotype and -D/--allele-depth (default). \n"
 							+" -G/--genotype                Use genotypes to infer haplotypes. Mutually exclusive with \n"
-							+"                              option -D/--allele-depth.\n"
+							+"                              option -L/--genotype-likelihood and -D/--allele-depth.\n"
 							+" -D/--allele-depth            Use allele depth to infer haplotypes. Mutually exclusive \n"
-							+"                              with option -G/--genotype (default).\n"
+							+"                              with option -L/--genotype-likelihood and -G/--genotype.\n"
 							+" -S/--random-seed             Random seed for this run.\n"
 							);
 	}
@@ -181,7 +183,6 @@ public class Haplotyper extends Executor {
 			myArgsEngine.add("-i", "--input", true);
 			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.add("-ex", "--experiment-id", true);
-			myArgsEngine.add("-hf", "--hmm-file", true);
 			myArgsEngine.add("-c", "--scaffold", true);
 			myArgsEngine.add("-cs", "--start-position", true);
 			myArgsEngine.add("-ce", "--end-position", true);
@@ -190,12 +191,10 @@ public class Haplotyper extends Executor {
 			myArgsEngine.add("-f", "--parent", true);
 			myArgsEngine.add("-s", "--initial-seperation", true);
 			myArgsEngine.add("-r", "--reverse", true);
+			myArgsEngine.add("-L", "--genotype-likelihood", false);
 			myArgsEngine.add("-G", "--genotype", false);
 			myArgsEngine.add("-D", "--allele-depth", false);
-			myArgsEngine.add("-e", "--train-exp", false);
 			myArgsEngine.add("-S", "--random-seed", true);
-			myArgsEngine.add("-pp", "--print-plot", false);
-			myArgsEngine.add("-sp", "--save-plot", true);
 			myArgsEngine.parse(args);
 		}
 		
@@ -306,6 +305,11 @@ public class Haplotyper extends Executor {
 		}
 		
 		int i = 0;
+		if(myArgsEngine.getBoolean("-L")) {
+			field = Field.PL;
+			i++;
+		}
+		
 		if(myArgsEngine.getBoolean("-G")) {
 			field = Field.GT;
 			i++;
@@ -316,8 +320,8 @@ public class Haplotyper extends Executor {
 			i++;
 		}
 		
-		if(i>1) throw new RuntimeException("Options -G/--genotype, "
-				+ "-D/--allele-depth are mutually exclusive!!!");
+		if(i>1) throw new RuntimeException("Options -L/--genotype-likelihood, -G/--genotype, and "
+				+ "-D/--allele-depth are mutually exclusive.");
 		
 		if(myArgsEngine.getBoolean("-S")) {
 			Constants.seed = Long.parseLong(myArgsEngine.getString("-S"));

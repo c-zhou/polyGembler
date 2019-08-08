@@ -144,10 +144,11 @@ public abstract class EmissionModel {
 	private void makeObUnits() {
 		// TODO Auto-generated method stub
 		this.obs = new ObUnit[N][M];
+		double acnt, bcnt;
 		switch(this.field) {
 		case AD:
 			List<List<int[]>> ad = this.de.getAlleleDepth();
-			if(ad==null) throw new RuntimeException("AD feild not available!!! Try GT (-G/--genotype) options.");
+			if(ad==null) throw new RuntimeException("AD feild not available!!! Try PL/GL (-L/--genotype-likelihood) or GT (-G/--genotype) options.");
 			for(int i=0; i<N; i++) {
 				for(int j=0; j<M; j++) {
 					int[] dp = ad.get(j).get(i);
@@ -157,9 +158,8 @@ public abstract class EmissionModel {
 			break;
 		case GT:
 			List<List<String[]>> gt = this.de.getGenotype();
-			if(gt==null) throw new RuntimeException("GT field not available!!! Try AD (-D/--allele-depth) option.");
+			if(gt==null) throw new RuntimeException("GT field not available!!! Try PL/GL (-L/--genotype-likelihood) or AD (-D/--allele-depth) option.");
 			List<String[]> allele = this.de.getAllele();
-			int acnt, bcnt;
 			for(int i=0; i<this.M; i++) {
 				String[] a = allele.get(i);
 				for(int j=0; j<this.N; j++) {
@@ -172,7 +172,26 @@ public abstract class EmissionModel {
 					}
 					acnt *= allele_d;
 					bcnt *= allele_d;
-					obs[j][i] = new ObUnit(acnt+bcnt, acnt, K);
+					obs[j][i] = new ObUnit((int) (acnt+bcnt), (int) acnt, K);
+				}
+			}
+			break;
+		case PL:
+		case GL:
+			List<List<double[]>> gl = this.de.getGenotypeLikelihood();
+			if(gl==null) throw new RuntimeException("PL/GL feild not available!!! Try GT (-G/--genotype) or AD (-D/--allele-depth) option.");
+			for(int i=0; i<this.M; i++) {
+				for(int j=0; j<this.N; j++) {
+					double[] ll = gl.get(i).get(j);
+					acnt = 0;
+					bcnt = 0;
+					for(int k=0; k<H+1; k++) {
+						acnt += (H-k)*ll[k];
+						bcnt += k*ll[k];
+					}
+					acnt *= allele_d;
+					bcnt *= allele_d;
+					obs[j][i] = new ObUnit( (int) Math.round(acnt+bcnt), (int) Math.round(acnt), K);
 				}
 			}
 			break;
@@ -215,28 +234,23 @@ public abstract class EmissionModel {
 	
 	private double bfrac(final int i) {
 		// TODO Auto-generated method stub
-		double baf = 0.5, acnt, bcnt;
+		double baf = 0.5, acnt = 0, bcnt = 0;
 		switch(this.field) {
 		case AD:
 			if(this.de.getAlleleDepth()==null)
-				throw new RuntimeException("AD feild not available!!! Try GT (-G/--genotype) options.");
+				throw new RuntimeException("AD feild not available!!! Try PL/GL (-L/--genotype-likelihood) or GT (-G/--genotype) options.");
 			List<int[]> ad = this.de.getAlleleDepth().get(i);
-			acnt = 0;
-			bcnt = 0;
 			for(int j=0; j<N; j++) {
 				int[] aa = ad.get(j);
 				acnt += aa[0];
 				bcnt += aa[1];
 			}
-			if(acnt!=0&&bcnt!=0) baf = bcnt/(acnt+bcnt);
 			break;
 		case GT:
 			if(this.de.getGenotype()==null)
-				throw new RuntimeException("GT field not available!!! Try AD (-D/--allele-depth) option.");
+				throw new RuntimeException("GT field not available!!! Try PL/GL (-L/--genotype-likelihood) or AD (-D/--allele-depth) option.");
 			List<String[]> gt = this.de.getGenotype().get(i);
 			String[] allele = this.de.getAllele().get(i);
-			acnt = 0;
-			bcnt = 0;
 			for(int j=0; j<N; j++) {
 				String[] g = gt.get(j);
 				for(int k=0; k<H; k++) {
@@ -244,11 +258,23 @@ public abstract class EmissionModel {
 					bcnt += (g[k].equals(allele[1]) ? 1 : 0);
 				}
 			}
-			if(acnt!=0&&bcnt!=0) baf = bcnt/(acnt+bcnt);
+			break;
+		case PL:
+		case GL:
+			if(this.de.getGenotypeLikelihood()==null) throw new RuntimeException("PL/GL feild not available!!! Try GT (-G/--genotype) or AD (-D/--allele-depth) option.");
+			List<double[]> gl = this.de.getGenotypeLikelihood().get(i);
+			for(int j=0; j<this.N; j++) {
+				double[] ll = gl.get(j);
+				for(int k=0; k<H+1; k++) {
+					acnt += (H-k)*ll[k];
+					bcnt += k*ll[k];
+				}
+			}
 			break;
 		default:
 			throw new RuntimeException("!!!");
 		}
+		if(acnt!=0&&bcnt!=0) baf = bcnt/(acnt+bcnt);
 		return baf;
 	}
 
