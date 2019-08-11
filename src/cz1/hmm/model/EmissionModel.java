@@ -186,12 +186,12 @@ public abstract class EmissionModel {
 
 	private double[] calcGenotypeLikelihoodFromGenotype(int acnt, int bcnt) {
 		// TODO Auto-generated method stub
-		return null;
+		throw new RuntimeException("no implemented yet!!!");
 	}
 	
 	private double[] calcGenotypeLikelihoodFromAlleleDepth(int[] allele) {
 		// TODO Auto-generated method stub
-		return null;
+		throw new RuntimeException("no implemented yet!!!");
 	}
 	
 	private void makeEmissionUnits() {
@@ -345,7 +345,7 @@ public abstract class EmissionModel {
 			double s = StatUtils.sum(scaled);
 			for(int k=0; k<H+1; k++) 
 				scaled[k] /= s;
-			return null;
+			return scaled;
 		}
 
 		public double getLogScale(final int i) {
@@ -374,7 +374,7 @@ public abstract class EmissionModel {
 				p += likelihood[k]*emissA[k];
 			return Math.log(p);
 		}
-
+		
 		public void switchNumericSpace() {
 			// TODO Auto-generated method stub
 			if(logspace)
@@ -580,11 +580,11 @@ public abstract class EmissionModel {
 					double p = 1.0;
 					int z = 0;
 					for(int j : comb) {
-						for(int k=z; k<j; k++) p *= emiss[k];
-						p *= 1-emiss[j];
+						for(int k=z; k<j; k++) p *= emissA[k];
+						p *= 1-emissA[j];
 						z = j+1;
 					}
-					for(int k=z; k<H; k++) p *= emiss[k];
+					for(int k=z; k<H; k++) p *= emissA[k];
 					pA += p;
 				}
 				emiss[i] = pA;
@@ -595,13 +595,13 @@ public abstract class EmissionModel {
 			 * could be helpful for high ploidy levels
 			double[] scalep = new double[H];
 			for(int i=0; i<H; i++) 
-				scalep[i] = emiss[i]/(1-emiss[i]);
+				scalep[i] = emissA[i]/(1-emissA[i]);
 			double[] T = new double[H+1];
 			for(int i=1; i<=H; i++) 
 				for(int j=0; j<H; j++)
 					T[i] += Math.pow(scalep[j], i);
 			double p = 1.0;
-			for(int i=0; i<H; i++) p *= 1-emiss[i];
+			for(int i=0; i<H; i++) p *= 1-emissA[i];
 			emiss[0] = p;
 			for(int i=1; i<=H; i++) {
 				p = 0;
