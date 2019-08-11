@@ -360,7 +360,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		ObUnit ob1;
 		double exp_c, exp, count;
 		Integer[] ss;
-		int acnt, bcnt;
+		double acnt, bcnt;
 	
 		EmissionUnit e1;
 		e1 = emission[i];
@@ -370,8 +370,8 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			fw1 = forward[j];
 			bw1 = backward[j];
 			ob1 = obs[j][i];
-			acnt = ob1.getAa();
-			bcnt = ob1.getCov()-acnt;
+			acnt = ob1.getACount();
+			bcnt = ob1.getBCount();
 			exp_c = fw1.logscale[i]+
 					bw1.logscale[i]-
 					fw1.probability;

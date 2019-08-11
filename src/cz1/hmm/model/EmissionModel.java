@@ -17,7 +17,6 @@ import org.apache.commons.math3.stat.StatUtils;
 
 import cz1.hmm.data.DataEntry;
 import cz1.math.Combination;
-import cz1.math.SaddlePointExpansion;
 import cz1.util.Constants;
 import cz1.util.Constants.Field;
 
@@ -134,32 +133,29 @@ public abstract class EmissionModel {
 		Integer[] progeny_s = new Integer[K-2];
 		for(int i=0; i<K-2; i++) progeny_s[i] = i+2;
 		for(int i : progeny_i) sspace.set(i, progeny_s);
-		
+		this.comb_hs = new ArrayList<List<List<Integer>>>();
+		for(int i=0; i<=H; i++) comb_hs.add(Combination.combination(H, i));
 		this.makeObUnits();
 		this.makePathUnits();
 		this.makeEmissionUnits();
 	}
 
-	private final int allele_d = 10; 
 	private void makeObUnits() {
 		// TODO Auto-generated method stub
 		this.obs = new ObUnit[N][M];
-		double acnt, bcnt;
 		switch(this.field) {
 		case AD:
 			List<List<int[]>> ad = this.de.getAlleleDepth();
 			if(ad==null) throw new RuntimeException("AD feild not available!!! Try PL/GL (-L/--genotype-likelihood) or GT (-G/--genotype) options.");
-			for(int i=0; i<N; i++) {
-				for(int j=0; j<M; j++) {
-					int[] dp = ad.get(j).get(i);
-					obs[i][j] = new ObUnit(dp[0]+dp[1], dp[0], K);
-				}
-			}
+			for(int i=0; i<N; i++) 
+				for(int j=0; j<M; j++)
+					obs[i][j] = new ObUnit(calcGenotypeLikelihoodFromAlleleDepth(ad.get(j).get(i)), K);
 			break;
 		case GT:
 			List<List<String[]>> gt = this.de.getGenotype();
 			if(gt==null) throw new RuntimeException("GT field not available!!! Try PL/GL (-L/--genotype-likelihood) or AD (-D/--allele-depth) option.");
 			List<String[]> allele = this.de.getAllele();
+			int acnt, bcnt;
 			for(int i=0; i<this.M; i++) {
 				String[] a = allele.get(i);
 				for(int j=0; j<this.N; j++) {
@@ -170,9 +166,7 @@ public abstract class EmissionModel {
 						acnt += (g[k].equals(a[0]) ? 1 : 0);
 						bcnt += (g[k].equals(a[1]) ? 1 : 0);
 					}
-					acnt *= allele_d;
-					bcnt *= allele_d;
-					obs[j][i] = new ObUnit((int) (acnt+bcnt), (int) acnt, K);
+					obs[j][i] = new ObUnit(calcGenotypeLikelihoodFromGenotype(acnt, bcnt), K);
 				}
 			}
 			break;
@@ -181,18 +175,8 @@ public abstract class EmissionModel {
 			List<List<double[]>> gl = this.de.getGenotypeLikelihood();
 			if(gl==null) throw new RuntimeException("PL/GL feild not available!!! Try GT (-G/--genotype) or AD (-D/--allele-depth) option.");
 			for(int i=0; i<this.M; i++) {
-				for(int j=0; j<this.N; j++) {
-					double[] ll = gl.get(i).get(j);
-					acnt = 0;
-					bcnt = 0;
-					for(int k=0; k<H+1; k++) {
-						acnt += (H-k)*ll[k];
-						bcnt += k*ll[k];
-					}
-					acnt *= allele_d;
-					bcnt *= allele_d;
-					obs[j][i] = new ObUnit( (int) Math.round(acnt+bcnt), (int) Math.round(acnt), K);
-				}
+				for(int j=0; j<this.N; j++)
+					obs[j][i] = new ObUnit(gl.get(i).get(j), K);
 			}
 			break;
 		default:
@@ -200,6 +184,16 @@ public abstract class EmissionModel {
 		}
 	}
 
+	private double[] calcGenotypeLikelihoodFromGenotype(int acnt, int bcnt) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+	
+	private double[] calcGenotypeLikelihoodFromAlleleDepth(int[] allele) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+	
 	private void makeEmissionUnits() {
 		// TODO Auto-generated method stub
 		this.emission = new EmissionUnit[M];
@@ -280,7 +274,7 @@ public abstract class EmissionModel {
 
 	protected void refresh() {
 		// refresh emission probabilities for obs
-		double[] emissc;
+		double[][] emissc;
 		for(int i=0; i<M; i++) {
 			emissc = emission[i].emissc;
 			for(int j=0; j<N; j++) {
@@ -323,19 +317,35 @@ public abstract class EmissionModel {
 		return iteration;
 	}
 	
+	protected final static double likelihood_s = 1e-6;
 	protected class ObUnit {
-		private final int cov;	// depth of coverage
-		private final int aa;	// A-allele depth
+		private final double[] likelihood;	// genotype likelihood
 		protected final double[] emiss; // place holder for emission probs
 		protected final double[] logscale;
+		protected double acnt, bcnt;
 		
-		public ObUnit(final int cov,
-				final int aa, 
+		public ObUnit(final double[] likelihood, 
 				final int k) {
-			this.cov = cov;
-			this.aa = aa;
+			this.likelihood = scale(likelihood);
 			this.emiss = new double[k];
 			this.logscale = new double[3];
+		}
+
+		private double[] scale(double[] likelihood) {
+			// TODO Auto-generated method stub
+			acnt = 0;
+			bcnt = 0;
+			for(int k=0; k<H+1; k++) {
+				acnt += (H-k)*likelihood[k];
+				bcnt += k*likelihood[k];
+			}
+			double[] scaled = new double[H+1];
+			for(int k=0; k<H+1; k++) 
+				scaled[k] = likelihood[k]+likelihood_s;
+			double s = StatUtils.sum(scaled);
+			for(int k=0; k<H+1; k++) 
+				scaled[k] /= s;
+			return null;
 		}
 
 		public double getLogScale(final int i) {
@@ -348,17 +358,21 @@ public abstract class EmissionModel {
 				return logscale[2];
 		}
 
-		public void updateEmiss(double[] emissA) {
+		public void updateEmiss(double[][] emissA) {
 			if(emiss.length!=emissA.length) 
 				throw new RuntimeException("!!!");
-			if(cov==0) {
-				Arrays.fill(emiss, 1.0/emiss.length);
-				return;
-			}
 			for(int i=0; i<emiss.length; i++)
-				emiss[i] = SaddlePointExpansion.logBinomialProbability(aa, cov, emissA[i]);
+				emiss[i] = calcProbability(emissA[i]);
 			
 			if(!logspace) switchToNormalSpace();
+		}
+
+		private double calcProbability(double[] emissA) {
+			// TODO Auto-generated method stub
+			double p = 0;
+			for(int k=0; k<H+1; k++)
+				p += likelihood[k]*emissA[k];
+			return Math.log(p);
 		}
 
 		public void switchNumericSpace() {
@@ -392,16 +406,20 @@ public abstract class EmissionModel {
 			Arrays.fill(logscale, 0);
 		}
 
-		public int getCov() {
-			return this.cov;
-		}
-
-		public int getAa() {
-			return this.aa;
+		public double[] getGenotypeLikelihood() {
+			return this.likelihood;
 		}
 
 		public double[] getEmiss() {
 			return this.emiss;
+		}
+		
+		public double getACount() {
+			return this.acnt;
+		}
+		
+		public double getBCount() {
+			return this.bcnt;
 		}
 	}
 
@@ -479,10 +497,12 @@ public abstract class EmissionModel {
 		}
 	}
 
+	private List<List<List<Integer>>> comb_hs;
+	
 	protected class EmissionUnit {
 		protected final String[] allele;
 		protected final double[] emiss;
-		protected final double[] emissc;
+		protected final double[][] emissc;
 		protected final double bfrac;
 		protected final double[][] count;
 		protected final double[][][] cnts_prior; // priors for counting
@@ -493,7 +513,7 @@ public abstract class EmissionModel {
 				final double bfrac) {
 			this.allele = allele;
 			this.emiss = new double[H];
-			this.emissc = new double[K];
+			this.emissc = new double[K][H+1];
 			this.bfrac = bfrac;
 			this.count = new double[H][allele.length];
 			this.cnts_prior = new double[K][H/2][2];
@@ -534,19 +554,67 @@ public abstract class EmissionModel {
 		protected void updatec() {
 			// TODO Auto-generated method stub
 			int[][] hsc = state.hsc;
+			double[] emissA = new double[H];
 			for(int i=0; i<emissc.length; i++) {
 				double p = 0, p1;
-				for(int j=0; j<H; j++)
-					p += emiss[hsc[i][j]];
+				for(int j=0; j<H; j++) {
+					emissA[j] = emiss[hsc[i][j]];
+					p += emissA[j];
+				}
 				p1 = H-p;
 				for(int j=0; j<H; j++) {
 					cnts_prior[i][j][0] = emiss[hsc[i][j]]/p;
 					cnts_prior[i][j][1] = (1-emiss[hsc[i][j]])/p1;
 				}
-				emissc[i] = p/H;
+				emissc[i] = poissonBinomialProbability(emissA);
 			}
 		}
 		
+		private double[] poissonBinomialProbability(double[] emissA) {
+			// TODO Auto-generated method stub
+			double[] emiss = new double[H+1];
+			for(int i=0; i<=H; i++) {
+				List<List<Integer>> combs = comb_hs.get(i);
+				double pA = 0;
+				for(List<Integer> comb : combs) {
+					double p = 1.0;
+					int z = 0;
+					for(int j : comb) {
+						for(int k=z; k<j; k++) p *= emiss[k];
+						p *= 1-emiss[j];
+						z = j+1;
+					}
+					for(int k=z; k<H; k++) p *= emiss[k];
+					pA += p;
+				}
+				emiss[i] = pA;
+			}
+			
+			/***
+			 * an alternative method using a recursive formula
+			 * could be helpful for high ploidy levels
+			double[] scalep = new double[H];
+			for(int i=0; i<H; i++) 
+				scalep[i] = emiss[i]/(1-emiss[i]);
+			double[] T = new double[H+1];
+			for(int i=1; i<=H; i++) 
+				for(int j=0; j<H; j++)
+					T[i] += Math.pow(scalep[j], i);
+			double p = 1.0;
+			for(int i=0; i<H; i++) p *= 1-emiss[i];
+			emiss[0] = p;
+			for(int i=1; i<=H; i++) {
+				p = 0;
+				for(int j=1; j<=i; j++) {
+					p += Math.pow(-1, j-1)*emiss[i-j]*T[j];
+				}
+				emiss[i] = p/i;
+			}
+			***/
+			
+			return emiss;
+		}
+
 		protected String[] getAllele() {
 			return this.allele;
 		}
@@ -555,7 +623,7 @@ public abstract class EmissionModel {
 			return this.emiss;
 		}
 		
-		protected double[] getEmissc() {
+		protected double[][] getEmissc() {
 			return this.emissc;
 		}
 		
