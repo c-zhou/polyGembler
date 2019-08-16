@@ -261,6 +261,32 @@ public class ModelReader {
 
 		throw new RuntimeException("!!!");
 	}
+	
+	public int[] getSnpPosition(String scaff) {
+		// TODO Auto-generated method stub
+		try {
+			setEntryReader("snp");
+			List<Integer> pos = new ArrayList<>();
+			String line;
+			String[] s;
+			scaff += "_";
+			while( (line=br.readLine())!=null ) {
+				s = line.split("\\s+");
+				if(s[2].startsWith(scaff)) {
+					s = s[2].split("_");
+					pos.add(Integer.parseInt(s[s.length-1]));
+				}
+			}
+			closeReader();
+			
+			return ArrayUtils.toPrimitive(pos.toArray(new Integer[pos.size()]));
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		throw new RuntimeException("!!!");		
+	}
 
 	public int[] getHapCounts() {
 		// TODO Auto-generated method stub

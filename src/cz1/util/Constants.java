@@ -6,6 +6,7 @@ import org.apache.commons.math3.random.RandomGenerator;
 import org.apache.commons.math3.random.Well19937c;
 
 public class Constants {
+
 	public static long seed = System.nanoTime();
 	public static Random rand = new Random(seed);
 	public static RandomGenerator rg = new Well19937c(seed);
@@ -38,6 +39,11 @@ public class Constants {
 		// TODO Auto-generated method stub
 		rand = new Random(seed);
 		rg = new Well19937c(seed);
+	}
+
+	public static void throwRuntimeException(String message) {
+		// TODO Auto-generated method stub
+		throw new RuntimeException(message);
 	}
 }
 

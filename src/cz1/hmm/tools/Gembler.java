@@ -284,6 +284,8 @@ public class Gembler extends Executor {
 	public void run() {
 		// TODO Auto-generated method stub
 	
+		Constants.throwRuntimeException("feature is under development!!!");
+		
 		Utils.makeOutputDir(out_prefix);
 		String prefix_vcf = new File(in_vcf).getName().
 				replaceAll(".vcf.gz$", "").
