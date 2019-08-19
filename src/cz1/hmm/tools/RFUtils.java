@@ -8,6 +8,8 @@ import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -271,6 +273,15 @@ public abstract class RFUtils extends Executor {
 				drops.add(chr);	
 			} else {
 				myLogger.info("[keep] "+chr+" ("+size+")");
+				Collections.sort(obj, new Comparator<FileObject>() {
+
+					@Override
+					public int compare(FileObject obj0, FileObject obj1) {
+						// TODO Auto-generated method stub
+						return Double.compare(obj1.loglik, obj0.loglik);
+					}
+					
+				});
 				obj.subList(Math.min(best_n, size), size).clear();
 			}
 		}
