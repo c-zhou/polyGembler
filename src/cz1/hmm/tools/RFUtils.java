@@ -125,6 +125,8 @@ public abstract class RFUtils extends Executor {
 				default:
 					throw new RuntimeException("Goodness-of-fit test should be fraction, chisq or gTest.");
 				}
+				
+				if(drop) return;
 
 				modelReader = new ModelReader(file);
 				double[] ll = modelReader.getModelLoglik();
