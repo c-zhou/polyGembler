@@ -113,43 +113,12 @@ public class DataEntry {
 
 	public void reverse() {
 		// TODO Auto-generated method stub
-		this.id = this.id+"#R";
 		reverse(this.position);
 		reverse(this.marker_id);
-		// reverse(this.baf);
 		Collections.reverse(this.allele);
 		Collections.reverse(this.ad);
 		Collections.reverse(this.gl);
 		Collections.reverse(this.gt);
-		rescale();
-	}
-
-	private void rescale() {
-		// TODO Auto-generated method stub
-		double p = this.position[0], c;
-		this.position[0] = 0;
-		for(int i=1; i<this.position.length; i++) {
-			c = this.position[i];
-			this.position[i] = this.position[i-1]+
-					Math.abs(c-p);
-			p = c;
-		}
-	}
-
-	private void reverse(double[][] mat) {
-		// TODO Auto-generated method stub
-		double temp;
-		for (int start=0,end=mat.length-1;
-				start<=end;
-				start++,end--) {
-			for(int i=0; 
-					i<mat[start].length; 
-					i++) {
-				temp = mat[start][i];
-				mat[start][i] = mat[end][i];
-				mat[end][i] = temp;
-			}
-		}
 	}
 
 	private void reverse(double[] arr) {
@@ -187,7 +156,6 @@ public class DataEntry {
 		this.id = this.id+":"+dataEntry.id;
 		add(dataEntry.position, distance);
 		add(dataEntry.marker_id);
-		// add(dataEntry.baf);
 		this.allele.addAll(dataEntry.allele);
 		if(this.ad!=null) this.ad.addAll(dataEntry.ad);
 		if(this.gl!=null) this.gl.addAll(dataEntry.gl);
@@ -199,9 +167,13 @@ public class DataEntry {
 		int n = this.modelLength();
 		double[] position = new double[n+position2.length];
 		System.arraycopy(this.position, 0, position, 0, n);
-		double start = this.position[n-1]+distance-position2[0];
-		for(int i=this.position.length; i<position.length; i++)
-			position[i] = position2[i-this.position.length]+start;
+		double start = this.position[n-1]+distance;
+		position[n] = start;
+		double add_d = 0;
+		for(int i=1; i<position2.length; i++) {
+			add_d += Math.abs(position2[i]-position2[i-1]);
+			position[n+i] = start+add_d;
+		}
 		this.position = position;
 	}
 	

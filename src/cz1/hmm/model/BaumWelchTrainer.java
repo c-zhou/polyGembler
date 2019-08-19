@@ -110,6 +110,11 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		hmm.emission = model.emission;
 		hmm.logspace = model.logspace;
 		hmm.conjs.addAll(model.conjs);
+		hmm.true_id = model.true_id;
+		hmm.true_pos = model.true_pos;
+		hmm.chrs = model.chrs;
+		hmm.chrs_rev = model.chrs_rev;
+		hmm.Ms = model.Ms;
 		hmm.initialise1();
 		hmm.makeNaiveTrainer();
 		return hmm;
@@ -477,6 +482,75 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		return;
 	}
 
+	@Override
+	protected double loglik(int fromIndex, int toIndex) {
+		// TODO Auto-generated method stub
+		if(fromIndex<0||fromIndex>=toIndex||toIndex>M)
+			throw new RuntimeException("!!!");
+		
+		int m = toIndex - fromIndex;
+		double probability = 0;
+
+		for(int i=0; i<N; i++) {
+			
+			Integer[] ss = sspace.get(i);
+			double pi = 1.0/ss.length;
+			
+			double[][] probsMat = new double[m][K];
+			double[] logscale = new double[m];
+			ObUnit[] ob = obs[i];
+			
+			double[] emiss = ob[fromIndex].emiss;
+			TransitionUnit t;
+			
+			for(int k : ss) probsMat[0][k] = pi*emiss[k];
+			logscale[0] = ob[fromIndex].getLogScale(i);
+			double tmp; 
+			
+			for(int j=1; j<m; j++) {
+				
+				emiss = ob[fromIndex+j].emiss;
+				t = transition[fromIndex+j-1];
+				
+				for(int k : ss) {
+					tmp = 0;
+					for(int z : ss)
+						tmp += probsMat[j-1][z]
+								*t.trans(z, k);
+					probsMat[j][k] = emiss[k]*tmp;
+				}
+				
+				logscale[j] = ob[fromIndex+j].getLogScale(i);
+				scale(logscale, probsMat, j);
+			}
+			probability += Math.log(StatUtils.sum(probsMat[m-1]))+logscale[m-1];
+		}
+
+		return probability;	
+	}
+	
+	protected void scale(final double[] logscale, final double[][] probsMat, final int i) {
+		// TODO Auto-generated method stub
+		double[] probs = probsMat[i];
+		double min = Double.POSITIVE_INFINITY,
+				max = Double.NEGATIVE_INFINITY;
+		for(int k=0; k<probs.length; k++) {
+			if(probs[k]>0) {
+				min = probs[k]<min ? probs[k] : min;
+				max = probs[k]>max ? probs[k] : max;
+			}
+		}
+
+		logscale[i] += logscale[i-1];
+		if(min<Constants.threshMin &&
+				max<Constants.threshMax) {
+			logscale[i] += 
+					Constants.logThreshMax;
+			for(int k=0; k<probs.length; k++)
+				probs[k] /= Constants.threshMax;
+		}
+	}
+	
 	@Override
 	public void check() {
 		// TODO Auto-generated method stub

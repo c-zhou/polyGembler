@@ -21,7 +21,7 @@ public class AssemblyError extends RFUtils {
 	private final static Logger myLogger = Logger.getLogger(AssemblyError.class);
 	
 	private String out_prefix;
-	private double rf_thresh = 0.2;
+	private double rf_thresh = 0.1;
 	private int wbp = 30000;
 	private int wnm = 30;
 	private String in_vcf = null;
@@ -196,29 +196,23 @@ public class AssemblyError extends RFUtils {
 				List<FileObject> objs = fileObj.get(scaff);
 				final int n = objs.size();
 				ModelReader modelReader = new ModelReader(objs.get(0).file);
-				int[] distance = modelReader.getDistance();
 				int[] pos = modelReader.getSnpPosition(scaff);
 				modelReader.close();
-				int lb = objs.get(0).position[0], 
-						ub = objs.get(0).position[1];
-				final int m = ub-lb+1;
+				int m = pos.length;
 				final int deno = n*nF1*ploidy;
-				int[] position = new int[m];
-				for(int i=0; i<m; i++) position[i] = lb+i;
 				int[] dists = new int[m-1];
-				System.arraycopy(distance, lb, dists, 0, m-1);
-				if(pos.length!=m) throw new RuntimeException("!!!");
+				for(int i=0; i<dists.length; i++) dists[i] = pos[i+1]-pos[i];
 				
 				final List<Map<String, char[][]>> haplotypes = new ArrayList<>();
 				double[][] jumps = new double[n][];
 				for(int i=0; i<n; i++) {
 					FileObject obj = objs.get(i);
 					modelReader = new ModelReader(obj.file);
-					Map<String, char[][]> haps = modelReader.getHaplotypeByPosition(position, ploidy);
+					Map<String, char[][]> haps = modelReader.getHaplotypeByPositionRange(obj.position, ploidy);
 					modelReader.close();
 					for(String f : parents) haps.remove(f);
 					haplotypes.add(haps);
-				
+					
 					double[] jump = new double[m-1];
 					char[] h;
 					for(char[][] hap : haps.values()) {

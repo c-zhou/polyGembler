@@ -60,184 +60,113 @@ public abstract class RFUtils extends Executor {
 
 	protected class FileObject {
 		protected final String file;
-		protected final String[] markers; 
 		protected final int[] position;
-
+		protected final double loglik;
+		
 		public FileObject(String file, 
-				String[] markers,
-				int[] position) {
+				int[] position,
+				double loglik) {
 			this.file = file;
-			this.markers = markers;
 			this.position = position;
+			this.loglik = loglik;
 		}
 	}
 
 	protected class FileLoader implements Runnable {
-		private final String[] files;
+		private final String file;
 
-		public FileLoader(String[] files) {
-			this.files = files;
+		public FileLoader(String file) {
+			this.file = file;
 		}
 		
 		@Override
 		public void run() {
 			// TODO Auto-generated method stub
 			try {
-				String id = new File(files[0]).getName().replace(expr_id,"experiment").split("\\.")[1];
-				
-				double[] ll = new double[files.length];
-				for(int i=0; i<ll.length; i++) {
-					ModelReader modelReader = new ModelReader(files[i]);
-					ll[i] = modelReader.getLoglik();
-					modelReader.close();
-				}
-				
-				int[] maxN = maxN(ll);
-				StringBuilder oos = new StringBuilder(id+"\n");
-				boolean[] drop = new boolean[maxN.length];
-				int dropped = 0;
-				for(int k=0; k<maxN.length; k++) {
-					ModelReader modelReader = new ModelReader(files[maxN[k]]);
-					int[] haps_observed = modelReader.getHapCounts();
-					modelReader.close();
-					
-					long[] observed;
-					double p;
-					switch(goodness_of_fit) {
-					case "fraction":
-						double[] phases = new double[ploidy*2];
-						for(int z=0; z<phases.length; z++) 
-							phases[z] = (double) haps_observed[z];
-						double expected = StatUtils.sum(phases)/ploidy/2;
-						double maf = StatUtils.max(phases)/expected, 
-								mif = StatUtils.min(phases)/expected;
-						if( maf>skew_phi || mif<1/skew_phi) {
-							myLogger.info(files[maxN[k]]+
-									" was dropped due to large haploptype frequency variance. (" +
-									cat(phases, ",") +")");
-							drop[k] = true;
-						}
-						if(drop[k]) dropped++;
-						oos.append("["+(drop[k]?"drop](maf,":"keep](maf,")+maf+";mif,"+mif+") "+
-								cat(haps_observed,",")+"\t"+
-								files[maxN[k]]+"\n");
-						break;
-					case "chisq":
-						observed = new long[ploidy*2];
-						for(int z=0; z<observed.length; z++) 
-							observed[z] = (long) haps_observed[z];
-						p = new ChiSquareTest().chiSquareTest(probs_uniform, observed);
-						if(p<skew_phi) drop[k] = true;
-						if(drop[k]) dropped++;
-						oos.append("["+(drop[k]?"drop](p,":"keep](p,")+formatter.format(p)+") "+
-								cat(haps_observed,",")+"\t"+
-								files[maxN[k]]+"\n");
-						break;
-					case "gtest":
-						observed = new long[ploidy*2];
-						for(int z=0; z<observed.length; z++) 
-							observed[z] = (long) haps_observed[z];
-						p = new GTest().gTest(probs_uniform, observed);
-						if(p<skew_phi) drop[k] = true;
-						if(drop[k]) dropped++;
-						oos.append("["+(drop[k]?"drop](p,":"keep](p,")+formatter.format(p)+") "+
-								cat(haps_observed,",")+"\t"+
-								files[maxN[k]]+"\n");
-						break;
-					default:
-						throw new RuntimeException("Goodness-of-fit test should be fraction, chisq or gTest.");
-					}
-				}
-				myLogger.info(oos.toString());
-				myLogger.info(id+" - dropped "+dropped);
-				if( drop.length-dropped<drop_thres ) {
-					myLogger.info("Scaffold "+id+" dropped.");
-					return;
-				}
-				
-				List<String> selected = new ArrayList<>(); 
-				int z=0;
-				for(int k=0; k<drop.length; k++) {
-					if(!drop[k]) {
-						selected.add(files[maxN[k]]);
-						z++;
-					}
-					if(z>=best_n) break;
-				}
-				
-				List<String> scaff_all = new ArrayList<String>();
-				String[][] markers = null;
-				int[][] positions = null;
-				int scaff_n = 0;
-				
-				ModelReader modelReader = new ModelReader(selected.get(0));
-				List<String> snpId = modelReader.getSnpId();
+				ModelReader modelReader = new ModelReader(file);
+				int[] haps_observed = modelReader.getHapCounts();
 				modelReader.close();
-				List<List<String>> markers_all = new ArrayList<List<String>>();
-
-				String marker = snpId.get(0);
-				String scaff_prev = marker.replaceAll("_[0-9]{1,}$", ""), scaff;
-				scaff_all.add(scaff_prev);
-				markers_all.add(new ArrayList<String>());
-				int n = 0;
-				markers_all.get(n).add(marker);
-				for(int i=1; i<snpId.size(); i++) {
-					marker = snpId.get(i);
-					scaff = marker.replaceAll("_[0-9]{1,}$", "");
-					if(scaff.equals(scaff_prev))
-						markers_all.get(n).add(marker);
-					else {
-						markers_all.add(new ArrayList<String>());
-						n++;
-						markers_all.get(n).add(marker);
-						scaff_prev = scaff;
-						scaff_all.add(scaff_prev);
-					}
+					
+				long[] observed;
+				double p;
+				boolean drop = false;
+				switch(goodness_of_fit) {
+				case "fraction":
+					double[] phases = new double[ploidy*2];
+					for(int z=0; z<phases.length; z++) 
+						phases[z] = (double) haps_observed[z];
+					double expected = StatUtils.sum(phases)/ploidy/2;
+					double maf = StatUtils.max(phases)/expected, 
+							mif = StatUtils.min(phases)/expected;
+					if( maf>skew_phi || mif<1/skew_phi) drop = true;
+					myLogger.info("["+(drop?"drop](maf,":"keep](maf,")+maf+";mif,"+mif+") "+
+							Utils.paste(haps_observed,",")+"\t"+file);
+					break;
+				case "chisq":
+					observed = new long[ploidy*2];
+					for(int z=0; z<observed.length; z++) 
+						observed[z] = (long) haps_observed[z];
+					p = new ChiSquareTest().chiSquareTest(probs_uniform, observed);
+					if(p<skew_phi) drop = true;
+					myLogger.info("["+(drop?"drop](p,":"keep](p,")+formatter.format(p)+") "+
+							Utils.paste(haps_observed,",")+"\t"+file);
+					break;
+				case "gtest":
+					observed = new long[ploidy*2];
+					for(int z=0; z<observed.length; z++) 
+						observed[z] = (long) haps_observed[z];
+					p = new GTest().gTest(probs_uniform, observed);
+					if(p<skew_phi) drop = true;
+					myLogger.info("["+(drop?"drop](p,":"keep](p,")+formatter.format(p)+") "+
+							Utils.paste(haps_observed,",")+"\t"+file);
+					break;
+				default:
+					throw new RuntimeException("Goodness-of-fit test should be fraction, chisq or gTest.");
 				}
+
+				modelReader = new ModelReader(file);
+				double[] ll = modelReader.getModelLoglik();
+				String[] chrs = modelReader.getChrs();
+				boolean[] chrs_rev = modelReader.getChrsRev();
+				int[] model_length = modelReader.getModelLength();
+				modelReader.close();
+				
+				int chrs_n = chrs.length;
+				int[][] positions = new int[chrs_n][2];
 				
 				int cuv = 0;
-				scaff_n = scaff_all.size();
-				markers = new String[scaff_n][];
-				positions = new int[scaff_n][2];
-				for(int i=0; i<scaff_n; i++) {
-					markers[i] = new String[markers_all.get(i).size()];
-					markers_all.get(i).toArray(markers[i]);
-					int s = Integer.parseInt(markers[i][0].
-							replaceAll(".*[^\\d](\\d+).*", "$1")),
-							e = Integer.parseInt(markers[i][1].
-									replaceAll(".*[^\\d](\\d+).*", "$1"));
-					if(s<=e) {
-						positions[i][0] = cuv;
-						cuv += markers[i].length;
-						positions[i][1] = cuv-1;
-					} else {
+				for(int i=0; i<chrs_n; i++) {
+					if(chrs_rev[i]) {
 						positions[i][1] = cuv;
-						cuv += markers[i].length;
+						cuv += model_length[i];
 						positions[i][0] = cuv-1;
+					} else {
+						positions[i][0] = cuv;
+						cuv += model_length[i];
+						positions[i][1] = cuv-1;
 					}
 				}
 				
 				// conjunctive pairs
-				for(int i=0; i<scaff_n; i++) {
-					String scaff_i = scaff_all.get(i);
-					for(int j=i+1; j<scaff_n; j++) {
-						String scaff_j = scaff_all.get(j);
+				for(int i=0; i<chrs_n; i++) {
+					String scaff_i = chrs[i];
+					for(int j=i+1; j<chrs_n; j++) {
+						String scaff_j = chrs[j];
 						conjPair.add(scaff_i+Constants.collapsed_str+scaff_j);
 						conjPair.add(scaff_j+Constants.collapsed_str+scaff_i);
 					}
 				}
 
-				for(String file : selected) {
-					for(int j=0; j<scaff_n; j++) {
-						scaff = scaff_all.get(j); 
-						synchronized(lock) {
-							if(!fileObj.containsKey(scaff))
-								fileObj.put(scaff, new ArrayList<>());
-							fileObj.get(scaff).add(new FileObject(
-									file,
-									markers[j],
-									positions[j]));
-						}
+				String chr;
+				for(int j=0; j<chrs_n; j++) {
+					chr = chrs[j]; 
+					synchronized(lock) {
+						if(!fileObj.containsKey(chr))
+							fileObj.put(chr, new ArrayList<>());
+						fileObj.get(chr).add(new FileObject(
+								file,
+								positions[j],
+								ll[j]));
 					}
 				}
 			} catch (Exception e) {
@@ -248,68 +177,7 @@ public abstract class RFUtils extends Executor {
 				executor.shutdown();
 				System.exit(1);
 			}
-		}
-		
-		protected int[] maxN(double[] ll) {
-			double[] ll0 = Arrays.copyOf(ll, ll.length);
-			int n = ll.length;
-			int[] maxN = new int[n];
-			Arrays.fill(maxN, -1);
-			for(int k=0; k<n; k++) {
-				if(k>=ll0.length) return maxN;
-				int p = 0;
-				double e = Double.NEGATIVE_INFINITY;
-				for(int s=0; s<ll0.length; s++)
-					if(ll0[s]>e) {
-						e = ll0[s];
-						p = s;
-					}
-				maxN[k] = p;
-				ll0[p] = Double.NEGATIVE_INFINITY;
-			}
-			return maxN;
-		}
-
-		protected int[] maxN(double[] ll, int N) {
-			double[] ll0 = Arrays.copyOf(ll, ll.length);
-			int[] maxN = new int[N];
-			Arrays.fill(maxN, -1);
-			for(int k=0; k<N; k++) {
-				if(k>=ll0.length) return maxN;
-				int p = 0;
-				double e = Double.NEGATIVE_INFINITY;
-				for(int s=0; s<ll0.length; s++)
-					if(ll0[s]>e) {
-						e = ll0[s];
-						p = s;
-					}
-				maxN[k] = p;
-				ll0[p] = Double.NEGATIVE_INFINITY;
-			}
-			return maxN;
-		}
-	}
-	
-	protected static String cat(double[] array, String sep) {
-		String s = ""+array[0];
-		for(int i=1; i<array.length; i++)
-			s += sep+array[i];
-		return s;
-	}
-	
-	protected String cat(long[] array, String sep) {
-		// TODO Auto-generated method stub
-		String s = ""+array[0];
-		for(int i=1; i<array.length; i++)
-			s += sep+array[i];
-		return s;
-	}
-
-	protected static String cat(int[] array, String sep) {
-		String s = ""+array[0];
-		for(int i=1; i<array.length; i++)
-			s += sep+array[i];
-		return s;
+		}	
 	}
 	
 	protected String guessExperimentId() {
@@ -388,37 +256,25 @@ public abstract class RFUtils extends Executor {
 		Arrays.fill(probs_uniform, .5/ploidy);
 		myLogger.info(nF1+" F1 samples in the experiment.");
 
-		Map<String, List<String>> map = new HashMap<String, List<String>>();
-		List<String> list;
-		String[] s;
-		for(File file:listFiles) {
-			String name = file.getName();
-			if( name.startsWith(expr_id) ) {
-				name = name.replace(expr_id,"experiment");
-				s = name.split("\\.");
-
-				if(map.get(s[1])==null) {
-					list = new ArrayList<String>();
-					list.add(file.getAbsolutePath());
-					map.put(s[1], list);
-				} else{
-					map.get(s[1]).add(file.getAbsolutePath());
-				}
-			}
-		}
-		
-		String[] keys = new String[map.keySet().size()];
-		map.keySet().toArray(keys);
-
 		this.initial_thread_pool();
-		for(int i=0; i<keys.length; i++) {
-			List<String> files = map.get(keys[i]);
-			executor.submit(new FileLoader(
-					files.toArray(new String[files.size()])));
-		}
+		for(File f : listFiles) 
+			executor.submit(new FileLoader(f.getAbsolutePath()));
 		this.waitFor();
 		
-		myLogger.info(map.keySet().size());
+		Set<String> drops = new HashSet<>();
+		int size;
+		for(String chr : fileObj.keySet()) {
+			List<FileObject> obj = fileObj.get(chr);
+			size = obj.size();
+			if(size<drop_thres) {
+				myLogger.info("[drop] "+chr+" ("+size+")");
+				drops.add(chr);	
+			} else {
+				myLogger.info("[keep] "+chr+" ("+size+")");
+				obj.subList(Math.min(best_n, size), size).clear();
+			}
+		}
+		fileObj.keySet().removeAll(drops);
 	}
 	
 	/** 

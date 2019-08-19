@@ -7,7 +7,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.math.stat.StatUtils;
 import org.apache.log4j.Logger;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleDirectedWeightedGraph;
@@ -173,22 +172,18 @@ public class SinglePointAnalysis extends RFUtils {
 				List<FileObject> objs = fileObj.get(scaff);
 				final int n = objs.size();
 				ModelReader modelReader = new ModelReader(objs.get(0).file);
-				int[] distance = modelReader.getDistance();
+				int[] pos = modelReader.getSnpPosition(scaff);
 				modelReader.close();
-				int lb = objs.get(0).position[0], 
-						ub = objs.get(0).position[1];
-				final int m = ub-lb+1;
+				int m = pos.length;
 				final int deno = n*nF1*ploidy;
-				int[] position = new int[m];
-				for(int i=0; i<m; i++) position[i] = lb+i;
 				int[] dists = new int[m-1];
-				System.arraycopy(distance, lb, dists, 0, m-1);
+				for(int i=0; i<dists.length; i++) dists[i] = pos[i+1]-pos[i];
 				
 				final List<Map<String, char[][]>> haplotypes = new ArrayList<>();
 				for(int i=0; i<n; i++) {
 					FileObject obj = objs.get(i);
 					modelReader = new ModelReader(obj.file);
-					Map<String, char[][]> haps = modelReader.getHaplotypeByPosition(position, ploidy);
+					Map<String, char[][]> haps = modelReader.getHaplotypeByPositionRange(obj.position, ploidy);
 					modelReader.close();
 					for(String f : parents) haps.remove(f);
 					haplotypes.add(haps);
@@ -299,8 +294,8 @@ public class SinglePointAnalysis extends RFUtils {
 				
 				synchronized(lock) {
 					rfWriter.write("C "+scaff+"\n");
-					rfWriter.write("D "+Utils.cat(ds, ",")+"\n");
-					rfWriter.write(Utils.cat(rs, ",")+"\n");
+					rfWriter.write("D "+Utils.paste(ds, ",")+"\n");
+					rfWriter.write(Utils.paste(rs, ",")+"\n");
 				}
 				
 			} catch (Exception e) {

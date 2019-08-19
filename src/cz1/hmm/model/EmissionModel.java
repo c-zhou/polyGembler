@@ -20,6 +20,7 @@ import cz1.math.Combination;
 import cz1.math.SaddlePointExpansion;
 import cz1.util.Constants;
 import cz1.util.Constants.Field;
+import cz1.util.Utils;
 
 public abstract class EmissionModel {
 	
@@ -51,8 +52,11 @@ public abstract class EmissionModel {
 	protected final List<Integer> conjs = new ArrayList<>(); // conjunctive position
 	
 	protected boolean logspace;
+	protected String[] chrs;
+	protected boolean[] chrs_rev;
 	
 	abstract double loglik();
+	abstract double loglik(int fromMIndex, int toMIndex);
 	abstract double findPath();
 	abstract void write(String output, 
 			String experiment, 
@@ -86,16 +90,41 @@ public abstract class EmissionModel {
 		// TODO Auto-generated constructor stub
 		super();
 	}
-
+	
+	protected String[] true_id;
+	protected int[] true_pos;
+	protected int[] Ms;
+	
 	protected DataEntry catDE(DataEntry[] de, 
 			double[] seperation, 
 			boolean[] reverse) {
 		// TODO Auto-generated method stub
+		int M = 0;
+		chrs = new String[de.length];
+		chrs_rev = new boolean[de.length];
+		System.arraycopy(reverse, 0, chrs_rev, 0, reverse.length);
+		Ms = new int[de.length];
+		for(int i=0; i<de.length; i++) {
+			M += de[i].modelLength();
+			chrs[i] = de[i].getId();
+			Ms[i] = de[i].modelLength();
+		}
+		true_id = new String[M];
+		true_pos = new int[M];
 		for(int i=0; i<de.length; i++)
 			if(reverse[i]) de[i].reverse();
+		int m = 0;
+		int[] pos = de[0].getIntegerPosition();
+		Arrays.fill(true_id, 0, pos.length, de[0].getId());
+		System.arraycopy(pos, 0, true_pos, m, pos.length);
+		m += pos.length;
 		for(int i=1; i<de.length; i++) {
 			conjs.add(de[0].modelLength());
 			de[0].addAll(de[i], seperation[i-1]);
+			pos = de[i].getIntegerPosition();
+			Arrays.fill(true_id, m, m+pos.length, de[i].getId());
+			System.arraycopy(pos, 0, true_pos, m, pos.length);
+			m += pos.length;
 		}
 		return de[0];
 	}
@@ -126,7 +155,7 @@ public abstract class EmissionModel {
 		double[] position = de.getPosition();
 		this.distance = new double[this.M-1];
 		for(int i=0; i<distance.length; i++)
-			distance[i] = position[i+1]-position[i];
+			distance[i] = Math.abs(position[i+1]-position[i]);
 		this.sspace = new ArrayList<>(N);
 		for(int i=0; i<N; i++) sspace.add(null);
 		sspace.set(parents_i[0], new Integer[]{0});
@@ -757,6 +786,10 @@ public abstract class EmissionModel {
 					os.append("\t");
 					os.append((int) position[i]);
 					os.append("\t");
+					os.append(true_id[i]);
+					os.append("\t");
+					os.append(true_pos[i]);
+					os.append("\t");
 					os.append(markers_id[i]);
 					os.append("\t");
 					os.append(allele.get(i)[0]);
@@ -781,9 +814,16 @@ public abstract class EmissionModel {
 				out.write(("##progeny:").getBytes());
 				for(int i : progeny_i) out.write((" "+samples[i]).getBytes());
 				out.write(("\n").getBytes());
-				out.write(("##distance:").getBytes());
-				for(double d : distance) out.write( (" "+(int)d).getBytes());
-				out.write(("\n").getBytes());
+				out.write(("##chrs: "+Utils.paste(chrs, ",")+"\n").getBytes());
+				out.write(("##chrs_rev: "+Utils.paste(chrs_rev, ",")+"\n").getBytes());
+				out.write(("##model_len: "+Utils.paste(Ms, ",")+"\n").getBytes());
+				double[] model_ll = new double[Ms.length];
+				int k = 0;
+				for(int i=0; i<Ms.length; i++) {
+					model_ll[i] = loglik(k, k+Ms[i]);
+					k += Ms[i];
+				}
+				out.write(("##model_ll: "+Utils.paste(model_ll, ",")+"\n").getBytes());
 				out.write(("##seed: "+Constants.seed+"\n").getBytes());
 				out.write(("##iteration: "+iteration+"\n").getBytes());
 				out.write(("##loglik: "+loglik()+"\n").getBytes());

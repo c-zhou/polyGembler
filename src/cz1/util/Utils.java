@@ -174,21 +174,21 @@ public class Utils {
         return null;
     }
     
-	public static String cat(double[] array, String sep) {
+	public static String paste(double[] array, String collapse) {
 		StringBuilder s = new StringBuilder();
 		s.append(array[0]);
 		for(int i=1; i<array.length; i++) {
-			s.append(sep);
+			s.append(collapse);
 			s.append(array[i]);
 		}
 		return s.toString();
 	}
 	
-	public static String cat(int[] array, String sep) {
+	public static String paste(int[] array, String collapse) {
 		StringBuilder s = new StringBuilder();
 		s.append(array[0]);
 		for(int i=1; i<array.length; i++) {
-			s.append(sep);
+			s.append(collapse);
 			s.append(array[i]);
 		}
 		return s.toString();
@@ -196,5 +196,27 @@ public class Utils {
 	
 	public static String fixedLengthPaddingString(String str, int len) {
 	    return String.format("%1$"+len+ "s", str);
+	}
+
+	public static String paste(String[] array, String collapse) {
+		// TODO Auto-generated method stub
+		StringBuilder s = new StringBuilder();
+		s.append(array[0]);
+		for(int i=1; i<array.length; i++) {
+			s.append(collapse);
+			s.append(array[i]);
+		}
+		return s.toString();
+	}
+
+	public static String paste(boolean[] array, String collapse) {
+		// TODO Auto-generated method stub
+		StringBuilder s = new StringBuilder();
+		s.append(array[0]);
+		for(int i=1; i<array.length; i++) {
+			s.append(collapse);
+			s.append(array[i]);
+		}
+		return s.toString();
 	}
 }

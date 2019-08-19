@@ -2,11 +2,15 @@ package cz1.hmm.model;
 
 import java.util.Arrays;
 
+import org.apache.log4j.Logger;
+
 import cz1.hmm.data.DataEntry;
 import cz1.math.Algebra;
 import cz1.util.Constants.Field;
 
 public class ModelTrainer extends EmissionModel implements ForwardBackwardTrainer {
+	
+	private final static Logger myLogger = Logger.getLogger(ModelTrainer.class);
 	
 	private FBUnit[] forward, backward;
 	
@@ -27,7 +31,7 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 		refresh();
 		forward();
 		backward();
-		check();
+		check();	
 		em();
 		++iteration;
 	}
@@ -51,6 +55,40 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 		return 0;
 	}
 
+	@Override
+	protected double loglik(int fromIndex, int toIndex) {
+		// TODO Auto-generated method stub
+		if(fromIndex<0||fromIndex>=toIndex||toIndex>M)
+			throw new RuntimeException("!!!");
+		
+		int m = toIndex - fromIndex;
+		double probability = 0;
+		for(int i=0; i<N; i++) {
+
+			Integer[] ss = sspace.get(i);
+			double pi = Math.log(1.0/ss.length);
+
+			double[][] probsMat = new double[m][K];
+			for(int j=0; j<m; j++)
+				Arrays.fill(probsMat[j], Double.NEGATIVE_INFINITY);
+				
+			ObUnit[] ob = obs[i];
+
+			double[] emiss = ob[fromIndex].emiss;
+			
+			for(int k : ss) probsMat[0][k] = pi+emiss[k];
+
+			for(int j=1; j<m; j++) {
+
+				emiss = ob[fromIndex+j].emiss;
+				for(int k : ss)
+					probsMat[j][k] = emiss[k]+probsMat[j-1][k];	
+			}
+			probability += Algebra.sumExps(probsMat[m-1]);
+		}
+		return probability;	
+	}
+	
 	@Override
 	public void forward() {
 		// TODO Auto-generated method stub

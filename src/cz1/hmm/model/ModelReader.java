@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -174,25 +175,6 @@ public class ModelReader {
 		throw new RuntimeException("!!!");
 	}
 
-	public int[] getDistance() {
-		// TODO Auto-generated method stub
-		try {
-			setEntryReader("runinfo");
-			String line;
-			while(!(line=br.readLine()).startsWith("##distance")) {}
-			String[] s = line.trim().split("\\s+");
-			int[] distance = new int[s.length-1];
-			for(int i=1; i<s.length; i++) 
-				distance[i-1] = Integer.parseInt(s[i]);
-			closeReader();
-			return distance;
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		throw new RuntimeException("!!!");
-	}
-
 	public long getRandomSeed() {
 		// TODO Auto-generated method stub
 		try {
@@ -227,6 +209,84 @@ public class ModelReader {
 		throw new RuntimeException("!!!");
 	}
 
+	public String[] getChrs() {
+		// TODO Auto-generated method stub
+		try {
+			setEntryReader("runinfo");
+			String line;
+			while(!(line=br.readLine()).startsWith("##chrs")) {}
+			String[] chrs = line.split("\\s+")[1].trim().split(",");
+			closeReader();
+			return chrs;
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		throw new RuntimeException("!!!");
+	}
+
+	public boolean[] getChrsRev() {
+		// TODO Auto-generated method stub
+		try {
+			setEntryReader("runinfo");
+			String line;
+			while(!(line=br.readLine()).startsWith("##chrs_rev")) {}
+			String[] revs = line.split("\\s+")[1].trim().split(",");
+			closeReader();
+			boolean[] chrs_rev = new boolean[revs.length];
+			for(int i=0; i<revs.length; i++) 
+				chrs_rev[i] = Boolean.parseBoolean(revs[i]);
+			return chrs_rev;
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		throw new RuntimeException("!!!");
+	}
+
+	public int[] getModelLength() {
+		// TODO Auto-generated method stub
+		try {
+			setEntryReader("runinfo");
+			String line;
+			while(!(line=br.readLine()).startsWith("##model_len")) {}
+			String[] lens = line.split("\\s+")[1].trim().split(",");
+			closeReader();
+			int[] modelLength = new int[lens.length];
+			for(int i=0; i<lens.length; i++) 
+				modelLength[i] = Integer.parseInt(lens[i]);
+			return modelLength;
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		throw new RuntimeException("!!!");
+	}
+
+
+	public double[] getModelLoglik() {
+		// TODO Auto-generated method stub
+		try {
+			setEntryReader("runinfo");
+			String line;
+			while(!(line=br.readLine()).startsWith("##model_ll")) {}
+			String[] lls = line.split("\\s+")[1].trim().split(",");
+			closeReader();
+			double[] model_ll = new double[lls.length];
+			for(int i=0; i<lls.length; i++) 
+				model_ll[i] = Double.parseDouble(lls[i]);
+			return model_ll;
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		throw new RuntimeException("!!!");
+	}
+	
 	public double getLoglik() {
 		// TODO Auto-generated method stub
 		try {
@@ -244,24 +304,6 @@ public class ModelReader {
 		throw new RuntimeException("!!!");
 	}
 
-	public List<String> getSnpId() {
-		// TODO Auto-generated method stub
-		try {
-			setEntryReader("snp");
-			List<String> snps = new ArrayList<>();
-			String line;
-			while( (line=br.readLine())!=null )
-				snps.add(line.split("\\s+")[2]);
-			closeReader();
-			return snps;
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-
-		throw new RuntimeException("!!!");
-	}
-	
 	public int[] getSnpPosition(String scaff) {
 		// TODO Auto-generated method stub
 		try {
@@ -269,15 +311,13 @@ public class ModelReader {
 			List<Integer> pos = new ArrayList<>();
 			String line;
 			String[] s;
-			scaff += "_";
 			while( (line=br.readLine())!=null ) {
 				s = line.split("\\s+");
-				if(s[2].startsWith(scaff)) {
-					s = s[2].split("_");
-					pos.add(Integer.parseInt(s[s.length-1]));
-				}
+				if(s[2].equals(scaff)) 
+					pos.add(Integer.parseInt(s[3]));
 			}
 			closeReader();
+			if(pos.get(0)>pos.get(1)) Collections.reverse(pos);
 			
 			return ArrayUtils.toPrimitive(pos.toArray(new Integer[pos.size()]));
 		} catch (IOException e) {
@@ -331,6 +371,46 @@ public class ModelReader {
 				states = s[s.length-1];
 				for(int j=0; j<P; j++)
 					hap[i][j] = states.charAt(position[j]);
+				++i;
+				if(i==ploidy) {
+					haps.put(s[2].split(":")[0], hap);
+					hap = new char[ploidy][P];
+					i = 0;
+				}
+			}
+			closeReader();
+			return haps;
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		throw new RuntimeException("!!!");
+	}
+	
+	public Map<String, char[][]> getHaplotypeByPositionRange(int[] position, int ploidy) {
+		// TODO Auto-generated method stub
+		try {
+			setEntryReader("haplotype");
+			final Map<String, char[][]> haps = new HashMap<>();
+			final int P = Math.abs(position[0]-position[1])+1;
+			final boolean rev = position[0]>position[1];
+			String line, states;
+			String[] s;
+
+			char[][] hap = new char[ploidy][P];
+			int i = 0;
+			while( (line=br.readLine())!=null ) {
+				if(!line.startsWith("#")) continue;
+				s = line.split("\\s+");
+				states = s[s.length-1];
+				if(rev) {
+					for(int j=0; j<P; j++)
+						hap[i][j] = states.charAt(position[0]-j);	
+				} else {
+					for(int j=0; j<P; j++)
+						hap[i][j] = states.charAt(position[0]+j);
+				}
 				++i;
 				if(i==ploidy) {
 					haps.put(s[2].split(":")[0], hap);
