@@ -125,33 +125,6 @@ public class Pseudomolecule extends Executor {
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		
-		/**
-		double bp_all=0, cm_all=0;
-		for(String scf : scaffolds.keySet()) {
-			scaffold = scaffolds.get(scf);
-			bp_all += scaffold.size;
-			cm_all += scaffold.gL;
-		}
-		double units = bp_all/cm_all;
-		myLogger.info(units);
-		List<Double> bp_cm = new ArrayList<Double>();
-		for(String scf : scaffolds.keySet()) {
-			scaffold = scaffolds.get(scf);
-			if(scaffold.gL>0)
-				bp_cm.add(scaffold.size/scaffold.gL);
-		}
-		Double[] unit_all = new Double[bp_cm.size()];
-		bp_cm.toArray(unit_all);
-		double sum = 0;
-		for(int i=0; i<unit_all.length; i++) sum+=unit_all[i];
-		double units2 = sum/unit_all.length;
-		double rms = 0;
-		for(int i=0; i<unit_all.length; i++) 
-			rms+=Math.pow(unit_all[i]-units2,2);
-		double unitsD = Math.sqrt(rms/(unit_all.length-1));
-		myLogger.info(units2+" "+unitsD);
-		**/
 		if( this.coverage()<this.frac_thresh) {
 			myLogger.info("The coverage of genetic linkage maps is too small "
 				+ "for pseudomolecules construction: "+this.coverage());

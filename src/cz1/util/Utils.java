@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.nio.file.Files;
 import java.util.Calendar;
 import java.text.SimpleDateFormat;
 
@@ -33,12 +34,26 @@ public class Utils {
 				format(Calendar.getInstance().getTime());
 	}
 	
-	public static void makeOutputDir(String dir) {
+	public static boolean makeOutputDir(File file) {
 		// TODO Auto-generated method stub
-		File out = new File(dir);
-		if(!out.exists() || out.exists()&&!out.isDirectory()) {
-			out.mkdir();
+		if(!file.exists() || file.exists()&&!file.isDirectory()) {
+			file.mkdir();
+			return true;
+		} else {
+			return false;
 		}
+	}
+	
+	public static void deleteDirectory(File file) {
+		File[] contents = file.listFiles();
+	    if (contents != null) {
+	        for (File f : contents) {
+	            if (! Files.isSymbolicLink(f.toPath())) {
+	            	deleteDirectory(f);
+	            }
+	        }
+	    }
+	    file.delete();
 	}
 
     public static BufferedReader getBufferedReader(String inSourceName) {

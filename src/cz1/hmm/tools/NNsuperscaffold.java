@@ -63,7 +63,7 @@ public class NNsuperscaffold extends Executor {
 	public void run() {
 		// TODO Auto-generated method stub
 		final String temfile_prefix = ".tmp/";
-		Utils.makeOutputDir(temfile_prefix);
+		final boolean tmpdirCreated = Utils.makeOutputDir(new File(temfile_prefix));
 		final String concorde_path = 
 				RFUtils.makeExecutable("cz1/hmm/executable/concorde", temfile_prefix);
 		final String nnssR_path = 
@@ -78,7 +78,8 @@ public class NNsuperscaffold extends Executor {
 				+ "--concorde "+new File(concorde_path).getParent()
 				+ (RLibPath==null ? "" : " --include "+RLibPath);
 		this.consume(this.bash(command));
-		new File(temfile_prefix).delete();
+		
+		if(tmpdirCreated) Utils.deleteDirectory(new File(temfile_prefix));
 	}
 
 }

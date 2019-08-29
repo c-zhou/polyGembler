@@ -57,7 +57,22 @@ ordering <- function(all, distanceAll, indexMat, method="concorde") {
                                    error=0));
 
     d = distTSP(all, distanceAll, indexMat)
-    tour = solve_TSP(TSP(d$dMat), method)
+    
+    if("R.utils" %in% (.packages())) {
+    	tour = null
+    	att = 0
+    	timeout = 900
+		while(is.null(tour)&&att<10) {
+    		tour = withTimeout(solve_TSP(TSP(d$dMat), method), timeout=timeout, onTimeout="silent")
+    		att = att+1
+    		if(is.null(tour)) warning(paste0("Solving TSP failed in attempt: ", att, ", in time limit: "+timeout+"s."))
+    	}
+    } else {
+    	tour = solve_TSP(TSP(d$dMat), method)
+    }
+    
+    if(tour==null) stop("Solving TSP failed.")
+    
     o = as.integer(tour)
     w = which(o==length(o))
     if(w==1 || w==length(o)) o = o[-w]
@@ -394,7 +409,7 @@ traverse <- function(adj_matrix) {
 
 genetic_linkage_map <- function(in_RData, in_map, out_file, 
                                 rf_thresh=.kosambi_r(.5), 
-								make_group=TRUE, check=FALSE) {
+								make_group=TRUE, check=FALSE, ncore=1) {
 
     load(in_RData)
     
@@ -452,8 +467,17 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
     nc = rep(NA,length(all_clusters_))
     for(i in 1:length(nc)) nc[i] = length(all_clusters_[[i]])
     nco = order(nc,decreasing=T)
-    for(i in 1:length(nco)) {
-        o[[i]] = ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
+    
+    if(ncore>1) {
+    	registerDoParallel(ncore)
+    	o <- foreach (i = 1:length(nco)) %dopar% {
+ 	 		ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
+		}
+    	stopImplicitCluster()
+    } else {
+    	for(i in 1:length(nco)) {
+        	o[[i]] = ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
+    	}
     }
 	
 	if(check) {
@@ -529,8 +553,17 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
 			nc = rep(NA,length(all_clusters_))
 			for(i in 1:length(nc)) nc[i] = length(all_clusters_[[i]])
 			nco = order(nc,decreasing=T)
-			for(i in 1:length(nco)) {
-				o[[i]] = ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
+			
+			if(ncore>1) {
+    			registerDoParallel(ncore)
+    			o <- foreach (i = 1:length(nco)) %dopar% {
+ 	 				ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
+				}
+    			stopImplicitCluster()
+    		} else {
+				for(i in 1:length(nco)) {
+					o[[i]] = ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
+				}
 			}
 		}
 	}

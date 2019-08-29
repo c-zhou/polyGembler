@@ -133,15 +133,16 @@
 	</dependency>
 	<!-- https://github.com/bedatadriven/renjin -->
 	<dependency>
-    <groupId>org.renjin</groupId>
+    	<groupId>org.renjin</groupId>
     	<artifactId>renjin-script-engine</artifactId>
     	<version>0.8.2330</version>
   	</dependency>
-  	<!-- https://github.com/PBR/pedigreeSim -->
   	<dependency>
-    	<groupId>com.github.PBR</groupId>
+    	<groupId>wur.nl</groupId>
     	<artifactId>pedigreeSim</artifactId>
+    	<scope>system</scope>
     	<version>v2.0</version>
-	</dependency>
+    	<systemPath>${basedir}\lib\pedigreeSim.jar</systemPath>
+    </dependency>
   </dependencies>
 </project>

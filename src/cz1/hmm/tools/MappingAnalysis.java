@@ -41,6 +41,7 @@ public class MappingAnalysis extends Executor {
 						+ "     -1/--one-group              One group. \n"
 						+ "     -2/--check-group            Re-check linkage groups. \n"
 						+ "     -rlib/--R-external-libs     R external library path.\n"
+						+ "     -t/--threads                Threads (default 1).\n"
 						+ "     -o/--prefix                 Output file prefix.\n\n"
 				);
 	}
@@ -61,6 +62,7 @@ public class MappingAnalysis extends Executor {
 			myArgsEngine.add("-l", "--lod", true);
 			myArgsEngine.add("-1", "--one-group", false);
 			myArgsEngine.add("-2", "--check-group", false);
+			myArgsEngine.add( "-t", "--threads", true);
 			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
 			myArgsEngine.parse(args);
@@ -99,6 +101,10 @@ public class MappingAnalysis extends Executor {
 			two = true;
 		}
 
+		if(myArgsEngine.getBoolean("-t")) {
+			THREADS = Integer.parseInt(myArgsEngine.getString("-t"));
+		}
+		
 		if(myArgsEngine.getBoolean("-o")) {
 			out_prefix = myArgsEngine.getString("-o");
 		}  else {
@@ -115,7 +121,7 @@ public class MappingAnalysis extends Executor {
 	public void run() {
 		// TODO Auto-generated method stub
 		final String temfile_prefix = ".tmp/";
-		Utils.makeOutputDir(temfile_prefix);
+		final boolean tmpdirCreated = Utils.makeOutputDir(new File(temfile_prefix));
 		final String concorde_path =
 				RFUtils.makeExecutable("cz1/hmm/executable/concorde", temfile_prefix);
 		new File(concorde_path).setExecutable(true, true);
@@ -132,10 +138,12 @@ public class MappingAnalysis extends Executor {
 						+ (two?"-2 ":" ")
 						+ "-o "+out_prefix+" "
 						+ "--concorde "+new File(concorde_path).getParent()
-						+ (RLibPath==null ? "" : " --include "+RLibPath);
+						+ (RLibPath==null ? "" : " --include "+RLibPath)
+						+ "--process "+THREADS
+						+ "--tmpdir "+new File(temfile_prefix).getAbsolutePath();
 		this.consume(this.bash(command));
 
-		new File(temfile_prefix).delete();
+		if(tmpdirCreated) Utils.deleteDirectory(new File(temfile_prefix));
 	}
 
 	public void nj() {

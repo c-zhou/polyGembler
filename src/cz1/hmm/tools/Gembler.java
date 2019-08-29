@@ -286,13 +286,13 @@ public class Gembler extends Executor {
 	
 		Constants.throwRuntimeException("feature is under development!!!");
 		
-		Utils.makeOutputDir(out_prefix);
+		Utils.makeOutputDir(new File(out_prefix));
 		String prefix_vcf = new File(in_vcf).getName().
 				replaceAll(".vcf.gz$", "").
 				replaceAll(".vcf$", "");
 		
 		//#### STEP 01 filter SNPs and create ZIP file
-		Utils.makeOutputDir(out_prefix+"/data");
+		Utils.makeOutputDir(new File(out_prefix+"/data"));
 		new DataPreparation(in_vcf,
 				ploidy, 
 				min_depth, 
@@ -312,12 +312,12 @@ public class Gembler extends Executor {
 				replaceAll(".zip$", "").
 				replace(".", "").
 				replace("_", "");
-		Utils.makeOutputDir(out);
+		Utils.makeOutputDir(new File(out));
 		this.runHaplotyper(scaffs, expr_id, in_zip, repeat[0], out);
 		
 		//#### STEP 03 assembly errors
 		final String metafile_prefix = out_prefix+"/meta/";
-		Utils.makeOutputDir(metafile_prefix);
+		Utils.makeOutputDir(new File(metafile_prefix));
 		final String ass_err_map = metafile_prefix+prefix_vcf;
 		AssemblyError assemblyError = new AssemblyError(out, 
 				ass_err_map,
@@ -365,7 +365,7 @@ public class Gembler extends Executor {
 		
 		//#### STEP 05 building superscaffolds (nearest neighbour joining)
 		final String temfile_prefix = metafile_prefix+".tmp/";
-		Utils.makeOutputDir(temfile_prefix);
+		Utils.makeOutputDir(new File(temfile_prefix));
 		final String concorde_path = 
 				RFUtils.makeExecutable("cz1/hmm/executable/concorde", temfile_prefix);
 		final String nnssR_path = 
@@ -383,7 +383,7 @@ public class Gembler extends Executor {
 		
 		//#### STEP 06 multi-point hapotype inferring
 		final String mm_out = out_prefix+"/2nn_hap_infer";
-		Utils.makeOutputDir(mm_out);
+		Utils.makeOutputDir(new File(mm_out));
 		final Set<String> mm_scaffs = new HashSet<String>();
 		final Map<String, String> mm_seperation = new HashMap<String, String>();
 		final Map<String, String> mm_reverse = new HashMap<String, String>();
@@ -422,18 +422,18 @@ public class Gembler extends Executor {
 		
 		//#### STEP 09 genetic map refinement
 		final String out_refine = out_prefix+"/refine_hap_infer/";
-		Utils.makeOutputDir(out_refine);
+		Utils.makeOutputDir(new File(out_refine));
 		this.readSS(mm_rf_prefix+".par", mm_scaffs, mm_seperation, mm_reverse);
 		
 		final int lgN = mm_scaffs.size();
 		for(int i=0; i<lgN; i++) {
 			final String out_refine_i = out_refine+"lg"+StringUtils.leftPad(""+i, 2, '0')+"/";
-			Utils.makeOutputDir(out_refine_i);
+			Utils.makeOutputDir(new File(out_refine_i));
 			for(int j=0; j<this.refine_round; j++) {
 				final String out_refine_ij = out_refine_i+j+"/";
 				final String out_refine_ij_haps = out_refine_ij+"haplotypes/";
-				Utils.makeOutputDir(out_refine_ij);
-				Utils.makeOutputDir(out_refine_ij_haps);
+				Utils.makeOutputDir(new File(out_refine_ij));
+				Utils.makeOutputDir(new File(out_refine_ij_haps));
 			}
 		}
 		
@@ -619,7 +619,7 @@ public class Gembler extends Executor {
 		
 		//#### STEP 11 result files
 		final String results_dir = out_prefix+"/results";
-		Utils.makeOutputDir(results_dir);
+		Utils.makeOutputDir(new File(results_dir));
 		try {
 			Files.move(Paths.get(metafile_prefix+"/genetic_linkage_map.mct"), 
 					Paths.get(results_dir+"/genetic_linkage_map.mct"),
@@ -737,7 +737,7 @@ public class Gembler extends Executor {
 			final String expr_id) {
 		// TODO Auto-generated method stub
 		String out_err = out+"/assembly_error";
-		Utils.makeOutputDir(out_err);
+		Utils.makeOutputDir(new File(out_err));
 		for(final String scaff : scaff_breakage) {
 			File[] files = new File(out).listFiles(
 					new FilenameFilter() {
