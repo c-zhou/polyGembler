@@ -59,7 +59,7 @@ ordering <- function(all, distanceAll, indexMat, method="concorde") {
     d = distTSP(all, distanceAll, indexMat)
     
     if("R.utils" %in% (.packages())) {
-    	tour = null
+    	tour = NULL
     	att = 0
     	timeout = 300
 		while(is.null(tour)&&att<12) {
@@ -72,8 +72,12 @@ ordering <- function(all, distanceAll, indexMat, method="concorde") {
     	tour = solve_TSP(TSP(d$dMat), method)
     }
     
-    if(tour==null) stop("Solving TSP failed.")
-    
+    if(is.null(tour)) {
+    	stop("Solving TSP failed.")
+	} else{
+		print("##Sovling TSP succeed.")
+	}
+	 
     o = as.integer(tour)
     w = which(o==length(o))
     if(w==1 || w==length(o)) o = o[-w]
@@ -85,8 +89,7 @@ ordering <- function(all, distanceAll, indexMat, method="concorde") {
     return(list(order = o2,
                 oriO = o,
                 dist = d,
-                cost = c
-                ));
+                cost = c));
 }
 
 errorCount <- function(oo) {
