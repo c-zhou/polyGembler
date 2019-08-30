@@ -6,10 +6,12 @@
 .kosambi_r <- function(d) .5*(exp(4*d)-1)/(exp(4*d)+1)
 
 .cm_d <- function(r) {
-    r[r > .5] = .5
-    r[r < -.5] = -.5
+    r[r >= .5] = .499
+    r[r <= -.5] = -.499
     25*log((1+2*r)/(1-2*r))
 }
+
+INF_CM = .cm_d(0.5)
 
 distTSP <- function(all, distanceAll, indexMat) {
     n = length(all)
@@ -237,7 +239,7 @@ two_point <- function(in_RData, twopoint_file, out_file, fix_rf=NA) {
 		
 		if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j+1]="true"
 		if(is.na(fix_rf)) {
-			cat(" -s "); cat(paste(sepe, collapse=":"))
+			cat(" -s "); cat(paste(.kosambi_r(sepe/100), collapse=":"))
 		} else {
 			cat(" -s "); cat(paste(rep(fix_rf, n2-1), collapse=":"))
 		}
@@ -247,7 +249,7 @@ two_point <- function(in_RData, twopoint_file, out_file, fix_rf=NA) {
 	sink()
 }
 
-nearest_neighbour_joining <- function(in_RData, out_file, nn=1, rf_thresh=.kosambi_r(.5)) {
+nearest_neighbour_joining <- function(in_RData, out_file, nn=1, max_d=50) {
 	
     load(in_RData)
     diag(distanceMat) = Inf
@@ -276,7 +278,7 @@ nearest_neighbour_joining <- function(in_RData, out_file, nn=1, rf_thresh=.kosam
         n = 0
         for(j in 1:dim(cp)[1]) {
             ng=sort(c(p,cp[j,]))
-            if(any(distanceMat[combs(ng,2)]>rf_thresh))
+            if(any(distanceMat[combs(ng,2)]>max_d))
                 next
             clus=rbind(clus,ng)
             n = n+1
@@ -319,7 +321,7 @@ nearest_neighbour_joining <- function(in_RData, out_file, nn=1, rf_thresh=.kosam
         }
 
         if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j+1]="true"
-        cat(" -s "); cat(paste(sepe, collapse=":"))
+        cat(" -s "); cat(paste(.kosambi_r(sepe/100), collapse=":"))
         cat(" -r "); cat(paste(reverse, collapse=":"))
         cat("\n")
     }
@@ -412,8 +414,7 @@ traverse <- function(adj_matrix) {
 }
 
 genetic_linkage_map <- function(in_RData, in_map, out_file, 
-                                rf_thresh=.kosambi_r(.5), 
-								make_group=TRUE, check=FALSE, ncore=1) {
+                                max_d=50, make_group=TRUE, check=FALSE, ncore=1) {
 
     load(in_RData)
     
@@ -422,12 +423,12 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
 		return()
 	}
 	
-    diag(distanceMat) = Inf
+    diag(distanceMat) = INF_CM
 
 	if(make_group) {
-    	nng=distanceMat
-   		nng[nng>rf_thresh]=1
-    	nng=1-nng
+    	nng = distanceMat
+   		nng[nng>max_d] = INF_CM
+    	nng = INF_CM-nng
 
     	g=graph_from_adjacency_matrix(nng,mode = "undirected",
                                   	weighted=T, diag=F)
@@ -444,8 +445,8 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
         all = all_clusters_[[i]]
         if(length(all)==1) {
             ass = getSingleAssignment(all, distanceMat)
-            r = ass$rf
-            if(r>rf_thresh) next
+            d = ass$d
+            if(d>max_d) next
             c = ass$scaffs
             if(length(unique(clus[c]))==1)
                 sa = rbind(sa,c(all,clus[c[1]]))
@@ -515,7 +516,7 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
 					sepe[j] = distance_j
 				}
 				sepeAll[[length(sepeAll)+1]] = sepe
-				br = br&all(sepe<=rf_thresh)
+				br = br&all(sepe<=max_d)
 			}
 			
 			if(br) break
@@ -528,7 +529,7 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
 				new_clus = list()
 				sepe = sepeAll[[i]]
 				for(j in 1:(length(oR)-1)) {
-					if(sepe[j]>rf_thresh) {
+					if(sepe[j]>max_d) {
 						a = length(new_clus)+1
 						new_clus[[a]] = rep(NA,2)
 						new_clus[[a]][1] = k[1]
@@ -588,12 +589,12 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
         }
         
         oo = o[[i]]$oriO
-        dist = .cm_d(o[[i]]$dist$dMat-o[[i]]$dist$dMax-o[[i]]$dist$dNa)
+        dist = o[[i]]$dist$dMat-o[[i]]$dist$dMax-o[[i]]$dist$dNa
         for(c in or) {
             f=paste0(c,"(+)")
             r=paste0(c,"(-)")
             d0=dC[tC==scaffs[c]]
-            dist[f,r]=dist[r,f]=d0#kosambi_r(d0)
+            dist[f,r]=dist[r,f]=d0
         }
 
         nh = nchar(oo[1])
@@ -640,9 +641,8 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
             }
         }
         if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j]="true"
-        cat(" -s "); cat(paste(sepe, collapse=":"))
+        cat(" -s "); cat(paste(.kosambi_r(sepe/100), collapse=":"))
         cat(" -r "); cat(paste(reverse, collapse=":"))
-        # cat(" ## "); cat(paste(oO, collapse="-"))
         cat("\n")
     }
     sink()
@@ -693,7 +693,7 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
 
 }
 
-getSingleAssignment <- function(id, distance, exclude=c(),include=c()) {
+getSingleAssignment <- function(id, distance, exclude=c(), include=c()) {
     a = distance[id,]
     if(length(include)>0) {
         idx = c()
@@ -701,6 +701,6 @@ getSingleAssignment <- function(id, distance, exclude=c(),include=c()) {
         a[-idx] = Inf
     } else if(length(exclude)>0)
         for(i in exclude) a[i] = Inf
-    list(rf=min(a),scaffs=which(a==min(a)))
+    list(d=min(a),scaffs=which(a==min(a)))
 }
 

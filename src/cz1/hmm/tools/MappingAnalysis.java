@@ -129,13 +129,13 @@ public class MappingAnalysis extends Executor {
 				RFUtils.makeExecutable("cz1/hmm/scripts/make_geneticmap.R", temfile_prefix);
 		RFUtils.makeExecutable("cz1/hmm/scripts/include.R", temfile_prefix);
 		RFUtils.makeRMatrix(rf_file, out_prefix+".RData");
-		double max_rf = Math.min(RFUtils.calcRfFromLOD(lod_thres, ns), RFUtils.inverseGeneticDistance(.5, "kosambi"));
-		myLogger.info("Using recombination frequency threshold: "+max_rf);
+		double max_d = Math.min(100*RFUtils.geneticDistance(RFUtils.calcRfFromLOD(lod_thres, ns), "kosambi"), 50);
+		myLogger.info("Using recombination frequency threshold: "+max_d);
 		final String command =
 				"Rscript "+mklgR_path+" "
 						+ "-i "+out_prefix+".RData "
 						+ "-m "+map_file+" "
-						+ "-r "+max_rf+" "
+						+ "-d "+max_d+" "
 						+ (one?"-1 ":" ")
 						+ (two?"-2 ":" ")
 						+ "-o "+out_prefix+" "

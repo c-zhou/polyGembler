@@ -325,13 +325,13 @@ public abstract class RFUtils extends Executor {
 				s = line.split("\\s+");
 				int i=scaffs.getKey(s[5]),
 						j=scaffs.getKey(s[6]);
-				double d = Double.parseDouble(s[0]);
+				double d = 100*geneticDistance(Double.parseDouble(s[0]),"kosambi");
 				dMat.set(i,j,d);
 				dMat.set(j,i,d);
 				iMat.set(i,j,w+1);
 				iMat.set(j,i,w+1+A);
 				for(int k=0; k<4; k++) {
-					d = Double.parseDouble(s[k+1]);
+					d = 100*geneticDistance(Double.parseDouble(s[k+1]),"kosambi");
 					dAllMat.set(w, k, d);
 					dAllMat.set(w+A, (k==0||k==3)?k:(3-k), d);
 				}
@@ -392,7 +392,8 @@ public abstract class RFUtils extends Executor {
 	
 	public static double geneticDistance(double r, String mapFunc) {
 		// TODO Auto-generated method stub
-		if(r>=0.5) return Double.POSITIVE_INFINITY;
+		// if(r>=0.5) return Double.POSITIVE_INFINITY;
+		r = Math.min(r, 0.499);
 		switch(mapFunc.toLowerCase()) {
 		case "kosambi":
 			return .25*Math.log((1+2*r)/(1-2*r));
