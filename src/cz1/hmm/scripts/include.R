@@ -61,11 +61,12 @@ ordering <- function(all, distanceAll, indexMat, method="concorde") {
     if("R.utils" %in% (.packages())) {
     	tour = null
     	att = 0
-    	timeout = 900
-		while(is.null(tour)&&att<10) {
+    	timeout = 300
+		while(is.null(tour)&&att<12) {
     		tour = withTimeout(solve_TSP(TSP(d$dMat), method), timeout=timeout, onTimeout="silent")
-    		att = att+1
     		if(is.null(tour)) warning(paste0("Solving TSP failed in attempt: ", att, ", in time limit: "+timeout+"s."))
+    		att = att+1
+    		timeout = timeout+300
     	}
     } else {
     	tour = solve_TSP(TSP(d$dMat), method)
