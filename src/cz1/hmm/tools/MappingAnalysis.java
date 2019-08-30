@@ -137,9 +137,9 @@ public class MappingAnalysis extends Executor {
 						+ (one?"-1 ":" ")
 						+ (two?"-2 ":" ")
 						+ "-o "+out_prefix+" "
-						+ "--concorde "+new File(concorde_path).getParent()
-						+ (RLibPath==null ? "" : " --include "+RLibPath)
-						+ "--process "+THREADS
+						+ "--concorde "+new File(concorde_path).getParent()+" "
+						+ (RLibPath==null ? "" : "--include "+RLibPath+" ")
+						+ "--process "+THREADS+" "
 						+ "--tmpdir "+new File(temfile_prefix).getAbsolutePath();
 		this.consume(this.bash(command));
 
