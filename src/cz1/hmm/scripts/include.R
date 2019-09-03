@@ -13,6 +13,8 @@
 
 INF_CM = .cm_d(0.5)
 
+sum_finite <- function(x) {sum(x[is.finite(x)])}
+
 distTSP <- function(all, distanceAll, indexMat) {
     n = length(all)
     names = c()
@@ -28,9 +30,9 @@ distTSP <- function(all, distanceAll, indexMat) {
         for(j in 1:n) {
             j1 = (j-1)*2+1
             j2 = j*2
-            if(i==j)
+            if(i==j) {
                 d[i1:i2,j1:j2] = selfM
-            else if(i<j) {
+            } else if(i<j) {
                 if(indexMat[all[i],all[j]]==-1) return(NULL);
                 r = distanceAll[indexMat[all[i],all[j]],]
                 d[i1:i2,j1:j2] = matrix(r,ncol=2,byrow=T)
@@ -38,15 +40,18 @@ distTSP <- function(all, distanceAll, indexMat) {
             }
         }
     }
-    m = max(d, na.rm=T)
-    d = d+m+1e-6
-    d[d==-Inf] = 1e-12
-    d[is.na(d)] = 1e-6
+
+    MAX <- if(n*2+1<10) {2^16} else {2^31-1}
+
+    max_d = max(d, na.rm=T)
+    d = d+max_d+2
+    max_d = max_d*2+2
+    s = floor(MAX/max_d/(n*2+1))
+    d = round(d*s)
+    d[d==-Inf] = 1
+    d[is.na(d)] = 2
     diag(d) = 0
-    list(dMat = d,
-         dMax = m,
-         dSelf = 1e-12,
-         dNa = 1e-6)
+    d
 }
 
 ordering <- function(all, distanceAll, indexMat, method="concorde") {
@@ -59,21 +64,8 @@ ordering <- function(all, distanceAll, indexMat, method="concorde") {
                                    error=0));
 
     d = distTSP(all, distanceAll, indexMat)
-    
-    if("R.utils" %in% (.packages())) {
-    	tour = NULL
-    	att = 0
-    	timeout = 300
-		while(is.null(tour)&&att<12) {
-    		tour = withTimeout(solve_TSP(TSP(d$dMat), method), timeout=timeout, onTimeout="silent")
-    		att = att+1
-    		if(is.null(tour)) warning(paste0("Solving TSP failed in attempt: ", att, ", in time limit: "+timeout+"s."))
-    		timeout = timeout+300
-    	}
-    } else {
-    	tour = solve_TSP(TSP(d$dMat), method)
-    }
-    
+    tour = solve_TSP(TSP(d), method, control = list(precision=0))
+
     if(is.null(tour)) {
     	stop("Solving TSP failed.")
 	} else{
@@ -84,13 +76,16 @@ ordering <- function(all, distanceAll, indexMat, method="concorde") {
     w = which(o==length(o))
     if(w==1 || w==length(o)) o = o[-w]
     else o = o[c((w+1):length(o),1:(w-1))]
-    o = colnames(d$dMat)[o]
-    c = tour_length(tour)-d$dMax*(length(all)-1)-d$dSelf*length(all)-d$dNa*2
-    o2 = unique(gsub("\\(\\+\\)|\\(\\-\\)","",o))
-
+    o = colnames(d)[o]
+    c = tour_length(tour)
+    o1 = gsub("\\(\\+\\)|\\(\\-\\)","",o)
+    n = length(o)
+    o2 = o1[seq(1,n,2)]
+    if(!all(o2==o1[seq(2,n,2)]))
+        stop("TSP tour not valid.")
+    
     return(list(order = o2,
                 oriO = o,
-                dist = d,
                 cost = c));
 }
 
@@ -226,15 +221,16 @@ two_point <- function(in_RData, twopoint_file, out_file, fix_rf=NA) {
 			c_2 = oO[2*j+1]
 			if(length(grep("(\\+)",c_1))>0) reverse[j]="true"
 			
-			if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-				sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],1]
-			} else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-				sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],2]
-			} else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-				sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],3]
-			} else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-				sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],4]
-			}
+			sepe[j] =
+            if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],1]
+            } else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],2]
+            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],3]
+            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],4]
+            }
 		}
 		
 		if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j+1]="true"
@@ -309,14 +305,15 @@ nearest_neighbour_joining <- function(in_RData, out_file, nn=1, max_d=50) {
             c_2 = oO[2*j+1]
             if(length(grep("(\\+)",c_1))>0) reverse[j]="true"
             
+            sepe[j] =
             if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],1]
+                distanceAll[indexMat[oR[j],oR[j+1]],1]
             } else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],2]
+                distanceAll[indexMat[oR[j],oR[j+1]],2]
             } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],3]
+                distanceAll[indexMat[oR[j],oR[j+1]],3]
             } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],4]
+                distanceAll[indexMat[oR[j],oR[j+1]],4]
             }
         }
 
@@ -414,7 +411,7 @@ traverse <- function(adj_matrix) {
 }
 
 genetic_linkage_map <- function(in_RData, in_map, out_file, 
-                                max_d=50, make_group=TRUE, check=FALSE, ncore=1) {
+                                max_d=50, make_group=TRUE, check=FALSE) {
 
     load(in_RData)
     
@@ -472,19 +469,10 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
     nc = rep(NA,length(all_clusters_))
     for(i in 1:length(nc)) nc[i] = length(all_clusters_[[i]])
     nco = order(nc,decreasing=T)
-    
-    if(ncore>1) {
-    	registerDoParallel(ncore)
-    	o <- foreach (i = 1:length(nco)) %dopar% {
- 	 		ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
-		}
-    	stopImplicitCluster()
-    } else {
-    	for(i in 1:length(nco)) {
-        	o[[i]] = ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
-    	}
+    for(i in 1:length(nco)) {
+    	o[[i]] = ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
     }
-	
+    
 	if(check) {
 		print("checking linkage groups...")
 		while(TRUE) {
@@ -503,17 +491,16 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
 				for(j in 1:(length(oR)-1)) {
 					c_1 = oO[2*j]
 					c_2 = oO[2*j+1]
-					distance_j =
-							if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-								distanceAll[indexMat[oR[j],oR[j+1]],1]
-							} else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-								distanceAll[indexMat[oR[j],oR[j+1]],2]
-							} else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-								distanceAll[indexMat[oR[j],oR[j+1]],3]
-							} else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-								distanceAll[indexMat[oR[j],oR[j+1]],4]
-							}
-					sepe[j] = distance_j
+					sepe[j] =
+					if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+						distanceAll[indexMat[oR[j],oR[j+1]],1]
+					} else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+						distanceAll[indexMat[oR[j],oR[j+1]],2]
+					} else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+						distanceAll[indexMat[oR[j],oR[j+1]],3]
+					} else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+						distanceAll[indexMat[oR[j],oR[j+1]],4]
+					}
 				}
 				sepeAll[[length(sepeAll)+1]] = sepe
 				br = br&all(sepe<=max_d)
@@ -559,16 +546,8 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
 			for(i in 1:length(nc)) nc[i] = length(all_clusters_[[i]])
 			nco = order(nc,decreasing=T)
 			
-			if(ncore>1) {
-    			registerDoParallel(ncore)
-    			o <- foreach (i = 1:length(nco)) %dopar% {
- 	 				ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
-				}
-    			stopImplicitCluster()
-    		} else {
-				for(i in 1:length(nco)) {
-					o[[i]] = ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
-				}
+			for(i in 1:length(nco)) {
+				o[[i]] = ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
 			}
 		}
 	}
@@ -581,36 +560,52 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
     sink(paste0(out_file,".mct"))
     for(i in 1:length(o)) {
         cat("group\t"); cat("LG"); cat(i); cat("\n")
-        or = as.numeric(o[[i]]$order)
-
-        if(length(or)<2) {
-            cat(scaffs[or[1]]); cat("\t0\n\n")
+        oR = as.numeric(o[[i]]$order); oO = o[[i]]$oriO
+        if(length(oR)<2) {
+        	cat(scaffs[oR[1]]); cat("(+)\t0");cat("\n")
+        	d = dC[tC==scaffs[oR[1]]]
+			cat(scaffs[oR[1]]); cat("(-)\t");cat(d);cat("\n")
+			cat("\n")
             next
         }
-        
-        oo = o[[i]]$oriO
-        dist = o[[i]]$dist$dMat-o[[i]]$dist$dMax-o[[i]]$dist$dNa
-        for(c in or) {
-            f=paste0(c,"(+)")
-            r=paste0(c,"(-)")
-            d0=dC[tC==scaffs[c]]
-            dist[f,r]=dist[r,f]=d0
+
+        d = 0
+        nh = nchar(oO[1])
+        cat(paste0(scaffs[as.numeric(substr(oO[1],1,nh-3))],substr(oO[1],nh-2,nh)))
+        cat("\t"); cat(d); cat("\n")
+
+        d = dC[tC==scaffs[oR[1]]]
+        nh = nchar(oO[2])
+        cat(paste0(scaffs[as.numeric(substr(oO[2],1,nh-3))],substr(oO[2],nh-2,nh)))
+        cat("\t"); cat(d); cat("\n")
+
+        for(j in 1:(length(oR)-1)) {
+            c_1 = oO[2*j]
+            c_2 = oO[2*j+1]
+            dist_j =
+            if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],1]
+            } else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],2]
+            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],3]
+            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],4]
+            }
+
+            d = d+dist_j
+            nh = nchar(oO[2*j+1])
+            cat(paste0(scaffs[as.numeric(substr(oO[2*j+1],1,nh-3))],substr(oO[2*j+1],nh-2,nh)))
+            cat("\t"); cat(d); cat("\n")
+
+            d = d+dC[tC==scaffs[oR[j+1]]]
+            nh = nchar(oO[2*j+2])
+            cat(paste0(scaffs[as.numeric(substr(oO[2*j+2],1,nh-3))],substr(oO[2*j+2],nh-2,nh)))
+            cat("\t"); cat(d); cat("\n")
         }
 
-        nh = nchar(oo[1])
-        cat(paste0(scaffs[as.numeric(substr(oo[1],1,nh-3))],substr(oo[1],nh-2,nh)))
-        cat("\t0\n")
-        d = 0
-        for(j in 2:length(oo)) {
-            nh = nchar(oo[j])
-            cat(paste0(scaffs[as.numeric(substr(oo[j],1,nh-3))],substr(oo[j],nh-2,nh)))
-            cat("\t")
-            d = d+dist[oo[j-1], oo[j]]
-            cat(d)
-            cat("\n")
-        }
-    	lgCM[i] = d
         cat("\n")
+        lgCM[i] = d
     }
     sink()
 
@@ -629,15 +624,15 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
             c_1 = oO[2*j]
             c_2 = oO[2*j+1]
             if(length(grep("(\\+)",c_1))>0) reverse[j]="true"
-            distance_j =
+            sepe[j] =
             if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],1]
+                distanceAll[indexMat[oR[j],oR[j+1]],1]
             } else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],2]
+                distanceAll[indexMat[oR[j],oR[j+1]],2]
             } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],3]
+                distanceAll[indexMat[oR[j],oR[j+1]],3]
             } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],4]
+                distanceAll[indexMat[oR[j],oR[j+1]],4]
             }
         }
         if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j]="true"
@@ -675,22 +670,21 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
     cat("\n$orientation\n")
     for(i in 1:length(o)) {
         cat("LG");cat(i);cat("\t\t")
-        oo = o[[i]]$oriO
-        for(j in 1:length(oo)) {
-            if(length(oo)>1) {
-                nh=nchar(oo[j])
-                oo[j]=paste0(scaffs[as.numeric(substr(oo[j],1,nh-3))],substr(oo[j],nh-2,nh))
+        oO = o[[i]]$oriO
+        for(j in 1:length(oO)) {
+            if(length(oO)>1) {
+                nh=nchar(oO[j])
+                oO[j]=paste0(scaffs[as.numeric(substr(oO[j],1,nh-3))],substr(oO[j],nh-2,nh))
             } else {
-                oo[j]=scaffs[as.numeric(oo[j])]
+                oO[j]=scaffs[as.numeric(oO[j])]
             }
         }
-        cat(paste(oo,collapse="-"));
+        cat(paste(oO,collapse="-"));
         cat("\n")
     }
     sink()
 
     list(group=clus, order=o)
-
 }
 
 getSingleAssignment <- function(id, distance, exclude=c(), include=c()) {

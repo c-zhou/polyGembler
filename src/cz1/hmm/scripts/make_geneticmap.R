@@ -19,8 +19,6 @@ parser$add_argument("-c", "--concorde", required = T,
                     help="Concorde executable file path.")
 parser$add_argument("-l", "--include",
                     help="External R package locations. Multiple paths are seperated by ':'.")
-parser$add_argument("-p", "--process", default = 1, type="double",
-                    help="Number of processes to use.")
 parser$add_argument("-t", "--tmpdir", required = F,
                     help="Temporary file directory.")
                     
@@ -35,7 +33,6 @@ make_group = args$group
 make_check = args$check
 concorde_path = args$concorde
 external_lib = args$include
-ncore = args$process
 tmpdir = args$tmpdir
 
 if(!is.null(external_lib)) {
@@ -58,19 +55,6 @@ if(!is.null(tmpdir)) {
 	}
 }
 
-if(ncore>1) {
-	if("doParallel" %in% allPackages) {
-        suppressPackageStartupMessages(do.call('library', list("doParallel")))
-        print(paste0("Using doParallel: ", ncore, " cores."))
-    } else {
-    	ncore = 1;
-        warning(paste0("Package ",package," is not available. Using 1 CPU."))
-    }
-}
-
-if("R.utils" %in% allPackages)
-	suppressPackageStartupMessages(do.call('library', list("R.utils")))
-
 concorde_path(concorde_path)
 
 initial.options <- commandArgs(trailingOnly = FALSE)
@@ -78,5 +62,4 @@ file.name <- "--file="
 script.name <- sub(file.name, "", initial.options[grep(file.name, initial.options)])
 source(paste(sep="/", dirname(script.name), "include.R"))
 
-genetic_linkage_map(in_RData, in_map, out_file, max_d, make_group, make_check, ncore)
-
+genetic_linkage_map(in_RData, in_map, out_file, max_d, make_group, make_check)

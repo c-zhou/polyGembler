@@ -2,9 +2,10 @@ package cz1.hmm.tools;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,43 +16,39 @@ import cz1.util.Executor;
 import cz1.util.Utils;
 
 public class Pseudomolecule extends Executor {
-	
-	private String assembly_file = null;
 	private String out_file = null;
-	private String mct_file = null;
-	private double genome_size = -1;
-	private double frac_thresh = .8;
+	private int gap_size = 1000;
+	private Map<String, Sequence> sequences;
+	private Map<String, List<Sequence>> molecules;
 	
-	private final Map<String, Scaffold> scaffolds = new HashMap<String, Scaffold>();
-	private final Map<String, List<Scaffold>> pseudo_molecule = 
-			new HashMap<String, List<Scaffold>>();
-	
-	public Pseudomolecule(String mct_file,
-			String assembly_file, 
+	public Pseudomolecule(String map_file,
+			String seq_file, 
 			String out_file) {
-		this.assembly_file = assembly_file;
-		this.mct_file = mct_file;
+		this.sequences = Sequence.parseFastaFileAsMap(seq_file);
 		this.out_file = out_file;
-		this.assemblyReader();
-		this.geneticMapReader();
+		this.molecules = this.readGeneticMap(map_file);
 	}
 	
-	public Pseudomolecule(String mct_file,
-			String assembly_file, 
-			double genome_size,
-			double frac_thresh,
+	public Pseudomolecule(String map_file,
+			String seq_file, 
 			String out_file,
 			Map<String, int[][]> errs) {
-		this.assembly_file = assembly_file;
-		this.mct_file = mct_file;
-		this.genome_size = genome_size;
-		this.frac_thresh = frac_thresh;
+		this.sequences = Sequence.parseFastaFileAsMap(seq_file);
+		this.parseAssemblyErrors(errs);
+		this.molecules = this.readGeneticMap(map_file);
 		this.out_file = out_file;
-		this.assemblyReader();
-		this.setAssemblyError(errs);
-		this.geneticMapReader();
 	}
 	
+	public Pseudomolecule(String map_file,
+			String seq_file,
+			String err_file,
+			String out_file) {
+		this.sequences = Sequence.parseFastaFileAsMap(seq_file);
+		this.parseAssemblyErrors(err_file);
+		this.readGeneticMap(map_file);
+		this.out_file = out_file;
+	}
+
 	public Pseudomolecule() {
 		// TODO Auto-generated constructor stub
 		super();
@@ -63,11 +60,11 @@ public class Pseudomolecule extends Executor {
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
 						+ " Common:\n"
-						+ "     -i/--input-mct              Input genetic linkage map file.\n"
-						+ "     -frac/--frac-thresold       Lower threshold the genetic linkage map covers to construct \n"
-						+ "                                 pseudomolecules (default 0.8).\n"
-						+ "     -gz/--genome-size           The estimated genome size (default size of the reference assembly). \n"
-						+ "     -a/--input-assembly         Input assembly fasta file.\n"
+						+ "     -i/--map                    Input genetic linkage map file.\n"
+						+ "     -a/--assembly               Input assembly FASTA file.\n"
+						+ "     -e/--error                  Assembly error file.\n"
+						+ "     -n/--gap                    Gap size between sequences (default 1000). \n"
+						+ "                                 The gaps will be filled with character 'n'.\n"
 						+ "     -o/--prefix                 Output pseudomolecule file.\n"
 						);
 	}
@@ -82,74 +79,58 @@ public class Pseudomolecule extends Executor {
 
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
-			myArgsEngine.add("-i", "--input-mct", true);
-			myArgsEngine.add("-a", "--input-assembly", true);
-			myArgsEngine.add("-frac", "--frac-thresold", true);
-			myArgsEngine.add("-gz", "--genome-size", true);
+			myArgsEngine.add("-i", "--map", true);
+			myArgsEngine.add("-a", "--assembly", true);
+			myArgsEngine.add("-e", "--error", true);
+			myArgsEngine.add("-n", "--gap", true);
 			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.parse(args);
 		}
 		
+		if(myArgsEngine.getBoolean("-a")) {
+			this.sequences = Sequence.parseFastaFileAsMap(myArgsEngine.getString("-a"));
+		} else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify your assembly file in FASTA format.");
+		}
+		
+		if(myArgsEngine.getBoolean("-e")) {
+			this.parseAssemblyErrors(myArgsEngine.getString("-e"));
+		}
+		
 		if(myArgsEngine.getBoolean("-i")) {
-			mct_file = myArgsEngine.getString("-i");
-			this.geneticMapReader();
+			this.molecules = this.readGeneticMap(myArgsEngine.getString("-i"));
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your input genetic linkage map file.");
 		}
 		
-		if(myArgsEngine.getBoolean("-a")) {
-			assembly_file = myArgsEngine.getString("-a");
-			this.assemblyReader();
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify your assembly fasta file.");
+		if(myArgsEngine.getBoolean("-n")) {
+			this.gap_size = Integer.parseInt(myArgsEngine.getString("-n"));
 		}
-
+		
 		if(myArgsEngine.getBoolean("-o")) {
 			out_file = myArgsEngine.getString("-o");
 		}  else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your output file name.");
 		}
-		
-		if(myArgsEngine.getBoolean("-frac")) {
-			frac_thresh = Double.parseDouble(myArgsEngine.getString("-frac"));
-		}
-		
-		if(myArgsEngine.getBoolean("-gz")) {
-			genome_size = Double.parseDouble(myArgsEngine.getString("-gz"));
-		}
 	}
 
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		if( this.coverage()<this.frac_thresh) {
-			myLogger.info("The coverage of genetic linkage maps is too small "
-				+ "for pseudomolecules construction: "+this.coverage());
-			return;
-		}
-		
-		double units = (genome_size-pseudoPhysicalSize())/pseudoGapSize();
-		if(units<0 || Double.isInfinite(units)) units = 0;
-		myLogger.info(units);
-		Scaffold scaffold;
 		try {
-			BufferedWriter bw = new BufferedWriter(new FileWriter(out_file));
-			for(String lgid : pseudo_molecule.keySet()) {
+			BufferedWriter bw = Utils.getBufferedWriter(out_file);
+			for(String id : molecules.keySet()) {
 				StringBuilder oos =  new StringBuilder();
-				List<Scaffold> pm = pseudo_molecule.get(lgid);
-				for(int i=0; i<pm.size(); i++) {
-					scaffold = pm.get(i);
-					int N = (int) (scaffold.gD*units);
-					for(int j=0; j<N; j++) oos.append('N');
-					if(scaffold.reverse)
-						oos.append(scaffold.reverseSeq());
-					else oos.append(scaffold.sequence);
+				List<Sequence> seqs = molecules.get(id);
+				oos.append(seqs.get(0).seq_str());
+				for(int i=1; i<seqs.size(); i++) {
+					oos.append(Sequence.polyn(gap_size));
+					oos.append(seqs.get(i).seq_str());
 				}
-				bw.write(">"+lgid+"\n");
-				bw.write(wrap(oos.toString(),50)+"\n");
+				bw.write(Sequence.formatOutput(id, oos.toString()));
 			}
 			bw.close();
 		} catch (IOException e) {
@@ -158,141 +139,32 @@ public class Pseudomolecule extends Executor {
 		}
 	}
 	
-	private class Scaffold {
-		private final String name;
-		private final String sequence;
-		private final int size;
-		private boolean reverse = false;
-		private double gL = 0;
-		private double gD = 0;
-		
-		public Scaffold(String name, String sequence) {
-			this.name = name;
-			this.sequence = sequence;
-			this.size = this.sequence.length();
-		}
-		
-		public void reverse() {
-			this.reverse = !this.reverse;
-		}
-		
-		public void setGL(double gL) {
-			this.gL = gL;
-		}
-		
-		public void setGD(double gD) {
-			this.gD = gD;
-		}
-		
-		public String reverseSeq() {
-			return Sequence.revCompSeq(this.sequence);
-		}
-		
-		@Override
-		public int hashCode() {
-			return this.name.hashCode();
-		}
-		
-		@Override
-		public boolean equals(Object obj) {
-			if(this==obj) return true;
-			if(obj==null) return false;
-			if(getClass()!=obj.getClass())
-				return false;
-			Scaffold scaff = (Scaffold) obj;
-			return this.name.equals(scaff.name);
-		}
-	}
-	
-	public String toFasta(String name,
-			String sequence, 
-			int linewidth) {
-		return ">"+name+
-				"\n"+wrap(sequence, linewidth);
-	}
-
-	private String wrap(String sequence, 
-			int linewidth) {
-		// TODO Auto-generated method stub
-		StringBuilder sb = new StringBuilder();
-		int size = sequence.length();
-		int n = size/linewidth, 
-				residual=size%linewidth;
-		if(n>0) sb.append(sequence.subSequence(0, 
-				linewidth));
-		for(int i=1; i<n; i++) {
-			sb.append("\n");
-			sb.append(sequence.subSequence(i*linewidth, 
-					(i+1)*linewidth));
-		}
-		if(residual>0) {
-			if(n>0) sb.append("\n");
-			sb.append(sequence.subSequence(
-					n*linewidth, size));
-		}
-		return sb.toString();
-	}
-	
-	
-	public void assemblyReader() {
+	public Map<String, List<Sequence>> readGeneticMap(String map_file) {
+		Map<String, List<Sequence>> molecules = new HashMap<>();
 		try {
-			BufferedReader br = Utils.getBufferedReader(assembly_file);
-			String line=br.readLine();
-			String name;
-			
-			double genome_size = 0.0;
-			while( line!=null ) {
-				if(line.startsWith(">")) {
-					name = line.split("\\s+")[0].substring(1).
-							replace('|', '_').replace('.', '_');
-					StringBuilder sequence = new StringBuilder();
-					while( (line=br.readLine())!=null &&
-							!line.startsWith(">"))
-						sequence.append(line);
-					scaffolds.put(name, new Scaffold(name, 
-							sequence.toString()));
-					genome_size += sequence.length();
-				} else line=br.readLine();
-			}
-			br.close();
-			if(this.genome_size<0) this.genome_size = genome_size;
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
-	
-	public void geneticMapReader() {
-		try {
-			BufferedReader br = Utils.getBufferedReader(mct_file);
+			BufferedReader br = Utils.getBufferedReader(map_file);
 			String line = br.readLine();
 			int lg = 0;
 			String[] s;
-			Scaffold scaffold;
-			String name, scaffold_name;
-			double start, end;
+			Sequence sequence;
+			String name, seqid;
 			while( line!=null ) {
 				if(line.startsWith("group")) {
-					List<Scaffold> scaff_list = new ArrayList<Scaffold>();
-					double cm = 0;
+					List<Sequence> seq_list = new ArrayList<>();
 					name = "LG"+(++lg);
 					while( (line=br.readLine())!=null && 
 							!line.startsWith("group") &&
 							line.length()!=0) {
 						s = line.split("\\(|\\)\\s+");
-						scaffold_name = s[0];
-						scaffold = scaffolds.get(scaffold_name);
-						if(s[1].equals("-")) scaffold.reverse();
-						start = Double.parseDouble(s[2]);
-						s = br.readLine().split("\\(|\\)\\s+");
-						end = Double.parseDouble(s[2]);
-						scaffold.setGL(end-start);
-						scaffold.setGD(start-cm);
-						cm = end;
-						scaff_list.add(scaffold);
+						seqid = s[0];
+						sequence = sequences.get(seqid);
+						if(s[1].equals("-"))
+							sequence = sequence.revCompSeq();
+						seq_list.add(sequence);
+						br.readLine();
 					}
-					pseudo_molecule.put(name, scaff_list);
-					if(line.length()!=0)
+					molecules.put(name, seq_list);
+					if(line!=null&&line.length()!=0)
 						line = br.readLine();
 				} else line=br.readLine();
 			}
@@ -301,82 +173,93 @@ public class Pseudomolecule extends Executor {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
+		return molecules;
 	}
 	
-	public double pseudoPhysicalSize() {
-		Scaffold scaffold;
-		double bp_all = 0.0;
-		for(String lgid : pseudo_molecule.keySet()) {
-			List<Scaffold> pm = pseudo_molecule.get(lgid);
-			for(int i=0; i<pm.size(); i++) {
-				scaffold = pm.get(i);
-				bp_all += scaffold.size;
-			}
-		}
-		return bp_all;
-	}
-	
-	public double pseudoGapSize() {
-		Scaffold scaffold;
-		double cm_all = 0.0;
-		for(String lgid : pseudo_molecule.keySet()) {
-			List<Scaffold> pm = pseudo_molecule.get(lgid);
-			for(int i=0; i<pm.size(); i++) {
-				scaffold = pm.get(i);
-				cm_all += scaffold.gD;
-			}
-		}
-		return cm_all;
-	}
-	
-	
-	public double coverage() {
-		return pseudoPhysicalSize()/genomeSize();
-	}
-	
-	public double genomeSize() {
-		return this.genome_size;
-	}
-
-	public void setAssemblyError(Map<String, int[][]> errs) {
+	private Map<String, int[][]> parseAssemblyErrorFile(String err_file) {
 		// TODO Auto-generated method stub
-		for(String errScaff : errs.keySet()) {
-			int[][] err = errs.get(errScaff);
-			String dnaSEQ = this.scaffolds.get(errScaff).sequence;
-			int[][] chunk = findBPS(dnaSEQ, err);
-			for(int i=0; i<chunk.length; i++)
-				this.scaffolds.put(errScaff+"_"+(i+1),
-						new Scaffold(errScaff+"_"+(i+1),
-								dnaSEQ.substring(chunk[i][0], 
-										chunk[i][1])));
+		Map<String, List<int[]>> errList = new HashMap<>();
+		try {
+			BufferedReader br_err = Utils.getBufferedReader(err_file);
+			String line;
+			String[] s;
+			while( (line=br_err.readLine())!=null) {
+				s = line.split("\\s+");
+				errList.putIfAbsent(s[0], new ArrayList<>());
+				errList.get(s[0]).add(new int[]{Integer.parseInt(s[1]), Integer.parseInt(s[2])});
+			}
+			br_err.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		Map<String, int[][]> errs = new HashMap<>();
+		for(Map.Entry<String, List<int[]>> entry : errList.entrySet()) {
+			List<int[]> err = entry.getValue();
+			Collections.sort(err, new Comparator<int[]>() {
+
+				@Override
+				public int compare(int[] i0, int[] i1) {
+					// TODO Auto-generated method stub
+					return Integer.compare(i0[0], i1[0]);
+				}
+				
+			});
+		
+			int[][] arr = new int[err.size()][];
+			for(int i=0; i<arr.length; i++)
+				arr[i] = err.get(i);
+			errs.put(entry.getKey(), arr);
+		}
+		
+		return errs;
+	}
+	
+	private void parseAssemblyErrors(String err_file) {
+		// TODO Auto-generated method stub
+		this.parseAssemblyErrors(this.parseAssemblyErrorFile(err_file));
+	}
+	
+
+	private void parseAssemblyErrors(Map<String, int[][]> errs) {
+		// TODO Auto-generated method stub
+		for(Map.Entry<String, int[][]> entry : errs.entrySet()) {
+			String seqid = entry.getKey();
+			if(seqid.equals("contig_516"))
+				myLogger.info("");
+			String seqstr = sequences.get(seqid).seq_str();
+			int[][] bps = findBPS(seqstr, entry.getValue());
+			for(int i=0; i<bps.length; i++) {
+				String bid = seqid+"_"+(i+1);
+				sequences.put(bid, new Sequence(bid, seqstr.substring(bps[i][0], bps[i][1])));
+			}
 		}
 	}
-
-	private int[][] findBPS(String errScaff, int[][] err) {
+	
+	private int[][] findBPS(String seqstr, int[][] err) {
 		// TODO Auto-generated method stub
 		int[][] chunk = new int[err.length+1][2];
 		for(int i=0; i<err.length; i++) {
-			String seq = errScaff.substring(err[i][0], 
-					err[i][1]);
-			String[] gap = seq.split("[CAGT]+");
-			if(gap.length==0) {
-				// no gap found, chunk in between is discarded
+			String seq = seqstr.substring(err[i][0], err[i][1]);
+			String gap = seq.replaceAll("[^ATCGatcg]+", "").replaceAll("[ATCGatcg]+$","");
+			if(gap.length()>0&&gap.replace('n', 'N').replaceAll("[N]+","").length()==0) {
+				// exactly one gap found, choose as break point
+				int star = Math.min(seq.indexOf('n'), seq.indexOf('N'));
+				chunk[i][1] = err[i][0]+star;
+				chunk[i+1][0] = err[i][0]+gap.length();
+			} else {
+				// no gap or more than one gap found, chunk in between is discarded
 				chunk[i][1] = err[i][0];
 				chunk[i+1][0] = err[i][1];
-			} else {
-				// gaps found, select the longest one as break point
-				String longest_gap = "";
-				for(int j=0; j<gap.length; j++)
-					if(longest_gap.length()<gap[j].length())
-						longest_gap = gap[j];
-				int star = seq.indexOf(longest_gap);
-				chunk[i][1] = err[i][0]+star;
-				chunk[i+1][0] = err[i][0]+longest_gap.length();
 			}
 		}
-		chunk[err.length][1] = errScaff.length();
+		chunk[err.length][1] = seqstr.length();
 		return chunk;
+	}
+	
+	public void setGapSize(int gap_size) {
+		this.gap_size = gap_size;
 	}
 }
 

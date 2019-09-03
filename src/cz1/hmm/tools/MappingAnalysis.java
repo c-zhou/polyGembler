@@ -41,7 +41,6 @@ public class MappingAnalysis extends Executor {
 						+ "     -1/--one-group              One group. \n"
 						+ "     -2/--check-group            Re-check linkage groups. \n"
 						+ "     -rlib/--R-external-libs     R external library path.\n"
-						+ "     -t/--threads                Threads (default 1).\n"
 						+ "     -o/--prefix                 Output file prefix.\n\n"
 				);
 	}
@@ -62,7 +61,6 @@ public class MappingAnalysis extends Executor {
 			myArgsEngine.add("-l", "--lod", true);
 			myArgsEngine.add("-1", "--one-group", false);
 			myArgsEngine.add("-2", "--check-group", false);
-			myArgsEngine.add( "-t", "--threads", true);
 			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
 			myArgsEngine.parse(args);
@@ -100,10 +98,6 @@ public class MappingAnalysis extends Executor {
 		if(myArgsEngine.getBoolean("-2")) {
 			two = true;
 		}
-
-		if(myArgsEngine.getBoolean("-t")) {
-			THREADS = Integer.parseInt(myArgsEngine.getString("-t"));
-		}
 		
 		if(myArgsEngine.getBoolean("-o")) {
 			out_prefix = myArgsEngine.getString("-o");
@@ -130,7 +124,7 @@ public class MappingAnalysis extends Executor {
 		RFUtils.makeExecutable("cz1/hmm/scripts/include.R", temfile_prefix);
 		RFUtils.makeRMatrix(rf_file, out_prefix+".RData");
 		double max_d = Math.min(100*RFUtils.geneticDistance(RFUtils.calcRfFromLOD(lod_thres, ns), "kosambi"), 50);
-		myLogger.info("Using recombination frequency threshold: "+max_d);
+		myLogger.info("Using genetic distance threshold: "+max_d+"cM.");
 		final String command =
 				"Rscript "+mklgR_path+" "
 						+ "-i "+out_prefix+".RData "
@@ -141,7 +135,6 @@ public class MappingAnalysis extends Executor {
 						+ "-o "+out_prefix+" "
 						+ "--concorde "+new File(concorde_path).getParent()+" "
 						+ (RLibPath==null ? "" : "--include "+RLibPath+" ")
-						+ "--process "+THREADS+" "
 						+ "--tmpdir "+new File(temfile_prefix).getAbsolutePath();
 		this.consume(this.bash(command));
 

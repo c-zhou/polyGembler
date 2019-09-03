@@ -612,8 +612,6 @@ public class Gembler extends Executor {
 		new Pseudomolecule(
 				metafile_prefix+"genetic_linkage_map.mct",
 				this.assembly_file,
-				this.genome_size,
-				this.frac_thresh,
 				metafile_prefix+"pseudomolecules.fa",
 				assemblyError.errs()).run();
 		

@@ -251,6 +251,14 @@ public class Sequence {
 		return s.toString();
 	}
 	
+	public static String polyn(int n) {
+		// TODO Auto-generated method stub
+		StringBuilder s = new StringBuilder();
+		for(int i=0; i<n; i++)
+			s.append("n");
+		return s.toString();
+	}
+	
 	public static Sequence gapSeq(int n) {
 		// TODO Auto-generated method stub
 		return new Sequence("GAP", polyN(n));
