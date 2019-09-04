@@ -51,6 +51,7 @@ public class Gembler extends Executor {
 	private int drop = 1;
 	private double phi = 2;
 	private int nB = 10;
+	private int ns;
 	
 	private double genome_size = -1;
 	private double frac_thresh = .8;
@@ -112,6 +113,7 @@ public class Gembler extends Executor {
 						+ "     -a/--input-assembly         Input assembly fasta file.\n"
 						+ "     -frac/--frac-thresold       Lower threshold the genetic linkage map covers to construct \n"
 						+ "                                 pseudomolecules (default 0.8).\n"
+						+ "     -n/--hap-size               #haplotypes (popsize*ploidy). \n"
 						+ "     -gz/--genome-size           The estimated genome size (default size of the reference assembly). \n"
 						+"\n"
 				);
@@ -153,6 +155,7 @@ public class Gembler extends Executor {
 			myArgsEngine.add("-nd", "--drop", true);
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
 			myArgsEngine.add("-frac", "--frac-thresold", true);
+			myArgsEngine.add("-n", "--pop-size", true);
 			myArgsEngine.add("-gz", "--genome-size", true);
 			myArgsEngine.parse(args);
 		}
@@ -275,6 +278,10 @@ public class Gembler extends Executor {
 			frac_thresh = Double.parseDouble(myArgsEngine.getString("-frac"));
 		}
 		
+		if(myArgsEngine.getBoolean("-n")) {
+			ns = Integer.parseInt(myArgsEngine.getString("-n"));
+		}
+		
 		if(myArgsEngine.getBoolean("-gz")) {
 			genome_size = Double.parseDouble(myArgsEngine.getString("-gz"));
 		}
@@ -372,7 +379,7 @@ public class Gembler extends Executor {
 				RFUtils.makeExecutable("cz1/hmm/scripts/make_nnsuperscaffold.R", temfile_prefix);
 		RFUtils.makeExecutable("cz1/hmm/scripts/include.R", temfile_prefix);
 		new File(concorde_path).setExecutable(true, true);
-		RFUtils.makeRMatrix(rf_prefix+".txt", rf_prefix+".RData");
+		RFUtils.makeRMatrix(rf_prefix+".txt", rf_prefix+".RData", ns);
 		String command = "Rscript "+nnssR_path+" "
 				+ "-i "+rf_prefix+".RData "
 				+ "-n 2 "
@@ -411,7 +418,7 @@ public class Gembler extends Executor {
 		//#### STEP 08 genetic mapping
 		final String mklgR_path = 
 				RFUtils.makeExecutable("cz1/hmm/scripts/make_geneticmap.R", temfile_prefix);
-		RFUtils.makeRMatrix(mm_rf_prefix+".txt", mm_rf_prefix+".RData");
+		RFUtils.makeRMatrix(mm_rf_prefix+".txt", mm_rf_prefix+".RData", ns);
 		command = "Rscript "+mklgR_path+" "
 				+ "-i "+mm_rf_prefix+".RData "
 				+ "-m "+mm_rf_prefix+".map "
@@ -527,7 +534,7 @@ public class Gembler extends Executor {
 							Double.POSITIVE_INFINITY,
 							drop,
 							nB).run();
-					RFUtils.makeRMatrix(mm_rf_prefix_ij+".txt", mm_rf_prefix_ij+".RData");
+					RFUtils.makeRMatrix(mm_rf_prefix_ij+".txt", mm_rf_prefix_ij+".RData", ns);
 					command = "Rscript "+mklgR_path+" "
 							+ "-i "+mm_rf_prefix_ij+".RData "
 							+ "-m "+mm_rf_prefix_ij+".map "

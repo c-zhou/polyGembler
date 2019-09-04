@@ -2,8 +2,11 @@ package cz1.hmm.tools;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -152,7 +155,7 @@ public class NNsuperscaffold extends Executor {
 		double[] fs, fz;
 		Set<Double> fs2cl = new HashSet<>();
 
-		while(clusts.size()>1) {
+		while(!minRfs.isEmpty()) {
 
 			entry = minRfs.firstEntry();
 			f = entry.getKey();
@@ -181,8 +184,7 @@ public class NNsuperscaffold extends Executor {
 			i1 = clusts.get(c1);
 			i2 = clusts.get(c2);
 
-			c = new Cluster(i1, i2);
-			c.join = f;
+			c = new Cluster(i1, i2, c1, c2, j1, j2, f);
 			allf = c.allf;
 			minf = c.minf;
 
@@ -243,6 +245,48 @@ public class NNsuperscaffold extends Executor {
 			clusts.put(c, nclust);
 			++nclust;
 		}
+		
+		myLogger.info("####clusters: "+clusts.size());
+		StringBuilder out = new StringBuilder();
+		List<Integer> ids;
+		List<Double> dists;
+		List<Boolean> joins;
+		
+		for(Map.Entry<Cluster, Integer> ent : clusts.entrySet()) {
+			c = ent.getKey();
+			out.setLength(0);
+			ids = c.ids;
+			dists = c.dists;
+			joins = c.joins;
+			
+			out.append("-c ");
+			out.append(scaffs.getKey(ids.get(0)));
+			for(int i=1; i<ids.size(); i++) {
+				out.append(":");
+				out.append(scaffs.getKey(ids.get(i)));	
+			}
+			
+			if(dists.size()>0) {
+				out.append(" -s ");
+				out.append(dists.get(0));
+				for(int i=1; i<dists.size(); i++) {
+					out.append(":");
+					out.append(dists.get(i));	
+				}		
+			}
+			
+			if(joins.size()>1) {
+				out.append(" -r ");
+				out.append(joins.get(0));
+				for(int i=1; i<joins.size(); i++) {
+					out.append(":");
+					out.append(joins.get(i));	
+				}		
+			}
+			
+			myLogger.info("#"+ent.getValue()+"\t"+out.toString());
+		}
+		
 	}
 
 	private final class ClustPair { 
@@ -343,19 +387,45 @@ public class NNsuperscaffold extends Executor {
 		private final int last;
 		private final Map<Cluster, Double> minf = new HashMap<>();
 		private final Map<Cluster, double[]> allf = new HashMap<>();
-		private double join;
+		private final List<Integer> ids = new ArrayList<>();
+		private final List<Double> dists = new ArrayList<>();
+		private final List<Boolean> joins = new ArrayList<>();
 
-		public Cluster(int first, int last) {
+		public Cluster(int first, int last, Cluster c1, Cluster c2, boolean j1, boolean j2, double j) {
 			this.first = first;
 			this.last  = last;
+			
+			if(!j1) {
+				Collections.reverse(c1.ids);
+				Collections.reverse(c1.dists);
+				Collections.reverse(c1.joins);
+				for(int i=0; i<c1.joins.size(); i++)
+					c1.joins.set(i, !c1.joins.get(i));
+			}
+			if(!j2) {
+				Collections.reverse(c2.ids);
+				Collections.reverse(c2.dists);
+				Collections.reverse(c2.joins);
+				for(int i=0; i<c2.joins.size(); i++)
+					c2.joins.set(i, !c2.joins.get(i));
+			}
+			ids.addAll(c1.ids);
+			ids.addAll(c2.ids);
+			dists.addAll(c1.dists);
+			dists.add(j);
+			dists.addAll(c2.dists);
+			joins.addAll(c1.joins);
+			joins.addAll(c2.joins);
 		}
 
 		public Cluster(int first) {
 			// TODO Auto-generated constructor stub
 			this.first = first;
 			this.last  = first;
+			ids.add(first);
+			joins.add(true);
 		}
-
+		
 		@Override
 		public int hashCode() {
 			int hash = 17;

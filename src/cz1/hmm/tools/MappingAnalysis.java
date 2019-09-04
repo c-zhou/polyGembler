@@ -15,7 +15,6 @@ public class MappingAnalysis extends Executor {
 	private double lod_thres = 3;
 	private int ns;
 	private boolean one = false;
-	private boolean two = false;
 
 	@Override
 	public void printUsage() {
@@ -27,8 +26,7 @@ public class MappingAnalysis extends Executor {
 						+ "     -m/--map                    Recombination map file.\n"
 						+ "     -n/--hap-size               #haplotypes (popsize*ploidy). \n"
 						+ "     -l/--lod                    LOD score threshold (default: 3).\n"
-						+ "     -1/--one-group              One group. \n"
-						+ "     -2/--check-group            Re-check linkage groups. \n"
+						+ "     -1/--one-group              Keep all in one group. Do not do clustering. \n"
 						+ "     -rlib/--R-external-libs     R external library path.\n"
 						+ "     -o/--prefix                 Output file prefix.\n\n"
 				);
@@ -49,7 +47,6 @@ public class MappingAnalysis extends Executor {
 			myArgsEngine.add("-n", "--pop-size", true);
 			myArgsEngine.add("-l", "--lod", true);
 			myArgsEngine.add("-1", "--one-group", false);
-			myArgsEngine.add("-2", "--check-group", false);
 			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
 			myArgsEngine.parse(args);
@@ -83,10 +80,6 @@ public class MappingAnalysis extends Executor {
 		if(myArgsEngine.getBoolean("-1")) {
 			one = true;
 		}
-
-		if(myArgsEngine.getBoolean("-2")) {
-			two = true;
-		}
 		
 		if(myArgsEngine.getBoolean("-o")) {
 			out_prefix = myArgsEngine.getString("-o");
@@ -111,16 +104,15 @@ public class MappingAnalysis extends Executor {
 		final String mklgR_path =
 				RFUtils.makeExecutable("cz1/hmm/scripts/make_geneticmap.R", temfile_prefix);
 		RFUtils.makeExecutable("cz1/hmm/scripts/include.R", temfile_prefix);
-		RFUtils.makeRMatrix(rf_file, out_prefix+".RData");
-		double max_d = Math.min(100*RFUtils.geneticDistance(RFUtils.calcRfFromLOD(lod_thres, ns), "kosambi"), 50);
-		myLogger.info("Using genetic distance threshold: "+max_d+"cM.");
+		RFUtils.makeRMatrix(rf_file, out_prefix+".RData", ns);
+		double max_r = Math.min(RFUtils.calcRfFromLOD(lod_thres, ns), RFUtils.inverseGeneticDistance(0.5, "kosambi"));
+		myLogger.info("Using recombination frequency threshold: "+max_r+".");
 		final String command =
 				"Rscript "+mklgR_path+" "
 						+ "-i "+out_prefix+".RData "
 						+ "-m "+map_file+" "
-						+ "-d "+max_d+" "
+						+ "-d "+max_r+" "
 						+ (one?"-1 ":" ")
-						+ (two?"-2 ":" ")
 						+ "-o "+out_prefix+" "
 						+ "--concorde "+new File(concorde_path).getParent()+" "
 						+ (RLibPath==null ? "" : "--include "+RLibPath+" ")

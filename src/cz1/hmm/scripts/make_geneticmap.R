@@ -7,14 +7,12 @@ parser$add_argument("-i", "--input", required = T,
                     help="Input RData file.")
 parser$add_argument("-m", "--map", required = T,
                     help="Input MAP file.")
-parser$add_argument("-d", "--distance", default = 50, type="double",
-                    help="Genetic distance (centimorgan) threshold for grouping [default %(default)s].")
+parser$add_argument("-r", "--distance", default = 0.38, type="double",
+                    help="Recombination frequency threshold for grouping [default %(default)s].")
 parser$add_argument("-o", "--output", required = T,
                     help="Output files name prefix.")
 parser$add_argument("-1", "--group", action='store_false', 
-                    help="Build linkage groups, otherwise all contigs into one group.")
-parser$add_argument("-2", "--check", action='store_true', 
-					help="Check and break linkage groups after ordering if distance greater than the predefined threshold.")			
+                    help="Build linkage groups, otherwise all contigs into one group.")		
 parser$add_argument("-c", "--concorde", required = T,
                     help="Concorde executable file path.")
 parser$add_argument("-l", "--include",
@@ -27,10 +25,9 @@ args <- parser$parse_args()
 
 in_RData = args$input
 in_map = args$map
-max_d = args$distance
+max_r = args$distance
 out_file = args$output
 make_group = args$group
-make_check = args$check
 concorde_path = args$concorde
 external_lib = args$include
 tmpdir = args$tmpdir
@@ -41,6 +38,7 @@ if(!is.null(external_lib)) {
 }
 
 suppressPackageStartupMessages(library(TSP))
+suppressPackageStartupMessages(library(MDSMap))
 suppressPackageStartupMessages(library(igraph))
 
 allPackages = rownames(installed.packages())
@@ -62,4 +60,4 @@ file.name <- "--file="
 script.name <- sub(file.name, "", initial.options[grep(file.name, initial.options)])
 source(paste(sep="/", dirname(script.name), "include.R"))
 
-genetic_linkage_map(in_RData, in_map, out_file, max_d, make_group, make_check)
+genetic_linkage_map(in_RData, in_map, out_file, max_r, make_group)
