@@ -149,7 +149,7 @@ ordering <- function(clus, distanceAll, indexMat, method="concorde", preorder=NU
     if(w==1 || w==length(o)) o = o[-w]
     else o = o[c((w+1):length(o),1:(w-1))]
     o = colnames(d)[o]
-    c1 = tour_length(tour)
+    c1 = length(tour)
     o1 = gsub("\\(\\+\\)|\\(\\-\\)","",o)
     n = length(o)
     o2 = o1[seq(1,n,2)]
