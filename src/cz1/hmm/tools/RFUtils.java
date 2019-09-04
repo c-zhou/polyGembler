@@ -297,7 +297,7 @@ public abstract class RFUtils extends Executor {
 	 * renjin-script-engine-*-with dependencies.jar required
 	 * https://nexus.bedatadriven.com/content/groups/public/org/renjin/renjin-script-engine/
 	**/
-	protected static void makeRMatrix(String in_rf, String out_Rmat, int ns) {
+	protected static void makeRMatrix(String in_rf, String out_Rmat, int hs) {
 		// TODO Auto-generated method stub
 		ScriptEngineManager manager = new ScriptEngineManager();
 		ScriptEngine engine = manager.getEngineByName("Renjin"); 
@@ -334,7 +334,7 @@ public abstract class RFUtils extends Executor {
 				dMat.set(j,i,d);
 				iMat.set(i,j,w+1);
 				iMat.set(j,i,w+1+A);
-				l = calcLODFromRf(d, ns);
+				l = calcLODFromRf(d, hs);
 				lMat.set(i,j,l);
 				lMat.set(j,i,l);
 				for(int k=0; k<4; k++) {

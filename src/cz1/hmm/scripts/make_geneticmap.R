@@ -9,6 +9,8 @@ parser$add_argument("-m", "--map", required = T,
                     help="Input MAP file.")
 parser$add_argument("-r", "--distance", default = 0.38, type="double",
                     help="Recombination frequency threshold for grouping [default %(default)s].")
+parser$add_argument("-n", "--nn", type="double", default=3,
+                    help="Number of nearest neighbours [default %(default)s].")
 parser$add_argument("-o", "--output", required = T,
                     help="Output files name prefix.")
 parser$add_argument("-1", "--group", action='store_false', 
@@ -26,6 +28,7 @@ args <- parser$parse_args()
 in_RData = args$input
 in_map = args$map
 max_r = args$distance
+nn = args$nn
 out_file = args$output
 make_group = args$group
 concorde_path = args$concorde
@@ -60,4 +63,4 @@ file.name <- "--file="
 script.name <- sub(file.name, "", initial.options[grep(file.name, initial.options)])
 source(paste(sep="/", dirname(script.name), "include.R"))
 
-genetic_linkage_map(in_RData, in_map, out_file, max_r, make_group)
+genetic_linkage_map(in_RData, in_map, out_file, max_r, make_group, nn)

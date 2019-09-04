@@ -13,7 +13,8 @@ public class MappingAnalysis extends Executor {
 	private String RLibPath = null;
 	private String out_prefix = null;
 	private double lod_thres = 3;
-	private int ns;
+	private int hs;
+	private int nn = 3;
 	private boolean one = false;
 
 	@Override
@@ -24,8 +25,9 @@ public class MappingAnalysis extends Executor {
 						+ " Common:\n"
 						+ "     -i/--rf                     Recombination frequency file.\n"
 						+ "     -m/--map                    Recombination map file.\n"
-						+ "     -n/--hap-size               #haplotypes (popsize*ploidy). \n"
+						+ "     -h/--hap-size               #haplotypes (popsize*ploidy).\n"
 						+ "     -l/--lod                    LOD score threshold (default: 3).\n"
+						+ "     -n/--nn                     Nearest neighbour for reordering with TSP (default: 3).\n"
 						+ "     -1/--one-group              Keep all in one group. Do not do clustering. \n"
 						+ "     -rlib/--R-external-libs     R external library path.\n"
 						+ "     -o/--prefix                 Output file prefix.\n\n"
@@ -44,8 +46,9 @@ public class MappingAnalysis extends Executor {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-i", "--rf", true);
 			myArgsEngine.add("-m", "--map", true);
-			myArgsEngine.add("-n", "--pop-size", true);
+			myArgsEngine.add("-h", "--hap-size", true);
 			myArgsEngine.add("-l", "--lod", true);
+			myArgsEngine.add("-n", "--nn", true);
 			myArgsEngine.add("-1", "--one-group", false);
 			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
@@ -66,8 +69,8 @@ public class MappingAnalysis extends Executor {
 			throw new IllegalArgumentException("Please specify your recombination map file.");
 		}
 
-		if(myArgsEngine.getBoolean("-n")) {
-			ns = Integer.parseInt(myArgsEngine.getString("-n"));
+		if(myArgsEngine.getBoolean("-h")) {
+			hs = Integer.parseInt(myArgsEngine.getString("-h"));
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify the number of haplotypes (popsize*ploidy).");
@@ -75,6 +78,10 @@ public class MappingAnalysis extends Executor {
 
 		if(myArgsEngine.getBoolean("-l")) {
 			lod_thres = Double.parseDouble(myArgsEngine.getString("-l"));
+		}
+		
+		if(myArgsEngine.getBoolean("-n")) {
+			nn = Integer.parseInt(myArgsEngine.getString("-n"));
 		}
 
 		if(myArgsEngine.getBoolean("-1")) {
@@ -104,14 +111,15 @@ public class MappingAnalysis extends Executor {
 		final String mklgR_path =
 				RFUtils.makeExecutable("cz1/hmm/scripts/make_geneticmap.R", temfile_prefix);
 		RFUtils.makeExecutable("cz1/hmm/scripts/include.R", temfile_prefix);
-		RFUtils.makeRMatrix(rf_file, out_prefix+".RData", ns);
-		double max_r = Math.min(RFUtils.calcRfFromLOD(lod_thres, ns), RFUtils.inverseGeneticDistance(0.5, "kosambi"));
+		RFUtils.makeRMatrix(rf_file, out_prefix+".RData", hs);
+		double max_r = Math.min(RFUtils.calcRfFromLOD(lod_thres, hs), RFUtils.inverseGeneticDistance(0.5, "kosambi"));
 		myLogger.info("Using recombination frequency threshold: "+max_r+".");
 		final String command =
 				"Rscript "+mklgR_path+" "
 						+ "-i "+out_prefix+".RData "
 						+ "-m "+map_file+" "
-						+ "-d "+max_r+" "
+						+ "-r "+max_r+" "
+						+ "-n "+nn+" "
 						+ (one?"-1 ":" ")
 						+ "-o "+out_prefix+" "
 						+ "--concorde "+new File(concorde_path).getParent()+" "
