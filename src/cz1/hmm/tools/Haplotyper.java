@@ -269,27 +269,37 @@ public class Haplotyper extends Executor {
 			throw new IllegalArgumentException("Please specify the parent samples (seperated by a \":\").");
 		}
 		
-		if(myArgsEngine.getBoolean("-s")) {
-			String[] ss = myArgsEngine.getString("-s").split(":");
-			if(ss.length<scaff.length-1)
-				throw new RuntimeException("Number of scaffolds does not match number of initial seperations!!!");
-			seperation = new double[scaff.length-1];
+		if(scaff.length>1) {
+			if(myArgsEngine.getBoolean("-s")) {
+				String[] ss = myArgsEngine.getString("-s").split(":");
+				if(ss.length<scaff.length-1)
+					throw new RuntimeException("Number of scaffolds does not match number of initial seperations!!!");
+				seperation = new double[scaff.length-1];
+				for(int i=0; i<seperation.length; i++)
+					seperation[i] = Double.parseDouble(ss[i]);
+			} else {
+				seperation = new double[scaff.length-1];
+				for(int i=0; i<seperation.length; i++)
+					seperation[i] = Math.max(Math.round(
+							Constants.rand.nextDouble()*
+							max_init_seperation),1);
+			}
+			boolean isRF = true;
 			for(int i=0; i<seperation.length; i++)
-				seperation[i] = Double.parseDouble(ss[i]);
-		} else {
-			seperation = new double[scaff.length-1];
+				if(seperation[i]>1.0)
+					isRF = false;
+			if(isRF) {
+				for(int i=0; i<seperation.length; i++) {
+					if(seperation[i]>=0.5) seperation[i] = 0.4999999;
+					if(seperation[i]<=0)   seperation[i] = 0.0000001;
+					seperation[i] = -.5*Math.log(1-2*seperation[i])*10000000;
+				}
+			}
+			
+			myLogger.info("##using initial seperation: ");
 			for(int i=0; i<seperation.length; i++)
-				seperation[i] = Math.max(Math.round(
-						Constants.rand.nextDouble()*
-						max_init_seperation),1);
-		}
-		boolean isRF = true;
-		for(int i=0; i<seperation.length; i++)
-			if(seperation[i]>1.0)
-				isRF = false;
-		if(isRF) {
-			for(int i=0; i<seperation.length; i++) 
-				seperation[i] = -.5*Math.log(1-2*seperation[i])*10000000;
+				myLogger.info(seperation[i]);
+			myLogger.info("####");
 		}
 		
 		if(myArgsEngine.getBoolean("-r")) {
