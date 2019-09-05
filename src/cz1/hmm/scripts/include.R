@@ -128,7 +128,7 @@ ordering <- function(clus, distanceAll, indexMat, method="concorde", preorder=NU
 	temp_file <- basename(tempfile(tmpdir = wd))
 	tmp_file_in  <- paste(temp_file, ".dat", sep = "")
 	tmp_file_out <- paste(temp_file, ".sol", sep = "")
-	write_TSPLIB(ATSP(d), file = tmp_file_in, precision = 0)
+	write_TSPLIB(TSP(d), file = tmp_file_in, precision = 0)
 	system2(.find_prog("concorde"),
 		args =  paste("-x -o", tmp_file_out, tmp_file_in),
     )
