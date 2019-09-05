@@ -37,7 +37,7 @@ sum_finite <- function(x) {sum(x[is.finite(x)])}
 
 as.numeric.factor <- function(f) {as.numeric(levels(f))[f]}
 
-distTSP <- function(clus, distanceAll, indexMat, preorder=NULL, nn = 3) {
+distTSP <- function(clus, distanceAll, indexMat, preorder=NULL, nn=1) {
     n = length(clus)
     names = c()
     for(i in 1:n) names=c(names,c(paste0(clus[i],"(+)"),
@@ -109,7 +109,7 @@ distTSP <- function(clus, distanceAll, indexMat, preorder=NULL, nn = 3) {
 	prog_path
 }
 
-ordering <- function(clus, distanceAll, indexMat, method="concorde", preorder=NULL, nn=3) {
+ordering <- function(clus, distanceAll, indexMat, method="concorde", preorder=NULL, nn=1) {
 
     if(length(clus)==0) return(NA);
     if(length(clus)==1) return(
@@ -128,7 +128,7 @@ ordering <- function(clus, distanceAll, indexMat, method="concorde", preorder=NU
 	temp_file <- basename(tempfile(tmpdir = wd))
 	tmp_file_in  <- paste(temp_file, ".dat", sep = "")
 	tmp_file_out <- paste(temp_file, ".sol", sep = "")
-	write_TSPLIB(TSP(d), file = tmp_file_in, precision = 0)
+	write_TSPLIB(ATSP(d), file = tmp_file_in, precision = 0)
 	system2(.find_prog("concorde"),
 		args =  paste("-x -o", tmp_file_out, tmp_file_in),
     )
@@ -258,178 +258,6 @@ fm <- function(cA, cB, beta=1) {
     (1+beta^2)*p*r/(beta^2*p+r)
 }
 
-
-two_point <- function(in_RData, twopoint_file, out_file, fix_rf=NA) {
-	
-	load(in_RData)
-	diag(distanceMat) = Inf
-	twopoint=matrix(as.character(unlist(read.table(twopoint_file))),ncol=2)
-	n1 = dim(twopoint)[1]
-	n2 = dim(twopoint)[2]
-	clus=matrix(NA, nrow=n1, ncol=n2)
-	for(i in 1:n1)
-		for(j in 1:n2)
-			clus[i,j] = which(scaffs==twopoint[i,j])
-	
-	sink(out_file)
-	for(i in 1:dim(clus)[1]) {
-		if(is.na(clus[i,2])) {
-			cat("-c ")
-			cat(scaffs[clus[i,1]])
-			cat("\n")
-			next
-		}
-		sink("/dev/null")
-		o = ordering(clus[i,], distanceAll, indexMat)
-		sink()		
-		oR = as.numeric(o$order); oO = o$oriO
-		cat("-c ")
-		cat(paste(scaffs[oR], collapse=":"))
-		sepe = rep(NA, length(oR)-1)
-		reverse = rep("false", length(oR))
-		
-		for(j in 1:(length(oR)-1)) {
-			c_1 = oO[2*j]
-			c_2 = oO[2*j+1]
-			if(length(grep("(\\+)",c_1))>0) reverse[j]="true"
-			
-			sepe[j] =
-            if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-                distanceAll[indexMat[oR[j],oR[j+1]],1]
-            } else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-                distanceAll[indexMat[oR[j],oR[j+1]],2]
-            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-                distanceAll[indexMat[oR[j],oR[j+1]],3]
-            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-                distanceAll[indexMat[oR[j],oR[j+1]],4]
-            }
-		}
-		
-		if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j+1]="true"
-		if(is.na(fix_rf)) {
-			cat(" -s "); cat(paste(.kosambi_r(sepe/100), collapse=":"))
-		} else {
-			cat(" -s "); cat(paste(rep(fix_rf, n2-1), collapse=":"))
-		}
-		cat(" -r "); cat(paste(reverse, collapse=":"))
-		cat("\n")
-	}
-	sink()
-}
-
-nearest_neighbour_joining <- function(in_RData, out_file, nn=1, max_r=.kosambi_r(0.5)) {
-	
-    load(in_RData)
-	
-	max_d = .cm_d(max_r)
-	distanceMat = .cm_d(distanceMat)
-    diag(distanceMat) = Inf
-    clus=matrix(NA, ncol=nn+1, nrow=0)
-    for(i in 1:n) {
-        w = sort(distanceMat[i,],index.return=T)
-        x = w$x
-        ix = w$ix
-        ux = unique(x)
-        s = 0
-        ss = list()
-        for(j in ux) {
-            s = s+sum(x==j)
-            ss[[length(ss)+1]] = which(x==j)
-            if(s>=nn) break
-        }
-                
-        p = i
-        j = 1
-        while(j<length(ss)) {
-            p = c(p, ix[ss[[j]]])
-            j = j+1
-        }
-        lp = length(p)
-        cp = combs(ix[ss[[length(ss)]]],nn+1-lp)
-        n = 0
-        for(j in 1:dim(cp)[1]) {
-            ng=sort(c(p,cp[j,]))
-            if(any(distanceMat[combs(ng,2)]>max_d))
-                next
-            clus=rbind(clus,ng)
-            n = n+1
-        }
-        if(n==0) clus=rbind(clus,c(p,rep(NA,nn)))
-    }
-    clus=unique(clus)
-
-    sink(out_file)
-    for(i in 1:dim(clus)[1]) {
-        if(is.na(clus[i,2])) {
-            cat("-c ")
-            cat(scaffs[clus[i,1]])
-            cat("\n")
-            next
-        }
-        sink("/dev/null")
-        o = ordering(clus[i,], distanceAll, indexMat)
-        sink()		
-        oR = as.numeric(o$order); oO = o$oriO
-        cat("-c ")
-        cat(paste(scaffs[oR], collapse=":"))
-        sepe = rep(NA, length(oR)-1)
-        reverse = rep("false", length(oR))
-
-        for(j in 1:(length(oR)-1)) {
-            c_1 = oO[2*j]
-            c_2 = oO[2*j+1]
-            if(length(grep("(\\+)",c_1))>0) reverse[j]="true"
-            
-            sepe[j] =
-            if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-                distanceAll[indexMat[oR[j],oR[j+1]],1]
-            } else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-                distanceAll[indexMat[oR[j],oR[j+1]],2]
-            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-                distanceAll[indexMat[oR[j],oR[j+1]],3]
-            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-                distanceAll[indexMat[oR[j],oR[j+1]],4]
-            }
-        }
-
-        if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j+1]="true"
-        cat(" -s "); cat(paste(.kosambi_r(sepe/100), collapse=":"))
-        cat(" -r "); cat(paste(reverse, collapse=":"))
-        cat("\n")
-    }
-    sink()
-}
-
-traverse <- function(adj_matrix) {
-    n = dim(adj_matrix)[1]
-    ## need to be symmetric
-    for(i in 1:(n-1))
-        for(j in (i+1):n)
-            if(adj_matrix[i,j]>0 || adj_matrix[j,i]>0)
-                adj_matrix[i,j]=adj_matrix[j,i]=1
-
-    visited = rep(F, n)
-    clans = rep(NA, n)
-    cn = 0
-    for(i in 1:n) {
-        if(visited[i]) next
-        cn = cn+1
-        clans[i] = cn
-        visited[i] = T
-        w = which(adj_matrix[i,]>0)
-        while(length(w)>0) {
-            w0 = w[1]
-            w=w[-1]
-            if(visited[w0]) next
-            clans[w0] = cn
-            visited[w0] = T
-            w=c(w,which(adj_matrix[w0,]>0))
-        }
-    }
-
-    clans
-}
-
 .simply_write_files <- function(in_RData, in_map, out_file) {
 	load(in_RData)
 	
@@ -485,7 +313,7 @@ traverse <- function(adj_matrix) {
 	list(dC=dC, tC=tC)
 }
 
-genetic_linkage_map <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5), make_group=TRUE, nn=3) {
+genetic_linkage_map <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5), make_group=TRUE, nn=1) {
 
     load(in_RData)
     
@@ -613,7 +441,7 @@ genetic_linkage_map <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5
                 distanceAll[indexMat[oR[j],oR[j+1]],4]
             }
 
-            d = d+dist_j
+            d = d+.cm_d(dist_j)
             nh = nchar(oO[2*j+1])
             cat(paste0(scaffs[as.numeric(substr(oO[2*j+1],1,nh-3))],substr(oO[2*j+1],nh-2,nh)))
             cat("\t"); cat(d); cat("\n")
@@ -656,7 +484,7 @@ genetic_linkage_map <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5
             }
         }
         if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j]="true"
-        cat(" -s "); cat(paste(.kosambi_r(sepe/100), collapse=":"))
+        cat(" -s "); cat(paste(sepe, collapse=":"))
         cat(" -r "); cat(paste(reverse, collapse=":"))
         cat("\n")
     }

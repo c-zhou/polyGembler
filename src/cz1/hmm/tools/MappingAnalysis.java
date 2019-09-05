@@ -14,7 +14,6 @@ public class MappingAnalysis extends Executor {
 	private String out_prefix = null;
 	private double lod_thres = 3;
 	private int hs;
-	private int nn = 3;
 	private boolean one = false;
 
 	@Override
@@ -27,7 +26,6 @@ public class MappingAnalysis extends Executor {
 						+ "     -m/--map                    Recombination map file.\n"
 						+ "     -h/--hap-size               #haplotypes (popsize*ploidy).\n"
 						+ "     -l/--lod                    LOD score threshold (default: 3).\n"
-						+ "     -n/--nn                     Nearest neighbour for reordering with TSP (default: 3).\n"
 						+ "     -1/--one-group              Keep all in one group. Do not do clustering. \n"
 						+ "     -rlib/--R-external-libs     R external library path.\n"
 						+ "     -o/--prefix                 Output file prefix.\n\n"
@@ -48,7 +46,6 @@ public class MappingAnalysis extends Executor {
 			myArgsEngine.add("-m", "--map", true);
 			myArgsEngine.add("-h", "--hap-size", true);
 			myArgsEngine.add("-l", "--lod", true);
-			myArgsEngine.add("-n", "--nn", true);
 			myArgsEngine.add("-1", "--one-group", false);
 			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
@@ -80,10 +77,6 @@ public class MappingAnalysis extends Executor {
 			lod_thres = Double.parseDouble(myArgsEngine.getString("-l"));
 		}
 		
-		if(myArgsEngine.getBoolean("-n")) {
-			nn = Integer.parseInt(myArgsEngine.getString("-n"));
-		}
-
 		if(myArgsEngine.getBoolean("-1")) {
 			one = true;
 		}
@@ -119,7 +112,6 @@ public class MappingAnalysis extends Executor {
 						+ "-i "+out_prefix+".RData "
 						+ "-m "+map_file+" "
 						+ "-r "+max_r+" "
-						+ "-n "+nn+" "
 						+ (one?"-1 ":" ")
 						+ "-o "+out_prefix+" "
 						+ "--concorde "+new File(concorde_path).getParent()+" "
