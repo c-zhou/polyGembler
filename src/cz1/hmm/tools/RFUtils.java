@@ -311,7 +311,7 @@ public abstract class RFUtils extends Executor {
 			String line;
 			String s[];
 			int w = 0;
-			double l;
+			double d, l;
 			while( (line=br.readLine())!=null &&
 					line.startsWith("##")) {
 				scaffs.put(w++, line.replaceAll("^##", ""));
@@ -320,27 +320,31 @@ public abstract class RFUtils extends Executor {
 			int n = scaffs.size();
 			int A = w*(w-1)/2;
 			DoubleMatrixBuilder dMat = new DoubleMatrixBuilder(n,n);
-			DoubleMatrixBuilder iMat = new DoubleMatrixBuilder(n,n);
 			DoubleMatrixBuilder lMat = new DoubleMatrixBuilder(n,n);
+			DoubleMatrixBuilder iMat = new DoubleMatrixBuilder(n,n);
 			DoubleMatrixBuilder dAllMat = new DoubleMatrixBuilder(A*2,4);
+			DoubleMatrixBuilder lAllMat = new DoubleMatrixBuilder(A*2,4);
 			
 			w = 0;
 			while( line!=null ) {
 				s = line.split("\\s+");
 				int i=scaffs.getKey(s[5]),
 						j=scaffs.getKey(s[6]);
-				double d = Math.min(RF_INF, Double.parseDouble(s[0]));
+				d = Math.min(RF_INF, Double.parseDouble(s[0]));
+				l = calcLODFromRf(d, hs);
 				dMat.set(i,j,d);
 				dMat.set(j,i,d);
 				iMat.set(i,j,w+1);
 				iMat.set(j,i,w+1+A);
-				l = calcLODFromRf(d, hs);
 				lMat.set(i,j,l);
 				lMat.set(j,i,l);
 				for(int k=0; k<4; k++) {
 					d = Math.min(RF_INF, Double.parseDouble(s[k+1]));
+					l = calcLODFromRf(d, hs);
 					dAllMat.set(w, k, d);
 					dAllMat.set(w+A, (k==0||k==3)?k:(3-k), d);
+					lAllMat.set(w, k, l);
+					lAllMat.set(w+A, (k==0||k==3)?k:(3-k), l);
 				}
 				w++;
 				line = br.readLine();
@@ -364,9 +368,10 @@ public abstract class RFUtils extends Executor {
 			Rdat.add("n", n);
 			Rdat.add("A", A);
 			Rdat.add("distanceMat", dMat.build());
-			Rdat.add("indexMat", iMat.build());
-			Rdat.add("lodMat", lMat.build());
 			Rdat.add("distanceAll", dAllMat.build());
+			Rdat.add("lodMat", lMat.build());
+			Rdat.add("loadAll", lAllMat.build());
+			Rdat.add("indexMat", iMat.build());
 			writer.save(Rdat.build());
 			writer.close();
 			
