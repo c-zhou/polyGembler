@@ -185,6 +185,8 @@ public class TwoPointAnalysis extends RFUtils {
 					for(int j=0; j<best_n; j++) {
 						dj = data_j[j];
 						if(dj==null) continue;
+						
+						/***
 						if(conj) {
 							comns(di.p0, di.p1, dj.p0, dj.p1, a0, false);
 							comns(di.m0, di.m1, dj.m0, dj.m1, a1, false);
@@ -199,7 +201,15 @@ public class TwoPointAnalysis extends RFUtils {
 							sum(a2, a3, a5);
 							stat = max(a4, a5);
 						}
-						
+						**/
+						comns(di.p0, di.p1, dj.p0, dj.p1, a0, true);
+						comns(di.m0, di.m1, dj.m0, dj.m1, a1, true);
+						comns(di.p0, di.p1, dj.m0, dj.m1, a2, true);
+						comns(di.m0, di.m1, dj.p0, dj.p1, a3, true);
+						sum(a0, a1, a4);
+						sum(a2, a3, a5);
+						stat = max(a4, a5);
+					
 						if((max=max(stat))>maxc) {
 							System.arraycopy(stat, 0, comn, 0, 4);
 							maxc = max;
