@@ -41,7 +41,8 @@ import cz1.util.Utils;
 public abstract class RFUtils extends Executor {
 	private final static Logger myLogger = Logger.getLogger(RFUtils.class);
 	
-	protected final static double RF_INF = 0.4999999;
+	protected final static double RF_MAX = 0.4999999;
+	protected final static double RF_MIN = 0.0000001;
 	
 	protected String in_haps;
 	protected String expr_id = null;
@@ -330,7 +331,7 @@ public abstract class RFUtils extends Executor {
 				s = line.split("\\s+");
 				int i=scaffs.getKey(s[5]),
 						j=scaffs.getKey(s[6]);
-				d = Math.min(RF_INF, Double.parseDouble(s[0]));
+				d = Math.min(RF_MAX, Double.parseDouble(s[0]));
 				l = calcLODFromRf(d, hs);
 				dMat.set(i,j,d);
 				dMat.set(j,i,d);
@@ -339,7 +340,7 @@ public abstract class RFUtils extends Executor {
 				lMat.set(i,j,l);
 				lMat.set(j,i,l);
 				for(int k=0; k<4; k++) {
-					d = Math.min(RF_INF, Double.parseDouble(s[k+1]));
+					d = Math.min(RF_MAX, Double.parseDouble(s[k+1]));
 					l = calcLODFromRf(d, hs);
 					dAllMat.set(w, k, d);
 					dAllMat.set(w+A, (k==0||k==3)?k:(3-k), d);
@@ -370,7 +371,7 @@ public abstract class RFUtils extends Executor {
 			Rdat.add("distanceMat", dMat.build());
 			Rdat.add("distanceAll", dAllMat.build());
 			Rdat.add("lodMat", lMat.build());
-			Rdat.add("loadAll", lAllMat.build());
+			Rdat.add("lodAll", lAllMat.build());
 			Rdat.add("indexMat", iMat.build());
 			writer.save(Rdat.build());
 			writer.close();
@@ -392,8 +393,8 @@ public abstract class RFUtils extends Executor {
 			lod = calcLODFromRf(rf, n);
 			if(Math.abs(lod-lod_thres)<1e-12 || 
 					Math.abs(lod-lod1)<1e-12 ||
-					rf>=RF_INF) {
-				return Math.min(RF_INF, rf);
+					rf>=RF_MAX) {
+				return Math.min(RF_MAX, rf);
 			} else if(lod<lod_thres) {
 				ub = rf;
 			} else {
@@ -404,7 +405,8 @@ public abstract class RFUtils extends Executor {
 	
 	public static double calcLODFromRf(double theta, int n) {
 		// TODO Auto-generated method stub
-		theta = Math.min(theta, RF_INF);
+		theta = Math.min(theta, RF_MAX);
+		theta = Math.max(theta, RF_MIN);
 		double r = n*theta;
 		return (n-r)*Math.log10(1-theta)+r*Math.log10(theta)-n*Math.log10(0.5);
 	}
@@ -412,7 +414,7 @@ public abstract class RFUtils extends Executor {
 	public static double geneticDistance(double r, String mapFunc) {
 		// TODO Auto-generated method stub
 		// if(r>=0.5) return Double.POSITIVE_INFINITY;
-		r = Math.min(r, RF_INF);
+		r = Math.min(r, RF_MAX);
 		switch(mapFunc.toLowerCase()) {
 		case "kosambi":
 			return .25*Math.log((1+2*r)/(1-2*r));
@@ -427,9 +429,9 @@ public abstract class RFUtils extends Executor {
 		// TODO Auto-generated method stub
 		switch(mapFunc.toLowerCase()) {
 		case "kosambi":
-			return Math.min(RF_INF, .5*(Math.exp(4*d)-1)/(Math.exp(4*d)+1));
+			return Math.min(RF_MAX, .5*(Math.exp(4*d)-1)/(Math.exp(4*d)+1));
 		case "haldane":
-			return Math.min(RF_INF, .5*(1-Math.exp(-2*d)));	
+			return Math.min(RF_MAX, .5*(1-Math.exp(-2*d)));	
 		default:
 			throw new RuntimeException("Undefined genetic mapping function.");
 		}

@@ -37,7 +37,7 @@ sum_finite <- function(x) {sum(x[is.finite(x)])}
 
 as.numeric.factor <- function(f) {as.numeric(levels(f))[f]}
 
-distTSP <- function(clus, distanceAll, indexMat, preorder=NULL, nn=1) {
+dist_tsp <- function(clus, distanceAll, indexMat, preorder=NULL, nn=1) {
     n = length(clus)
     names = c()
     for(i in 1:n) names=c(names,c(paste0(clus[i],"(+)"),
@@ -109,7 +109,7 @@ distTSP <- function(clus, distanceAll, indexMat, preorder=NULL, nn=1) {
 	prog_path
 }
 
-ordering <- function(clus, distanceAll, indexMat, method="concorde", preorder=NULL, nn=1) {
+ordering_tsp <- function(clus, distanceAll, indexMat, method="concorde", preorder=NULL, nn=1) {
 
     if(length(clus)==0) return(NA);
     if(length(clus)==1) return(
@@ -122,7 +122,7 @@ ordering <- function(clus, distanceAll, indexMat, method="concorde", preorder=NU
 	setwd(wd)
 	on.exit(setwd(dir))
 	
-    d = distTSP(clus, distanceAll, indexMat, preorder, nn)
+    d = dist_tsp(clus, distanceAll, indexMat, preorder, nn)
 	
 	#tour = solve_TSP(TSP(d), method, control = list(precision=0))
 	temp_file <- basename(tempfile(tmpdir = wd))
@@ -397,7 +397,7 @@ genetic_linkage_map <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5
     for(i in 1:length(nc)) nc[i] = length(all_clusters_[[i]])
     nco = order(nc, decreasing=T)
 	for(i in 1:length(nco)) {
-    	o[[i]] = ordering(all_clusters_[[nco[i]]], distanceAll, indexMat, preorder=po[[nco[i]]], nn=nn)
+    	o[[i]] = ordering_tsp(all_clusters_[[nco[i]]], distanceAll, indexMat, preorder=po[[nco[i]]], nn=nn)
     }
 	
 	mm = .read_map_file(in_map);
