@@ -25,9 +25,9 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 	protected final static double mu_J_e = 1e5;
 	protected final static double mu_J_m = 0.1;
 	protected final static double con_base_r = 1e-8;
-	
-	private final boolean updateEmiss;
-	private final boolean updateTrans;
+
+	private static int bwt_iter = 0;
+	private int trans_alter = 10;
 	
 	protected StateUnit1 state1;
 	protected TransitionUnit[] transition;
@@ -41,39 +41,14 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			int ploidy,
 			String[] parents) {
 		super(de, seperation, reverse, field, ploidy, parents, false);
-		this.updateEmiss = true;
-		this.updateTrans = false;
-		initialise1();
-	}
-	
-	public BaumWelchTrainer(DataEntry[] de, 
-			double[] seperation, 
-			boolean[] reverse,
-			Field field,
-			int ploidy,
-			String[] parents,
-			boolean updateEmiss, 
-			boolean updateTrans) {
-		super(de, seperation, reverse, field, ploidy, parents, false);
-		this.updateEmiss = updateEmiss;
-		this.updateTrans = updateTrans;
 		initialise1();
 	}
 	
 	public BaumWelchTrainer() {
 		// TODO Auto-generated constructor stub
 		super();
-		this.updateEmiss = true;
-		this.updateTrans = false;
 	}
 
-	public BaumWelchTrainer(boolean updateEmiss, boolean updateTrans) {
-		// TODO Auto-generated constructor stub
-		super();
-		this.updateEmiss = updateEmiss;
-		this.updateTrans = updateTrans;
-	}
-	
 	protected void initialise1() {
 		// TODO Auto-generated method stub
 		this.state1 = new StateUnit1(H);
@@ -83,12 +58,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 	}
 
 	public static BaumWelchTrainer copyOf(EmissionModel model) {
-		return copyOf(model, true, false);
-	}
-	
-	public static BaumWelchTrainer copyOf(EmissionModel model, 
-			boolean updateEmiss, boolean updateTrans) {
-		BaumWelchTrainer hmm = new BaumWelchTrainer(updateEmiss, updateTrans);
+		BaumWelchTrainer hmm = new BaumWelchTrainer();
 		hmm.field = model.field;
 		hmm.de = model.de;
 		hmm.M = model.M; // #markers
@@ -290,23 +260,24 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		check();
 		em();
 		++iteration;
+		++bwt_iter;
 	}
 	
 	@Override
 	public void em() {
 		// TODO Auto-generated method stub
-		if(updateEmiss)
-			for(int i=0; i<M; i++) updateEmiss(i);
+		for(int i=0; i<M; i++) updateEmiss(i);
 		
-		if(updateTrans) {
+		if(bwt_iter%trans_alter==0) {
 			for(int i=0; i<M-1; i++) updateTrans(i);
+			myLogger.info("jump probabilities updated.");
 		} else {
 			double jump1, jump2;
 			for(int i : conjs) {
 				jump1 = transition[i].jump;
 				updateTrans(i);
 				jump2 = transition[i].jump;
-				myLogger.info("    >jump probability at conjunction #"+i+" updated: "+jump1+"->"+jump2+";");
+				myLogger.info("jump probability at conjunction #"+i+" updated: "+jump1+"->"+jump2+";");
 			}
 		}
 	}
@@ -1032,5 +1003,10 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 					probs[k] /= Constants.threshMax;
 			}
 		}
+	}
+
+	public void modifyTransAlter(int trans_alter) {
+		// TODO Auto-generated method stub
+		this.trans_alter = trans_alter;
 	}
 }

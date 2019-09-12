@@ -29,6 +29,7 @@ public class Haplotyper extends Executor {
 	private int[] end_pos = null;
 	private int ploidy = 2;
 	private String[] parents;
+	private int trans_alter = 10;
 	
 	public Haplotyper() {}
 	
@@ -146,7 +147,8 @@ public class Haplotyper extends Executor {
 							+" -c/--scaffold                The scaffold/contig/chromosome id will run.\n"
 							+" -cs/--start-position         The start position of the scaffold/contig/chromosome.\n"
 							+" -ce/--end-position           The end position of the scaffold/contig/chromosome.\n"
-							+" -x/--max-iter                Maxmium rounds for EM optimization (default 100).\n"
+							+" -x/--max-iter                Maxmium rounds for EM optimization (default 1000).\n"
+							+" -j/--train-jump              Train haplotype transition probabilities every (-j) iterations (default 10). \n "
 							+" -p/--ploidy                  Ploidy of genome (default 2).\n"
 							+" -f/--parent                  Parent samples (separated by a \":\").\n"
 							+" -s/--initial-seperation      Initialisations of distances between the adjacent scaffolds \n"
@@ -187,6 +189,7 @@ public class Haplotyper extends Executor {
 			myArgsEngine.add("-cs", "--start-position", true);
 			myArgsEngine.add("-ce", "--end-position", true);
 			myArgsEngine.add("-x", "--max-iter", true);
+			myArgsEngine.add("-j", "--train-jump", true);
 			myArgsEngine.add("-p", "--ploidy", true);
 			myArgsEngine.add("-f", "--parent", true);
 			myArgsEngine.add("-s", "--initial-seperation", true);
@@ -256,6 +259,10 @@ public class Haplotyper extends Executor {
 		
 		if(myArgsEngine.getBoolean("-x")) {
 			max_iter = Integer.parseInt(myArgsEngine.getString("-x"));
+		}
+		
+		if(myArgsEngine.getBoolean("-j")) {
+			trans_alter = Integer.parseInt(myArgsEngine.getString("-j"));
 		}
 		
 		if(myArgsEngine.getBoolean("-p")) {
@@ -366,6 +373,8 @@ public class Haplotyper extends Executor {
 
 		myLogger.info("=> STAGE II. training emission model with transitions allowed.");
 		final BaumWelchTrainer model1 = BaumWelchTrainer.copyOf(model);
+		model1.modifyTransAlter(trans_alter);
+		
 		ll0 = Double.NEGATIVE_INFINITY;
 		for(int i=0; i<max_iter; i++) {
 			model1.train();
