@@ -13,22 +13,176 @@
     25*log((1+2*r)/(1-2*r))
 }
 
-writeMDS <- function(clus, mds, distanceMat, lodMat) {
-	dist = distanceMat[clus, clus]
-	lods = lodMat[clus, clus]
-	n = length(clus)
-	sink(mds)
-	cat(n); cat("\n")
+preorder_mds <- function(clus, distanceMat, lodMat) {
+	if(length(clus)<3) return(NA)
+
+	wd <- tempdir()
+	dir <- getwd()
+	setwd(wd)
+	on.exit(setwd(dir))
+	
+	temp_file <- basename(tempfile(tmpdir = wd))
+	tmp_file_mds  <- paste(temp_file, ".txt", sep = "")
+
+    dist = distanceMat[clus, clus]
+    lods = lodMat[clus, clus]
+    n = length(clus)
+	
+    sink(tmp_file_mds)
+    cat(n); cat("\n")
+    for(i in 1:n) {
+        for(j in 1:n) {
+            if(i>=j) next
+            cat(i); cat("\t")
+            cat(j); cat("\t")
+            cat(dist[i,j]); cat("\t")
+            cat(lods[i,j]); cat("\n")
+        }
+    }
+    sink()
+
+	maps = list()
+	maps[[1]] <- tryCatch({
+			calc.maps.pc(tmp_file_mds, ndim=2, weightfn="lod", mapfn="kosambi")
+		}, error = function(cond) {
+			NULL
+		})
+	maps[[2]] <- tryCatch({
+			calc.maps.pc(tmp_file_mds, ndim=2, weightfn="lod2", mapfn="kosambi")
+		}, error = function(cond) {
+			NULL
+		})
+	maps[[3]] <- tryCatch({
+			calc.maps.pc(tmp_file_mds, ndim=3, weightfn="lod", mapfn="kosambi")
+		}, error = function(cond) {
+			NULL
+		})
+	maps[[4]] <- tryCatch({
+			calc.maps.pc(tmp_file_mds, ndim=3, weightfn="lod2", mapfn="kosambi")
+		}, error = function(cond) {
+			NULL
+		})
+	maps[[5]] <- tryCatch({
+			calc.maps.sphere(tmp_file_mds, weightfn="lod", mapfn="kosambi")
+		}, error = function(cond) {
+			NULL
+		})
+	maps[[6]] <- tryCatch({
+		calc.maps.sphere(tmp_file_mds, weightfn="lod2", mapfn="kosambi")
+		}, error = function(cond) {
+			NULL
+		})
+	unlink(tmp_file_mds)
+
+	m = length(maps)
+	if(m==0) return(NA)
+	
+	lens = rep(NA, m)
+	for(j in 1:m) lens[j] = maps[[j]]$length
+	map = maps[[which(lens==min(lens))[1]]]
+	
+	return(as.numeric.factor(map$locimap$locus))
+}
+
+dist_mds <- function(clus, mds, distanceAll, lodAll, indexMat) {
+    n = length(clus)
+    names = c()
+    for(i in 1:n) names=c(names,c(paste0(clus[i],"(+)"), paste0(clus[i],"(-)")))
+	dist = matrix(NA, nrow=n*2, ncol=n*2, dimnames=list(names,names))
+    lods = matrix(NA, nrow=n*2, ncol=n*2, dimnames=list(names,names))
+	selfR = matrix(0, nrow=2,ncol=2)
+    selfL = matrix(1000000, nrow=2,ncol=2)
+    
 	for(i in 1:n) {
-		for(j in 1:n) {
-			if(i>=j) next
-			cat(i); cat("\t")
-			cat(j); cat("\t")
-			cat(dist[i,j]); cat("\t")
-			cat(lods[i,j]); cat("\n")
-		}
+        i1 = (i-1)*2+1
+        i2 = i*2
+        for(j in 1:n) {
+            j1 = (j-1)*2+1
+            j2 = j*2
+            if(i==j) {
+                dist[i1:i2,j1:j2] = selfR
+				lods[i1:i2,j1:j2] = selfL
+            } else if(i<j) {
+                k = indexMat[clus[i],clus[j]]
+				if(k==-1) return(NULL);
+                r = distanceAll[k,]
+                dist[i1:i2,j1:j2] = matrix(r,ncol=2,byrow=T)
+                dist[j1:j2,i1:i2] = matrix(r,ncol=2,byrow=F)
+				l = lodAll[k,]
+                lods[i1:i2,j1:j2] = matrix(l,ncol=2,byrow=T)
+                lods[j1:j2,i1:i2] = matrix(l,ncol=2,byrow=F)
+            }
+        }
+    }
+	
+	n = n*2
+    sink(mds)
+    cat(n); cat("\n")
+    for(i in 1:n) {
+        for(j in 1:n) {
+            if(i>=j) next
+            cat(i); cat("\t")
+            cat(j); cat("\t")
+            cat(dist[i,j]); cat("\t")
+            cat(lods[i,j]); cat("\n")
+        }
+    }
+    sink()
+}
+
+ordering_mds <- function(clus, distanceAll, lodAll, indexMat, ispc=T, ndim=2, weightfn="lod2", mapfn="kosambi") {
+
+    if(length(clus)==0) return(NA);
+    if(length(clus)==1) return(list(order=clus,
+                                   oriO=c(paste0(clus,"(+)"), paste0(clus,"(-)")),
+                                   cost=0));
+	wd <- tempdir()
+	dir <- getwd()
+	setwd(wd)
+	on.exit(setwd(dir))
+	
+	temp_file <- basename(tempfile(tmpdir = wd))
+	tmp_file_mds  <- paste(temp_file, ".txt", sep = "")
+	
+    dist_mds(clus, tmp_file_mds, distanceAll, lodAll, indexMat)
+	
+	if(ispc) {
+		map = calc.maps.pc(tmp_file_mds, ndim=ndim, weightfn=weightfn, mapfn=mapfn)
+	} else {
+		map = calc.maps.sphere(tmp_file_mds, weightfn=weightfn, mapfn=mapfn)
 	}
-	sink()
+	
+	unlink(tmp_file_mds)
+	
+    oR = as.numeric.factor(map$locimap$locus)
+	n = length(oR)
+	trig = rep(T, n/2)
+	
+	c1 = map$length
+	o = rep(NA, n/2)
+	oriO = rep(NA, n)
+	
+	k = 0
+	for(i in 1:n) {
+		a = oR[i]
+		b = ceiling(a/2)
+		if(trig[b]) {
+			k = k+1
+			o[k] = clus[b]
+			if(a%%2==1) {
+				oriO[k*2-1] = paste0(clus[b],"(+)")
+				oriO[k*2]   = paste0(clus[b],"(-)")
+			} else {
+				oriO[k*2-1] = paste0(clus[b],"(-)")
+				oriO[k*2]   = paste0(clus[b],"(+)")
+			}
+		}
+		trig[b] = F
+	}
+
+	 return(list(order = o,
+                oriO = oriO,
+                cost = c1));
 }
 
 INF_CM = .cm_d(0.5)
@@ -37,7 +191,7 @@ sum_finite <- function(x) {sum(x[is.finite(x)])}
 
 as.numeric.factor <- function(f) {as.numeric(levels(f))[f]}
 
-dist_tsp <- function(clus, distanceAll, indexMat, preorder=NULL, nn=1) {
+dist_tsp <- function(clus, distanceAll, indexMat, preorder=NA, nn=1) {
     n = length(clus)
     names = c()
     for(i in 1:n) names=c(names,c(paste0(clus[i],"(+)"),
@@ -66,11 +220,11 @@ dist_tsp <- function(clus, distanceAll, indexMat, preorder=NULL, nn=1) {
 	d[d<0] = -Inf
 	MAX <- if(n*2+1<10) {2^16} else {2^31-1}
 	
-	if(is.null(preorder)) {	
+	if(any(is.na(preorder))) {	
 		max_d = max(d, na.rm=T)
 		d = d+max_d+2
 		max_d = max_d*2+2
-		s = floor(MAX/max_d/(n*2+1))
+		s = MAX/max_d/(n*2+1)
 		d = round(d*s)
 		d[d==-Inf] = 1
 		d[is.na(d)] = 2
@@ -90,8 +244,8 @@ dist_tsp <- function(clus, distanceAll, indexMat, preorder=NULL, nn=1) {
 		max_d = max(d[is.finite(d)])
 		d = d+max_d+2
 		max_d = max_d*2+2
-		sInf = floor(MAX/(n*2+1))
-		s = sInf/max_d-1
+		sInf = MAX/(n*2+1)
+		s = sInf/max_d
 		d = round(d*s)
 		d[d==-Inf] = 1
 		d[d==Inf] = sInf
@@ -109,14 +263,12 @@ dist_tsp <- function(clus, distanceAll, indexMat, preorder=NULL, nn=1) {
 	prog_path
 }
 
-ordering_tsp <- function(clus, distanceAll, indexMat, method="concorde", preorder=NULL, nn=1) {
+ordering_tsp <- function(clus, distanceAll, indexMat, method="concorde", preorder=NA, nn=1) {
 
     if(length(clus)==0) return(NA);
-    if(length(clus)==1) return(
-                              list(order=clus,
-                                   oriO=clus,
-                                   cost=0,
-                                   error=0));
+    if(length(clus)==1) return(list(order=clus,
+                                   oriO=c(paste0(clus,"(+)"), paste0(clus,"(-)")),
+                                   cost=0));
 	wd <- tempdir()
 	dir <- getwd()
 	setwd(wd)
@@ -313,6 +465,83 @@ fm <- function(cA, cB, beta=1) {
 	list(dC=dC, tC=tC)
 }
 
+nn_joining <- function(in_RData, out_file, nn=1, rf_thresh=.kosambi_r(.5)) {
+	
+    load(in_RData)
+    diag(distanceMat) = Inf
+	
+	clus = vector("list", length = n)
+	for(i in 1:n) {
+		d = distanceMat[i,]
+        ux = sort(unique(d))
+        nb = c()
+        for(x in ux) {
+			if(x>rf_thresh) break
+			nb = c(nb, which(d==x))
+            if(length(nb)>=nn) break
+        }
+		clus[[i]] = c(i, nb)
+	}
+	trig = rep(T, n)
+	
+	for(i in 1:(n-1)) {
+		if(!trig[i]) next
+		a = clus[[i]]
+		for(j in (i+1):n) {
+			if(!trig[j]) next
+			b = clus[[j]]
+			if(length(a)>length(b)&&all(b%in%a)) {
+				trig[j] = F
+			} else if(all(a%in%b)) {
+				trig[i] = F
+				break
+			}
+		}
+	}
+
+    sink(out_file)
+    for(i in 1:n) {
+		if(!trig[i]) next
+		if(length(clus[[i]])==1) {
+			cat("-c ")
+            cat(scaffs[clus[[i]]])
+            cat("\n")
+            next
+		}
+			
+        sink("/dev/null")
+        o = ordering_tsp(clus[[i]], distanceAll, indexMat)
+        sink()		
+        oR = as.numeric(o$order); oO = o$oriO
+        cat("-c ")
+        cat(paste(scaffs[oR], collapse=":"))
+        sepe = rep(NA, length(oR)-1)
+        reverse = rep("false", length(oR))
+
+        for(j in 1:(length(oR)-1)) {
+            c_1 = oO[2*j]
+            c_2 = oO[2*j+1]
+            if(length(grep("(\\+)",c_1))>0) reverse[j]="true"
+            sepe[j] =
+            if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],1]
+            } else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],2]
+            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],3]
+            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],4]
+            }
+        }
+
+        if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j+1]="true"
+        cat(" -s "); cat(paste(sepe, collapse=":"))
+        cat(" -r "); cat(paste(reverse, collapse=":"))
+        cat("\n")
+    }
+    sink()
+}
+
 genetic_linkage_map <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5), make_group=TRUE, nn=1) {
 
     load(in_RData)
@@ -369,37 +598,32 @@ genetic_linkage_map <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5
 
 	rm(nng)
 
+if(FALSE) {
+## Ordering using MDS and TSP
 	po = list()
-	tmp_file = tempfile(pattern = "file", tmpdir = tempdir(), fileext = ".txt")
-	for(i in 1:length(all_clusters_)) {
-		clust = all_clusters_[[i]]
-		if(length(clust)>3) {
-			writeMDS(clust, tmp_file, distanceMat, lodMat)
-			maps = list()
-			maps[[1]] <- calc.maps.pc(tmp_file, ndim=2, weightfn="lod", mapfn="kosambi")
-			maps[[2]] <- calc.maps.pc(tmp_file, ndim=2, weightfn="lod2", mapfn="kosambi")
-			maps[[3]] <- calc.maps.pc(tmp_file, ndim=3, weightfn="lod", mapfn="kosambi")
-			maps[[4]] <- calc.maps.pc(tmp_file, ndim=3, weightfn="lod2", mapfn="kosambi")
-			maps[[5]] <- calc.maps.sphere(tmp_file, weightfn="lod", mapfn="kosambi")
-			maps[[6]] <- calc.maps.sphere(tmp_file, weightfn="lod2", mapfn="kosambi")
-			lens = rep(NA, 6)
-			for(j in 1:6) lens[j] = maps[[j]]$length
-			map = maps[[which(lens==min(lens))[1]]]
-			po[[i]] = as.numeric.factor(map$locimap$locus)
-			unlink(tmp_file)
-		} else {
-			po[[i]] = c(1:length(clust))
-		}
-	}
-	
+	for(i in 1:length(all_clusters_)) po[[i]] = preorder_mds(all_clusters_[[i]], distanceMat, lodMat)
+	o = list()
+    nc = rep(NA,length(all_clusters_))
+    for(i in 1:length(nc)) nc[i] = length(all_clusters_[[i]])
+    nco = order(nc, decreasing=T)
+	for(i in 1:length(nco)) 
+    	o[[i]] = ordering_tsp(all_clusters_[[nco[i]]], distanceAll, indexMat, preorder=po[[nco[i]]], nn=nn)
+} else {
+## Ordering using MDS
 	o = list()
     nc = rep(NA,length(all_clusters_))
     for(i in 1:length(nc)) nc[i] = length(all_clusters_[[i]])
     nco = order(nc, decreasing=T)
 	for(i in 1:length(nco)) {
-    	o[[i]] = ordering_tsp(all_clusters_[[nco[i]]], distanceAll, indexMat, preorder=po[[nco[i]]], nn=nn)
+		o[[i]] = tryCatch({
+			ordering_mds(all_clusters_[[nco[i]]], distanceAll, lodAll, indexMat)
+		}, error = function(cond) {
+			ordering_tsp(all_clusters_[[nco[i]]], distanceAll, indexMat)
+		})
     }
-	
+}
+
+
 	mm = .read_map_file(in_map);
 	dC = mm$dC
 	tC = mm$tC
@@ -531,8 +755,8 @@ genetic_linkage_map <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5
         cat("\n")
     }
     sink()
-
-    list(group=clus, order=o)
+	
+	return(0)
 }
 
 getSingleAssignment <- function(id, distance, exclude=c(), include=c()) {

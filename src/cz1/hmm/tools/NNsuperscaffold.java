@@ -1,6 +1,7 @@
 package cz1.hmm.tools;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,7 +26,10 @@ public class NNsuperscaffold extends Executor {
 	private final static Logger myLogger = Logger.getLogger(NNsuperscaffold.class);
 	
 	private String rf_file = null;
-	private double max_r = 0.1;
+	private String RLibPath = null;
+	private double lod_thres = 3;
+	private int hs;
+	private int nn = 2;
 	private String out_prefix = null;
 	
 	@Override
@@ -35,8 +39,11 @@ public class NNsuperscaffold extends Executor {
 				"\n\nUsage is as follows:\n"
 						+ " Common:\n"
 						+ "     -i/--rf                     Recombination frequency file.\n"
-						+ "     -mr/--max-rf                Recombination frqeuency threshold (default: 0.1).\n"
-						+ "     -o/--prefix                 Output file prefix.\n"
+						+ "     -h/--hap-size               #haplotypes (popsize*ploidy).\n"
+						+ "     -l/--lod                    LOD score threshold (default: 3).\n"
+						+ "     -n/--neighbour              #nearest neighbours (default: 2).\n"
+						+ "     -rlib/--R-external-libs     R external library path.\n"
+						+ "     -o/--prefix                 Output file prefix.\n\n"
 				);
 	}
 
@@ -51,8 +58,11 @@ public class NNsuperscaffold extends Executor {
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-i", "--rf", true);
-			myArgsEngine.add("-mr", "--max-rf", true);
+			myArgsEngine.add("-h", "--hap-size", true);
+			myArgsEngine.add("-l", "--lod", true);
+			myArgsEngine.add("-n", "--neighbour", true);
 			myArgsEngine.add("-o", "--prefix", true);
+			myArgsEngine.add("-rlib", "--R-external-libs", true);
 			myArgsEngine.parse(args);
 		}
 		
@@ -62,9 +72,20 @@ public class NNsuperscaffold extends Executor {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your recombinatio frequency file.");
 		}
+		
+		if(myArgsEngine.getBoolean("-h")) {
+			hs = Integer.parseInt(myArgsEngine.getString("-h"));
+		} else {
+			printUsage();
+			throw new IllegalArgumentException("Please specify the number of haplotypes (popsize*ploidy).");
+		}
 
-		if(myArgsEngine.getBoolean("-mr")) {
-			max_r = Double.parseDouble(myArgsEngine.getString("-mr"));
+		if(myArgsEngine.getBoolean("-l")) {
+			lod_thres = Double.parseDouble(myArgsEngine.getString("-l"));
+		}
+		
+		if(myArgsEngine.getBoolean("-n")) {
+			nn = Integer.parseInt(myArgsEngine.getString("-n"));
 		}
 		
 		if(myArgsEngine.getBoolean("-o")) {
@@ -73,16 +94,41 @@ public class NNsuperscaffold extends Executor {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your output file prefix.");
 		}
+
+		if (myArgsEngine.getBoolean("-rlib")) {
+			RLibPath = myArgsEngine.getString("-rlib");
+		}
 	}
 
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		myLogger.info("Using recombination frequency threshold: "+max_r);
-		nj();
+		final String temfile_prefix = ".tmp/";
+		final boolean tmpdirCreated = Utils.makeOutputDir(new File(temfile_prefix));
+		final String concorde_path =
+				RFUtils.makeExecutable("cz1/hmm/executable/concorde", temfile_prefix);
+		new File(concorde_path).setExecutable(true, true);
+		final String nnss_path =
+				RFUtils.makeExecutable("cz1/hmm/scripts/make_nnsuperscaffold.R", temfile_prefix);
+		RFUtils.makeExecutable("cz1/hmm/scripts/include.R", temfile_prefix);
+		RFUtils.makeRMatrix(rf_file, out_prefix+".RData", hs);
+		double max_r = Math.min(RFUtils.calcRfFromLOD(lod_thres, hs), RFUtils.inverseGeneticDistance(0.5, "kosambi"));
+		myLogger.info("Using recombination frequency threshold: "+max_r+".");
+		final String command =
+				"Rscript "+nnss_path+" "
+						+ "-i "+out_prefix+".RData "
+						+ "-r "+max_r+" "
+						+ "-o "+out_prefix+".nns "
+						+ "-n "+nn+" "
+						+ "--concorde "+new File(concorde_path).getParent()+" "
+						+ (RLibPath==null ? "" : "--include "+RLibPath+" ")
+						+ "--tmpdir "+new File(temfile_prefix).getAbsolutePath();
+		this.consume(this.bash(command));
+
+		if(tmpdirCreated) Utils.deleteDirectory(new File(temfile_prefix));
 	}
 	
-	public void nj() {
+	public void nj(double max_r) {
 		// TODO Auto-generated method stub
 
 		final BidiMap<String, Integer> scaffs = new DualHashBidiMap<>();

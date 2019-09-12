@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.math3.distribution.BetaDistribution;
 import org.apache.commons.math3.stat.StatUtils;
 import org.apache.log4j.Logger;
 
@@ -824,12 +825,11 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		
 		private double prior() {
 			// TODO Auto-generated method stub
-			//double p = new BetaDistribution(Constants.rg, 
-			//		(1-pseudo)*mu_J_e, pseudo*mu_J_e).sample();
-			//if(p==0) p = 1e-16;
-			//if(p==1) p = 1-1e-16;
-			//return p;
-			return 1-pseudo;
+			double p = new BetaDistribution(Constants.rg, 
+					(1-pseudo)*mu_J_e, pseudo*mu_J_e).sample();
+			if(p==0) p = 1e-9;
+			if(p==1) p = 1-1e-9;
+			return p;
 		}
 		
 		protected void addCount(int from, int to, double n) {
