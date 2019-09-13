@@ -7,10 +7,58 @@
 .haldane_r <- function(d) .5*(1-exp(-2*d))
 .kosambi_r <- function(d) .5*(exp(4*d)-1)/(exp(4*d)+1)
 
-.cm_d <- function(r) {
+.cm_d <- function(r, mapfn=c("haldane","kosambi")) {
+	match.arg(mapfn)
+	mapfn = mapfn[1]
     r[r >= .5] = .4999999
     r[r <= -.5] = -.4999999
-    25*log((1+2*r)/(1-2*r))
+    if(mapfn=="haldane") {
+    	return(-50*log(1-2*r))
+    } else {
+    	return(25*log((1+2*r)/(1-2*r)))
+    }
+}
+
+.fit_mds_model <- function(mds_file) {
+
+	ispcs = c(T,T,T,T,F,F,T,T,T,T,F,F,T,T,T,T,F,F)
+	ndims = c(2,2,3,3,-1,-1,2,2,3,3,-1,-1,2,2,3,3,-1,-1)
+	weightfns = c("lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2")
+	mapfns = c("kosambi","kosambi","kosambi","kosambi","kosambi","kosambi","haldane","haldane","haldane","haldane","haldane","haldane","none","none","none","none","none","none")
+
+	map = NULL
+	stress = Inf
+	
+	nmods = 18
+	for(i in 1:nmods) {
+		ispc = ispcs[i]
+		ndim = ndims[i]
+		weightfn = weightfns[i]
+		mapfn = mapfns[i]
+		
+		map_i = tryCatch({
+			if(ispc) {
+				calc.maps.pc(mds_file, ndim=ndim, weightfn=weightfn, mapfn=mapfn)
+			} else {
+				calc.maps.sphere(mds_file, weightfn=weightfn, mapfn=mapfn)
+			}
+		}, error = function(cond) {
+			NULL
+		})
+		
+		if(is.null(map_i)) next
+		stress_i = if(ispc) {map_i$smacofsym$stress} else {map_i$smacofsphere$stress}
+		
+		if(stress_i<stress) {
+			stress = stress_i
+			map = map_i
+			cat(paste0("  **Model ",i," stress-1 value: ",stress_i,"\n"))
+		} else {
+			cat(paste0("    Model ",i," stress-1 value: ",stress_i,"\n"))
+		}
+	}
+	
+	return(map)
 }
 
 preorder_mds <- function(clus, distanceMat, lodMat) {
@@ -24,7 +72,7 @@ preorder_mds <- function(clus, distanceMat, lodMat) {
 	temp_file <- basename(tempfile(tmpdir = wd))
 	tmp_file_mds  <- paste(temp_file, ".txt", sep = "")
 
-    dist = distanceMat[clus, clus]
+    dists = distanceMat[clus, clus]
     lods = lodMat[clus, clus]
     n = length(clus)
 	
@@ -35,51 +83,16 @@ preorder_mds <- function(clus, distanceMat, lodMat) {
             if(i>=j) next
             cat(i); cat("\t")
             cat(j); cat("\t")
-            cat(dist[i,j]); cat("\t")
+            cat(dists[i,j]); cat("\t")
             cat(lods[i,j]); cat("\n")
         }
     }
     sink()
 
-	maps = list()
-	maps[[1]] <- tryCatch({
-			calc.maps.pc(tmp_file_mds, ndim=2, weightfn="lod", mapfn="kosambi")
-		}, error = function(cond) {
-			NULL
-		})
-	maps[[2]] <- tryCatch({
-			calc.maps.pc(tmp_file_mds, ndim=2, weightfn="lod2", mapfn="kosambi")
-		}, error = function(cond) {
-			NULL
-		})
-	maps[[3]] <- tryCatch({
-			calc.maps.pc(tmp_file_mds, ndim=3, weightfn="lod", mapfn="kosambi")
-		}, error = function(cond) {
-			NULL
-		})
-	maps[[4]] <- tryCatch({
-			calc.maps.pc(tmp_file_mds, ndim=3, weightfn="lod2", mapfn="kosambi")
-		}, error = function(cond) {
-			NULL
-		})
-	maps[[5]] <- tryCatch({
-			calc.maps.sphere(tmp_file_mds, weightfn="lod", mapfn="kosambi")
-		}, error = function(cond) {
-			NULL
-		})
-	maps[[6]] <- tryCatch({
-		calc.maps.sphere(tmp_file_mds, weightfn="lod2", mapfn="kosambi")
-		}, error = function(cond) {
-			NULL
-		})
+	map = .fit_mds_model(tmp_file_mds)
 	unlink(tmp_file_mds)
-
-	m = length(maps)
-	if(m==0) return(NA)
 	
-	lens = rep(NA, m)
-	for(j in 1:m) lens[j] = maps[[j]]$length
-	map = maps[[which(lens==min(lens))[1]]]
+	if(is.null(map)) stop("no model fitted.")
 	
 	return(as.numeric.factor(map$locimap$locus))
 }
@@ -88,7 +101,7 @@ dist_mds <- function(clus, mds, distanceAll, lodAll, indexMat) {
     n = length(clus)
     names = c()
     for(i in 1:n) names=c(names,c(paste0(clus[i],"(+)"), paste0(clus[i],"(-)")))
-	dist = matrix(NA, nrow=n*2, ncol=n*2, dimnames=list(names,names))
+	dists = matrix(NA, nrow=n*2, ncol=n*2, dimnames=list(names,names))
     lods = matrix(NA, nrow=n*2, ncol=n*2, dimnames=list(names,names))
 	selfR = matrix(0, nrow=2,ncol=2)
     selfL = matrix(1000000, nrow=2,ncol=2)
@@ -100,14 +113,14 @@ dist_mds <- function(clus, mds, distanceAll, lodAll, indexMat) {
             j1 = (j-1)*2+1
             j2 = j*2
             if(i==j) {
-                dist[i1:i2,j1:j2] = selfR
+                dists[i1:i2,j1:j2] = selfR
 				lods[i1:i2,j1:j2] = selfL
             } else if(i<j) {
                 k = indexMat[clus[i],clus[j]]
 				if(k==-1) return(NULL);
                 r = distanceAll[k,]
-                dist[i1:i2,j1:j2] = matrix(r,ncol=2,byrow=T)
-                dist[j1:j2,i1:i2] = matrix(r,ncol=2,byrow=F)
+                dists[i1:i2,j1:j2] = matrix(r,ncol=2,byrow=T)
+                dists[j1:j2,i1:i2] = matrix(r,ncol=2,byrow=F)
 				l = lodAll[k,]
                 lods[i1:i2,j1:j2] = matrix(l,ncol=2,byrow=T)
                 lods[j1:j2,i1:i2] = matrix(l,ncol=2,byrow=F)
@@ -123,14 +136,14 @@ dist_mds <- function(clus, mds, distanceAll, lodAll, indexMat) {
             if(i>=j) next
             cat(i); cat("\t")
             cat(j); cat("\t")
-            cat(dist[i,j]); cat("\t")
+            cat(dists[i,j]); cat("\t")
             cat(lods[i,j]); cat("\n")
         }
     }
     sink()
 }
 
-ordering_mds <- function(clus, distanceAll, lodAll, indexMat, ispc=T, ndim=2, weightfn="lod2", mapfn="kosambi") {
+ordering_mds <- function(clus, distanceAll, lodAll, indexMat) {
 
     if(length(clus)==0) return(NA);
     if(length(clus)==1) return(list(order=clus,
@@ -146,13 +159,10 @@ ordering_mds <- function(clus, distanceAll, lodAll, indexMat, ispc=T, ndim=2, we
 	
     dist_mds(clus, tmp_file_mds, distanceAll, lodAll, indexMat)
 	
-	if(ispc) {
-		map = calc.maps.pc(tmp_file_mds, ndim=ndim, weightfn=weightfn, mapfn=mapfn)
-	} else {
-		map = calc.maps.sphere(tmp_file_mds, weightfn=weightfn, mapfn=mapfn)
-	}
-	
+	map = .fit_mds_model(tmp_file_mds)
 	unlink(tmp_file_mds)
+	
+	if(is.null(map)) stop("no model fitted.")
 	
     oR = as.numeric.factor(map$locimap$locus)
 	n = length(oR)
@@ -314,23 +324,23 @@ ordering_tsp <- function(clus, distanceAll, indexMat, method="concorde", preorde
 }
 
 errorCount <- function(oo) {
-    position_ = c()
-    chr_ = c()
-    all_splits_ = strsplit(oo,"_")
-    for(i in 1:length(all_splits_)) {
-        position_ = c(position_,as.numeric(all_splits_[[i]][2]))
-        chr_ = c(chr_,all_splits_[[i]][1])
+    position = c()
+    chr = c()
+    all_splits = strsplit(oo,"_")
+    for(i in 1:length(all_splits)) {
+        position = c(position_,as.numeric(all_splits[[i]][2]))
+        chr = c(chr,all_splits[[i]][1])
     }
-    unique_chr_ = unique(chr_)
+    unique_chr = unique(chr)
 
     n = length(oo)
     egN = n*(n-1)/2
     egn = egN
     eoN = 0;
     eon = 0;
-    for(i in 1:length(unique_chr_)) {
-        w = which(chr_==unique_chr_[i])
-        e = .error(order(position_[w]))
+    for(i in 1:length(unique_chr)) {
+        w = which(chr==unique_chr[i])
+        e = .error(order(position[w]))
         eoN = eoN+e[[2]]
         eon = eon+e[[1]]
         egn = egn-length(w)*(length(w)-1)/2
@@ -465,7 +475,7 @@ fm <- function(cA, cB, beta=1) {
 	list(dC=dC, tC=tC)
 }
 
-nn_joining <- function(in_RData, out_file, nn=1, rf_thresh=.kosambi_r(.5)) {
+nn_joining <- function(in_RData, out_file, nn=1, rf_thresh=.haldane_r(.5)) {
 	
     load(in_RData)
     diag(distanceMat) = Inf
@@ -542,7 +552,7 @@ nn_joining <- function(in_RData, out_file, nn=1, rf_thresh=.kosambi_r(.5)) {
     sink()
 }
 
-genetic_linkage_map <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5), make_group=TRUE, nn=1) {
+genetic_linkage_map <- function(in_RData, in_map, out_file, max_r=.haldane_r(0.5), make_group=TRUE, nn=1) {
 
     load(in_RData)
     
@@ -561,68 +571,77 @@ genetic_linkage_map <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5
 		
 		g=graph_from_adjacency_matrix(nng, mode = "undirected", weighted=T, diag=F)
     	clus=membership(cluster_infomap(g))
+	
+		#### check each cluster to remove chimeric joins
+        #### could be misassembly
+		maxc = max(clus)
+		for(u in 1:maxc) {
+			ci = which(clus==u)
+			cn = length(ci)
+			if(cn>2) {
+				## make distance matrix
+				dists = matrix(Inf, nrow=cn*2, ncol=cn*2)
+				for(i in 1:(cn-1)) {
+					i1 = (i-1)*2+1
+					i2 = i*2
+					for(j in (i+1):cn) {
+						j1 = (j-1)*2+1
+						j2 = j*2
+						k = indexMat[ci[i],ci[j]]
+						if(k==-1) stop("genetic mapping exit with errors!!!")
+						r = distanceAll[k,]
+						dists[i1:i2,j1:j2] = matrix(r,ncol=2,byrow=T)
+						dists[j1:j2,i1:i2] = matrix(r,ncol=2,byrow=F)
+					}
+				}
+				
+				min_r = apply(dists,1,min)
+				chims = which(min_r>max_r)
+				if(length(chims)==0) next
+				chims = unique(floor(chims/2+.5))
+				for(chim in chims) {
+					clus[ci[chim]] = max(clus)+1
+				}
+				print(paste0("#chimeric joins in linkage group ",u,": ",length(chims)))
+			}
+		}
 	} else {
 		clus = rep(1, length(scaffs))
 	}
 	
-    all_clusters_=list()
-    for(i in 1:max(clus)) all_clusters_[[i]] = which(clus==i)
-    sa = matrix(nrow=0, ncol=2)
-
-    for(i in 1:length(all_clusters_)) {
-        all = all_clusters_[[i]]
-        if(length(all)==1) {
-            ass = getSingleAssignment(all, nng)
-            d = ass$d
-            if(d>max_d) next
-            c = ass$scaffs
-            if(length(unique(clus[c]))==1)
-                sa = rbind(sa,c(all,clus[c[1]]))
-        }
-    }
+    clusts=list()
+    for(i in 1:max(clus)) clusts[[i]] = which(clus==i)
     
-    if(dim(sa)[1]>0) {
-        for(i in 1:dim(sa)[1]) {
-            c = sa[i,1]
-            g = sa[i,2]
-            all_clusters_[[g]] = c(all_clusters_[[g]],c)
-            clus[c] = g
-        }
-    }
-
-    deleted_clusters_ = setdiff(1:length(all_clusters_), unique(clus))
-    if(length(deleted_clusters_) > 0) {
-        all_clusters_ = all_clusters_[-deleted_clusters_]
-        for(i in 1:length(all_clusters_)) clus[all_clusters_[[i]]]=i
-    }
-
 	rm(nng)
 
 if(FALSE) {
 ## Ordering using MDS and TSP
 	po = list()
-	for(i in 1:length(all_clusters_)) po[[i]] = preorder_mds(all_clusters_[[i]], distanceMat, lodMat)
+	for(i in 1:length(clusts)) po[[i]] = tryCatch({
+			preorder_mds(clusts[[i]], distanceMat, lodMat)
+		}, error = function(cond) {
+			NA
+		})
 	o = list()
-    nc = rep(NA,length(all_clusters_))
-    for(i in 1:length(nc)) nc[i] = length(all_clusters_[[i]])
+    nc = rep(NA,length(clusts))
+    for(i in 1:length(nc)) nc[i] = length(clusts[[i]])
     nco = order(nc, decreasing=T)
 	for(i in 1:length(nco)) 
-    	o[[i]] = ordering_tsp(all_clusters_[[nco[i]]], distanceAll, indexMat, preorder=po[[nco[i]]], nn=nn)
+    	o[[i]] = ordering_tsp(clusts[[nco[i]]], distanceAll, indexMat, preorder=po[[nco[i]]], nn=nn)
 } else {
 ## Ordering using MDS
 	o = list()
-    nc = rep(NA,length(all_clusters_))
-    for(i in 1:length(nc)) nc[i] = length(all_clusters_[[i]])
+    nc = rep(NA,length(clusts))
+    for(i in 1:length(nc)) nc[i] = length(clusts[[i]])
     nco = order(nc, decreasing=T)
 	for(i in 1:length(nco)) {
 		o[[i]] = tryCatch({
-			ordering_mds(all_clusters_[[nco[i]]], distanceAll, lodAll, indexMat)
+			ordering_mds(clusts[[nco[i]]], distanceAll, lodAll, indexMat)
 		}, error = function(cond) {
-			ordering_tsp(all_clusters_[[nco[i]]], distanceAll, indexMat)
+			ordering_tsp(clusts[[nco[i]]], distanceAll, indexMat)
 		})
     }
 }
-
 
 	mm = .read_map_file(in_map);
 	dC = mm$dC
@@ -757,16 +776,5 @@ if(FALSE) {
     sink()
 	
 	return(0)
-}
-
-getSingleAssignment <- function(id, distance, exclude=c(), include=c()) {
-    a = distance[id,]
-    if(length(include)>0) {
-        idx = c()
-        for(i in include) idx = c(idx, i)
-        a[-idx] = Inf
-    } else if(length(exclude)>0)
-        for(i in exclude) a[i] = Inf
-    list(d=min(a),scaffs=which(a==min(a)))
 }
 

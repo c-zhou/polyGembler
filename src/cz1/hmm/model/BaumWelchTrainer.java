@@ -27,7 +27,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 	protected final static double con_base_r = 1e-8;
 
 	private static int bwt_iter = 0;
-	private int trans_alter = 10;
+	private int trans_alter = Integer.MAX_VALUE;
 	
 	protected StateUnit1 state1;
 	protected TransitionUnit[] transition;
@@ -254,13 +254,14 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 	@Override
 	public void train() {
 		// TODO Auto-generated method stub
+		++iteration;
+		++bwt_iter;
+		
 		refresh();
 		forward();
 		backward();
 		check();
 		em();
-		++iteration;
-		++bwt_iter;
 	}
 	
 	@Override

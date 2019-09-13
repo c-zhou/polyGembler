@@ -28,12 +28,13 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 	@Override
 	public void train() {
 		// TODO Auto-generated method stub
+		++iteration;
+		
 		refresh();
 		forward();
 		backward();
 		check();	
 		em();
-		++iteration;
 	}
 
 	@Override
