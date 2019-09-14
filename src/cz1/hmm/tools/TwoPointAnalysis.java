@@ -37,7 +37,7 @@ public class TwoPointAnalysis extends RFUtils {
 						+ "                             otherwise will be discared (default 2).\n"
 						+ " -nd/--drop                  At least nd haplotype inferences are required for \n"
 						+ "                             a contig/scaffold to be analysed (default 1).\n"
-						+ " -t/--threads                Threads (default 1).\n"	
+						+ " -t/--threads                #threads (default 1).\n\n"
 				);
 	}
 

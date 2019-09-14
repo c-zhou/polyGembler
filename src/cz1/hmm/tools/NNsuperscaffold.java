@@ -37,13 +37,12 @@ public class NNsuperscaffold extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " Common:\n"
-						+ "     -i/--rf                     Recombination frequency file.\n"
-						+ "     -h/--hap-size               #haplotypes (popsize*ploidy).\n"
-						+ "     -l/--lod                    LOD score threshold (default: 3).\n"
-						+ "     -n/--neighbour              #nearest neighbours (default: 2).\n"
-						+ "     -rlib/--R-external-libs     R external library path.\n"
-						+ "     -o/--prefix                 Output file prefix.\n\n"
+						+ " -i/--rf                     Recombination frequency file.\n"
+						+ " -h/--hap-size               #haplotypes (popsize*ploidy).\n"
+						+ " -l/--lod                    LOD score threshold (default: 3).\n"
+						+ " -n/--neighbour              #nearest neighbours (default: 2).\n"
+						+ " -rlib/--R-external-libs     R external library path.\n"
+						+ " -o/--prefix                 Output file prefix.\n\n"
 				);
 	}
 

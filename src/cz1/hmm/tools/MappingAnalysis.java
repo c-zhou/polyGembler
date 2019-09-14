@@ -21,14 +21,14 @@ public class MappingAnalysis extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " Common:\n"
-						+ "     -i/--rf                     Recombination frequency file.\n"
-						+ "     -m/--map                    Recombination map file.\n"
-						+ "     -h/--hap-size               #haplotypes (popsize*ploidy).\n"
-						+ "     -l/--lod                    LOD score threshold (default: 3).\n"
-						+ "     -1/--one-group              Keep all in one group. Do not do clustering. \n"
-						+ "     -rlib/--R-external-libs     R external library path.\n"
-						+ "     -o/--prefix                 Output file prefix.\n\n"
+						+ " -i/--rf                     Recombination frequency file.\n"
+						+ " -m/--map                    Recombination map file.\n"
+						+ " -h/--hap-size               #haplotypes (popsize*ploidy).\n"
+						+ " -l/--lod                    LOD score threshold (default: 3).\n"
+						+ " -1/--one-group              Keep all in one group. Do not do clustering. \n"
+						+ " -rlib/--R-external-libs     R external library path.\n"
+						+ " -t/--threads                #threads (default 1).\n"
+						+ " -o/--prefix                 Output file prefix.\n\n"
 				);
 	}
 
@@ -47,8 +47,9 @@ public class MappingAnalysis extends Executor {
 			myArgsEngine.add("-h", "--hap-size", true);
 			myArgsEngine.add("-l", "--lod", true);
 			myArgsEngine.add("-1", "--one-group", false);
-			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
+			myArgsEngine.add( "-t", "--threads", true);
+			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.parse(args);
 		}
 
@@ -80,16 +81,20 @@ public class MappingAnalysis extends Executor {
 		if(myArgsEngine.getBoolean("-1")) {
 			one = true;
 		}
+
+		if (myArgsEngine.getBoolean("-rlib")) {
+			RLibPath = myArgsEngine.getString("-rlib");
+		}
+		
+		if(myArgsEngine.getBoolean("-t")) {
+			THREADS = Integer.parseInt(myArgsEngine.getString("-t"));
+		}
 		
 		if(myArgsEngine.getBoolean("-o")) {
 			out_prefix = myArgsEngine.getString("-o");
 		}  else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your output file prefix.");
-		}
-
-		if (myArgsEngine.getBoolean("-rlib")) {
-			RLibPath = myArgsEngine.getString("-rlib");
 		}
 	}
 
@@ -113,6 +118,7 @@ public class MappingAnalysis extends Executor {
 						+ "-m "+map_file+" "
 						+ "-r "+max_r+" "
 						+ (one?"-1 ":" ")
+						+ "-p "+THREADS+" "
 						+ "-o "+out_prefix+" "
 						+ "--concorde "+new File(concorde_path).getParent()+" "
 						+ (RLibPath==null ? "" : "--include "+RLibPath+" ")

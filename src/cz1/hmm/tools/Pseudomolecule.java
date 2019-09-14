@@ -59,13 +59,12 @@ public class Pseudomolecule extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " Common:\n"
-						+ "     -i/--map                    Input genetic linkage map file.\n"
-						+ "     -a/--assembly               Input assembly FASTA file.\n"
-						+ "     -e/--error                  Assembly error file.\n"
-						+ "     -n/--gap                    Gap size between sequences (default 1000). \n"
-						+ "                                 The gaps will be filled with character 'n'.\n"
-						+ "     -o/--prefix                 Output pseudomolecule file.\n"
+						+ " -i/--map                    Input genetic linkage map file.\n"
+						+ " -a/--assembly               Input assembly FASTA file.\n"
+						+ " -e/--error                  Assembly error file.\n"
+						+ " -n/--gap                    Gap size between sequences (default 1000). \n"
+						+ "                             The gaps will be filled with character 'n'.\n"
+						+ " -o/--prefix                 Output pseudomolecule file.\n"
 						);
 	}
 

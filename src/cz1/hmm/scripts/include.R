@@ -19,49 +19,58 @@
     }
 }
 
-.fit_mds_model <- function(mds_file) {
+.fit_mds_model <- function(mds_file, ncores=1) {
 
 	ispcs = c(T,T,T,T,F,F,T,T,T,T,F,F,T,T,T,T,F,F)
 	ndims = c(2,2,3,3,-1,-1,2,2,3,3,-1,-1,2,2,3,3,-1,-1)
 	weightfns = c("lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2")
 	mapfns = c("kosambi","kosambi","kosambi","kosambi","kosambi","kosambi","haldane","haldane","haldane","haldane","haldane","haldane","none","none","none","none","none","none")
-
-	map = NULL
-	stress = Inf
-	
 	nmods = 18
-	for(i in 1:nmods) {
+	
+	cat(paste0("  Fitting ", nmods, " MDS models with ", ncores, "cores.\n"))
+	
+	cl <- makeCluster(ncores)
+	registerDoParallel(cl)
+	maps <- foreach(i=1:nmods) %dopar% {
 		ispc = ispcs[i]
 		ndim = ndims[i]
 		weightfn = weightfns[i]
 		mapfn = mapfns[i]
 		
 		map_i = tryCatch({
-			if(ispc) {
-				calc.maps.pc(mds_file, ndim=ndim, weightfn=weightfn, mapfn=mapfn)
-			} else {
-				calc.maps.sphere(mds_file, weightfn=weightfn, mapfn=mapfn)
-			}
-		}, error = function(cond) {
-			NULL
-		})
-		
+					if(ispc) {
+						calc.maps.pc(mds_file, ndim=ndim, weightfn=weightfn, mapfn=mapfn)
+					} else {
+						calc.maps.sphere(mds_file, weightfn=weightfn, mapfn=mapfn)
+					}
+				}, error = function(cond) {
+					NULL
+				})
+		map_i
+	}
+	stopCluster(cl)
+	
+	map = NULL
+	stress = Inf
+	
+	for(i in 1:nmods) {
+		map_i = maps[[i]]
 		if(is.null(map_i)) next
 		stress_i = if(ispc) {map_i$smacofsym$stress} else {map_i$smacofsphere$stress}
 		
 		if(stress_i<stress) {
 			stress = stress_i
 			map = map_i
-			cat(paste0("  **Model ",i," stress-1 value: ",stress_i,"\n"))
+			cat(paste0("  **Model ", i, " stress-1 value: ", stress_i, "\n"))
 		} else {
-			cat(paste0("    Model ",i," stress-1 value: ",stress_i,"\n"))
+			cat(paste0("    Model ", i, " stress-1 value: ", stress_i, "\n"))
 		}
 	}
 	
 	return(map)
 }
 
-preorder_mds <- function(clus, distanceMat, lodMat) {
+preorder_mds <- function(clus, distanceMat, lodMat, ncores=1) {
 	if(length(clus)<3) return(NA)
 
 	wd <- tempdir()
@@ -89,7 +98,7 @@ preorder_mds <- function(clus, distanceMat, lodMat) {
     }
     sink()
 
-	map = .fit_mds_model(tmp_file_mds)
+	map = .fit_mds_model(tmp_file_mds, ncores)
 	unlink(tmp_file_mds)
 	
 	if(is.null(map)) stop("no model fitted.")
@@ -143,7 +152,7 @@ dist_mds <- function(clus, mds, distanceAll, lodAll, indexMat) {
     sink()
 }
 
-ordering_mds <- function(clus, distanceAll, lodAll, indexMat) {
+ordering_mds <- function(clus, distanceAll, lodAll, indexMat, ncores=1) {
 
     if(length(clus)==0) return(NA);
     if(length(clus)==1) return(list(order=clus,
@@ -159,7 +168,7 @@ ordering_mds <- function(clus, distanceAll, lodAll, indexMat) {
 	
     dist_mds(clus, tmp_file_mds, distanceAll, lodAll, indexMat)
 	
-	map = .fit_mds_model(tmp_file_mds)
+	map = .fit_mds_model(tmp_file_mds, ncores)
 	unlink(tmp_file_mds)
 	
 	if(is.null(map)) stop("no model fitted.")
@@ -231,11 +240,11 @@ dist_tsp <- function(clus, distanceAll, indexMat, preorder=NA, nn=1) {
 	MAX <- if(n*2+1<10) {2^16} else {2^31-1}
 	
 	if(any(is.na(preorder))) {	
-		max_d = max(d, na.rm=T)
+		max_d = max(d[is.finite(d)])
 		d = d+max_d+2
 		max_d = max_d*2+2
-		s = MAX/max_d/(n*2+1)
-		d = round(d*s)
+		s = floor(log10(MAX/max_d/(n*2+1)))
+		d = round(d*10^s)
 		d[d==-Inf] = 1
 		d[is.na(d)] = 2
 		diag(d) = 0
@@ -255,8 +264,8 @@ dist_tsp <- function(clus, distanceAll, indexMat, preorder=NA, nn=1) {
 		d = d+max_d+2
 		max_d = max_d*2+2
 		sInf = MAX/(n*2+1)
-		s = sInf/max_d
-		d = round(d*s)
+		s = floor(log10(sInf/max_d))
+		d = round(d*10^s)
 		d[d==-Inf] = 1
 		d[d==Inf] = sInf
 		d[is.na(d)] = 2
@@ -290,7 +299,7 @@ ordering_tsp <- function(clus, distanceAll, indexMat, method="concorde", preorde
 	temp_file <- basename(tempfile(tmpdir = wd))
 	tmp_file_in  <- paste(temp_file, ".dat", sep = "")
 	tmp_file_out <- paste(temp_file, ".sol", sep = "")
-	write_TSPLIB(TSP(d), file = tmp_file_in, precision = 0)
+	write_TSPLIB(TSP(d), file = tmp_file_in, precision = 0)	
 	system2(.find_prog("concorde"),
 		args =  paste("-x -o", tmp_file_out, tmp_file_in),
     )
@@ -298,14 +307,14 @@ ordering_tsp <- function(clus, distanceAll, indexMat, method="concorde", preorde
 		stop("Solving TSP failed.")
 	tour <- scan(tmp_file_out, what = integer(0), quiet = TRUE)
 	tour <- tour[-1] + 1L
-	unlink(c(tmp_file_in, tmp_file_out))
+	unlink(c(tmp_file_in, tmp_file_out, "file*", "Ofile*"))
 
     if(is.null(tour)) {
     	stop("Solving TSP failed.")
 	} else{
 		print("##Sovling TSP succeed.")
 	}
-	 
+	
     o = as.integer(tour)
     w = which(o==length(o))
     if(w==1 || w==length(o)) o = o[-w]
@@ -321,103 +330,6 @@ ordering_tsp <- function(clus, distanceAll, indexMat, method="concorde", preorde
     return(list(order = o2,
                 oriO = o,
                 cost = c1));
-}
-
-errorCount <- function(oo) {
-    position = c()
-    chr = c()
-    all_splits = strsplit(oo,"_")
-    for(i in 1:length(all_splits)) {
-        position = c(position_,as.numeric(all_splits[[i]][2]))
-        chr = c(chr,all_splits[[i]][1])
-    }
-    unique_chr = unique(chr)
-
-    n = length(oo)
-    egN = n*(n-1)/2
-    egn = egN
-    eoN = 0;
-    eon = 0;
-    for(i in 1:length(unique_chr)) {
-        w = which(chr==unique_chr[i])
-        e = .error(order(position[w]))
-        eoN = eoN+e[[2]]
-        eon = eon+e[[1]]
-        egn = egn-length(w)*(length(w)-1)/2
-    }
-
-    list(egn=egn, egN=egN, eon=eon, eoN=eoN)
-}
-
-.error <- function(oo) {
-    n = length(oo)
-
-    N = n*(n-1)/2
-    e = 0
-    for(i in 1:n)
-        for(j in i:n)
-            if(i!=j && oo[i]>oo[j]) e=e+1
-    if(e>N/2) return(.error(oo[n:1]))
-    list(e, N)
-}
-
-nmi <- function(cA, cB) {
-
-    if(length(cA)!=length(cB)) return(NA)
-
-    a = unique(cA)
-    b = unique(cB)
-
-    I = matrix(nrow=length(a), ncol=length(b))
-    for(i in 1:length(a))
-        for(j in 1:length(b))
-            I[i, j] = length(intersect(
-                                       which(cA==a[i]),
-                                       which(cB==b[j])
-                                       ))
-
-    sA = apply(I,1,sum)
-    sB = apply(I,2,sum)
-
-    N = length(cA)
-
-    iAB = 0
-    for(i in 1:dim(I)[1])
-        for(j in 1:dim(I)[2])
-            if(I[i,j]!=0)
-                iAB = iAB+I[i,j]*log2(I[i,j]*N/sA[i]/sB[j])
-
-    hA = -sum(sA*log2(sA/N))
-    hB = -sum(sB*log2(sB/N))
-
-    2*iAB/(hA+hB)
-}
-
-fm <- function(cA, cB, beta=1) {
-    if(length(cA)!=length(cB)) return(NA)
-
-    a = unique(cA)
-    b = unique(cB)
-
-    rho = 0
-    for(i in 1:length(a)) {
-        wA = which(cA==a[i])
-        for(j in 1:length(b)) {
-            wB = which(cB==b[j])
-            nAB = length(intersect(wA,wB))
-            rho = rho+nAB*(nAB-1)/2
-        }
-    }
-
-    ca = table(cA)
-    nA = sum(ca*(ca-1)/2)
-    cb = table(cB)
-    nB = sum(cb*(cb-1)/2)
-
-    p = rho/nA
-    r = rho/nB
-
-    (1+beta^2)*p*r/(beta^2*p+r)
 }
 
 .simply_write_files <- function(in_RData, in_map, out_file) {
@@ -475,31 +387,31 @@ fm <- function(cA, cB, beta=1) {
 	list(dC=dC, tC=tC)
 }
 
-nn_joining <- function(in_RData, out_file, nn=1, rf_thresh=.haldane_r(.5)) {
+nn_joining <- function(in_RData, out_file, nn=2, max_r=.haldane_r(.5)) {
 	
     load(in_RData)
     diag(distanceMat) = Inf
 	
-	clus = vector("list", length = n)
+	clusts = vector("list", length = n)
 	for(i in 1:n) {
 		d = distanceMat[i,]
         ux = sort(unique(d))
         nb = c()
         for(x in ux) {
-			if(x>rf_thresh) break
+			if(x>max_r) break
 			nb = c(nb, which(d==x))
             if(length(nb)>=nn) break
         }
-		clus[[i]] = c(i, nb)
+		clusts[[i]] = c(i, nb)
 	}
 	trig = rep(T, n)
 	
 	for(i in 1:(n-1)) {
 		if(!trig[i]) next
-		a = clus[[i]]
+		a = clusts[[i]]
 		for(j in (i+1):n) {
 			if(!trig[j]) next
-			b = clus[[j]]
+			b = clusts[[j]]
 			if(length(a)>length(b)&&all(b%in%a)) {
 				trig[j] = F
 			} else if(all(a%in%b)) {
@@ -508,21 +420,21 @@ nn_joining <- function(in_RData, out_file, nn=1, rf_thresh=.haldane_r(.5)) {
 			}
 		}
 	}
-
+		
     sink(out_file)
     for(i in 1:n) {
 		if(!trig[i]) next
-		if(length(clus[[i]])==1) {
+		if(length(clusts[[i]])==1) {
 			cat("-c ")
-            cat(scaffs[clus[[i]]])
+            cat(scaffs[clusts[[i]]])
             cat("\n")
             next
 		}
 			
-        sink("/dev/null")
-        o = ordering_tsp(clus[[i]], distanceAll, indexMat)
-        sink()		
-        oR = as.numeric(o$order); oO = o$oriO
+		sink("/dev/null")
+		o = ordering_tsp(clus[[i]], distanceAll, indexMat)
+		sink()
+		oR = as.numeric(o$order); oO = o$oriO
         cat("-c ")
         cat(paste(scaffs[oR], collapse=":"))
         sepe = rep(NA, length(oR)-1)
@@ -552,7 +464,7 @@ nn_joining <- function(in_RData, out_file, nn=1, rf_thresh=.haldane_r(.5)) {
     sink()
 }
 
-genetic_linkage_map <- function(in_RData, in_map, out_file, max_r=.haldane_r(0.5), make_group=TRUE, nn=1) {
+linkage_mapping <- function(in_RData, in_map, out_file, max_r=.haldane_r(0.5), make_group=TRUE, nn=1, ncores=1) {
 
     load(in_RData)
     
@@ -618,7 +530,7 @@ if(FALSE) {
 ## Ordering using MDS and TSP
 	po = list()
 	for(i in 1:length(clusts)) po[[i]] = tryCatch({
-			preorder_mds(clusts[[i]], distanceMat, lodMat)
+			preorder_mds(clusts[[i]], distanceMat, lodMat, ncores)
 		}, error = function(cond) {
 			NA
 		})
@@ -636,7 +548,7 @@ if(FALSE) {
     nco = order(nc, decreasing=T)
 	for(i in 1:length(nco)) {
 		o[[i]] = tryCatch({
-			ordering_mds(clusts[[nco[i]]], distanceAll, lodAll, indexMat)
+			ordering_mds(clusts[[nco[i]]], distanceAll, lodAll, indexMat, ncores)
 		}, error = function(cond) {
 			ordering_tsp(clusts[[nco[i]]], distanceAll, indexMat)
 		})
