@@ -432,7 +432,7 @@ nn_joining <- function(in_RData, out_file, nn=2, max_r=.haldane_r(.5)) {
 		}
 			
 		sink("/dev/null")
-		o = ordering_tsp(clus[[i]], distanceAll, indexMat)
+		o = ordering_tsp(clusts[[i]], distanceAll, indexMat)
 		sink()
 		oR = as.numeric(o$order); oO = o$oriO
         cat("-c ")
