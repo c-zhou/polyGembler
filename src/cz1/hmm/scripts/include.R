@@ -55,7 +55,7 @@
 	for(i in 1:nmods) {
 		map_i = maps[[i]]
 		if(is.null(map_i)) next
-		stress_i = if(ispc) {map_i$smacofsym$stress} else {map_i$smacofsphere$stress}
+		stress_i = if(ispcs[i]) {map_i$smacofsym$stress} else {map_i$smacofsphere$stress}
 		
 		if(stress_i<stress) {
 			stress = stress_i
