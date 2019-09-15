@@ -101,7 +101,7 @@ public class MappingAnalysis extends Executor {
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		final String temfile_prefix = ".tmp/";
+		final String temfile_prefix = Utils.makeTempDir();
 		final boolean tmpdirCreated = Utils.makeOutputDir(new File(temfile_prefix));
 		final String concorde_path =
 				RFUtils.makeExecutable("cz1/hmm/executable/concorde", temfile_prefix);

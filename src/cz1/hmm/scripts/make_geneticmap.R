@@ -67,3 +67,6 @@ script.name <- sub(file.name, "", initial.options[grep(file.name, initial.option
 source(paste(sep="/", dirname(script.name), "include.R"))
 
 linkage_mapping(in_RData, in_map, out_file, max_r, make_group, nn, ncores)
+
+## render all warning messages if has any
+warnings()

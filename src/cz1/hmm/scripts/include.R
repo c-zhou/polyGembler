@@ -19,7 +19,7 @@
     }
 }
 
-.fit_mds_model <- function(mds_file, ncores=1) {
+.fit_mds_model <- function(mds_file) {
 
 	ispcs = c(T,T,T,T,F,F,T,T,T,T,F,F,T,T,T,T,F,F)
 	ndims = c(2,2,3,3,-1,-1,2,2,3,3,-1,-1,2,2,3,3,-1,-1)
@@ -27,9 +27,9 @@
 	mapfns = c("kosambi","kosambi","kosambi","kosambi","kosambi","kosambi","haldane","haldane","haldane","haldane","haldane","haldane","none","none","none","none","none","none")
 	nmods = 18
 	
-	cat(paste0("  Fitting ", nmods, " MDS models with ", ncores, " cores.\n"))
+	cat(paste0("  Fitting ", nmods, " MDS models.\n"))
 	
-	registerDoParallel(ncores)
+	## doParallel should be registered at this point
 	maps <- foreach(i=1:nmods) %dopar% {
 		ispc = ispcs[i]
 		ndim = ndims[i]
@@ -47,7 +47,6 @@
 				})
 		map_i
 	}
-	stopImplicitCluster()
 	
 	map = NULL
 	stress = Inf
@@ -69,7 +68,7 @@
 	return(map)
 }
 
-preorder_mds <- function(clus, distanceMat, lodMat, ncores=1) {
+preorder_mds <- function(clus, distanceMat, lodMat) {
 	if(length(clus)<3) return(NA)
 
 	wd <- tempdir()
@@ -97,7 +96,7 @@ preorder_mds <- function(clus, distanceMat, lodMat, ncores=1) {
     }
     sink()
 
-	map = .fit_mds_model(tmp_file_mds, ncores)
+	map = .fit_mds_model(tmp_file_mds)
 	unlink(tmp_file_mds)
 	
 	if(is.null(map)) stop("no model fitted.")
@@ -105,7 +104,7 @@ preorder_mds <- function(clus, distanceMat, lodMat, ncores=1) {
 	return(as.numeric.factor(map$locimap$locus))
 }
 
-dist_mds <- function(clus, mds, distanceAll, lodAll, indexMat) {
+dist_mds <- function(clus, mds_file, distanceAll, lodAll, indexMat) {
     n = length(clus)
     names = c()
     for(i in 1:n) names=c(names,c(paste0(clus[i],"(+)"), paste0(clus[i],"(-)")))
@@ -137,7 +136,7 @@ dist_mds <- function(clus, mds, distanceAll, lodAll, indexMat) {
     }
 	
 	n = n*2
-    sink(mds)
+    sink(mds_file)
     cat(n); cat("\n")
     for(i in 1:n) {
         for(j in 1:n) {
@@ -151,9 +150,9 @@ dist_mds <- function(clus, mds, distanceAll, lodAll, indexMat) {
     sink()
 }
 
-ordering_mds <- function(clus, distanceAll, lodAll, indexMat, ncores=1) {
+ordering_mds <- function(clus, distanceAll, lodAll, indexMat, fid="") {
 
-    if(length(clus)==0) return(NA);
+    if(length(clus)==0) return(NULL);
     if(length(clus)==1) return(list(order=clus,
                                    oriO=c(paste0(clus,"(+)"), paste0(clus,"(-)")),
                                    cost=0));
@@ -163,14 +162,16 @@ ordering_mds <- function(clus, distanceAll, lodAll, indexMat, ncores=1) {
 	on.exit(setwd(dir))
 	
 	temp_file <- basename(tempfile(tmpdir = wd))
-	tmp_file_mds  <- paste(temp_file, ".txt", sep = "")
+	## using 'fid' to make sure the tmp files are not overwritten 
+	## by each other although highly unlikely
+	tmp_file_mds  <- paste(temp_file, fid, sep = "")
 	
     dist_mds(clus, tmp_file_mds, distanceAll, lodAll, indexMat)
 	
-	map = .fit_mds_model(tmp_file_mds, ncores)
+	map = .fit_mds_model(tmp_file_mds)
 	unlink(tmp_file_mds)
 	
-	if(is.null(map)) stop("no model fitted.")
+	if(is.null(map)) return(NULL)
 	
     oR = as.numeric.factor(map$locimap$locus)
 	n = length(oR)
@@ -524,35 +525,24 @@ linkage_mapping <- function(in_RData, in_map, out_file, max_r=.haldane_r(0.5), m
     clusts=list()
     for(i in 1:max(clus)) clusts[[i]] = which(clus==i)
     
-if(FALSE) {
-## Ordering using MDS and TSP
-	po = list()
-	for(i in 1:length(clusts)) po[[i]] = tryCatch({
-			preorder_mds(clusts[[i]], distanceMat, lodMat, ncores)
-		}, error = function(cond) {
-			NA
-		})
-	o = list()
-    nc = rep(NA,length(clusts))
-    for(i in 1:length(nc)) nc[i] = length(clusts[[i]])
-    nco = order(nc, decreasing=T)
-	for(i in 1:length(nco)) 
-    	o[[i]] = ordering_tsp(clusts[[nco[i]]], distanceAll, indexMat, preorder=po[[nco[i]]], nn=nn)
-} else {
-## Ordering using MDS
-	o = list()
-    nc = rep(NA,length(clusts))
-    for(i in 1:length(nc)) nc[i] = length(clusts[[i]])
-    nco = order(nc, decreasing=T)
+	nc = rep(NA,length(clusts))
+	for(i in 1:length(nc)) nc[i] = length(clusts[[i]])
+	nco = order(nc, decreasing=T)
+	
+	registerDoParallel(ncores)
+	cat(paste0("####Ordering with MDS using ", ncores, " cores.\n"))
+	o <- foreach(i=1:length(nco)) %dopar% {
+		ordering_mds(clusts[[nco[i]]], distanceAll, lodAll, indexMat, fid=paste0(".lg",i))
+	}
+	stopImplicitCluster()
+	
 	for(i in 1:length(nco)) {
-		o[[i]] = tryCatch({
-			ordering_mds(clusts[[nco[i]]], distanceAll, lodAll, indexMat, ncores)
-		}, error = function(cond) {
-			ordering_tsp(clusts[[nco[i]]], distanceAll, indexMat)
-		})
-    }
-}
-
+		if(is.null(o[[i]])) {
+			cat(paste0("####Linkage group ",i," MDS ordering failed. Ordering with TSP.\n"))
+			o[[i]] = ordering_tsp(clusts[[nco[i]]], distanceAll, indexMat)
+		}
+	}
+	
 	mm = .read_map_file(in_map);
 	dC = mm$dC
 	tC = mm$tC

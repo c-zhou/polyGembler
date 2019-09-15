@@ -56,3 +56,5 @@ source(paste(sep="/", dirname(script.name), "include.R"))
 
 nn_joining(in_RData, out_file, nn, max_r)
 
+## render all warning messages if has any
+warnings()

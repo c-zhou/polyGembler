@@ -16,6 +16,7 @@ import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.file.Files;
 import java.util.Calendar;
+import java.util.UUID;
 import java.text.SimpleDateFormat;
 
 import org.apache.log4j.Logger;
@@ -233,5 +234,13 @@ public class Utils {
 			s.append(array[i]);
 		}
 		return s.toString();
+	}
+
+	public static String makeTempDir() {
+		// TODO Auto-generated method stub
+		String uuid = "."+UUID.randomUUID().toString();
+		while(new File(uuid).exists())
+			uuid = UUID.randomUUID().toString();
+		return uuid;
 	}
 }
