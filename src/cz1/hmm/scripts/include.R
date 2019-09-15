@@ -27,10 +27,9 @@
 	mapfns = c("kosambi","kosambi","kosambi","kosambi","kosambi","kosambi","haldane","haldane","haldane","haldane","haldane","haldane","none","none","none","none","none","none")
 	nmods = 18
 	
-	cat(paste0("  Fitting ", nmods, " MDS models with ", ncores, "cores.\n"))
+	cat(paste0("  Fitting ", nmods, " MDS models with ", ncores, " cores.\n"))
 	
-	cl <- makeCluster(ncores)
-	registerDoParallel(cl)
+	registerDoParallel(ncores)
 	maps <- foreach(i=1:nmods) %dopar% {
 		ispc = ispcs[i]
 		ndim = ndims[i]
@@ -48,7 +47,7 @@
 				})
 		map_i
 	}
-	stopCluster(cl)
+	stopImplicitCluster()
 	
 	map = NULL
 	stress = Inf
@@ -474,10 +473,10 @@ linkage_mapping <- function(in_RData, in_map, out_file, max_r=.haldane_r(0.5), m
 	}
 	
 	max_d = .cm_d(max_r)
-	nng = .cm_d(distanceMat)
 	
 	if(make_group) {
-    	diag(nng) = INF_CM
+		nng = .cm_d(distanceMat)
+		diag(nng) = INF_CM
    		nng[nng>max_d] = INF_CM
     	nng = INF_CM-nng
 		
@@ -517,6 +516,7 @@ linkage_mapping <- function(in_RData, in_map, out_file, max_r=.haldane_r(0.5), m
 				print(paste0("#chimeric joins in linkage group ",u,": ",length(chims)))
 			}
 		}
+		rm(nng)
 	} else {
 		clus = rep(1, length(scaffs))
 	}
@@ -524,8 +524,6 @@ linkage_mapping <- function(in_RData, in_map, out_file, max_r=.haldane_r(0.5), m
     clusts=list()
     for(i in 1:max(clus)) clusts[[i]] = which(clus==i)
     
-	rm(nng)
-
 if(FALSE) {
 ## Ordering using MDS and TSP
 	po = list()
