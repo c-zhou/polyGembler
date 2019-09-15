@@ -19,7 +19,7 @@
     }
 }
 
-.fit_mds_model <- function(mds_file) {
+.fit_mds_model <- function(mds_file, ncores=1) {
 
 	ispcs = c(T,T,T,T,F,F,T,T,T,T,F,F,T,T,T,T,F,F)
 	ndims = c(2,2,3,3,-1,-1,2,2,3,3,-1,-1,2,2,3,3,-1,-1)
@@ -29,7 +29,7 @@
 	
 	cat(paste0("  Fitting ", nmods, " MDS models.\n"))
 	
-	## doParallel should be registered at this point
+	registerDoParallel(ncores) ## register doParallel for child process
 	maps <- foreach(i=1:nmods) %dopar% {
 		ispc = ispcs[i]
 		ndim = ndims[i]
@@ -47,6 +47,7 @@
 				})
 		map_i
 	}
+	stopImplicitCluster()
 	
 	map = NULL
 	stress = Inf
@@ -68,7 +69,7 @@
 	return(map)
 }
 
-preorder_mds <- function(clus, distanceMat, lodMat) {
+preorder_mds <- function(clus, distanceMat, lodMat, ncores=1) {
 	if(length(clus)<3) return(NA)
 
 	wd <- tempdir()
@@ -96,7 +97,7 @@ preorder_mds <- function(clus, distanceMat, lodMat) {
     }
     sink()
 
-	map = .fit_mds_model(tmp_file_mds)
+	map = .fit_mds_model(tmp_file_mds, ncores)
 	unlink(tmp_file_mds)
 	
 	if(is.null(map)) stop("no model fitted.")
@@ -150,7 +151,7 @@ dist_mds <- function(clus, mds_file, distanceAll, lodAll, indexMat) {
     sink()
 }
 
-ordering_mds <- function(clus, distanceAll, lodAll, indexMat, fid="") {
+ordering_mds <- function(clus, distanceAll, lodAll, indexMat, fid="", ncores=1) {
 
     if(length(clus)==0) return(NULL);
     if(length(clus)==1) return(list(order=clus,
@@ -168,7 +169,7 @@ ordering_mds <- function(clus, distanceAll, lodAll, indexMat, fid="") {
 	
     dist_mds(clus, tmp_file_mds, distanceAll, lodAll, indexMat)
 	
-	map = .fit_mds_model(tmp_file_mds)
+	map = .fit_mds_model(tmp_file_mds, ncores)
 	unlink(tmp_file_mds)
 	
 	if(is.null(map)) return(NULL)
@@ -464,7 +465,7 @@ nn_joining <- function(in_RData, out_file, nn=2, max_r=.haldane_r(.5)) {
     sink()
 }
 
-linkage_mapping <- function(in_RData, in_map, out_file, max_r=.haldane_r(0.5), make_group=TRUE, nn=1, ncores=1) {
+linkage_mapping <- function(in_RData, in_map, out_file, max_r=.haldane_r(0.5), make_group=TRUE, ncores=1) {
 
     load(in_RData)
     
@@ -529,14 +530,26 @@ linkage_mapping <- function(in_RData, in_map, out_file, max_r=.haldane_r(0.5), m
 	for(i in 1:length(nc)) nc[i] = length(clusts[[i]])
 	nco = order(nc, decreasing=T)
 	
-	registerDoParallel(ncores)
+	nn = length(nco)	
+	
+	if(ncores<=nn) {
+		nt_p = ncores
+		nt_c = rep(1, nn)
+	} else {
+		nt_p = nn
+		nt = floor(ncores/nn)
+		nt_c = rep(nt, nn)
+		if(ncores>nn*nt) nt_c[1:(ncores-nn*nt)] = nt+1 
+	}
+	
+	registerDoParallel(nt_p) ## register doParallel for parent process
 	cat(paste0("####Ordering with MDS using ", ncores, " cores.\n"))
-	o <- foreach(i=1:length(nco)) %dopar% {
-		ordering_mds(clusts[[nco[i]]], distanceAll, lodAll, indexMat, fid=paste0(".lg",i))
+	o <- foreach(i=1:nn) %dopar% {
+		ordering_mds(clusts[[nco[i]]], distanceAll, lodAll, indexMat, fid=paste0(".lg",i), nt_c[i])
 	}
 	stopImplicitCluster()
 	
-	for(i in 1:length(nco)) {
+	for(i in 1:nn) {
 		if(is.null(o[[i]])) {
 			cat(paste0("####Linkage group ",i," MDS ordering failed. Ordering with TSP.\n"))
 			o[[i]] = ordering_tsp(clusts[[nco[i]]], distanceAll, indexMat)

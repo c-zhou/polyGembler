@@ -9,8 +9,6 @@ parser$add_argument("-m", "--map", required = T,
                     help="Input MAP file.")
 parser$add_argument("-r", "--distance", type="double", default = 0.316,
                     help="Recombination frequency threshold for grouping [default %(default)s].")
-parser$add_argument("-n", "--nn", type="double", default=1,
-                    help="Number of nearest neighbours [default %(default)s].")
 parser$add_argument("-1", "--group", action='store_false', 
                     help="Build linkage groups, otherwise all contigs into one group.")		
 parser$add_argument("-p", "--cores", type="double", default=1,
@@ -29,7 +27,6 @@ args <- parser$parse_args()
 in_RData = args$input
 in_map = args$map
 max_r = args$distance
-nn = args$nn
 make_group = args$group
 ncores = args$cores
 concorde_path = args$concorde
@@ -66,7 +63,7 @@ file.name <- "--file="
 script.name <- sub(file.name, "", initial.options[grep(file.name, initial.options)])
 source(paste(sep="/", dirname(script.name), "include.R"))
 
-linkage_mapping(in_RData, in_map, out_file, max_r, make_group, nn, ncores)
+linkage_mapping(in_RData, in_map, out_file, max_r, make_group, ncores)
 
 ## render all warning messages if has any
 warnings()
