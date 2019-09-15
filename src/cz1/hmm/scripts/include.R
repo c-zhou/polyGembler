@@ -530,26 +530,28 @@ linkage_mapping <- function(in_RData, in_map, out_file, max_r=.haldane_r(0.5), m
 	for(i in 1:length(nc)) nc[i] = length(clusts[[i]])
 	nco = order(nc, decreasing=T)
 	
-	nn = length(nco)	
+	mc = length(clusts)
+	nn = sum(table(clus)>30)
+	if(nn==0) nn=1
 	
 	if(ncores<=nn) {
 		nt_p = ncores
-		nt_c = rep(1, nn)
+		nt_c = rep(1, mc)
 	} else {
 		nt_p = nn
 		nt = floor(ncores/nn)
-		nt_c = rep(nt, nn)
+		nt_c = rep(nt, mc)
 		if(ncores>nn*nt) nt_c[1:(ncores-nn*nt)] = nt+1 
 	}
 	
 	registerDoParallel(nt_p) ## register doParallel for parent process
 	cat(paste0("####Ordering with MDS using ", ncores, " cores.\n"))
-	o <- foreach(i=1:nn) %dopar% {
+	o <- foreach(i=1:mc) %dopar% {
 		ordering_mds(clusts[[nco[i]]], distanceAll, lodAll, indexMat, fid=paste0(".lg",i), nt_c[i])
 	}
 	stopImplicitCluster()
 	
-	for(i in 1:nn) {
+	for(i in 1:mc) {
 		if(is.null(o[[i]])) {
 			cat(paste0("####Linkage group ",i," MDS ordering failed. Ordering with TSP.\n"))
 			o[[i]] = ordering_tsp(clusts[[nco[i]]], distanceAll, indexMat)
