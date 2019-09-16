@@ -116,9 +116,9 @@ public class DataEntry {
 		reverse(this.position);
 		reverse(this.marker_id);
 		Collections.reverse(this.allele);
-		Collections.reverse(this.ad);
-		Collections.reverse(this.gl);
-		Collections.reverse(this.gt);
+		if(this.ad!=null) Collections.reverse(this.ad);
+		if(this.gl!=null) Collections.reverse(this.gl);
+		if(this.gt!=null) Collections.reverse(this.gt);
 	}
 
 	private void reverse(double[] arr) {
