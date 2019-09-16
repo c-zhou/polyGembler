@@ -50,7 +50,7 @@ if(!is.null(tmpdir)) {
 	if("unixtools" %in% allPackages) {
         suppressPackageStartupMessages(do.call('library', list("unixtools")))
     	set.tempdir(tmpdir)
-    	print(paste0("Setting TMPDIR ", tmpdir))
+    	cat(paste0("Setting TMPDIR ", tmpdir, "\n"))
     } else {
         warning(paste0("Package ",package," is not available. Using system default TMPDIR."))
 	}

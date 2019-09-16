@@ -21,27 +21,21 @@
 
 .fit_mds_model <- function(mds_file, ncores=1) {
 
-	ispcs = c(T,T,T,T,F,F,T,T,T,T,F,F,T,T,T,T,F,F)
-	ndims = c(2,2,3,3,-1,-1,2,2,3,3,-1,-1,2,2,3,3,-1,-1)
-	weightfns = c("lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2")
-	mapfns = c("kosambi","kosambi","kosambi","kosambi","kosambi","kosambi","haldane","haldane","haldane","haldane","haldane","haldane","none","none","none","none","none","none")
-	nmods = 18
+	ndims = c(2,2,3,3,2,2,3,3,2,2,3,3)
+	weightfns = c("lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2")
+	mapfns = c("kosambi","kosambi","kosambi","kosambi","haldane","haldane","haldane","haldane","none","none","none","none")
+	nmods = 12
 	
 	cat(paste0("  Fitting ", nmods, " MDS models using ", ncores, " cores.\n"))
 	
 	registerDoParallel(ncores) ## register doParallel for child process
 	maps <- foreach(i=1:nmods) %dopar% {
-		ispc = ispcs[i]
 		ndim = ndims[i]
 		weightfn = weightfns[i]
 		mapfn = mapfns[i]
 		
 		map_i = tryCatch({
-					if(ispc) {
-						calc.maps.pc(mds_file, ndim=ndim, weightfn=weightfn, mapfn=mapfn)
-					} else {
-						calc.maps.sphere(mds_file, weightfn=weightfn, mapfn=mapfn)
-					}
+					calc.maps.pc(mds_file, ndim=ndim, weightfn=weightfn, mapfn=mapfn)
 				}, error = function(cond) {
 					NULL
 				})
@@ -55,7 +49,7 @@
 	for(i in 1:nmods) {
 		map_i = maps[[i]]
 		if(is.null(map_i)) next
-		stress_i = if(ispcs[i]) {map_i$smacofsym$stress} else {map_i$smacofsphere$stress}
+		stress_i = map_i$smacofsym$stress
 		
 		if(stress_i<stress) {
 			stress = stress_i
@@ -313,7 +307,7 @@ ordering_tsp <- function(clus, distanceAll, indexMat, method="concorde", preorde
     if(is.null(tour)) {
     	stop("Solving TSP failed.")
 	} else{
-		print("##Sovling TSP succeed.")
+		cat("##Sovling TSP succeed.\n")
 	}
 	
     o = as.integer(tour)
@@ -515,7 +509,7 @@ linkage_mapping <- function(in_RData, in_map, out_file, max_r=.haldane_r(0.5), m
 				for(chim in chims) {
 					clus[ci[chim]] = max(clus)+1
 				}
-				print(paste0("#chimeric joins in linkage group ",u,": ",length(chims)))
+				cat(paste0("#chimeric joins in linkage group ",u,": ",length(chims),"\n"))
 			}
 		}
 		rm(nng)
