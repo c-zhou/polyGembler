@@ -7,7 +7,7 @@ parser$add_argument("-i", "--input", required = T,
                     help="Input RData file.")
 parser$add_argument("-m", "--map", required = T,
                     help="Input MAP file.")
-parser$add_argument("-r", "--distance", type="double", default = 0.316,
+parser$add_argument("-r", "--distance", type="double", default = 0.381,
                     help="Recombination frequency threshold for grouping [default %(default)s].")
 parser$add_argument("-1", "--group", action='store_false', 
                     help="Build linkage groups, otherwise all contigs into one group.")		

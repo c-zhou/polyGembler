@@ -7,7 +7,7 @@
 .haldane_r <- function(d) .5*(1-exp(-2*d))
 .kosambi_r <- function(d) .5*(exp(4*d)-1)/(exp(4*d)+1)
 
-.cm_d <- function(r, mapfn=c("haldane","kosambi")) {
+.cm_d <- function(r, mapfn=c("kosambi","haldane")) {
 	match.arg(mapfn)
 	mapfn = mapfn[1]
     r[r >= .5] = .4999999
@@ -382,7 +382,7 @@ ordering_tsp <- function(clus, distanceAll, indexMat, method="concorde", preorde
 	list(dC=dC, tC=tC)
 }
 
-nn_joining <- function(in_RData, out_file, nn=2, max_r=.haldane_r(.5)) {
+nn_joining <- function(in_RData, out_file, nn=2, max_r=.kosambi_r(.5)) {
 	
     load(in_RData)
     diag(distanceMat) = Inf
@@ -459,7 +459,7 @@ nn_joining <- function(in_RData, out_file, nn=2, max_r=.haldane_r(.5)) {
     sink()
 }
 
-linkage_mapping <- function(in_RData, in_map, out_file, max_r=.haldane_r(0.5), make_group=TRUE, ncores=1) {
+linkage_mapping <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5), make_group=TRUE, ncores=1) {
 
     load(in_RData)
     

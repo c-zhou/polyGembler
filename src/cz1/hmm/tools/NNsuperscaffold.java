@@ -111,7 +111,7 @@ public class NNsuperscaffold extends Executor {
 				RFUtils.makeExecutable("cz1/hmm/scripts/make_nnsuperscaffold.R", temfile_prefix);
 		RFUtils.makeExecutable("cz1/hmm/scripts/include.R", temfile_prefix);
 		RFUtils.makeRMatrix(rf_file, out_prefix+".RData", hs);
-		double max_r = Math.min(RFUtils.calcRfFromLOD(lod_thres, hs), RFUtils.inverseGeneticDistance(0.5, "haldane"));
+		double max_r = Math.min(RFUtils.calcRfFromLOD(lod_thres, hs), RFUtils.inverseGeneticDistance(0.5, "kosambi"));
 		myLogger.info("Using recombination frequency threshold: "+max_r+".");
 		final String command =
 				"Rscript "+nnss_path+" "

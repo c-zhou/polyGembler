@@ -22,7 +22,7 @@ public class SinglePointAnalysis extends RFUtils {
 	private String out_prefix;
 	private int wbp = 30000;
 	private int wnm = 30;
-	private String map_func = "haldane";
+	private String map_func = "kosambi";
 	
 	@Override
 	public void printUsage() {
