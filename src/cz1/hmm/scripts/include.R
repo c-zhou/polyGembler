@@ -26,7 +26,7 @@
 	mapfns = c("kosambi","kosambi","kosambi","kosambi","haldane","haldane","haldane","haldane","none","none","none","none")
 	nmods = 12
 	
-	cat(paste0("  Fitting ", nmods, " MDS models using ", ncores, " cores.\n"))
+	cat(paste0("Fitting ", nmods, " MDS models using ", ncores, " cores.\n"))
 	
 	registerDoParallel(ncores) ## register doParallel for child process
 	maps <- foreach(i=1:nmods) %dopar% {
