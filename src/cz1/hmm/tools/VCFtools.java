@@ -322,10 +322,12 @@ public class VCFtools extends Executor {
                         m += 1.0;
                         continue;
                     }
+                    
                     if(MNP && info[0].indexOf("0")>-1) {
                         MN = true;
                         break;
                     }
+
                     if(format_set.containsKey("RO") &&
                     		format_set.containsKey("AO")) {
                     	if(MNP) {
@@ -339,11 +341,16 @@ public class VCFtools extends Executor {
                     	dp = ad[0]+ad[1];
                     } else if(format_set.containsKey("AD")) {
                     	String[] ad_str = info[format_set.get("AD")].split(",");
-                    	int shift = 0;
+                        int shift = 0;
                     	if(MNP) shift = 1;
-                    	ad[0] = Integer.parseInt(ad_str[0+shift]);
-                		ad[1] = Integer.parseInt(ad_str[1+shift]);
-                    	dp = ad[0]+ad[1];
+                        if(ad_str.length<2) {
+                            ad[0] = 0;
+                            ad[1] = 0;
+                        } else {
+                    	    ad[0] = ad_str[0+shift].equals(".")?0:Integer.parseInt(ad_str[0+shift]);
+                		    ad[1] = ad_str[1+shift].equals(".")?0:Integer.parseInt(ad_str[1+shift]);
+                        }
+                        dp = ad[0]+ad[1];
                     } else if(format_set.containsKey("DP")) {
                     	dp = Integer.parseInt(info[format_set.get("DP")]);
                     }

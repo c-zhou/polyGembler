@@ -9,8 +9,10 @@ parser$add_argument("-m", "--map", required = T,
                     help="Input MAP file.")
 parser$add_argument("-r", "--distance", type="double", default = 0.381,
                     help="Recombination frequency threshold for grouping [default %(default)s].")
-parser$add_argument("-1", "--group", action='store_false', 
-                    help="Build linkage groups, otherwise all contigs into one group.")		
+parser$add_argument("-1", "--no-group", action='store_true', 
+                    help="Do not build linkage groups, all contigs into one linkage group [default FALSE].")		
+parser$add_argument("-x", "--check-chimeric", action='store_true',
+                    help="Check chimeric joins during grouping [default FALSE].")
 parser$add_argument("-p", "--cores", type="double", default=1,
 					help="Concorde executable file path.")			
 parser$add_argument("-c", "--concorde", required = T,
@@ -27,7 +29,8 @@ args <- parser$parse_args()
 in_RData = args$input
 in_map = args$map
 max_r = args$distance
-make_group = args$group
+no_group = args$no_group
+check_chimeric = args$check_chimeric
 ncores = args$cores
 concorde_path = args$concorde
 external_lib = args$include
@@ -63,7 +66,7 @@ file.name <- "--file="
 script.name <- sub(file.name, "", initial.options[grep(file.name, initial.options)])
 source(paste(sep="/", dirname(script.name), "include.R"))
 
-linkage_mapping(in_RData, in_map, out_file, max_r, make_group, ncores)
+linkage_mapping(in_RData, in_map, out_file, max_r, !no_group, check_chimeric, ncores)
 
 ## render all warning messages if has any
 warnings()

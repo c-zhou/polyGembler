@@ -459,7 +459,7 @@ nn_joining <- function(in_RData, out_file, nn=2, max_r=.kosambi_r(.5)) {
     sink()
 }
 
-linkage_mapping <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5), make_group=TRUE, ncores=1) {
+linkage_mapping <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5), make_group=TRUE, check_chimeric=FALSE, ncores=1) {
 
     load(in_RData)
     
@@ -481,37 +481,39 @@ linkage_mapping <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5), m
 	
 		#### check each cluster to remove chimeric joins
         #### could be misassembly
-		maxc = max(clus)
-		for(u in 1:maxc) {
-			ci = which(clus==u)
-			cn = length(ci)
-			if(cn>2) {
-				## make distance matrix
-				dists = matrix(Inf, nrow=cn*2, ncol=cn*2)
-				for(i in 1:(cn-1)) {
-					i1 = (i-1)*2+1
-					i2 = i*2
-					for(j in (i+1):cn) {
-						j1 = (j-1)*2+1
-						j2 = j*2
-						k = indexMat[ci[i],ci[j]]
-						if(k==-1) stop("genetic mapping exit with errors!!!")
-						r = distanceAll[k,]
-						dists[i1:i2,j1:j2] = matrix(r,ncol=2,byrow=T)
-						dists[j1:j2,i1:i2] = matrix(r,ncol=2,byrow=F)
-					}
-				}
+		if(check_chimeric) {
+            maxc = max(clus)
+		    for(u in 1:maxc) {
+			    ci = which(clus==u)
+			    cn = length(ci)
+			    if(cn>2) {
+				    ## make distance matrix
+				    dists = matrix(Inf, nrow=cn*2, ncol=cn*2)
+				    for(i in 1:(cn-1)) {
+					    i1 = (i-1)*2+1
+					    i2 = i*2
+					    for(j in (i+1):cn) {
+						    j1 = (j-1)*2+1
+						    j2 = j*2
+						    k = indexMat[ci[i],ci[j]]
+						    if(k==-1) stop("genetic mapping exit with errors!!!")
+						    r = distanceAll[k,]
+						    dists[i1:i2,j1:j2] = matrix(r,ncol=2,byrow=T)
+						    dists[j1:j2,i1:i2] = matrix(r,ncol=2,byrow=F)
+					    }
+				    }
 				
-				min_r = apply(dists,1,min)
-				chims = which(min_r>max_r)
-				if(length(chims)==0) next
-				chims = unique(floor(chims/2+.5))
-				for(chim in chims) {
-					clus[ci[chim]] = max(clus)+1
-				}
-				cat(paste0("#chimeric joins in linkage group ",u,": ",length(chims),"\n"))
-			}
-		}
+			    	min_r = apply(dists,1,min)
+				    chims = which(min_r>max_r)
+				    if(length(chims)==0) next
+				    chims = unique(floor(chims/2+.5))
+				    for(chim in chims) {
+					    clus[ci[chim]] = max(clus)+1
+				    }
+				    cat(paste0("#chimeric joins in linkage group ",u,": ",length(chims),"\n"))
+			    }
+		    }
+        }
 		rm(nng)
 	} else {
 		clus = rep(1, length(scaffs))
