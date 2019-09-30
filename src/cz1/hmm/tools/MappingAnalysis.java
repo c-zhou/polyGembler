@@ -15,7 +15,8 @@ public class MappingAnalysis extends Executor {
 	private double lod_thres = 3;
 	private int hs;
 	private boolean one = false;
-
+	private boolean check_chimeric = false;
+	
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub
@@ -25,7 +26,8 @@ public class MappingAnalysis extends Executor {
 						+ " -m/--map                    Recombination map file.\n"
 						+ " -h/--hap-size               #haplotypes (popsize*ploidy).\n"
 						+ " -l/--lod                    LOD score threshold (default: 3).\n"
-						+ " -1/--one-group              Keep all in one group. Do not do clustering. \n"
+						+ " -1/--one-group              Keep all in one group. Do not do clustering (default: false). \n"
+						+ " -c/--check-chimeric         Check chimeric joins during grouping (default: false). \n"
 						+ " -rlib/--R-external-libs     R external library path.\n"
 						+ " -t/--threads                #threads (default 1).\n"
 						+ " -o/--prefix                 Output file prefix.\n\n"
@@ -47,6 +49,7 @@ public class MappingAnalysis extends Executor {
 			myArgsEngine.add("-h", "--hap-size", true);
 			myArgsEngine.add("-l", "--lod", true);
 			myArgsEngine.add("-1", "--one-group", false);
+			myArgsEngine.add("-c", "--check-chimeric", false);
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
 			myArgsEngine.add( "-t", "--threads", true);
 			myArgsEngine.add("-o", "--prefix", true);
@@ -80,6 +83,10 @@ public class MappingAnalysis extends Executor {
 		
 		if(myArgsEngine.getBoolean("-1")) {
 			one = true;
+		}
+		
+		if(myArgsEngine.getBoolean("-c")) {
+			check_chimeric = true;
 		}
 
 		if (myArgsEngine.getBoolean("-rlib")) {
@@ -118,6 +125,7 @@ public class MappingAnalysis extends Executor {
 						+ "-m "+map_file+" "
 						+ "-r "+max_r+" "
 						+ (one?"-1 ":" ")
+						+ (check_chimeric?"-x ":" ")
 						+ "-p "+THREADS+" "
 						+ "-o "+out_prefix+" "
 						+ "--concorde "+new File(concorde_path).getParent()+" "
