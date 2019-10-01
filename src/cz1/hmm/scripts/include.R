@@ -637,7 +637,7 @@ linkage_mapping <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5), m
                 distanceAll[indexMat[oR[j],oR[j+1]],4]
             }
         }
-        if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j]="true"
+        if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j+1]="true"
         cat(" -s "); cat(paste(sepe, collapse=":"))
         cat(" -r "); cat(paste(reverse, collapse=":"))
         cat("\n")
