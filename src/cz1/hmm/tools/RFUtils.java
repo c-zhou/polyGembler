@@ -159,8 +159,10 @@ public abstract class RFUtils extends Executor {
 					String scaff_i = chrs[i];
 					for(int j=i+1; j<chrs_n; j++) {
 						String scaff_j = chrs[j];
-						conjPair.add(scaff_i+Constants.collapsed_str+scaff_j);
-						conjPair.add(scaff_j+Constants.collapsed_str+scaff_i);
+						synchronized(lock) {
+							conjPair.add(scaff_i+Constants.collapsed_str+scaff_j);
+							conjPair.add(scaff_j+Constants.collapsed_str+scaff_i);
+						}
 					}
 				}
 
