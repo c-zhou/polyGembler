@@ -9,6 +9,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import cz1.ngs.model.Sequence;
 import cz1.util.ArgsEngine;
@@ -121,7 +122,7 @@ public class Pseudomolecule extends Executor {
 		// TODO Auto-generated method stub
 		try {
 			BufferedWriter bw = Utils.getBufferedWriter(out_file);
-			for(String id : molecules.keySet()) {
+			for(String id : molecules.keySet().stream().sorted().collect(Collectors.toList())) {
 				StringBuilder oos =  new StringBuilder();
 				List<Sequence> seqs = molecules.get(id);
 				oos.append(seqs.get(0).seq_str());
@@ -150,7 +151,7 @@ public class Pseudomolecule extends Executor {
 			while( line!=null ) {
 				if(line.startsWith("group")) {
 					List<Sequence> seq_list = new ArrayList<>();
-					name = "LG"+(++lg);
+					name = "chr"+String.format("%02d", ++lg);
 					while( (line=br.readLine())!=null && 
 							!line.startsWith("group") &&
 							line.length()!=0) {
