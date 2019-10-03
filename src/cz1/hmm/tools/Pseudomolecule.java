@@ -132,21 +132,21 @@ public class Pseudomolecule extends Executor {
 				oos.append(seq.seq_str());
 				int chunk_id = 1;
 				long chr_start=1, chr_end=seq.seq_ln();
-				bw_agp.write(id+"\t"+chr_start+"\t"+chr_end+"\t"+chunk_id+"\tW\t"+seq.seq_sn()+"\t"+1+"\t"+seq.seq_ln()+"+\n");
+				bw_agp.write(id+"\t"+chr_start+"\t"+chr_end+"\t"+chunk_id+"\tW\t"+seq.seq_sn()+"\t"+1+"\t"+seq.seq_ln()+"\t+\n");
 				
 				for(int i=1; i<seqs.size(); i++) {
 					oos.append(Sequence.polyn(gap_size));
 					++chunk_id;
 					chr_start = chr_end+1;
 					chr_end = chr_end+gap_size;
-					bw_agp.write(id+"\t"+chr_start+"\t"+chr_end+"\t"+chunk_id+"\tN\tgap\t"+1+"\t"+gap_size+"+\n");
+					bw_agp.write(id+"\t"+chr_start+"\t"+chr_end+"\t"+chunk_id+"\tN\tgap\t"+1+"\t"+gap_size+"\t+\n");
 					
 					seq = seqs.get(i);
 					oos.append(seq.seq_str());
 					++chunk_id;
 					chr_start = chr_end+1;
 					chr_end = chr_end+seq.seq_ln();
-					bw_agp.write(id+"\t"+chr_start+"\t"+chr_end+"\t"+chunk_id+"\tW\t"+seq.seq_sn()+"\t"+1+"\t"+seq.seq_ln()+"+\n");
+					bw_agp.write(id+"\t"+chr_start+"\t"+chr_end+"\t"+chunk_id+"\tW\t"+seq.seq_sn()+"\t"+1+"\t"+seq.seq_ln()+"\t+\n");
 				}
 				bw_mol.write(Sequence.formatOutput(id, oos.toString()));
 			}
