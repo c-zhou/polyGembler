@@ -121,18 +121,41 @@ public class Pseudomolecule extends Executor {
 	public void run() {
 		// TODO Auto-generated method stub
 		try {
-			BufferedWriter bw = Utils.getBufferedWriter(out_file);
+			BufferedWriter bw_mol = Utils.getBufferedWriter(out_file+".mol.fa");
+			BufferedWriter bw_agp = Utils.getBufferedWriter(out_file+".agp");
+			Sequence seq;
 			for(String id : molecules.keySet().stream().sorted().collect(Collectors.toList())) {
 				StringBuilder oos =  new StringBuilder();
 				List<Sequence> seqs = molecules.get(id);
-				oos.append(seqs.get(0).seq_str());
+				
+				seq = seqs.get(0);
+				oos.append(seq.seq_str());
+				int chunk_id = 1;
+				long chr_start=1, chr_end=seq.seq_ln();
+				bw_agp.write(id+"\t"+chr_start+"\t"+chr_end+"\t"+chunk_id+"\tW\t"+seq.seq_sn()+"\t"+1+"\t"+seq.seq_ln()+"+\n");
+				
 				for(int i=1; i<seqs.size(); i++) {
 					oos.append(Sequence.polyn(gap_size));
-					oos.append(seqs.get(i).seq_str());
+					++chunk_id;
+					chr_start = chr_end+1;
+					chr_end = chr_end+gap_size;
+					bw_agp.write(id+"\t"+chr_start+"\t"+chr_end+"\t"+chunk_id+"\tN\tgap\t"+1+"\t"+gap_size+"+\n");
+					
+					seq = seqs.get(i);
+					oos.append(seq.seq_str());
+					++chunk_id;
+					chr_start = chr_end+1;
+					chr_end = chr_end+seq.seq_ln();
+					bw_agp.write(id+"\t"+chr_start+"\t"+chr_end+"\t"+chunk_id+"\tW\t"+seq.seq_sn()+"\t"+1+"\t"+seq.seq_ln()+"+\n");
 				}
-				bw.write(Sequence.formatOutput(id, oos.toString()));
+				bw_mol.write(Sequence.formatOutput(id, oos.toString()));
 			}
-			bw.close();
+			bw_mol.close();
+			bw_agp.close();
+			
+			BufferedWriter bw_raw = Utils.getBufferedWriter(out_file+".raw.fa");
+			for(Sequence s : sequences.values()) bw_raw.write(s.formatOutput());
+			bw_raw.close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -226,14 +249,13 @@ public class Pseudomolecule extends Executor {
 		// TODO Auto-generated method stub
 		for(Map.Entry<String, int[][]> entry : errs.entrySet()) {
 			String seqid = entry.getKey();
-			if(seqid.equals("contig_516"))
-				myLogger.info("");
 			String seqstr = sequences.get(seqid).seq_str();
 			int[][] bps = findBPS(seqstr, entry.getValue());
 			for(int i=0; i<bps.length; i++) {
 				String bid = seqid+"_"+(i+1);
 				sequences.put(bid, new Sequence(bid, seqstr.substring(bps[i][0], bps[i][1])));
 			}
+			sequences.remove(seqid);
 		}
 	}
 	
