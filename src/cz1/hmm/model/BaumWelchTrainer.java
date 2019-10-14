@@ -70,6 +70,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		hmm.parents = model.parents;
 		hmm.parents_i = model.parents_i;
 		hmm.progeny_i = model.progeny_i;
+		hmm.weight = model.weight;
 		hmm.distance = model.distance;
 		hmm.sspace = model.sspace; // state space for each sample
 		if(iteration>0) 
@@ -294,6 +295,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		t1 = transition[i];
 		t1.pseudo();
 		for(int j=0;j<N; j++) {
+			if(j==parents_i[0]||j==parents_i[1]) continue;
 			ss = sspace.get(j);
 			fw1 = forward[j];
 			bw1 = backward[j];
@@ -336,7 +338,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		// TODO Auto-generated method stub
 		FBUnit fw1, bw1;
 		ObUnit ob1;
-		double exp_c, exp, count;
+		double exp_c, exp, count, coeff;
 		Integer[] ss;
 		int acnt, bcnt;
 	
@@ -350,13 +352,15 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			ob1 = obs[j][i];
 			acnt = ob1.getAa();
 			bcnt = ob1.getCov()-acnt;
+			coeff = weight[j==parents_i[0]||j==parents_i[1]?0:1];
 			exp_c = fw1.logscale[i]+
 					bw1.logscale[i]-
 					fw1.probability;
 
 			if(exp_c>Constants.MAX_EXP_DOUBLE) {
 				for(int a : ss) {
-					count = Math.exp(Math.log(
+					count = coeff*
+							Math.exp(Math.log(
 							fw1.probsMat[i][a]*
 							bw1.probsMat[i][a])+
 							exp_c);
@@ -365,7 +369,8 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			} else {
 				exp = Math.exp(exp_c);
 				for(int a : ss) {
-					count = fw1.probsMat[i][a]*
+					count = coeff*
+							fw1.probsMat[i][a]*
 							bw1.probsMat[i][a]*
 							exp;
 					e1.addCount(a, count*acnt, count*bcnt);

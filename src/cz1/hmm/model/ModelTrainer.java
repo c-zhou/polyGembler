@@ -148,7 +148,7 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 		// TODO Auto-generated method stub
 		FBUnit fw1, bw1;
 		ObUnit ob1;
-		double count;
+		double count, coeff;
 		Integer[] ss;
 		
 		int acnt, bcnt;
@@ -164,9 +164,11 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 				ob1 = obs[j][i];
 				acnt = ob1.getAa();
 				bcnt = ob1.getCov()-acnt;
+				coeff = weight[j==parents_i[0]||j==parents_i[1]?0:1];
 				
 				for(int a : ss) {
-					count = Math.exp(fw1.probsMat[i][a]+
+					count = coeff*
+							Math.exp(fw1.probsMat[i][a]+
 							bw1.probsMat[i][a]-
 							fw1.probability);
 					e1.addCount(a, count*acnt, count*bcnt);

@@ -41,6 +41,7 @@ public abstract class EmissionModel {
 	protected int[] parents_i;
 	protected int[] progeny_i;
 	protected double[] distance;
+	protected double[] weight;
 	
 	protected List<Integer[]> sspace; // state space for each sample
 	
@@ -163,7 +164,7 @@ public abstract class EmissionModel {
 		Integer[] progeny_s = new Integer[K-2];
 		for(int i=0; i<K-2; i++) progeny_s[i] = i+2;
 		for(int i : progeny_i) sspace.set(i, progeny_s);
-		
+		this.weight = new double[] {N-2.0, 1.0};
 		this.makeObUnits();
 		this.makePathUnits();
 		this.makeEmissionUnits();
