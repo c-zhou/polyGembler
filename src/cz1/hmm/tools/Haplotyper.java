@@ -356,7 +356,7 @@ public class Haplotyper extends Executor {
 			model.train();
 			ll = model.loglik();
 			myLogger.info("#iteration "+model.iteration()+": loglik "+ll);
-			if(ll<ll0)
+			if(ll-ll0<-1e-6)
 				throw new RuntimeException("Fatal error, likelihood decreased!");
 			if( ll0!=Double.NEGATIVE_INFINITY && 
 					Math.abs((ll-ll0)/ll0) < minImprov)
@@ -372,7 +372,7 @@ public class Haplotyper extends Executor {
 			model1.train();
 			ll = model1.loglik();
 			myLogger.info("#iteration "+model1.iteration()+": loglik "+ll);
-			if(ll<ll0)
+			if(ll-ll0<-1e-6)
 				throw new RuntimeException("Fatal error, likelihood decreased!");
 			if( ll0!=Double.NEGATIVE_INFINITY && 
 					Math.abs((ll-ll0)/ll0) < minImprov)

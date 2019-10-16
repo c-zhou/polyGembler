@@ -140,7 +140,7 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 			for(int k : ss) logs[j++] = pi+emiss[k]+probsMat[0][k];
 			backward[i].probability(Algebra.sumExps(logs));
 		}
-		return;		
+		return;
 	}
 
 	@Override
@@ -164,7 +164,7 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 				ob1 = obs[j][i];
 				acnt = ob1.getAa();
 				bcnt = ob1.getCov()-acnt;
-				coeff = weight[j==parents_i[0]||j==parents_i[1]?0:1];
+				coeff = weights[j==parents_i[0]||j==parents_i[1]?0:1];
 				
 				for(int a : ss) {
 					count = coeff*
@@ -186,7 +186,8 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 			return Double.NEGATIVE_INFINITY;
 		else {
 			double probability = 0;
-			for(FBUnit fw : this.forward) probability += fw.probability;
+			for(int i=0; i<N; i++)
+				probability += weights[i==parents_i[0]||i==parents_i[1]?0:1]*this.forward[i].probability;
 			return probability;
 		}
 	}

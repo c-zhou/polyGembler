@@ -70,7 +70,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		hmm.parents = model.parents;
 		hmm.parents_i = model.parents_i;
 		hmm.progeny_i = model.progeny_i;
-		hmm.weight = model.weight;
+		hmm.weights = model.weights;
 		hmm.distance = model.distance;
 		hmm.sspace = model.sspace; // state space for each sample
 		if(iteration>0) 
@@ -352,7 +352,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			ob1 = obs[j][i];
 			acnt = ob1.getAa();
 			bcnt = ob1.getCov()-acnt;
-			coeff = weight[j==parents_i[0]||j==parents_i[1]?0:1];
+			coeff = weights[j==parents_i[0]||j==parents_i[1]?0:1];
 			exp_c = fw1.logscale[i]+
 					bw1.logscale[i]-
 					fw1.probability;
@@ -547,7 +547,8 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			return Double.NEGATIVE_INFINITY;
 		else {
 			double probability = 0;
-			for(FBUnit bw : this.backward) probability += bw.probability;
+			for(int i=0; i<N; i++) 
+				probability += weights[i==parents_i[0]||i==parents_i[1]?0:1]*this.backward[i].probability;
 			return probability;
 		}
 	}
@@ -559,7 +560,8 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			return Double.NEGATIVE_INFINITY;
 		else {
 			double probability = 0;
-			for(FBUnit fw : this.forward) probability += fw.probability;
+			for(int i=0; i<N; i++)
+				probability += weights[i==parents_i[0]||i==parents_i[1]?0:1]*this.forward[i].probability;
 			return probability;
 		}
 	}
