@@ -65,9 +65,11 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		hmm.N = model.N; // #individuals
 		hmm.H = model.H; // #founder haplotypes
 		hmm.K = model.K; // #compound hidden states
+		hmm.Nf1 = model.Nf1;
 		hmm.state = model.state;
 		hmm.samples = model.samples;
 		hmm.parents = model.parents;
+		hmm.fi1ter = model.fi1ter;
 		hmm.parents_i = model.parents_i;
 		hmm.progeny_i = model.progeny_i;
 		hmm.weights = model.weights;
@@ -123,6 +125,8 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		// not sure if this makes much difference
 		double probability = 0.0;
 		for(int i=0; i<N; i++) {
+			if(fi1ter[i]) continue;
+			
 			Integer[] ss = this.sspace.get(i);
 			ObUnit[] ob = obs[i];
 			double pi = 1.0/ss.length; // init probability
@@ -176,6 +180,8 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		// cause we need to calculate a lot of logs
 		double probability = 0.0;
 		for(int i=0; i<N; i++) {
+			if(fi1ter[i]) continue;
+			
 			Integer[] ss = this.sspace.get(i);
 			ObUnit[] ob = obs[i];
 			double pi = 1.0/ss.length; // init probability
@@ -295,7 +301,8 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		t1 = transition[i];
 		t1.pseudo();
 		for(int j=0;j<N; j++) {
-			if(j==parents_i[0]||j==parents_i[1]) continue;
+			if(fi1ter[j]||j==parents_i[0]||j==parents_i[1]) continue;
+			
 			ss = sspace.get(j);
 			fw1 = forward[j];
 			bw1 = backward[j];
@@ -346,6 +353,8 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		e1 = emission[i];
 		e1.pseudo();
 		for(int j=0;j<N; j++) {
+			if(fi1ter[j]) continue;
+			
 			ss = sspace.get(j);
 			fw1 = forward[j];
 			bw1 = backward[j];
@@ -384,6 +393,8 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 	public void backward() {
 		// TODO Auto-generated method stub
 		for(int i=0; i<N; i++) {
+			if(fi1ter[i]) continue;
+			
 			Integer[] ss = sspace.get(i);
 			double[][] probsMat = backward[i].probsMat;
 			double[] logscale = backward[i].logscale;
@@ -424,6 +435,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 	public void forward() {
 		// TODO Auto-generated method stub
 		for(int i=0; i<N; i++) {
+			if(fi1ter[i]) continue;
 			
 			Integer[] ss = sspace.get(i);
 			double pi = 1.0/ss.length;
@@ -470,6 +482,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		double probability = 0;
 
 		for(int i=0; i<N; i++) {
+			if(fi1ter[i]) continue;
 			
 			Integer[] ss = sspace.get(i);
 			double pi = 1.0/ss.length;

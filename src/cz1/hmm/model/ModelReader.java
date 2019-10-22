@@ -146,8 +146,8 @@ public class ModelReader {
 			String line;
 			while(!(line=br.readLine()).startsWith("##parents")) {}
 			String[] s = line.trim().split("\\s+");
-			String[] parents = new String[s.length-1];
-			System.arraycopy(s, 1, parents, 0, parents.length);
+			String[] parents = new String[2];
+			for(int i=1; i<s.length; i++) parents[i-1] = s[i];
 			closeReader();
 			return parents;
 		} catch (IOException e) {
@@ -339,10 +339,9 @@ public class ModelReader {
 				if(!line.startsWith("#")) continue;
 				s = line.split("\\s+");
 				states = s[s.length-1];
-				for(char h : states.toCharArray()) {
-					if(!counts.containsKey(h)) counts.put(h, 0);
-					counts.put(h, counts.get(h)+1);
-				}
+				if(states.startsWith("*")) continue;
+				for(char h : states.toCharArray())
+					counts.put(h, counts.getOrDefault(h, 0)+1);
 			}
 			closeReader();
 			return ArrayUtils.toPrimitive(counts.values().toArray(new Integer[counts.size()]));

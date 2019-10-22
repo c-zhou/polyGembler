@@ -14,6 +14,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.distribution.BetaDistribution;
 import org.apache.commons.math3.stat.StatUtils;
+import org.apache.log4j.Logger;
 
 import cz1.hmm.data.DataEntry;
 import cz1.math.Combination;
@@ -23,9 +24,16 @@ import cz1.util.Constants.Field;
 import cz1.util.Utils;
 
 public abstract class EmissionModel {
+	private final static Logger myLogger = Logger.getLogger(EmissionModel.class);
 	
 	protected final static double mu_A_e = 10;
 	protected final static double mu_A_m = 0.1;
+	
+	// at least 3 markers or 30% markers to keep a sample
+	// at least 30 f1 progeny to run the program
+	protected final double min_mf = 0.3;
+	protected final double min_mn = 3;
+	protected final int min_f1 = 30;
 	
 	protected static int iteration = 0;
 	
@@ -36,8 +44,10 @@ public abstract class EmissionModel {
 	protected int N; // #individuals
 	protected int H; // #founder haplotypes
 	protected int K; // #compound hidden states
+	protected int Nf1; // #f1 progeny
 	protected String[] samples;
 	protected String[] parents;
+	protected boolean[] fi1ter;
 	protected int[] parents_i;
 	protected int[] progeny_i;
 	protected double[] distance;
@@ -151,20 +161,27 @@ public abstract class EmissionModel {
 			}
 			if(isprogeny) pros.add(i);
 		}
-		this.parents_i = ArrayUtils.toPrimitive(pars.toArray(new Integer[pars.size()]));
+		Nf1 = N-pars.size();
+		this.parents_i = new int[2];
+		Arrays.fill(parents_i, -1);
+		if(pars.size()>2) throw new RuntimeException("More than TWO parental sample detected!!!");
+		for(int i=0; i<pars.size(); i++)
+			parents_i[i] = pars.get(i);
+		if(pros.isEmpty()) throw new RuntimeException("No progeny sample provided!!!");
 		this.progeny_i = ArrayUtils.toPrimitive(pros.toArray(new Integer[pros.size()]));
+		this.fi1ter = new boolean[N];
 		double[] position = de.getPosition();
 		this.distance = new double[this.M-1];
 		for(int i=0; i<distance.length; i++)
 			distance[i] = Math.abs(position[i+1]-position[i]);
 		this.sspace = new ArrayList<>(N);
 		for(int i=0; i<N; i++) sspace.add(null);
-		sspace.set(parents_i[0], new Integer[]{0});
-		sspace.set(parents_i[1], new Integer[]{1});
+		if(parents_i[0]!=-1) sspace.set(parents_i[0], new Integer[]{0});
+		if(parents_i[1]!=-1) sspace.set(parents_i[1], new Integer[]{1});
 		Integer[] progeny_s = new Integer[K-2];
 		for(int i=0; i<K-2; i++) progeny_s[i] = i+2;
 		for(int i : progeny_i) sspace.set(i, progeny_s);
-		this.weights = new double[] {(N-2)/2.0, 1.0};
+		this.weights = this.field==Field.GT ? new double[] {Nf1/2.0, 1.0} : new double[]{1.0, 1.0};
 		this.makeObUnits();
 		this.makePathUnits();
 		this.makeEmissionUnits();
@@ -174,26 +191,38 @@ public abstract class EmissionModel {
 	private void makeObUnits() {
 		// TODO Auto-generated method stub
 		this.obs = new ObUnit[N][M];
-		double acnt, bcnt;
+		int miss_cnt = 0, miss_f1 = 0;
+		double miss_max = M-Math.max(min_mn, M*min_mf);
 		switch(this.field) {
 		case AD:
 			List<List<int[]>> ad = this.de.getAlleleDepth();
-			if(ad==null) throw new RuntimeException("AD feild not available!!! Try PL/GL (-L/--genotype-likelihood) or GT (-G/--genotype) options.");
+			if(ad==null) throw new RuntimeException("AD feild not available!!! Try GT (-G/--genotype) options.");
+			int[] dp;
 			for(int i=0; i<N; i++) {
+				miss_cnt = 0;
 				for(int j=0; j<M; j++) {
-					int[] dp = ad.get(j).get(i);
+					dp = ad.get(j).get(i);
 					obs[i][j] = new ObUnit(dp[0]+dp[1], dp[0], K);
+					if(dp[0]+dp[1]==0) ++miss_cnt;
+				}
+				if(miss_cnt>miss_max) {
+					fi1ter[i] = true;
+					obs[i] = null;
+					if(i!=parents_i[0]&&i!=parents_i[1]) ++miss_f1;
 				}
 			}
 			break;
 		case GT:
 			List<List<String[]>> gt = this.de.getGenotype();
-			if(gt==null) throw new RuntimeException("GT field not available!!! Try PL/GL (-L/--genotype-likelihood) or AD (-D/--allele-depth) option.");
+			if(gt==null) throw new RuntimeException("GT field not available!!! Try AD (-D/--allele-depth) option.");
 			List<String[]> allele = this.de.getAllele();
-			for(int i=0; i<this.M; i++) {
-				String[] a = allele.get(i);
-				for(int j=0; j<this.N; j++) {
-					String[] g = gt.get(i).get(j);
+			int acnt, bcnt;
+			String[] a, g;
+			for(int i=0; i<N; i++) {
+				miss_cnt = 0;
+				for(int j=0; j<M; j++) {
+					a = allele.get(j);
+					g = gt.get(j).get(i);
 					acnt = 0;
 					bcnt = 0;
 					for(int k=0; k<H; k++) {
@@ -202,31 +231,27 @@ public abstract class EmissionModel {
 					}
 					acnt *= allele_d;
 					bcnt *= allele_d;
-					obs[j][i] = new ObUnit((int) (acnt+bcnt), (int) acnt, K);
+					obs[i][j] = new ObUnit(acnt+bcnt, acnt, K);
+					if(acnt+bcnt==0) ++miss_cnt;
 				}
-			}
-			break;
-		case PL:
-		case GL:
-			List<List<double[]>> gl = this.de.getGenotypeLikelihood();
-			if(gl==null) throw new RuntimeException("PL/GL feild not available!!! Try GT (-G/--genotype) or AD (-D/--allele-depth) option.");
-			for(int i=0; i<this.M; i++) {
-				for(int j=0; j<this.N; j++) {
-					double[] ll = gl.get(i).get(j);
-					acnt = 0;
-					bcnt = 0;
-					for(int k=0; k<H+1; k++) {
-						acnt += (H-k)*ll[k];
-						bcnt += k*ll[k];
-					}
-					acnt *= allele_d;
-					bcnt *= allele_d;
-					obs[j][i] = new ObUnit( (int) Math.round(acnt+bcnt), (int) Math.round(acnt), K);
+				if(miss_cnt>miss_max) {
+					fi1ter[i] = true;
+					obs[i] = null;
+					if(i!=parents_i[0]&&i!=parents_i[1]) ++miss_f1;
 				}
 			}
 			break;
 		default:
 			throw new RuntimeException("!!!");
+		}
+		
+		int f1 = Nf1-miss_f1;
+		if(f1<min_f1) {
+			myLogger.info("f1 individuals left: "+f1+" (<"+min_f1+")");
+			myLogger.info("program exit with status 0.");
+			System.exit(0);
+		} else {
+			myLogger.info("f1 individuals left: "+f1);
 		}
 	}
 
@@ -240,11 +265,11 @@ public abstract class EmissionModel {
 					bfrac(i));
 	}
 	
-
 	private void makePathUnits() {
 		// TODO Auto-generated method stub
 		this.pas = new PathUnit[N];
-		for(int i=0; i<N; i++) pas[i] = new PathUnit();
+		for(int i=0; i<N; i++) 
+			pas[i] = fi1ter[i] ? null:new PathUnit();
 	}
 	
 	protected void switchNumericalSpace() {
@@ -257,8 +282,11 @@ public abstract class EmissionModel {
 		// TODO Auto-generated method stub
 		if(logspace==this.logspace)
 			return;
-		for(int i=0; i<N; i++)
-			for(int j=0; j<M; j++) obs[i][j].switchNumericSpace();
+		for(int i=0; i<N; i++) {
+			if(fi1ter[i]) continue;
+			for(int j=0; j<M; j++) 
+				obs[i][j].switchNumericSpace();
+		}
 		this.logspace = logspace;
 	}
 	
@@ -268,9 +296,10 @@ public abstract class EmissionModel {
 		switch(this.field) {
 		case AD:
 			if(this.de.getAlleleDepth()==null)
-				throw new RuntimeException("AD feild not available!!! Try PL/GL (-L/--genotype-likelihood) or GT (-G/--genotype) options.");
+				throw new RuntimeException("AD feild not available!!! Try GT (-G/--genotype) options.");
 			List<int[]> ad = this.de.getAlleleDepth().get(i);
 			for(int j=0; j<N; j++) {
+				if(fi1ter[j]) continue;
 				int[] aa = ad.get(j);
 				acnt += aa[0];
 				bcnt += aa[1];
@@ -278,26 +307,15 @@ public abstract class EmissionModel {
 			break;
 		case GT:
 			if(this.de.getGenotype()==null)
-				throw new RuntimeException("GT field not available!!! Try PL/GL (-L/--genotype-likelihood) or AD (-D/--allele-depth) option.");
+				throw new RuntimeException("GT field not available!!! Try AD (-D/--allele-depth) option.");
 			List<String[]> gt = this.de.getGenotype().get(i);
 			String[] allele = this.de.getAllele().get(i);
 			for(int j=0; j<N; j++) {
+				if(fi1ter[j]) continue;
 				String[] g = gt.get(j);
 				for(int k=0; k<H; k++) {
 					acnt += (g[k].equals(allele[0]) ? 1 : 0);
 					bcnt += (g[k].equals(allele[1]) ? 1 : 0);
-				}
-			}
-			break;
-		case PL:
-		case GL:
-			if(this.de.getGenotypeLikelihood()==null) throw new RuntimeException("PL/GL feild not available!!! Try GT (-G/--genotype) or AD (-D/--allele-depth) option.");
-			List<double[]> gl = this.de.getGenotypeLikelihood().get(i);
-			for(int j=0; j<this.N; j++) {
-				double[] ll = gl.get(j);
-				for(int k=0; k<H+1; k++) {
-					acnt += (H-k)*ll[k];
-					bcnt += k*ll[k];
 				}
 			}
 			break;
@@ -314,6 +332,7 @@ public abstract class EmissionModel {
 		for(int i=0; i<M; i++) {
 			emissc = emission[i].emissc;
 			for(int j=0; j<N; j++) {
+				if(fi1ter[j]) continue;
 				obs[j][i].updateEmiss(emissc);
 			}
 		}
@@ -359,9 +378,8 @@ public abstract class EmissionModel {
 		protected final double[] emiss; // place holder for emission probs
 		protected final double[] logscale;
 		
-		public ObUnit(final int cov,
-				final int aa, 
-				final int k) {
+		public ObUnit(int cov, int aa, int k) {
+			// TODO Auto-generated constructor stub
 			this.cov = cov;
 			this.aa = aa;
 			this.emiss = new double[k];
@@ -564,7 +582,7 @@ public abstract class EmissionModel {
 		protected void updatec() {
 			// TODO Auto-generated method stub
 			int[][] hsc = state.hsc;
-			for(int i=0; i<emissc.length; i++) {
+			for(int i=0; i<K; i++) {
 				double p = 0, p1;
 				for(int j=0; j<H; j++)
 					p += emiss[hsc[i][j]];
@@ -630,21 +648,32 @@ public abstract class EmissionModel {
 		
 		public void writeHaplotype() {
 			try {
-			out.putNextEntry(new ZipEntry("haplotype.txt"));
-			out.write((""+loglik()+"\n").getBytes());
-			out.write((""+M+"\n").getBytes());
-			for(int i=0; i<N; i++) {
-				String[] path = pas[i].path_str;
-				List<String[]> path_s = new ArrayList<String[]>();
-				for(int k=0; k<path.length; k++)
-					path_s.add(path[k].split("_"));
-				for(int k=0; k<H; k++) {
-					out.write(("# id "+samples[i]+":"+(k+1)+"\t\t\t").getBytes());
-					for(int s=0; s<path_s.size(); s++)
-						out.write(path_s.get(s)[k].getBytes());
-					out.write("\n".getBytes());
+				out.putNextEntry(new ZipEntry("haplotype.txt"));
+				out.write((""+loglik()+"\n").getBytes());
+				out.write((""+M+"\n").getBytes());
+				StringBuilder miss_str = new StringBuilder();
+				for(int s=0; s<M; s++) miss_str.append("*");
+				miss_str.append("\n");
+				byte[] miss_byt = miss_str.toString().getBytes();
+				for(int i=0; i<N; i++) {
+					if(pas[i]==null) {
+						for(int k=0; k<H; k++) {
+							out.write(("# id "+samples[i]+":"+(k+1)+"\t\t\t").getBytes());
+							out.write(miss_byt);
+						}
+					} else {
+						String[] path = pas[i].path_str;
+						List<String[]> path_s = new ArrayList<String[]>();
+						for(int k=0; k<path.length; k++)
+							path_s.add(path[k].split("_"));
+						for(int k=0; k<H; k++) {
+							out.write(("# id "+samples[i]+":"+(k+1)+"\t\t\t").getBytes());
+							for(int s=0; s<path_s.size(); s++)
+								out.write(path_s.get(s)[k].getBytes());
+							out.write("\n".getBytes());
+						}
+					}
 				}
-			}
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -684,11 +713,16 @@ public abstract class EmissionModel {
 					
 					emiss = emission[i].getEmiss();
 					for(int j=0; j<N; j++) {
-						states = state.getHsc()[pas[j].path[i]];
-						int dosa = 0;
-						for(int k=0; k<H; k++) 
-							if(emiss[states[k]]>=0.5)
-								++dosa;
+						int dosa;
+						if(fi1ter[j]) {
+							dosa = -1;
+						} else {
+							states = state.getHsc()[pas[j].path[i]];
+							dosa = 0;
+							for(int k=0; k<H; k++) 
+								if(emiss[states[k]]>=0.5)
+									++dosa;
+						}
 						os.append("\t");
 						os.append(dosa);
 					}
@@ -734,12 +768,20 @@ public abstract class EmissionModel {
 					
 					emiss = emission[i].getEmiss();
 					for(int j=0; j<N; j++) {
-						states = state.getHsc()[pas[j].path[i]];
 						os.append("\t");
-						os.append(emiss[states[0]]<0.5?1:0);
-						for(int k=1; k<H; k++) {
-							os.append("|");
-							os.append(emiss[states[k]]<0.5?1:0);
+						if(fi1ter[j]) {
+							os.append(".");
+							for(int k=1; k<H; k++) {
+								os.append("|");
+								os.append(".");
+							}
+						} else {
+							states = state.getHsc()[pas[j].path[i]];
+							os.append(emiss[states[0]]<0.5?1:0);
+							for(int k=1; k<H; k++) {
+								os.append("|");
+								os.append(emiss[states[k]]<0.5?1:0);
+							}
 						}
 					}
 					os.append("\n");
@@ -811,7 +853,8 @@ public abstract class EmissionModel {
 				out.write(("##marker: "+M+"\n").getBytes());
 				out.write(("##sample: "+N+"\n").getBytes());
 				out.write(("##ploidy: "+H+"\n").getBytes());
-				out.write(("##parents: "+parents[0]+" "+parents[1]+"\n").getBytes());
+				out.write((("##parents: "+(parents[0]==null?"":parents[0])+
+						" "+(parents[1]==null?"":parents[1])).trim()+"\n").getBytes());
 				out.write(("##progeny:").getBytes());
 				for(int i : progeny_i) out.write((" "+samples[i]).getBytes());
 				out.write(("\n").getBytes());

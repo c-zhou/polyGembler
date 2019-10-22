@@ -382,19 +382,22 @@ ordering_tsp <- function(clus, distanceAll, indexMat, method="concorde", preorde
 	list(dC=dC, tC=tC)
 }
 
-nn_joining <- function(in_RData, out_file, nn=2, max_r=.kosambi_r(.5)) {
+nn_joining <- function(in_RData, out_file, nn=2, min_lod=3, max_rf=.kosambi_r(.5)) {
 	
     load(in_RData)
     diag(distanceMat) = Inf
 	
 	clusts = vector("list", length = n)
 	for(i in 1:n) {
-		d = distanceMat[i,]
-        ux = sort(unique(d))
-        nb = c()
+		r = distanceMat[i,]
+		d = lodMat[i,]
+		r[r>max_rf|d<min_lod] = 0.5
+		
+		ux = sort(unique(r))
+		nb = c()
         for(x in ux) {
-			if(x>max_r) break
-			nb = c(nb, which(d==x))
+			if(x>max_rf) break
+			nb = c(nb, which(r==x))
             if(length(nb)>=nn) break
         }
 		clusts[[i]] = c(i, nb)
@@ -459,7 +462,7 @@ nn_joining <- function(in_RData, out_file, nn=2, max_r=.kosambi_r(.5)) {
     sink()
 }
 
-linkage_mapping <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5), make_group=TRUE, check_chimeric=FALSE, ncores=1) {
+linkage_mapping <- function(in_RData, in_map, out_file, min_lod=3, max_rf=.kosambi_r(0.5), make_group=TRUE, check_chimeric=FALSE, ncores=1) {
 
     load(in_RData)
     
@@ -468,12 +471,12 @@ linkage_mapping <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5), m
 		return()
 	}
 	
-	max_d = .cm_d(max_r)
+	max_d = .cm_d(max_rf)
 	
 	if(make_group) {
 		nng = .cm_d(distanceMat)
 		diag(nng) = INF_CM
-   		nng[nng>max_d] = INF_CM
+   		nng[nng>max_d|lodMat<min_lod] = INF_CM
     	nng = INF_CM-nng
 		
 		g=graph_from_adjacency_matrix(nng, mode = "undirected", weighted=T, diag=F)
@@ -504,7 +507,7 @@ linkage_mapping <- function(in_RData, in_map, out_file, max_r=.kosambi_r(0.5), m
 				    }
 				
 			    	min_r = apply(dists,1,min)
-				    chims = which(min_r>max_r)
+				    chims = which(min_r>max_rf)
 				    if(length(chims)==0) next
 				    chims = unique(floor(chims/2+.5))
 				    for(chim in chims) {

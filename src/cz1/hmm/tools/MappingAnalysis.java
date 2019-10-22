@@ -13,7 +13,7 @@ public class MappingAnalysis extends Executor {
 	private String RLibPath = null;
 	private String out_prefix = null;
 	private double lod_thres = 3;
-	private int hs;
+	private double rf_thres = RFUtils.inverseGeneticDistance(0.5, "kosambi");
 	private boolean one = false;
 	private boolean check_chimeric = false;
 	
@@ -22,10 +22,10 @@ public class MappingAnalysis extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " -i/--rf                     Recombination frequency file.\n"
+						+ " -i/--input                  Recombination frequency file.\n"
 						+ " -m/--map                    Recombination map file.\n"
-						+ " -h/--hap-size               #haplotypes (popsize*ploidy).\n"
 						+ " -l/--lod                    LOD score threshold (default: 3).\n"
+						+ " -r/--rf                     Recombination frequency threshold (default: 0.38).\n"
 						+ " -1/--one-group              Keep all in one group. Do not do clustering (default: false). \n"
 						+ " -c/--check-chimeric         Check chimeric joins during grouping (default: false). \n"
 						+ " -rlib/--R-external-libs     R external library path.\n"
@@ -44,10 +44,10 @@ public class MappingAnalysis extends Executor {
 
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
-			myArgsEngine.add("-i", "--rf", true);
+			myArgsEngine.add("-i", "--input", true);
 			myArgsEngine.add("-m", "--map", true);
-			myArgsEngine.add("-h", "--hap-size", true);
 			myArgsEngine.add("-l", "--lod", true);
+			myArgsEngine.add("-r", "--rf", true);
 			myArgsEngine.add("-1", "--one-group", false);
 			myArgsEngine.add("-c", "--check-chimeric", false);
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
@@ -70,15 +70,12 @@ public class MappingAnalysis extends Executor {
 			throw new IllegalArgumentException("Please specify your recombination map file.");
 		}
 
-		if(myArgsEngine.getBoolean("-h")) {
-			hs = Integer.parseInt(myArgsEngine.getString("-h"));
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify the number of haplotypes (popsize*ploidy).");
-		}
-
 		if(myArgsEngine.getBoolean("-l")) {
 			lod_thres = Double.parseDouble(myArgsEngine.getString("-l"));
+		}
+		
+		if(myArgsEngine.getBoolean("-r")) {
+			rf_thres = Double.parseDouble(myArgsEngine.getString("-r"));
 		}
 		
 		if(myArgsEngine.getBoolean("-1")) {
@@ -116,14 +113,15 @@ public class MappingAnalysis extends Executor {
 		final String mklgR_path =
 				RFUtils.makeExecutable("cz1/hmm/scripts/make_geneticmap.R", temfile_prefix);
 		RFUtils.makeExecutable("cz1/hmm/scripts/include.R", temfile_prefix);
-		RFUtils.makeRMatrix(rf_file, out_prefix+".RData", hs);
-		double max_r = Math.min(RFUtils.calcRfFromLOD(lod_thres, hs), RFUtils.inverseGeneticDistance(0.5, "kosambi"));
-		myLogger.info("Using recombination frequency threshold: "+max_r+".");
+		RFUtils.makeRMatrix(rf_file, out_prefix+".RData");
+		myLogger.info("Using LOD score threshold: "+lod_thres+".");
+		myLogger.info("Using recombination frequency threshold: "+rf_thres+".");
 		final String command =
 				"Rscript "+mklgR_path+" "
 						+ "-i "+out_prefix+".RData "
 						+ "-m "+map_file+" "
-						+ "-r "+max_r+" "
+						+ "-r "+rf_thres+" "
+						+ "-l "+lod_thres+" "
 						+ (one?"-1 ":" ")
 						+ (check_chimeric?"-x ":" ")
 						+ "-p "+THREADS+" "

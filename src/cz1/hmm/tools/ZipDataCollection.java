@@ -107,7 +107,15 @@ public class ZipDataCollection extends Executor {
 					_idx_alt = sList.indexOf("ALT"),
 					_idx_format = sList.indexOf("FORMAT");
 			out.putNextEntry(new ZipEntry("samples"));
-			for(int i=_idx_start; i<s.length; i++) out.write((s[i]+"\n").getBytes());
+			String sample;
+			for(int i=_idx_start; i<s.length; i++) {
+				sample = s[i];
+				if(sample.contains(":")) {
+					sample = sample.replaceAll(":", "_");
+					myLogger.info("WARNING - sample renamed: "+s[i]+" -> "+sample);
+				}
+				out.write((sample+"\n").getBytes());
+			}
 			List<Contig> contigs = new ArrayList<Contig>();
 			line = br.readLine();
 			s = line.split("\\s+");

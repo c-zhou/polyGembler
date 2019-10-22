@@ -201,4 +201,18 @@ public final class SaddlePointExpansion {
     public static double logBinomialProbability(int x, int n, double p) {
     	return logBinomialProbability(x, n, p, 1-p);
     }
+    
+    public static double logPoissonProbability(int x, double lambda) {
+    	double ret;
+    	if (x < 0 || x == Integer.MAX_VALUE) {
+    		ret = Double.NEGATIVE_INFINITY;
+    	} else if (x == 0) {
+    		ret = -lambda;
+    	} else {
+    		ret = -SaddlePointExpansion.getStirlingError(x) -
+    				SaddlePointExpansion.getDeviancePart(x, lambda) -
+    				0.5 * FastMath.log(MathUtils.TWO_PI) - 0.5 * FastMath.log(x);
+    	}
+    	return ret;
+    }
 }

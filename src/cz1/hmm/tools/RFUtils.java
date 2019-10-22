@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -23,8 +22,6 @@ import javax.script.ScriptEngineManager;
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.TreeBidiMap;
 import org.apache.commons.math3.stat.StatUtils;
-import org.apache.commons.math3.stat.inference.ChiSquareTest;
-import org.apache.commons.math3.stat.inference.GTest;
 import org.apache.log4j.Logger;
 import org.renjin.eval.Context;
 import org.renjin.primitives.io.serialization.RDataWriter;
@@ -51,10 +48,7 @@ public abstract class RFUtils extends Executor {
 	protected int ploidy;
 	protected int drop_thres = 1;
 	protected double skew_phi = 2.0;
-	protected int best_n = 1;
-	protected final String goodness_of_fit = "fraction";
-
-	protected double[] probs_uniform = new double[]{.5,.5,.5,.5};
+	protected int best_n = 10;
 
 	protected NumberFormat formatter = new DecimalFormat("#0.000");
 	protected int nF1;
@@ -90,48 +84,23 @@ public abstract class RFUtils extends Executor {
 			try {
 				ModelReader modelReader = new ModelReader(file);
 				int[] haps_observed = modelReader.getHapCounts();
-				modelReader.close();
-					
-				long[] observed;
-				double p;
-				boolean drop = false;
-				switch(goodness_of_fit) {
-				case "fraction":
-					double[] phases = new double[ploidy*2];
-					for(int z=0; z<phases.length; z++) 
-						phases[z] = (double) haps_observed[z];
-					double expected = StatUtils.sum(phases)/ploidy/2;
-					double maf = StatUtils.max(phases)/expected, 
-							mif = StatUtils.min(phases)/expected;
-					if( maf>skew_phi || mif<1/skew_phi) drop = true;
-					myLogger.info("["+(drop?"drop](maf,":"keep](maf,")+maf+";mif,"+mif+") "+
-							Utils.paste(haps_observed,",")+"\t"+file);
-					break;
-				case "chisq":
-					observed = new long[ploidy*2];
-					for(int z=0; z<observed.length; z++) 
-						observed[z] = (long) haps_observed[z];
-					p = new ChiSquareTest().chiSquareTest(probs_uniform, observed);
-					if(p<skew_phi) drop = true;
-					myLogger.info("["+(drop?"drop](p,":"keep](p,")+formatter.format(p)+") "+
-							Utils.paste(haps_observed,",")+"\t"+file);
-					break;
-				case "gtest":
-					observed = new long[ploidy*2];
-					for(int z=0; z<observed.length; z++) 
-						observed[z] = (long) haps_observed[z];
-					p = new GTest().gTest(probs_uniform, observed);
-					if(p<skew_phi) drop = true;
-					myLogger.info("["+(drop?"drop](p,":"keep](p,")+formatter.format(p)+") "+
-							Utils.paste(haps_observed,",")+"\t"+file);
-					break;
-				default:
-					throw new RuntimeException("Goodness-of-fit test should be fraction, chisq or gTest.");
-				}
-				
-				if(drop) return;
 
-				modelReader = new ModelReader(file);
+				boolean drop = false;				
+				double[] phases = new double[ploidy*2];
+				for(int z=0; z<phases.length; z++) 
+					phases[z] = (double) haps_observed[z];
+				double expected = StatUtils.sum(phases)/ploidy/2;
+				double maf = StatUtils.max(phases)/expected, 
+						mif = StatUtils.min(phases)/expected;
+				if( maf>skew_phi || mif<1/skew_phi) drop = true;
+				myLogger.info("["+(drop?"drop](maf,":"keep](maf,")+maf+";mif,"+mif+") "+
+						Utils.paste(haps_observed,",")+"\t"+file);
+
+				if(drop) {
+					modelReader.close();
+					return;
+				}
+
 				double[] ll = modelReader.getModelLoglik();
 				String[] chrs = modelReader.getChrs();
 				boolean[] chrs_rev = modelReader.getChrsRev();
@@ -256,13 +225,11 @@ public abstract class RFUtils extends Executor {
 		File folder = new File(in_haps);
 		File[] listFiles = folder.listFiles();
 		ModelReader modelReader = new ModelReader(listFiles[0].getAbsolutePath());
-		nF1 = modelReader.getSampleNo()-2;
 		ploidy = modelReader.getPloidy();
 		parents = modelReader.getParents();
 		progeny = modelReader.getProgeny();
+		nF1 = progeny.length;
 		modelReader.close();
-		probs_uniform = new double[ploidy*2];
-		Arrays.fill(probs_uniform, .5/ploidy);
 		myLogger.info(nF1+" F1 samples in the experiment.");
 
 		this.initial_thread_pool();
@@ -300,7 +267,7 @@ public abstract class RFUtils extends Executor {
 	 * renjin-script-engine-*-with dependencies.jar required
 	 * https://nexus.bedatadriven.com/content/groups/public/org/renjin/renjin-script-engine/
 	**/
-	protected static void makeRMatrix(String in_rf, String out_Rmat, int hs) {
+	protected static void makeRMatrix(String in_rf, String out_Rmat) {
 		// TODO Auto-generated method stub
 		ScriptEngineManager manager = new ScriptEngineManager();
 		ScriptEngine engine = manager.getEngineByName("Renjin"); 
@@ -332,7 +299,8 @@ public abstract class RFUtils extends Executor {
 			while( line!=null ) {
 				s = line.split("\\s+");
 				int i=scaffs.getKey(s[5]),
-						j=scaffs.getKey(s[6]);
+						j=scaffs.getKey(s[6]),
+						hs = Integer.parseInt(s[7]);
 				d = Math.min(RF_MAX, Double.parseDouble(s[0]));
 				l = calcLODFromRf(d, hs);
 				dMat.set(i,j,d);

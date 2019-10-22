@@ -7,14 +7,16 @@ parser$add_argument("-i", "--input", required = T,
                     help="Input RData file.")
 parser$add_argument("-n", "--nn", type="double", default=2,
                     help="Number of nearest neighbours [default %(default)s].")
-parser$add_argument("-r", "--distance", default = 0.381, type="double",
+parser$add_argument("-l", "--lod", type="double", default = 3,
+                    help="LOD score threshold for grouping [default %(default)s].")
+parser$add_argument("-r", "--rf", type="double", default = 0.38,
                     help="Recombination frequency threshold for grouping [default %(default)s].")
 parser$add_argument("-o", "--output", required = T, 
                     help="Output file name.")
 parser$add_argument("-c", "--concorde", required = T,
                     help="Concorde executable file path.")
-parser$add_argument("-l", "--include",
-                    help="External R package locations. Multiple paths are seperated by ':'.")
+parser$add_argument("-d", "--include",
+                    help="External R package directories. Multiple paths are seperated by ':'.")
 parser$add_argument("-t", "--tmpdir", required = F,
                     help="Temporary file directory.")
                     
@@ -22,7 +24,8 @@ args <- parser$parse_args()
 
 in_RData = args$input
 nn = args$nn
-max_r = args$distance
+min_lod = args$lod
+max_rf = args$rf
 out_file = args$output
 concorde_path = args$concorde
 external_lib = args$include
@@ -54,7 +57,7 @@ file.name <- "--file="
 script.name <- sub(file.name, "", initial.options[grep(file.name, initial.options)])
 source(paste(sep="/", dirname(script.name), "include.R"))
 
-nn_joining(in_RData, out_file, nn, max_r)
+nn_joining(in_RData, out_file, nn, min_lod, max_rf)
 
 ## render all warning messages if has any
 warnings()

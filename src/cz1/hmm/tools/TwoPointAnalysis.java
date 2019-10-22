@@ -34,7 +34,7 @@ public class TwoPointAnalysis extends RFUtils {
 						+ " -nb/--best                  The most likely nb haplotypes will be used (default 10).\n"
 						+ " -phi/--skew-phi             For a haplotype inference, the frequencies of parental \n"
 						+ "                             haplotypes need to be in the interval [1/phi, phi], \n"
-						+ "                             otherwise will be discared (default 2).\n"
+						+ "                             otherwise will be discared (default 2.0).\n"
 						+ " -nd/--drop                  At least nd haplotype inferences are required for \n"
 						+ "                             a contig/scaffold to be analysed (default 1).\n"
 						+ " -t/--threads                #threads (default 1).\n\n"
@@ -173,11 +173,13 @@ public class TwoPointAnalysis extends RFUtils {
 		public void run() {
 			// TODO Auto-generated method stub
 			try {
-				int maxc = 0, sumc = 0, max, sum;
+				
+				int sumc = 0, sum, hapn = 0, hap;
+				double maxc = 0, max;
 				int[] comn = new int[4], stat;
 				int[] a0 = new int[4], a1 = new int[4], a2 = new int[4], 
 						a3 = new int[4], a4 = new int[4], a5 = new int[4];
-
+				
 				PhasedDataCollection di, dj;
 				for(int i = 0; i<best_n; i++) {
 					di = data_i[i];
@@ -209,29 +211,32 @@ public class TwoPointAnalysis extends RFUtils {
 						sum(a0, a1, a4);
 						sum(a2, a3, a5);
 						stat = max(a4, a5);
-					
-						if((max=max(stat))>maxc) {
+						hap = ploidy*common(di.f1, dj.f1);
+								
+						if((max=(double)max(stat)/hap)>maxc) {
 							System.arraycopy(stat, 0, comn, 0, 4);
 							maxc = max;
 							sumc = sum(stat);
+							hapn = hap;
 						} else if(max==maxc&&(sum=sum(stat))>sumc) {
 							System.arraycopy(stat, 0, comn, 0, 4);
 							maxc = max;
 							sumc = sum;
+							hapn = hap;
 						}
 					}
 				}
 
 				double[] rfs = new double[4];
-				double deno = nF1*ploidy;
-				for(int i=0; i<4; i++) rfs[i] = 1-comn[i]/deno;
+				for(int i=0; i<4; i++) rfs[i] = 1-(double)comn[i]/hapn;
 
 				synchronized(lock) {
 					try {
 						rfWriter.write(StatUtils.min(rfs)+"\t");
 						for(double rf : rfs) rfWriter.write(rf+"\t");
 						rfWriter.write(scaf_i+"\t");
-						rfWriter.write(scaf_j+"\n");
+						rfWriter.write(scaf_j+"\t");
+						rfWriter.write(hapn+"\n");
 					} catch (IOException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
@@ -246,6 +251,15 @@ public class TwoPointAnalysis extends RFUtils {
 			}
 		}
 		
+		private int common(Set<Integer> f1, Set<Integer> f2) {
+			// TODO Auto-generated method stub
+			int comn = 0;
+			for(Integer i : f1) 
+				if(f2.contains(i))
+					++comn;
+			return comn;
+		}
+
 		private void comns(Map<Integer, Set<Integer>> a0, Map<Integer, Set<Integer>> a1,
 				Map<Integer, Set<Integer>> a2, Map<Integer, Set<Integer>> a3, 
 				final int[] a, boolean permutate) {
@@ -332,6 +346,7 @@ public class TwoPointAnalysis extends RFUtils {
 	private class PhasedDataCollection {
 		private final String scaff;
 		private final Map<Integer, Set<Integer>> p0, p1, m0, m1;
+		private final Set<Integer> f1;
 		
 		public PhasedDataCollection(String scaff, FileObject file) {
 			// TODO Auto-generated constructor stub
@@ -347,6 +362,8 @@ public class TwoPointAnalysis extends RFUtils {
 				m1.put(i, new HashSet<>());
 			}
 			this.collectData(file);
+			f1 = new HashSet<>();
+			for(int i=0; i<ploidy; i++) f1.addAll(p0.get(i));
 		}
 
 		private void collectData(FileObject file) {
@@ -354,13 +371,14 @@ public class TwoPointAnalysis extends RFUtils {
 			ModelReader modelReader = new ModelReader(file.file);
 			Map<String, char[][]> haps = modelReader.getHaplotypeByPosition(file.position, ploidy);
 			modelReader.close();
-			for(String f : parents) haps.remove(f);
+			for(String f : parents) if(f!=null) haps.remove(f);
 			if(haps.size()!=nF1) throw new RuntimeException("!!!");
 			int H = ploidy/2;
 			int h;
 			
 			for(int f=0; f<nF1; f++) {
 				char[][] hap = haps.get(progeny[f]);
+				if(hap[0][0]=='*') continue;
 				for(int i=0; i<H; i++) {
 					h = getIntInd(hap[i][0]);
 					p0.get(h).add(f);
@@ -378,7 +396,7 @@ public class TwoPointAnalysis extends RFUtils {
 
 		private int getIntInd(char hs) {
 			// TODO Auto-generated method stub
-			return hs>57?(hs-'a'+9):hs-'1';
+			return hs>57?hs-'a'+9:hs-'1';
 		}
 	}
 	

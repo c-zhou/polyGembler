@@ -34,7 +34,7 @@ public class Gembler extends Executor {
 	private String assembly_file = null;
 	private String out_prefix = null;
 	private int max_iter = 100;
-	private Field field = Field.PL;
+	private Field field = Field.AD;
 	
 	private int min_snpc = 5;
 	private int min_depth = 0;
@@ -51,7 +51,6 @@ public class Gembler extends Executor {
 	private int drop = 1;
 	private double phi = 2;
 	private int nB = 10;
-	private int ns;
 	
 	private double genome_size = -1;
 	private double frac_thresh = .8;
@@ -89,12 +88,9 @@ public class Gembler extends Executor {
 						+ "     -x/--max-iter               Maxmium rounds for EM optimization (default 100).\n"
 						+ "     -f/--parent                 Parent samples (separated by a \":\").\n"
 						+ "     -G/--genotype               Use genotypes to infer haplotypes. Mutually exclusive with \n"
-						+ "                                 option -D/--allele-depth and -L/--genetype likelihood.\n"
+						+ "                                 option -D/--allele-depth.\n"
 						+ "     -D/--allele-depth           Use allele depth to infer haplotypes. Mutually exclusive \n"
-						+ "                                 with option -G/--genotype and -L/--genetype likelihood.\n"
-						+ "     -L/--genotype-likelihood    Use genotype likelihoods to infer haplotypes. Mutually \n"
-						+ "                                 exclusive with option -G/--genotype and -L/--allele-depth \n"
-						+ "                                 (default).\n"
+						+ "                                 with option -G/--genotype (default).\n"
 						+ "     -c/--min-snp-count          Minimum number of SNPs on a scaffold to run.\n"
 						+ "     -r/--repeat                 Repeat haplotype inferring for multiple times as EM algorithm \n"
 						+ "                                 could be trapped in local optima. The program takes three values \n"
@@ -113,7 +109,6 @@ public class Gembler extends Executor {
 						+ "     -a/--input-assembly         Input assembly fasta file.\n"
 						+ "     -frac/--frac-thresold       Lower threshold the genetic linkage map covers to construct \n"
 						+ "                                 pseudomolecules (default 0.8).\n"
-						+ "     -n/--hap-size               #haplotypes (popsize*ploidy). \n"
 						+ "     -gz/--genome-size           The estimated genome size (default size of the reference assembly). \n"
 						+"\n"
 				);
@@ -139,7 +134,6 @@ public class Gembler extends Executor {
 			myArgsEngine.add("-f", "--parent", true);
 			myArgsEngine.add("-G", "--genotype", false);
 			myArgsEngine.add("-D", "--allele-depth", false);
-			myArgsEngine.add("-L", "--genotype-likelihood", false);
 			myArgsEngine.add("-S", "--random-seed", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-l", "--min-depth", true);
@@ -155,7 +149,6 @@ public class Gembler extends Executor {
 			myArgsEngine.add("-nd", "--drop", true);
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
 			myArgsEngine.add("-frac", "--frac-thresold", true);
-			myArgsEngine.add("-n", "--pop-size", true);
 			myArgsEngine.add("-gz", "--genome-size", true);
 			myArgsEngine.parse(args);
 		}
@@ -204,13 +197,8 @@ public class Gembler extends Executor {
 			c++;
 		}
 		
-		if(myArgsEngine.getBoolean("-L")) {
-			field = Field.PL;
-			c++;
-		}
 		if(c>1) throw new IllegalArgumentException("Options -G/--genotype, "
-				+ "-D/--allele-depth, and -L/--genotype-likelihood "
-				+ "are exclusive!!!");
+				+ "-D/--allele-depth are exclusive!!!");
 		
 		if(myArgsEngine.getBoolean("-S")) {
 			Constants.seed = Long.parseLong(myArgsEngine.getString("-S"));
@@ -276,10 +264,6 @@ public class Gembler extends Executor {
 		
 		if(myArgsEngine.getBoolean("-frac")) {
 			frac_thresh = Double.parseDouble(myArgsEngine.getString("-frac"));
-		}
-		
-		if(myArgsEngine.getBoolean("-n")) {
-			ns = Integer.parseInt(myArgsEngine.getString("-n"));
 		}
 		
 		if(myArgsEngine.getBoolean("-gz")) {
@@ -379,7 +363,7 @@ public class Gembler extends Executor {
 				RFUtils.makeExecutable("cz1/hmm/scripts/make_nnsuperscaffold.R", temfile_prefix);
 		RFUtils.makeExecutable("cz1/hmm/scripts/include.R", temfile_prefix);
 		new File(concorde_path).setExecutable(true, true);
-		RFUtils.makeRMatrix(rf_prefix+".txt", rf_prefix+".RData", ns);
+		RFUtils.makeRMatrix(rf_prefix+".txt", rf_prefix+".RData");
 		String command = "Rscript "+nnssR_path+" "
 				+ "-i "+rf_prefix+".RData "
 				+ "-n 2 "
@@ -418,7 +402,7 @@ public class Gembler extends Executor {
 		//#### STEP 08 genetic mapping
 		final String mklgR_path = 
 				RFUtils.makeExecutable("cz1/hmm/scripts/make_geneticmap.R", temfile_prefix);
-		RFUtils.makeRMatrix(mm_rf_prefix+".txt", mm_rf_prefix+".RData", ns);
+		RFUtils.makeRMatrix(mm_rf_prefix+".txt", mm_rf_prefix+".RData");
 		command = "Rscript "+mklgR_path+" "
 				+ "-i "+mm_rf_prefix+".RData "
 				+ "-m "+mm_rf_prefix+".map "
@@ -534,7 +518,7 @@ public class Gembler extends Executor {
 							Double.POSITIVE_INFINITY,
 							drop,
 							nB).run();
-					RFUtils.makeRMatrix(mm_rf_prefix_ij+".txt", mm_rf_prefix_ij+".RData", ns);
+					RFUtils.makeRMatrix(mm_rf_prefix_ij+".txt", mm_rf_prefix_ij+".RData");
 					command = "Rscript "+mklgR_path+" "
 							+ "-i "+mm_rf_prefix_ij+".RData "
 							+ "-m "+mm_rf_prefix_ij+".map "

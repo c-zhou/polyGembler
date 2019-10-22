@@ -65,7 +65,8 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 		int m = toIndex - fromIndex;
 		double probability = 0;
 		for(int i=0; i<N; i++) {
-
+			if(fi1ter[i]) continue;
+			
 			Integer[] ss = sspace.get(i);
 			double pi = Math.log(1.0/ss.length);
 
@@ -94,7 +95,8 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 	public void forward() {
 		// TODO Auto-generated method stub
 		for(int i=0; i<N; i++) {
-
+			if(fi1ter[i]) continue;
+			
 			Integer[] ss = sspace.get(i);
 			double pi = Math.log(1.0/ss.length);
 
@@ -120,6 +122,8 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 	public void backward() {
 		// TODO Auto-generated method stub
 		for(int i=0; i<N; i++) {
+			if(fi1ter[i]) continue;
+			
 			Integer[] ss = sspace.get(i);
 			double[][] probsMat = backward[i].probsMat;
 			ObUnit[] ob = obs[i];
@@ -158,6 +162,8 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 			e1.pseudo();
 			
 			for(int j=0;j<N; j++) {
+				if(fi1ter[j]) continue;
+				
 				ss = sspace.get(j);
 				fw1 = forward[j];
 				bw1 = backward[j];

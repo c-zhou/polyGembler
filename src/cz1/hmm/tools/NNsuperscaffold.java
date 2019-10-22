@@ -28,7 +28,7 @@ public class NNsuperscaffold extends Executor {
 	private String rf_file = null;
 	private String RLibPath = null;
 	private double lod_thres = 3;
-	private int hs;
+	private double rf_thres = RFUtils.inverseGeneticDistance(0.5, "kosambi");
 	private int nn = 2;
 	private String out_prefix = null;
 	
@@ -37,9 +37,9 @@ public class NNsuperscaffold extends Executor {
 		// TODO Auto-generated method stub
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
-						+ " -i/--rf                     Recombination frequency file.\n"
-						+ " -h/--hap-size               #haplotypes (popsize*ploidy).\n"
+						+ " -i/--input                  Recombination frequency file.\n"
 						+ " -l/--lod                    LOD score threshold (default: 3).\n"
+						+ " -r/--rf                     Recombination frequency threshold (default: 0.38).\n"
 						+ " -n/--neighbour              #nearest neighbours (default: 2).\n"
 						+ " -rlib/--R-external-libs     R external library path.\n"
 						+ " -o/--prefix                 Output file prefix.\n\n"
@@ -56,9 +56,10 @@ public class NNsuperscaffold extends Executor {
 
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
-			myArgsEngine.add("-i", "--rf", true);
+			myArgsEngine.add("-i", "--input", true);
 			myArgsEngine.add("-h", "--hap-size", true);
 			myArgsEngine.add("-l", "--lod", true);
+			myArgsEngine.add("-r", "--rf", true);
 			myArgsEngine.add("-n", "--neighbour", true);
 			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
@@ -71,16 +72,13 @@ public class NNsuperscaffold extends Executor {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your recombinatio frequency file.");
 		}
-		
-		if(myArgsEngine.getBoolean("-h")) {
-			hs = Integer.parseInt(myArgsEngine.getString("-h"));
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify the number of haplotypes (popsize*ploidy).");
-		}
 
 		if(myArgsEngine.getBoolean("-l")) {
 			lod_thres = Double.parseDouble(myArgsEngine.getString("-l"));
+		}
+		
+		if(myArgsEngine.getBoolean("-r")) {
+			rf_thres = Double.parseDouble(myArgsEngine.getString("-r"));
 		}
 		
 		if(myArgsEngine.getBoolean("-n")) {
@@ -110,13 +108,14 @@ public class NNsuperscaffold extends Executor {
 		final String nnss_path =
 				RFUtils.makeExecutable("cz1/hmm/scripts/make_nnsuperscaffold.R", temfile_prefix);
 		RFUtils.makeExecutable("cz1/hmm/scripts/include.R", temfile_prefix);
-		RFUtils.makeRMatrix(rf_file, out_prefix+".RData", hs);
-		double max_r = Math.min(RFUtils.calcRfFromLOD(lod_thres, hs), RFUtils.inverseGeneticDistance(0.5, "kosambi"));
-		myLogger.info("Using recombination frequency threshold: "+max_r+".");
+		RFUtils.makeRMatrix(rf_file, out_prefix+".RData");
+		myLogger.info("Using LOD score threshold: "+lod_thres+".");
+		myLogger.info("Using recombination frequency threshold: "+rf_thres+".");
 		final String command =
 				"Rscript "+nnss_path+" "
 						+ "-i "+out_prefix+".RData "
-						+ "-r "+max_r+" "
+						+ "-r "+rf_thres+" "
+						+ "-l "+lod_thres+" "
 						+ "-o "+out_prefix+".nns "
 						+ "-n "+nn+" "
 						+ "--concorde "+new File(concorde_path).getParent()+" "

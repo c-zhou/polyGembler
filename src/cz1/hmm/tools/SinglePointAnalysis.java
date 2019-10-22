@@ -175,17 +175,20 @@ public class SinglePointAnalysis extends RFUtils {
 				int[] pos = modelReader.getSnpPosition(scaff);
 				modelReader.close();
 				int m = pos.length;
-				final int deno = n*nF1*ploidy;
 				int[] dists = new int[m-1];
 				for(int i=0; i<dists.length; i++) dists[i] = pos[i+1]-pos[i];
 				
 				final List<Map<String, char[][]>> haplotypes = new ArrayList<>();
+				final int[] hapn = new int[n];
 				for(int i=0; i<n; i++) {
 					FileObject obj = objs.get(i);
 					modelReader = new ModelReader(obj.file);
 					Map<String, char[][]> haps = modelReader.getHaplotypeByPositionRange(obj.position, ploidy);
 					modelReader.close();
-					for(String f : parents) haps.remove(f);
+					for(String f : parents) if(f!=null) haps.remove(f);
+					for(char[][] hap : haps.values()) 
+						if(hap[0][0]!='*') ++hapn[i];
+					hapn[i] *= ploidy;
 					haplotypes.add(haps);
 				}
 				
@@ -213,6 +216,8 @@ public class SinglePointAnalysis extends RFUtils {
 						jump = new double[extn];
 						haps = haplotypes.get(i);
 						for(char[][] hap : haps.values()) {
+							if(hap[0][0]=='*') continue;
+							
 							for(int p=0; p<ploidy; p++) {
 								h = hap[p];
 								for(int k=j+1; k<=kb; k++) {
@@ -221,12 +226,13 @@ public class SinglePointAnalysis extends RFUtils {
 								}
 							}
 						}
+						for(int k=0; k<extn; k++) jump[k]/=hapn[i];
 						jumps[i] = jump;
 					}
 					double[] means = new double[extn];
 					for(int i=0; i<n; i++)
 						sum(means, jumps[i], means);
-					for(int i=0; i<extn; i++) means[i] /= deno;
+					for(int i=0; i<extn; i++) means[i] /= n;
 					
 					for(int k=j+1; k<=kb; k++) {
 						edge = jumpGraph.addEdge(j, k);
