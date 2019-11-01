@@ -290,7 +290,7 @@ public class Haplotyper extends Executor {
 				for(int i=0; i<seperation.length; i++) {
 					if(seperation[i]>=0.5) seperation[i] = 0.4999999;
 					if(seperation[i]<=0)   seperation[i] = 0.0000001;
-					seperation[i] = -.5*Math.log(1-2*seperation[i])*10000000;
+					seperation[i] = -.5*Math.log(1-2*seperation[i])*100000000;
 				}
 			}
 			

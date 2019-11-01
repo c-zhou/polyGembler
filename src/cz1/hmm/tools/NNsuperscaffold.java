@@ -1,6 +1,7 @@
 package cz1.hmm.tools;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -100,6 +101,7 @@ public class NNsuperscaffold extends Executor {
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
+		/***
 		final String temfile_prefix = Utils.makeTempDir();
 		final boolean tmpdirCreated = Utils.makeOutputDir(new File(temfile_prefix));
 		final String concorde_path =
@@ -124,6 +126,9 @@ public class NNsuperscaffold extends Executor {
 		this.consume(this.bash(command));
 
 		if(tmpdirCreated) Utils.deleteDirectory(new File(temfile_prefix));
+		**/
+		myLogger.info("Using recombination frequency threshold: "+rf_thres+".");
+		nj(rf_thres);
 	}
 	
 	public void nj(double max_r) {
@@ -296,41 +301,50 @@ public class NNsuperscaffold extends Executor {
 		List<Double> dists;
 		List<Boolean> joins;
 		
-		for(Map.Entry<Cluster, Integer> ent : clusts.entrySet()) {
-			c = ent.getKey();
-			out.setLength(0);
-			ids = c.ids;
-			dists = c.dists;
-			joins = c.joins;
-			
-			out.append("-c ");
-			out.append(scaffs.getKey(ids.get(0)));
-			for(int i=1; i<ids.size(); i++) {
-				out.append(":");
-				out.append(scaffs.getKey(ids.get(i)));	
-			}
-			
-			if(dists.size()>0) {
-				out.append(" -s ");
-				out.append(dists.get(0));
-				for(int i=1; i<dists.size(); i++) {
+		try {
+			BufferedWriter bw = Utils.getBufferedWriter(this.out_prefix+".nns");
+			for(Map.Entry<Cluster, Integer> ent : clusts.entrySet()) {
+				c = ent.getKey();
+				out.setLength(0);
+				ids = c.ids;
+				dists = c.dists;
+				joins = c.joins;
+
+				out.append("-c ");
+				out.append(scaffs.getKey(ids.get(0)));
+				for(int i=1; i<ids.size(); i++) {
 					out.append(":");
-					out.append(dists.get(i));	
-				}		
+					out.append(scaffs.getKey(ids.get(i)));	
+				}
+
+				if(dists.size()>0) {
+					out.append(" -s ");
+					out.append(dists.get(0));
+					for(int i=1; i<dists.size(); i++) {
+						out.append(":");
+						out.append(dists.get(i));	
+					}		
+				}
+
+				if(joins.size()>1) {
+					out.append(" -r ");
+					out.append(joins.get(0));
+					for(int i=1; i<joins.size(); i++) {
+						out.append(":");
+						out.append(joins.get(i));	
+					}		
+				}
+
+				myLogger.info("#"+ent.getValue()+"\t"+out.toString());
+				
+				out.append("\n");
+				bw.write(out.toString());
 			}
-			
-			if(joins.size()>1) {
-				out.append(" -r ");
-				out.append(joins.get(0));
-				for(int i=1; i<joins.size(); i++) {
-					out.append(":");
-					out.append(joins.get(i));	
-				}		
-			}
-			
-			myLogger.info("#"+ent.getValue()+"\t"+out.toString());
+			bw.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
 		}
-		
 	}
 
 	private final class ClustPair { 
