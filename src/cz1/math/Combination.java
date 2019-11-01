@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.log4j.Logger;
 import org.paukov.combinatorics.Factory;
 import org.paukov.combinatorics.Generator;
@@ -14,115 +13,86 @@ public class Combination {
 
 	private final static Logger myLogger = Logger.getLogger(Combination.class);
 	
-	public static ArrayList<List<Character>> combination(Character[]  elements, int K){
+	public static <T> List<List<T>> combination(T[] elements, int K){
 		if(K > elements.length){
 			myLogger.error("Invalid input, K > N");
 			System.exit(1);
 		}
 		// Create the initial vector
-		ICombinatoricsVector<Character> initialVector = Factory.createVector(elements);
+		ICombinatoricsVector<T> initialVector = Factory.createVector(elements);
 		// Create a simple combination generator to generate 3-combinations of the initial vector
-		Generator<Character> gen = Factory.createSimpleCombinationGenerator(initialVector, K);
+		Generator<T> gen = Factory.createSimpleCombinationGenerator(initialVector, K);
 		// Locate all possible combinations
-		ArrayList<List<Character>> combinations = new ArrayList<List<Character>>();
-		for (ICombinatoricsVector<Character> combination : gen) {
+		List<List<T>> combinations = new ArrayList<List<T>>();
+		for (ICombinatoricsVector<T> combination : gen) {
 			combinations.add(combination.getVector());
 		}
 		return combinations;
 	}
 	
-	public static ArrayList<List<Integer>> combination(Integer[]  elements, int K){
-		if(K > elements.length){
-			myLogger.error("Invalid input, K > N");
-			System.exit(1);
-		}
+	public static <T> List<List<T>> multiCombination(T[] elements, int K){
 		// Create the initial vector
-		ICombinatoricsVector<Integer> initialVector = Factory.createVector(elements);
+		ICombinatoricsVector<T> initialVector = Factory.createVector(elements);
 		// Create a simple combination generator to generate 3-combinations of the initial vector
-		Generator<Integer> gen = Factory.createSimpleCombinationGenerator(initialVector, K);
+		Generator<T> gen = Factory.createMultiCombinationGenerator(initialVector, K);
 		// Locate all possible combinations
-		ArrayList<List<Integer>> combinations = new ArrayList<List<Integer>>();
-		for (ICombinatoricsVector<Integer> combination : gen) {
+		List<List<T>> combinations = new ArrayList<List<T>>();
+		for (ICombinatoricsVector<T> combination : gen) {
 			combinations.add(combination.getVector());
 		}
 		return combinations;
 	}
 	
-	public static ArrayList<List<String>> combination(String[]  elements, int K){
-		if(K > elements.length){
-			myLogger.error("Invalid input, K > N");
-			System.exit(1);
+	@SuppressWarnings("unchecked")
+	public static <T> List<List<T>> combination(List<T> elements, int K){
+		if(elements.isEmpty()) {
+			List<List<T>> combs = new ArrayList<List<T>>();
+			combs.add(new ArrayList<T>());
+			return combs;
 		}
-		// Create the initial vector
-		ICombinatoricsVector<String> initialVector = Factory.createVector(elements);
-		// Create a simple combination generator to generate 3-combinations of the initial vector
-		Generator<String> gen = Factory.createSimpleCombinationGenerator(initialVector, K);
-		// Locate all possible combinations
-		ArrayList<List<String>> combinations = new ArrayList<List<String>>();
-		for (ICombinatoricsVector<String> combination : gen) {
-			combinations.add(combination.getVector());
-		}
-		return combinations;
-	}
-	
-	public static ArrayList<List<Character>> multiCombination(Character[]  elements, int K){
-		// Create the initial vector
-		ICombinatoricsVector<Character> initialVector = Factory.createVector(elements);
-		// Create a simple combination generator to generate 3-combinations of the initial vector
-		Generator<Character> gen = Factory.createMultiCombinationGenerator(initialVector, K);
-		// Locate all possible combinations
-		ArrayList<List<Character>> combinations = new ArrayList<List<Character>>();
-		for (ICombinatoricsVector<Character> combination : gen) {
-			combinations.add(combination.getVector());
-		}
-		return combinations;
-	}
-	
-	public static ArrayList<List<String>> multiCombination(String[]  elements, int K){
-		// Create the initial vector
-		ICombinatoricsVector<String> initialVector = Factory.createVector(elements);
-		// Create a simple combination generator to generate 3-combinations of the initial vector
-		Generator<String> gen = Factory.createMultiCombinationGenerator(initialVector, K);
-		// Locate all possible combinations
-		ArrayList<List<String>> combinations = new ArrayList<List<String>>();
-		for (ICombinatoricsVector<String> combination : gen) {
-			combinations.add(combination.getVector());
-		}
-		return combinations;
-	}
-	
-	public static ArrayList<List<Character>> combination(List<Character>  elements, int K){
 		int N = elements.size();
-		if(K > N){
-			myLogger.error("Invalid input, K > N");
-			System.exit(1);
-		}
-		Character[] elements_array = new Character[N];
+		Object[] elements_array = new Object[N];
 		elements.toArray(elements_array);
-		return combination(elements_array, K);
+		return combination((T[])elements_array, K);
 	}
-
-	public static ArrayList<List<Character>> combination(Set<Character>  elements, int K){
+	
+	@SuppressWarnings("unchecked")
+	public static <T> List<List<T>> combination(Set<T> elements, int K){
+		if(elements.isEmpty()) {
+			List<List<T>> combs = new ArrayList<List<T>>();
+			combs.add(new ArrayList<T>());
+			return combs;
+		}
 		int N = elements.size();
-		if(K > N){
-			myLogger.error("Invalid input, K > N");
-			System.exit(1);
-		}
-		Character[] elements_array = new Character[N];
+		Object[] elements_array = new Object[N];
 		elements.toArray(elements_array);
-		return combination(elements_array, K);
+		return combination((T[])elements_array, K);
 	}
 	
-	public static ArrayList<List<Character>> multiCombination(List<Character>  elements, int K){
-		return multiCombination(elements.toArray(new Character[elements.size()]), K);
+	@SuppressWarnings("unchecked")
+	public static <T> List<List<T>> multiCombination(List<T> elements, int K){
+		if(elements.isEmpty()) {
+			List<List<T>> combs = new ArrayList<List<T>>();
+			combs.add(new ArrayList<T>());
+			return combs;
+		}
+		int N = elements.size();
+		Object[] elements_array = new Object[N];
+		elements.toArray(elements_array);
+		return multiCombination((T[])elements_array, K);
 	}
 	
-	public static ArrayList<List<Character>> multiCombination(char[] elements, int K){
-		return multiCombination(ArrayUtils.toObject(elements), K);
-	}
-	
-	public static ArrayList<List<Character>> multiCombination(Set<Character>  elements, int K){
-		return multiCombination(elements.toArray(new Character[elements.size()]), K);
+	@SuppressWarnings("unchecked")
+	public static <T> List<List<T>> multiCombination(Set<T> elements, int K){
+		if(elements.isEmpty()) {
+			List<List<T>> combs = new ArrayList<List<T>>();
+			combs.add(new ArrayList<T>());
+			return combs;
+		}
+		int N = elements.size();
+		Object[] elements_array = new Object[N];
+		elements.toArray(elements_array);
+		return multiCombination((T[])elements_array, K);
 	}
 	
 	public static int nchoosek(int n, int k) {
@@ -136,17 +106,37 @@ public class Combination {
 	public static int nmultichoosek(int n, int k) {
 		return nchoosek(n+k-1, k);
 	}
+	
+	// all Stirling partitions of the second kind
+	public static <T> List<List<List<T>>> stirlingS2Partitions(List<T> elements) {
+		
+		List<List<List<T>>> partitions = new ArrayList<>();
+		if(elements.isEmpty()) {
+			List<List<T>> empty = new ArrayList<>();
+			partitions.add(empty);
+			return partitions;
+		}
 
-	public static List<List<Integer>> combination(int[] ele, int k) {
-		// TODO Auto-generated method stub
-		return combination(ArrayUtils.toObject(ele), k);
-	}
+		int limit = 1 << (elements.size() - 1);
 
-	public static List<List<Integer>> combination(int ele, int k) {
-		// TODO Auto-generated method stub
-		int[] eles = new int[ele];
-		for(int i=0; i<ele; i++)
-			eles[i] = i;
-		return combination(eles, k);
-	}
+        for (int j = 0; j < limit; ++j) {
+            List<List<T>> parts = new ArrayList<>();
+            List<T> part1 = new ArrayList<>();
+            List<T> part2 = new ArrayList<>();
+            parts.add(part1);
+            parts.add(part2);
+            int i = j;
+            for (T item : elements) {
+                parts.get(i&1).add(item);
+                i >>= 1;
+            }
+            for (List<List<T>> b : stirlingS2Partitions(part2)) {
+                List<List<T>> holder = new ArrayList<>();
+                holder.add(part1);
+                holder.addAll(b);
+                partitions.add(holder);
+            }
+        }
+        return partitions;
+    }
 }

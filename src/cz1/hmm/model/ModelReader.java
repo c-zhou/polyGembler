@@ -8,6 +8,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -89,6 +91,39 @@ public class ModelReader {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+	}
+	
+	public double[][] getEmissionProbs(int ploidy) {
+		// TODO Auto-generated method stub
+		try {
+			setEntryReader("emission");
+			String line;
+			List<String> lines = new ArrayList<>();
+			while((line=br.readLine())!=null) {
+				lines.add(line);
+			}
+			closeReader();
+			
+			int M = lines.size(), P = ploidy*2;
+			double[][] emiss = new double[M][P];
+			Pattern p = Pattern.compile("\\{(.*?)\\}");
+			Matcher m;
+			String[] prob_str;
+			for(int i=0; i<M; i++) {
+				line = lines.get(i);
+				m = p.matcher(line);
+				for(int j=0; j<P; j++) {
+					m.find();
+					prob_str = m.group(1).split(",|;");
+					emiss[i][j] = Double.parseDouble(prob_str[1]);
+				}
+			}
+			return emiss;
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		throw new RuntimeException("!!!");
 	}
 
 	public int getMarkerNo() {

@@ -3,10 +3,12 @@ package cz1.hmm.tools;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -14,6 +16,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 
 import javax.script.ScriptEngine;
@@ -61,12 +65,15 @@ public abstract class RFUtils extends Executor {
 		protected final String file;
 		protected final int[] position;
 		protected final double loglik;
+		protected final List<List<Collection<Integer>>> partition;
 		
 		public FileObject(String file, 
 				int[] position,
+				List<List<Collection<Integer>>> partition,
 				double loglik) {
 			this.file = file;
 			this.position = position;
+			this.partition = partition;
 			this.loglik = loglik;
 		}
 	}
@@ -84,17 +91,70 @@ public abstract class RFUtils extends Executor {
 			try {
 				ModelReader modelReader = new ModelReader(file);
 				int[] haps_observed = modelReader.getHapCounts();
+				double[][] emiss = modelReader.getEmissionProbs(ploidy);
+				int m = emiss.length, p2 = ploidy*2;
+				int[][] haps = new int[m][p2];
+				for(int i=0; i<m; i++)
+					for(int j=0; j<p2; j++)
+						haps[i][j] = emiss[i][j]<0.5 ? 0 : 1;
+				List<List<Collection<Integer>>> partitions = new ArrayList<>();
+				for(int i=0; i<2; i++) {
+					List<Collection<Integer>> p0 = new ArrayList<>(), p1;
+					Collection<Integer> a = new HashSet<>(), c0, c1;
+					for(int j=0; j<ploidy; j++) a.add(j);
+					p0.add(a);
+					int k=0;
+					while(k<m&&!p0.isEmpty()) {
+						p1 = new ArrayList<>();
+						for(Collection<Integer> p : p0) {
+							c0 = new HashSet<>();
+							c1 = new HashSet<>();
+							for(Integer z : p) {
+								if(haps[k][i*ploidy+z]==0) 
+									c0.add(z);
+								else 
+									c1.add(z);
+							}
+							if(c0.size()>1) p1.add(c0);
+							if(c1.size()>1) p1.add(c1);
+						}
+						p0 = p1;
+						++k;
+					}
+					a = new HashSet<>();
+					for(int j=0; j<ploidy; j++) a.add(j);
+					for(Collection<Integer> p : p0)
+						for(Integer z: p)
+							a.remove(z);
+					for(Integer z : a)
+						p0.add(Stream.of(z).collect(Collectors.toCollection(HashSet::new)));
+					partitions.add(p0);
+				}
 
-				boolean drop = false;				
-				double[] phases = new double[ploidy*2];
-				for(int z=0; z<phases.length; z++) 
-					phases[z] = (double) haps_observed[z];
-				double expected = StatUtils.sum(phases)/ploidy/2;
+				boolean drop = false;
+				int p0 = partitions.get(0).size(), p1 = partitions.get(1).size();
+				double[] phases = new double[p0+p1];
+				Collection<Integer> p;
+				for(int z=0; z<p0; z++) {
+					p = partitions.get(0).get(z);
+					for(int x : p)
+						phases[z] += haps_observed[x];
+					phases[z] /= p.size();
+				}
+				for(int z=0; z<p1; z++) {
+					p = partitions.get(1).get(z);
+					for(int x : p)
+						phases[z+p0] += haps_observed[ploidy+x];
+					phases[z+p0] /= p.size();
+				}
+				
+				double expected = StatUtils.sum(phases)/phases.length;
 				double maf = StatUtils.max(phases)/expected, 
 						mif = StatUtils.min(phases)/expected;
 				if( maf>skew_phi || mif<1/skew_phi) drop = true;
 				myLogger.info("["+(drop?"drop](maf,":"keep](maf,")+maf+";mif,"+mif+") "+
 						Utils.paste(haps_observed,",")+"\t"+file);
+				myLogger.info("####Partitions "+p0+","+p1+"\t"+m+"\t"+file);
 
 				if(drop) {
 					modelReader.close();
@@ -139,11 +199,11 @@ public abstract class RFUtils extends Executor {
 				for(int j=0; j<chrs_n; j++) {
 					chr = chrs[j]; 
 					synchronized(lock) {
-						if(!fileObj.containsKey(chr))
-							fileObj.put(chr, new ArrayList<>());
+						fileObj.putIfAbsent(chr, new ArrayList<>());
 						fileObj.get(chr).add(new FileObject(
 								file,
 								positions[j],
+								partitions,
 								ll[j]));
 					}
 				}
@@ -223,7 +283,12 @@ public abstract class RFUtils extends Executor {
 		// TODO Auto-generated catch block
 		
 		File folder = new File(in_haps);
-		File[] listFiles = folder.listFiles();
+		File[] listFiles = folder.listFiles(new FilenameFilter() {
+			@Override
+			public boolean accept(File dir, String name) {
+				return name.startsWith(expr_id);
+			}
+		});
 		ModelReader modelReader = new ModelReader(listFiles[0].getAbsolutePath());
 		ploidy = modelReader.getPloidy();
 		parents = modelReader.getParents();

@@ -476,7 +476,7 @@ public abstract class EmissionModel {
 		private int[][] makeHsc() {
 			// TODO Auto-generated method stub
 			int mid1 = this.hs.length/2;
-			int[] p1 = new int[mid1], p2 = new int[mid1];
+			Integer[] p1 = new Integer[mid1], p2 = new Integer[mid1];
 			for(int i=0; i<mid1; i++) {
 				p1[i] = i;
 				p2[i] = mid1+i;
@@ -487,8 +487,8 @@ public abstract class EmissionModel {
 			int k = com1.size();
 			int k2 = k*k+2;
 			int[][] hsc = new int[k2][mid1];
-			hsc[0] = p1;
-			hsc[1] = p2;
+			hsc[0] = ArrayUtils.toPrimitive(p1);
+			hsc[1] = ArrayUtils.toPrimitive(p2);
 			for(int i=0; i<k; i++) {
 				for(int j=0; j<k; j++) {
 					List<Integer> com = new ArrayList<Integer>(com1.get(i));
