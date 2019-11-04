@@ -222,6 +222,11 @@ public abstract class RFUtils extends Executor {
 		for(int a : arr) s+=a;
 		return s;
 	}
+	
+	protected void divide(double[] arr, double deno) {
+		// TODO Auto-generated method stub
+		for(int i=0; i<arr.length; i++) arr[i] /= deno;
+	}
 
 	protected void initialise() {
 		// TODO Auto-generated catch block

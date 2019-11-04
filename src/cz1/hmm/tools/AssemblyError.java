@@ -199,7 +199,6 @@ public class AssemblyError extends RFUtils {
 				int[] pos = modelReader.getSnpPosition(scaff);
 				modelReader.close();
 				int m = pos.length;
-				final int deno = n*nF1*ploidy;
 				int[] dists = new int[m-1];
 				for(int i=0; i<dists.length; i++) dists[i] = pos[i+1]-pos[i];
 				
@@ -215,19 +214,25 @@ public class AssemblyError extends RFUtils {
 					
 					double[] jump = new double[m-1];
 					char[] h;
+					int hapn = 0;
 					for(char[][] hap : haps.values()) {
+						if(hap[0][0]=='*') continue;
 						for(int j=0; j<ploidy; j++) {
 							h = hap[j];
 							for(int k=0; k<m-1; k++)
-								if(h[k]!=h[k+1]) jump[k] += 1;
+								if(h[k]!=h[k+1]) 
+									jump[k] += 1;
 						}
+						++hapn;
 					}
+					divide(jump, hapn*ploidy);
 					jumps[i] = jump;
 				}
+				
 				double[] means = new double[m-1];
 				for(int i=0; i<n; i++)
 					sum(means, jumps[i], means);
-				for(int i=0; i<m-1; i++) means[i] /= deno;
+				divide(means, n);
 				
 				int dist, kb_upstream, kb_downstream;
 				Map<String, char[][]> haps;
@@ -259,18 +264,25 @@ public class AssemblyError extends RFUtils {
 					outerloop:
 						for(int u=j; u>=kb_upstream; u--) {
 							for(int v=j+1; v<=kb_downstream; v++) {
-								double jump = 0;
+								double rf = 0;
 								for(int i=0; i<n; i++) {
 									haps = haplotypes.get(i);
+									double jump = 0;
+									int hapn = 0;
 									for(char[][] hap : haps.values()) {
-										for(int p=0; p<ploidy; p++)
+										if(hap[0][0]=='*') continue;
+										for(int p=0; p<ploidy; p++) {
 											if(hap[p][u]!=hap[p][v]) 
 												++jump;
+										}
+										++hapn;
 									}
+									rf += jump/hapn/ploidy;
 								}
-								jump /= deno;
-								if(jump<min) min = jump;
-								if(jump<rf_thresh) {
+								rf /= n;
+								
+								if(rf<min) min = rf;
+								if(rf<rf_thresh) {
 									iserr = false;
 									break outerloop;
 								}
