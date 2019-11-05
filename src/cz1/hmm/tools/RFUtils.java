@@ -319,10 +319,10 @@ public abstract class RFUtils extends Executor {
 				l = calcLODFromRf(d, hs);
 				dMat.set(i,j,d);
 				dMat.set(j,i,d);
-				iMat.set(i,j,w+1);
-				iMat.set(j,i,w+1+A);
 				lMat.set(i,j,l);
 				lMat.set(j,i,l);
+				iMat.set(i,j,w+1);
+				iMat.set(j,i,w+1+A);
 				for(int k=0; k<4; k++) {
 					d = Math.min(RF_MAX, Double.parseDouble(s[k+1]));
 					l = calcLODFromRf(d, hs);
@@ -338,10 +338,10 @@ public abstract class RFUtils extends Executor {
 			StringVector scf = new StringArrayVector(scaffs.values());
 			dMat.setRowNames(scf);
 			dMat.setColNames(scf);
-			iMat.setRowNames(scf);
-			iMat.setColNames(scf);
 			lMat.setRowNames(scf);
 			lMat.setColNames(scf);
+			iMat.setRowNames(scf);
+			iMat.setColNames(scf);
 			
 			Context context = Context.newTopLevelContext();
 			FileOutputStream fos = new FileOutputStream(out_Rmat);

@@ -2,7 +2,6 @@ package cz1.hmm.tools;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,10 +26,7 @@ public class NNsuperscaffold extends Executor {
 	private final static Logger myLogger = Logger.getLogger(NNsuperscaffold.class);
 	
 	private String rf_file = null;
-	private String RLibPath = null;
-	private double lod_thres = 3;
 	private double rf_thres = RFUtils.inverseGeneticDistance(0.5, "kosambi");
-	private int nn = 2;
 	private String out_prefix = null;
 	
 	@Override
@@ -39,10 +35,7 @@ public class NNsuperscaffold extends Executor {
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
 						+ " -i/--input                  Recombination frequency file.\n"
-						+ " -l/--lod                    LOD score threshold (default: 3).\n"
 						+ " -r/--rf                     Recombination frequency threshold (default: 0.38).\n"
-						+ " -n/--neighbour              #nearest neighbours (default: 2).\n"
-						+ " -rlib/--R-external-libs     R external library path.\n"
 						+ " -o/--prefix                 Output file prefix.\n\n"
 				);
 	}
@@ -73,17 +66,9 @@ public class NNsuperscaffold extends Executor {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your recombinatio frequency file.");
 		}
-
-		if(myArgsEngine.getBoolean("-l")) {
-			lod_thres = Double.parseDouble(myArgsEngine.getString("-l"));
-		}
 		
 		if(myArgsEngine.getBoolean("-r")) {
 			rf_thres = Double.parseDouble(myArgsEngine.getString("-r"));
-		}
-		
-		if(myArgsEngine.getBoolean("-n")) {
-			nn = Integer.parseInt(myArgsEngine.getString("-n"));
 		}
 		
 		if(myArgsEngine.getBoolean("-o")) {
@@ -92,41 +77,11 @@ public class NNsuperscaffold extends Executor {
 			printUsage();
 			throw new IllegalArgumentException("Please specify your output file prefix.");
 		}
-
-		if (myArgsEngine.getBoolean("-rlib")) {
-			RLibPath = myArgsEngine.getString("-rlib");
-		}
 	}
 
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		/***
-		final String temfile_prefix = Utils.makeTempDir();
-		final boolean tmpdirCreated = Utils.makeOutputDir(new File(temfile_prefix));
-		final String concorde_path =
-				RFUtils.makeExecutable("cz1/hmm/executable/concorde", temfile_prefix);
-		new File(concorde_path).setExecutable(true, true);
-		final String nnss_path =
-				RFUtils.makeExecutable("cz1/hmm/scripts/make_nnsuperscaffold.R", temfile_prefix);
-		RFUtils.makeExecutable("cz1/hmm/scripts/include.R", temfile_prefix);
-		RFUtils.makeRMatrix(rf_file, out_prefix+".RData");
-		myLogger.info("Using LOD score threshold: "+lod_thres+".");
-		myLogger.info("Using recombination frequency threshold: "+rf_thres+".");
-		final String command =
-				"Rscript "+nnss_path+" "
-						+ "-i "+out_prefix+".RData "
-						+ "-r "+rf_thres+" "
-						+ "-l "+lod_thres+" "
-						+ "-o "+out_prefix+".nns "
-						+ "-n "+nn+" "
-						+ "--concorde "+new File(concorde_path).getParent()+" "
-						+ (RLibPath==null ? "" : "--include "+RLibPath+" ")
-						+ "--tmpdir "+new File(temfile_prefix).getAbsolutePath();
-		this.consume(this.bash(command));
-
-		if(tmpdirCreated) Utils.deleteDirectory(new File(temfile_prefix));
-		**/
 		myLogger.info("Using recombination frequency threshold: "+rf_thres+".");
 		nj(rf_thres);
 	}
@@ -162,25 +117,28 @@ public class NNsuperscaffold extends Executor {
 					minf = Double.parseDouble(s[0]);
 					i1 = scaffs.get(s[5]);
 					i2 = scaffs.get(s[6]);
+					c1 = clusts.getKey(i1);
+					c2 = clusts.getKey(i2);
+					
+					// recomb freqs arranged in i1<i2 order
 					allf = new double[4];
 					allf[0] = Double.parseDouble(s[1]);
 					allf[3] = Double.parseDouble(s[4]);
-					if(i1>i2) {
-						c1 = clusts.getKey(i1);
-						c2 = clusts.getKey(i2);
+					if(i1<i2) {
 						allf[1] = Double.parseDouble(s[2]);
 						allf[2] = Double.parseDouble(s[3]);
 					} else {
-						c1 = clusts.getKey(i2);
-						c2 = clusts.getKey(i1);
 						allf[1] = Double.parseDouble(s[3]);
-						allf[2] = Double.parseDouble(s[2]);
+						allf[2] = Double.parseDouble(s[2]);	
 					}
 					c1.minf.put(c2, minf);
 					c1.allf.put(c2, allf);
-					pair = new ClustPair(c1, c2);
-					if(!minRfs.containsKey(minf))
-						minRfs.put(minf, new HashSet<>());
+					c2.minf.put(c1, minf);
+					c2.allf.put(c1, allf);
+					
+					// cluster pair arranged in i1<i2 order
+					pair = i1<i2?new ClustPair(c1, c2):new ClustPair(c2, c1);
+					minRfs.putIfAbsent(minf, new HashSet<>());
 					minRfs.get(minf).add(pair);
 				}
 			}
@@ -196,12 +154,12 @@ public class NNsuperscaffold extends Executor {
 		double f, extf;
 		Set<ClustPair> pairs;
 		ClustPair pair;
-		Cluster c1, c2, c, clust;
+		Cluster c1, c2, c, cc;
 		boolean j1, j2;
 		Map<Cluster, Double> minf;
 		Map<Cluster, double[]> allf;
-		int i1, i2, x1, x2;
-		double[] fs, fz;
+		int i1, i2;
+		double[] fs, fs1, fs2;
 		Set<Double> fs2cl = new HashSet<>();
 
 		while(!minRfs.isEmpty()) {
@@ -230,28 +188,66 @@ public class NNsuperscaffold extends Executor {
 			c2 = pair.c2;
 			j1 = pair.j1;
 			j2 = pair.j2;
-			i1 = clusts.get(c1);
-			i2 = clusts.get(c2);
+			i1 = c1.clust;
+			i2 = c2.clust;
 
-			c = new Cluster(i1, i2, c1, c2, j1, j2, f);
+			c = new Cluster(nclust, c1, c2, j1, j2, f);
 			allf = c.allf;
 			minf = c.minf;
 
 			// now update clusts
-			clusts.removeValue(i1);
-			clusts.removeValue(i2);
+			clusts.remove(c1);
+			clusts.remove(c2);
 
-			// now update allf
-			x1 = j1?2:0;
-			x2 = j2?2:0;
+			// now update allf and minf
 			for(int i : clusts.values()) {
-				clust = clusts.getKey(i);
+				cc = clusts.getKey(i);
 				fs = new double[4];
-				fz = i<i1 ? c1.allf.get(clust) : clust.allf.get(c1);
-				System.arraycopy(fz, x1, fs, 0, 2);
-				fz = i<i2 ? c2.allf.get(clust) : clust.allf.get(c2);
-				System.arraycopy(fz, x2, fs, 2, 2);
-				allf.put(clust, fs);
+				//** for c1
+				fs1 = c1.allf.get(cc);
+				if(i<i1) {
+					if(j1) {
+						fs[0] = fs1[1];
+						fs[2] = fs1[3];
+					} else {
+						fs[0] = fs1[0];
+						fs[2] = fs1[2];
+					}
+				} else {
+					if(j1) {
+						fs[0] = fs1[2];
+						fs[2] = fs1[3];
+					} else {
+						fs[0] = fs1[0];
+						fs[2] = fs1[1];
+					}
+				}
+				
+				//** for c2
+				fs2 = c2.allf.get(cc);
+				if(i<i2) {
+					if(j2) {
+						fs[1] = fs2[0];
+						fs[3] = fs2[2];
+					} else {
+						fs[1] = fs2[1];
+						fs[3] = fs2[3];
+					}
+				} else {
+					if(j2) {
+						fs[1] = fs2[0];
+						fs[3] = fs2[1];
+					} else {
+						fs[1] = fs2[2];
+						fs[3] = fs2[3];
+					}
+				}
+				
+				f = StatUtils.min(fs);
+				allf.put(cc, fs);
+				minf.put(cc, f);
+				cc.allf.put(c, fs);
+				cc.minf.put(c, f);
 			}
 
 			// now update minf
@@ -263,33 +259,41 @@ public class NNsuperscaffold extends Executor {
 
 			// remove pairs with c1 c2
 			for(Map.Entry<Cluster, Integer> ent : clusts.entrySet()) {
-				clust = ent.getKey();
-				int i = ent.getValue();
-				if(i<i1) {
-					minRfs.get(c1.minf.get(clust)).remove(new ClustPair(c1, clust));
+				cc = ent.getKey();
+				int i = cc.clust;
+				if(i1<i) {
+					minRfs.get(c1.minf.get(cc)).remove(new ClustPair(c1, cc));
 				} else {
-					minRfs.get(clust.minf.get(c1)).remove(new ClustPair(clust, c1));
+					minRfs.get(cc.minf.get(c1)).remove(new ClustPair(cc, c1));
 				}
-				if(i<i2) {
-					minRfs.get(c2.minf.get(clust)).remove(new ClustPair(c2, clust));
+				if(i2<i) {
+					minRfs.get(c2.minf.get(cc)).remove(new ClustPair(c2, cc));
 				} else {
-					minRfs.get(clust.minf.get(c2)).remove(new ClustPair(clust, c2));
+					minRfs.get(cc.minf.get(c2)).remove(new ClustPair(cc, c2));
 				}
 			}
 
 			// add pairs with c
 			for(Map.Entry<Cluster, Double> ent : minf.entrySet()) {
 				f = ent.getValue();
-				if(!minRfs.containsKey(f)) minRfs.put(f, new HashSet<>());
-				minRfs.get(f).add(new ClustPair(c, ent.getKey()));
+				minRfs.putIfAbsent(f, new HashSet<>());
+				minRfs.get(f).add(new ClustPair(ent.getKey(), c));
 			}
 
-			// clear empty entries
+			// clear empty entries in minRfs
 			fs2cl.clear();
 			for(Map.Entry<Double, Set<ClustPair>> ent : minRfs.entrySet())
 				if(ent.getValue().isEmpty()) fs2cl.add(ent.getKey());
 			for(double f2cl : fs2cl) minRfs.remove(f2cl);
-
+			
+			// clear c1 c2 from minf and allf
+			for(Cluster c0 : clusts.keySet()) {
+				c0.minf.remove(c1);
+				c0.minf.remove(c2);
+				c0.allf.remove(c1);
+				c0.allf.remove(c2);
+			}
+			
 			// add new cluster c and update nclust
 			clusts.put(c, nclust);
 			++nclust;
@@ -336,6 +340,9 @@ public class NNsuperscaffold extends Executor {
 				}
 
 				myLogger.info("#"+ent.getValue()+"\t"+out.toString());
+				for(int i=0; i<ids.size()-1;i++)
+					myLogger.info(scaffs.getKey(ids.get(i))+"\t"+dists.get(i)+"\t"+joins.get(i));
+				myLogger.info(scaffs.getKey(ids.get(ids.size()-1))+"\t\t\t\t"+joins.get(joins.size()-1));
 				
 				out.append("\n");
 				bw.write(out.toString());
@@ -366,50 +373,93 @@ public class NNsuperscaffold extends Executor {
 			double ef, ef1, ef2;
 			double[] allf = c1.allf.get(c2);
 			double[] fs;
-			int x1 = -1, x2 = -1;
+			boolean j1, j2;
+			
+			Cluster cc;
 			extf = Double.MAX_VALUE;
 
 			for(int i=0; i<4; i++) {
 				if(allf[i]==minf) {
-					// free ends
+					ef1 = Double.MAX_VALUE;
+					ef2 = Double.MAX_VALUE;
+					
 					switch(i) {
 					case 0:
-						x1 = 2;
-						x2 = 2;
+						j1 = true;
+						j2 = false;
 						break;
 					case 1:
-						x1 = 2;
-						x2 = 0;
+						j1 = true;
+						j2 = true;
 						break;
 					case 2:
-						x1 = 0;
-						x2 = 2;
+						j1 = false;
+						j2 = false;
 						break;
 					case 3:
-						x1 = 0;
-						x2 = 0;
+						j1 = false;
+						j2 = true;
 						break;
+					default:
+						throw new RuntimeException("!!!");
 					}
-					ef1 = Double.MAX_VALUE;
-					for(Map.Entry<Cluster, double[]> ent : c1.allf.entrySet()) {
-						if(ent.getKey().equals(c2)) continue;
-						fs = ent.getValue();
-						for(int j=x1; j<x1+2; j++)
-							if(ef1>fs[j]) ef1 = fs[j];
+					
+					if(j1) {
+						for(Map.Entry<Cluster, double[]> ent : c1.allf.entrySet()) {
+							cc = ent.getKey();
+							if(cc.equals(c2)) continue;
+							fs = ent.getValue();
+							if(c1.clust<cc.clust) {
+								if(ef1>fs[2]) ef1 = fs[2];
+							} else {
+								if(ef1>fs[1]) ef1 = fs[1];
+							}
+							if(ef1>fs[3]) ef1 = fs[3];
+						}
+					} else {
+						for(Map.Entry<Cluster, double[]> ent : c1.allf.entrySet()) {
+							cc = ent.getKey();
+							if(cc.equals(c2)) continue;
+							fs = ent.getValue();
+							if(c1.clust<cc.clust) {
+								if(ef1>fs[1]) ef1 = fs[1];
+							} else {
+								if(ef1>fs[2]) ef1 = fs[2];
+							}
+							if(ef1>fs[0]) ef1 = fs[0];
+						}
 					}
-
-					ef2 = Double.MAX_VALUE;
-					for(Map.Entry<Cluster, double[]> ent : c2.allf.entrySet()) {
-						if(ent.getKey().equals(c1)) continue;
-						fs = ent.getValue();
-						for(int j=x2; j<x2+2; j++)
-							if(ef2>fs[j]) ef2 = fs[j];
+					
+					if(j2) {
+						for(Map.Entry<Cluster, double[]> ent : c2.allf.entrySet()) {
+							cc = ent.getKey();
+							if(cc.equals(c1)) continue;
+							fs = ent.getValue();
+							if(c2.clust<cc.clust) {
+								if(ef2>fs[1]) ef2 = fs[1];
+							} else {
+								if(ef2>fs[2]) ef2 = fs[2];
+							}
+							if(ef2>fs[0]) ef2 = fs[0];
+						}
+					} else {
+						for(Map.Entry<Cluster, double[]> ent : c2.allf.entrySet()) {
+							cc = ent.getKey();
+							if(cc.equals(c1)) continue;
+							fs = ent.getValue();
+							if(c2.clust<cc.clust) {
+								if(ef2>fs[2]) ef2 = fs[2];
+							} else {
+								if(ef2>fs[1]) ef2 = fs[1];
+							}
+							if(ef2>fs[3]) ef2 = fs[3];
+						}
 					}
-
+					
 					if( (ef=ef1+ef2)<extf ) {
-						extf = ef;
-						j1 = x1!=0;
-						j2 = x2!=0;
+						this.extf = ef;
+						this.j1 = j1;
+						this.j2 = j2;
 					}
 				}
 			}
@@ -419,10 +469,8 @@ public class NNsuperscaffold extends Executor {
 		@Override
 		public int hashCode() {
 			int hash = 17;
-			hash = hash*31+c1.first;
-			hash = hash*31+c1.last;
-			hash = hash*31+c2.first;
-			hash = hash*31+c2.last;
+			hash = hash*31+c1.clust;
+			hash = hash*31+c2.clust;
 			return hash;   
 		}
 
@@ -441,26 +489,23 @@ public class NNsuperscaffold extends Executor {
 	}
 
 	private final class Cluster {
-		private final int first;
-		private final int last;
+		private final int clust;
 		private final Map<Cluster, Double> minf = new HashMap<>();
 		private final Map<Cluster, double[]> allf = new HashMap<>();
 		private final List<Integer> ids = new ArrayList<>();
 		private final List<Double> dists = new ArrayList<>();
 		private final List<Boolean> joins = new ArrayList<>();
 
-		public Cluster(int first, int last, Cluster c1, Cluster c2, boolean j1, boolean j2, double j) {
-			this.first = first;
-			this.last  = last;
-			
-			if(!j1) {
+		public Cluster(int clust, Cluster c1, Cluster c2, boolean j1, boolean j2, double j) {
+			this.clust = clust;
+			if(j1) {
 				Collections.reverse(c1.ids);
 				Collections.reverse(c1.dists);
 				Collections.reverse(c1.joins);
 				for(int i=0; i<c1.joins.size(); i++)
 					c1.joins.set(i, !c1.joins.get(i));
 			}
-			if(!j2) {
+			if(j2) {
 				Collections.reverse(c2.ids);
 				Collections.reverse(c2.dists);
 				Collections.reverse(c2.joins);
@@ -476,20 +521,16 @@ public class NNsuperscaffold extends Executor {
 			joins.addAll(c2.joins);
 		}
 
-		public Cluster(int first) {
+		public Cluster(int clust) {
 			// TODO Auto-generated constructor stub
-			this.first = first;
-			this.last  = first;
-			ids.add(first);
-			joins.add(true);
+			this.clust = clust;
+			ids.add(clust);
+			joins.add(false);
 		}
 		
 		@Override
 		public int hashCode() {
-			int hash = 17;
-			hash = hash*31+first;
-			hash = hash*31+last;
-			return hash;   
+			return clust;
 		}
 
 		@Override
@@ -501,8 +542,7 @@ public class NNsuperscaffold extends Executor {
 			if (getClass() != obj.getClass())
 				return false;
 			Cluster other = (Cluster) obj;
-			return this.first==other.first && 
-					this.last==other.last;
+			return this.clust==other.clust;
 		}
 	}
 }
