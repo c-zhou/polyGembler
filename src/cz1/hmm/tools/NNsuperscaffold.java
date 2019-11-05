@@ -26,7 +26,7 @@ public class NNsuperscaffold extends Executor {
 	private final static Logger myLogger = Logger.getLogger(NNsuperscaffold.class);
 	
 	private String rf_file = null;
-	private double rf_thres = RFUtils.inverseGeneticDistance(0.5, "kosambi");
+	private double rf_thres = RFUtils.inverseGeneticDistance(0.3, "kosambi");
 	private String out_prefix = null;
 	
 	@Override
@@ -35,7 +35,7 @@ public class NNsuperscaffold extends Executor {
 		myLogger.info(
 				"\n\nUsage is as follows:\n"
 						+ " -i/--input                  Recombination frequency file.\n"
-						+ " -r/--rf                     Recombination frequency threshold (default: 0.38).\n"
+						+ " -r/--rf                     Recombination frequency threshold (default: 0.27).\n"
 						+ " -o/--prefix                 Output file prefix.\n\n"
 				);
 	}
