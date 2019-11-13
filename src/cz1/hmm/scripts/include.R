@@ -2,17 +2,38 @@
 
 
 
-.kosambi <- function(r) .25*log((1+2*r)/(1-2*r))
-.haldane <- function(r) -.5*log(1-2*r)
-.haldane_r <- function(d) .5*(1-exp(-2*d))
-.kosambi_r <- function(d) .5*(exp(4*d)-1)/(exp(4*d)+1)
+.kosambi <- function(r) {
+	r[r<0] = 0
+	r[r>.4999999] = .4999999
+	.25*log((1+2*r)/(1-2*r))
+}
+
+.haldane <- function(r) {
+	r[r<0] = 0
+	r[r>.4999999] = .4999999
+	-.5*log(1-2*r)
+}
+
+.kosambi_r <- function(d) {
+	dm=.kosambi(.4999999)
+	d[d<0] = 0
+	d[d>dm] = dm
+	.5*(exp(4*d)-1)/(exp(4*d)+1)
+}
+
+.haldane_r <- function(d) {
+	dm=.haldane(.4999999)
+	d[d<0] = 0
+	d[d>dm] = dm
+	.5*(1-exp(-2*d))
+}
 
 .cm_d <- function(r, mapfn=c("kosambi","haldane")) {
 	match.arg(mapfn)
 	mapfn = mapfn[1]
-    r[r >= .5] = .4999999
-    r[r <= -.5] = -.4999999
-    if(mapfn=="haldane") {
+    r[r<0] = 0
+	r[r>.4999999] = .4999999
+	if(mapfn=="haldane") {
     	return(-50*log(1-2*r))
     } else {
     	return(25*log((1+2*r)/(1-2*r)))
@@ -63,17 +84,19 @@
 	return(map)
 }
 
-preorder_mds <- function(clus, distanceMat, lodMat, ncores=1) {
-	if(length(clus)<3) return(NA)
-
+preorder_mds <- function(clus, distanceMat, lodMat, fid="", ncores=1) {
+	if(length(clus)==0) return(NULL);
+	
 	wd <- tempdir()
 	dir <- getwd()
 	setwd(wd)
 	on.exit(setwd(dir))
 	
 	temp_file <- basename(tempfile(tmpdir = wd))
-	tmp_file_mds  <- paste(temp_file, ".txt", sep = "")
-
+	## using 'fid' to make sure the tmp files are not overwritten 
+	## by each other although highly unlikely
+	tmp_file_mds  <- paste(fid, temp_file, sep = "")
+	
     dists = distanceMat[clus, clus]
     lods = lodMat[clus, clus]
     n = length(clus)
@@ -94,7 +117,7 @@ preorder_mds <- function(clus, distanceMat, lodMat, ncores=1) {
 	map = .fit_mds_model(tmp_file_mds, ncores)
 	unlink(tmp_file_mds)
 	
-	if(is.null(map)) stop("no model fitted.")
+	if(is.null(map)) return(NULL)
 	
 	return(as.numeric.factor(map$locimap$locus))
 }
@@ -159,7 +182,7 @@ ordering_mds <- function(clus, distanceAll, lodAll, indexMat, fid="", ncores=1) 
 	temp_file <- basename(tempfile(tmpdir = wd))
 	## using 'fid' to make sure the tmp files are not overwritten 
 	## by each other although highly unlikely
-	tmp_file_mds  <- paste(temp_file, fid, sep = "")
+	tmp_file_mds  <- paste(fid, temp_file, sep = "")
 	
     dist_mds(clus, tmp_file_mds, distanceAll, lodAll, indexMat)
 	
@@ -205,45 +228,34 @@ sum_finite <- function(x) {sum(x[is.finite(x)])}
 
 as.numeric.factor <- function(f) {as.numeric(levels(f))[f]}
 
-dist_tsp <- function(clus, distanceAll, indexMat, preorder=NA, nn=1) {
+dist_tsp <- function(clus, distanceAll, indexMat, preorder=NULL, nn=1) {
     n = length(clus)
     names = c()
     for(i in 1:n) names=c(names,c(paste0(clus[i],"(+)"),
                                   paste0(clus[i],"(-)")))
     names = c(names," __DUMMY__")
     d = matrix(NA, nrow=n*2+1, ncol=n*2+1, dimnames=list(names,names))
-    selfM = matrix(0,nrow=2,ncol=2)
-    selfM[1,2] <- selfM[2,1] <--Inf
-    for(i in 1:n) {
-        i1 = (i-1)*2+1
-        i2 = i*2
-        for(j in 1:n) {
-            j1 = (j-1)*2+1
-            j2 = j*2
-            if(i==j) {
-                d[i1:i2,j1:j2] = selfM
-            } else if(i<j) {
-                if(indexMat[clus[i],clus[j]]==-1) return(NULL);
-                r = distanceAll[indexMat[clus[i],clus[j]],]
-                d[i1:i2,j1:j2] = matrix(r,ncol=2,byrow=T)
-                d[j1:j2,i1:i2] = matrix(r,ncol=2,byrow=F)
-            }
-        }
-    }
-	d = .cm_d(d)
-	d[d<0] = -Inf
-	MAX <- if(n*2+1<10) {2^16} else {2^31-1}
+	selfM = matrix(0,nrow=2,ncol=2)
+	selfM[1,2] <- selfM[2,1] <--Inf
+		
+	for(i in 1:n) {
+		i1 = (i-1)*2+1
+		i2 = i*2
+		for(j in 1:n) {
+			j1 = (j-1)*2+1
+			j2 = j*2
+			if(i==j) {
+				d[i1:i2,j1:j2] = selfM
+			} else if(i<j) {
+				if(indexMat[clus[i],clus[j]]==-1) return(NULL);
+				r = distanceAll[indexMat[clus[i],clus[j]],]
+				d[i1:i2,j1:j2] = matrix(r,ncol=2,byrow=T)
+				d[j1:j2,i1:i2] = matrix(r,ncol=2,byrow=F)
+			}
+		}
+	}
 	
-	if(any(is.na(preorder))) {	
-		max_d = max(d[is.finite(d)])
-		d = d+max_d+2
-		max_d = max_d*2+2
-		s = floor(log10(MAX/max_d/(n*2+1)))
-		d = round(d*10^s)
-		d[d==-Inf] = 1
-		d[is.na(d)] = 2
-		diag(d) = 0
-    } else {
+	if(!is.null(preorder)) {
 		for(i in 1:n) {
 			inf = c()
 			if(i-nn>1) inf = c(inf, 1:(i-nn-1))
@@ -255,19 +267,29 @@ dist_tsp <- function(clus, distanceAll, indexMat, preorder=NA, nn=1) {
 			d[k, inf] = Inf
 			d[inf, k] = Inf
 		}
-		max_d = max(d[is.finite(d)])
-		d = d+max_d+2
-		max_d = max_d*2+2
-		sInf = MAX/(n*2+1)
-		s = floor(log10(sInf/max_d))
-		d = round(d*10^s)
-		d[d==-Inf] = 1
-		d[d==Inf] = sInf
-		d[is.na(d)] = 2
-		diag(d) = 0
 	}
 	
-	d
+	max_d = max(d[is.finite(d)])
+	d = d+max_d+1e-3
+	d[d==-Inf] = 1e-3
+	d[is.na(d)] = 1e-2
+    diag(d) = 0
+	
+	if(any(is.infinite(d))) {
+		range_d <- range(d, na.rm = TRUE, finite = TRUE)
+		d[d == Inf] <- range_d[2] + 2* diff(range_d)
+	}
+	
+	max_d <- max(d)
+    if(n < 5){
+      ## <10 cities: concorde can only handle max 2^15
+      prec <- floor(log10(2^15/max_d))
+    }else{
+      ## regular constraint on integer is 2^31 - 1
+      prec <- floor(log10((2^31-1)/max_d/(n*2+1)))
+    }
+	
+	list(d=d, p=prec)
 }
 
 .find_prog <- function(prog) {
@@ -277,9 +299,9 @@ dist_tsp <- function(clus, distanceAll, indexMat, preorder=NA, nn=1) {
 	prog_path
 }
 
-ordering_tsp <- function(clus, distanceAll, indexMat, method="concorde", preorder=NA, nn=1) {
+ordering_tsp <- function(clus, distanceAll, indexMat, method="concorde", preorder=NULL, nn=1, fid="") {
 
-    if(length(clus)==0) return(NA);
+    if(length(clus)==0) return(NULL);
     if(length(clus)==1) return(list(order=clus,
                                    oriO=c(paste0(clus,"(+)"), paste0(clus,"(-)")),
                                    cost=0));
@@ -288,13 +310,17 @@ ordering_tsp <- function(clus, distanceAll, indexMat, method="concorde", preorde
 	setwd(wd)
 	on.exit(setwd(dir))
 	
-    d = dist_tsp(clus, distanceAll, indexMat, preorder, nn)
-	
+    dat = dist_tsp(clus, distanceAll, indexMat, preorder, nn)
+	d = dat$d
+	p = dat$p
+
 	#tour = solve_TSP(TSP(d), method, control = list(precision=0))
 	temp_file <- basename(tempfile(tmpdir = wd))
-	tmp_file_in  <- paste(temp_file, ".dat", sep = "")
-	tmp_file_out <- paste(temp_file, ".sol", sep = "")
-	write_TSPLIB(TSP(d), file = tmp_file_in, precision = 0)	
+	## using 'fid' to make sure the tmp files are not overwritten 
+	## by each other although highly unlikely
+	tmp_file_in  <- paste(fid, temp_file, ".dat", sep = "")
+	tmp_file_out <- paste(fid, temp_file, ".sol", sep = "")
+	write_TSPLIB(TSP(d), file = tmp_file_in, precision=p)	
 	system2(.find_prog("concorde"),
 		args =  paste("-x -o", tmp_file_out, tmp_file_in),
     )
@@ -304,11 +330,7 @@ ordering_tsp <- function(clus, distanceAll, indexMat, method="concorde", preorde
 	tour <- tour[-1] + 1L
 	unlink(c(tmp_file_in, tmp_file_out, "file*", "Ofile*"))
 
-    if(is.null(tour)) {
-    	stop("Solving TSP failed.")
-	} else{
-		cat("##Sovling TSP succeed.\n")
-	}
+    if(is.null(tour)) return(NULL)
 	
     o = as.integer(tour)
     w = which(o==length(o))
@@ -543,19 +565,33 @@ linkage_mapping <- function(in_RData, in_map, out_file, min_lod=3, max_rf=.kosam
 		if(ncores>nn*nt) nt_c[1:(ncores-nn*nt)] = nt+1 
 	}
 	
-	registerDoParallel(nt_p) ## register doParallel for parent process
+	if(FALSE) {
 	cat(paste0("####Ordering with MDS using ", ncores, " cores.\n"))
+	registerDoParallel(nt_p) ## register doParallel for parent process
 	o <- foreach(i=1:mc) %dopar% {
-		ordering_mds(clusts[[nco[i]]], distanceAll, lodAll, indexMat, fid=paste0(".lg",i), nt_c[i])
+		ordering_mds(clusts[[nco[i]]], distanceAll, lodAll, indexMat, fid=paste0("xxx",i), nt_c[i])
 	}
 	stopImplicitCluster()
-	
 	for(i in 1:mc) {
 		if(is.null(o[[i]])) {
-			cat(paste0("####Linkage group ",i," MDS ordering failed. Ordering with TSP.\n"))
+			cat(paste0("####Linkage group ",i," MDS preordering failed. Ordering with TSP.\n"))
 			o[[i]] = ordering_tsp(clusts[[nco[i]]], distanceAll, indexMat)
 		}
 	}
+	}##END IF FALSE
+	
+	cat(paste0("####Preordering with MDS using ", ncores, " cores.\n"))
+	registerDoParallel(nt_p) ## register doParallel for parent process
+	po <- foreach(i=1:mc) %dopar% {
+		preorder_mds(clusts[[nco[i]]], distanceMat, lodMat, fid=paste0("xxx",i), nt_c[i])
+	}
+	stopImplicitCluster()
+	cat(paste0("####Reordering with TSP using ", ncores, " cores.\n"))
+	registerDoParallel(nt_p) ## register doParallel for parent process
+	o <- foreach(i=1:mc) %dopar% {
+		ordering_tsp(clusts[[nco[i]]], distanceAll, indexMat, preorder=po[[i]], fid=paste0("xxx",i))
+	}
+	stopImplicitCluster()
 	
 	mm = .read_map_file(in_map);
 	dC = mm$dC
