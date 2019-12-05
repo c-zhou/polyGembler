@@ -79,7 +79,7 @@ public class AssemblyError extends RFUtils {
 			in_haps = myArgsEngine.getString("-i");
 		} else {
 			printUsage();
-			throw new IllegalArgumentException("Please specify your input zip file.");
+			throw new IllegalArgumentException("Please specify your location for haplotype files.");
 		}
 
 		if(myArgsEngine.getBoolean("-o")) {
