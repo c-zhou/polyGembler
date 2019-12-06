@@ -422,6 +422,65 @@ public class ModelReader {
 		throw new RuntimeException("!!!");
 	}
 	
+	public Map<String, char[][]> getHaplotypeByPosition(int[] position, int ploidy, int smooth) {
+		// TODO Auto-generated method stub
+		if(position.length!=2) throw new RuntimeException("!!!");
+		int m = Math.abs(position[1]-position[0])+1;
+		smooth = Math.min(smooth, m/2);
+		int[] zs = position[0]<position[1]?new int[] {1,-1}:new int[] {-1,1};
+		
+		try {
+			setEntryReader("haplotype");
+			final Map<String, char[][]> haps = new HashMap<>();
+			String line, states;
+			String[] s;
+
+			char[][] hap = new char[ploidy][2];
+			int[] c;
+			int p, z, maxc;
+			char u, maxu=' ';
+			int i = 0;
+			while( (line=br.readLine())!=null ) {
+				if(!line.startsWith("#")) continue;
+				s = line.split("\\s+");
+				states = s[s.length-1];
+				for(int j=0; j<2; j++) {
+					c = new int[256];
+					maxc = 0;
+					z = zs[j];
+					p = position[j];
+					for(int k=0; k<smooth; k++) {
+						u = states.charAt(p);
+						c[u]++;
+						if(c[u]>maxc) {
+							maxu = u;
+							maxc = c[u];
+						}
+						p+=z;
+					}
+					u = states.charAt(position[j]);
+					if(maxc==c[u]) maxu = u;
+					hap[i][j] = maxu;
+					
+				}
+				++i;
+				if(i==ploidy) {
+					haps.put(s[2].split(":")[0], hap);
+					hap = new char[ploidy][2];
+					i = 0;
+				}
+			}
+			closeReader();
+			return haps;
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		
+		throw new RuntimeException("!!!");
+	}
+	
 	public Map<String, char[][]> getHaplotypeByPositionRange(int[] position, int ploidy) {
 		// TODO Auto-generated method stub
 		try {

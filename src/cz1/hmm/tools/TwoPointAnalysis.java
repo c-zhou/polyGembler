@@ -325,11 +325,7 @@ public class TwoPointAnalysis extends RFUtils {
 				s1 = a1.get(i);
 				for(int j=0; j<ploidy; j++) {
 					s2 = a2.get(j);
-					int n = 0;
-					for(int k : s1) 
-						if(s2.contains(k)) 
-							++n;
-					comns[j][i] = n;
+					comns[j][i] = (int) s1.stream().filter(s2::contains).count();
 				}
 			}
 			return comns;
@@ -343,6 +339,7 @@ public class TwoPointAnalysis extends RFUtils {
 		this.collectData();
 	}
 
+	final int smooth = 10;
 	private class PhasedDataCollection {
 		private final String scaff;
 		private final Map<Integer, Set<Integer>> p0, p1, m0, m1;
@@ -369,7 +366,7 @@ public class TwoPointAnalysis extends RFUtils {
 		private void collectData(FileObject file) {
 			// TODO Auto-generated method stub
 			ModelReader modelReader = new ModelReader(file.file);
-			Map<String, char[][]> haps = modelReader.getHaplotypeByPosition(file.position, ploidy);
+			Map<String, char[][]> haps = modelReader.getHaplotypeByPosition(file.position, ploidy, smooth);
 			modelReader.close();
 			for(String f : parents) if(f!=null) haps.remove(f);
 			if(haps.size()!=nF1) throw new RuntimeException("!!!");
