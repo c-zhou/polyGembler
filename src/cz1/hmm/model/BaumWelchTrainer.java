@@ -136,7 +136,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			int[][] trace = this.vbs[i].trace;
 			double[] logscale = this.vbs[i].logscale;
 			
-			double[] emiss = ob[0].emiss;;
+			double[] emiss = ob[0].emiss;
 			TransitionUnit t;
 			
 			for(int k : ss) v[0][k] = pi*emiss[k];

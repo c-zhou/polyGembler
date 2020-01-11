@@ -53,7 +53,30 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 	@Override
 	public double findPath() {
 		// TODO Auto-generated method stub
-		return 0;
+		double probability = 0.0;
+		for(int i=0; i<N; i++) {
+			if(fi1ter[i]) continue;
+			Integer[] ss = this.sspace.get(i);
+			ObUnit[] ob = obs[i];
+			double max_ll = Double.NEGATIVE_INFINITY, ll;
+			int max_s = -1;
+			
+			for(int k : ss) {
+				ll = 0;
+				for(int j=0; j<M; j++)
+					ll += ob[j].emiss[k];
+				if(ll>max_ll) {
+					max_ll = ll;
+					max_s = k;
+				}
+			}
+			
+			probability += max_ll;
+			PathUnit pas_i = this.pas[i];
+			Arrays.fill(pas_i.path, max_s);
+			Arrays.fill(pas_i.path_str, this.state.hsc_str[max_s]);
+		}
+		return probability;
 	}
 
 	@Override
