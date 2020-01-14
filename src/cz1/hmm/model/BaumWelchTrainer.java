@@ -140,7 +140,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			TransitionUnit t;
 			
 			for(int k : ss) v[0][k] = pi*emiss[k];
-			logscale[0] = ob[0].getLogScale(i);
+			logscale[0] = ob[0].getLogScale();
 			for(int j=1; j<M; j++) {
 				emiss = ob[j].emiss;
 				t = transition[j-1];
@@ -162,7 +162,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 					trace[j-1][k] = s;
 					v[j][k] = a;
 				}
-				logscale[j] = ob[j].getLogScale(i);
+				logscale[j] = ob[j].getLogScale();
 				vbs[i].scale(j);
 			}
 
@@ -191,11 +191,11 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			double lower_bound = Double.NEGATIVE_INFINITY;
 			for(int k : ss) {
 				double x = pi*ob[0].emiss[k];
-				double logscale = ob[0].getLogScale(i);
+				double logscale = ob[0].getLogScale();
 				
 				for(int j=1; j<M; j++) {
 					x *= ob[j].emiss[k]*transition[j-1].trans(k,k);
-					logscale += ob[j].getLogScale(i);
+					logscale += ob[j].getLogScale();
 					if(x<Constants.threshMin) {
 						logscale += Constants.logThreshMax;
 						x /= Constants.threshMax;
@@ -217,7 +217,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			TransitionUnit t;
 			
 			for(int k : ss) v[0][k] = pi*ob[0].emiss[k];
-			logscale[0] = ob[0].getLogScale(i);
+			logscale[0] = ob[0].getLogScale();
 			for(int j=1; j<M; j++) {
 				ss_from.clear();
 				ss_from.addAll(ss_copy);
@@ -240,13 +240,13 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 					if(b==c) s = k;
 					a = emiss[k]*c;
 					
-					if(Math.log(a)+logscale[j-1]+ob[j].getLogScale(i)>=lower_bound) {
+					if(Math.log(a)+logscale[j-1]+ob[j].getLogScale()>=lower_bound) {
 						trace[j-1][k] = s;
 						v[j][k] = a;
 						ss_copy.add(k);
 					}
 				}
-				logscale[j] = ob[j].getLogScale(i);
+				logscale[j] = ob[j].getLogScale();
 				vbs[i].scale(j);
 			}
 
@@ -309,7 +309,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			ob1 = obs[j][i+1];
 			exp_c = fw1.logscale[i]+
 					bw1.logscale[i+1]+
-					ob1.getLogScale(j)-
+					ob1.getLogScale()-
 					fw1.probability;
 
 			if(exp_c>Constants.MAX_EXP_DOUBLE) { 
@@ -351,7 +351,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 	
 		EmissionUnit e1;
 		e1 = emission[i];
-		e1.pseudo();
+		e1.pseudoCount();
 		for(int j=0;j<N; j++) {
 			if(fi1ter[j]) continue;
 			
@@ -373,7 +373,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 							fw1.probsMat[i][a]*
 							bw1.probsMat[i][a])+
 							exp_c);
-					e1.addCount(a, count*acnt, count*bcnt);
+					e1.addCount(a, acnt, bcnt, count);
 				}
 			} else {
 				exp = Math.exp(exp_c);
@@ -382,7 +382,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 							fw1.probsMat[i][a]*
 							bw1.probsMat[i][a]*
 							exp;
-					e1.addCount(a, count*acnt, count*bcnt);
+					e1.addCount(a, acnt, bcnt, count);
 				}
 			}
 		}
@@ -417,7 +417,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 					probsMat[j][k] = tmp;
 				}
 				
-				logscale[j] = ob[j+1].getLogScale(i);
+				logscale[j] = ob[j+1].getLogScale();
 				backward[i].scale(j);
 			}
 			
@@ -426,7 +426,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			emiss = ob[0].emiss;
 			for(int z : ss)
 				p += pi*emiss[z]*probsMat[0][z];
-			backward[i].probability(p, ob[0].getLogScale(i));
+			backward[i].probability(p, ob[0].getLogScale());
 		}
 		return;
 	}
@@ -448,7 +448,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			TransitionUnit t;
 			
 			for(int k : ss) probsMat[0][k] = pi*emiss[k];
-			logscale[0] = ob[0].getLogScale(i);
+			logscale[0] = ob[0].getLogScale();
 			double tmp; 
 			
 			for(int j=1; j<M; j++) {
@@ -464,7 +464,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 					probsMat[j][k] = emiss[k]*tmp;
 				}
 				
-				logscale[j] = ob[j].getLogScale(i);
+				logscale[j] = ob[j].getLogScale();
 				forward[i].scale(j);
 			}
 			forward[i].probability(StatUtils.sum(probsMat[M-1]));
@@ -495,7 +495,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			TransitionUnit t;
 			
 			for(int k : ss) probsMat[0][k] = pi*emiss[k];
-			logscale[0] = ob[fromIndex].getLogScale(i);
+			logscale[0] = ob[fromIndex].getLogScale();
 			double tmp; 
 			
 			for(int j=1; j<m; j++) {
@@ -511,7 +511,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 					probsMat[j][k] = emiss[k]*tmp;
 				}
 				
-				logscale[j] = ob[fromIndex+j].getLogScale(i);
+				logscale[j] = ob[fromIndex+j].getLogScale();
 				scale(logscale, probsMat, j);
 			}
 			probability += Math.log(StatUtils.sum(probsMat[m-1]))+logscale[m-1];

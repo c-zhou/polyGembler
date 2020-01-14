@@ -182,7 +182,7 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 		EmissionUnit e1;
 		for(int i=0; i<M; i++) {
 			e1 = emission[i];
-			e1.pseudo();
+			e1.pseudoCount();
 			
 			for(int j=0;j<N; j++) {
 				if(fi1ter[j]) continue;
@@ -200,7 +200,7 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 							Math.exp(fw1.probsMat[i][a]+
 							bw1.probsMat[i][a]-
 							fw1.probability);
-					e1.addCount(a, count*acnt, count*bcnt);
+					e1.addCount(a, acnt, bcnt, count);
 				}
 			}
 			e1.update();

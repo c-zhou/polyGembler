@@ -181,17 +181,20 @@ public abstract class EmissionModel {
 		Integer[] progeny_s = new Integer[K-2];
 		for(int i=0; i<K-2; i++) progeny_s[i] = i+2;
 		for(int i : progeny_i) sspace.set(i, progeny_s);
-		this.weights = this.field==Field.GT ? new double[] {Nf1/2.0, 1.0} : new double[]{1.0, 1.0};
+		this.weights = new double[]{1.0, 1.0}; //this.field==Field.GT ? new double[] {Nf1/2.0, 1.0} : new double[]{1.0, 1.0};
+		Integer[] hs = new Integer[H];
+		for(int i=0; i<H; i++) hs[i] = i;
+		this.comb_hs = new ArrayList<List<List<Integer>>>();
+		for(int i=0; i<=H; i++) comb_hs.add(Combination.combination(hs, i));
 		this.makeObUnits();
 		this.makePathUnits();
 		this.makeEmissionUnits();
 	}
-
-	private final int allele_d = 10; 
+ 
 	private void makeObUnits() {
 		// TODO Auto-generated method stub
 		this.obs = new ObUnit[N][M];
-		int miss_cnt = 0, miss_f1 = 0;
+		int miss_cnt = 0, miss_f1 = 0, pid;
 		double miss_max = M-Math.max(min_mn, M*min_mf);
 		switch(this.field) {
 		case AD:
@@ -199,10 +202,11 @@ public abstract class EmissionModel {
 			if(ad==null) throw new RuntimeException("AD feild not available!!! Try GT (-G/--genotype) options.");
 			int[] dp;
 			for(int i=0; i<N; i++) {
+				pid = i==parents_i[0] ? 0 : (i==parents_i[1] ? 1 : 2);
 				miss_cnt = 0;
 				for(int j=0; j<M; j++) {
 					dp = ad.get(j).get(i);
-					obs[i][j] = new ObUnit(dp[0]+dp[1], dp[0], K);
+					obs[i][j] = new ObUnit(pid, dp[0]+dp[1], dp[0], K);
 					if(dp[0]+dp[1]==0) ++miss_cnt;
 				}
 				if(miss_cnt>miss_max) {
@@ -219,6 +223,7 @@ public abstract class EmissionModel {
 			int acnt, bcnt;
 			String[] a, g;
 			for(int i=0; i<N; i++) {
+				pid = i==parents_i[0] ? 0 : (i==parents_i[1] ? 1 : 2);
 				miss_cnt = 0;
 				for(int j=0; j<M; j++) {
 					a = allele.get(j);
@@ -229,10 +234,8 @@ public abstract class EmissionModel {
 						acnt += (g[k].equals(a[0]) ? 1 : 0);
 						bcnt += (g[k].equals(a[1]) ? 1 : 0);
 					}
-					acnt *= allele_d;
-					bcnt *= allele_d;
-					obs[i][j] = new ObUnit(acnt+bcnt, acnt, K);
-					if(acnt+bcnt==0) ++miss_cnt;
+					obs[i][j] = new ObUnit(pid, acnt+bcnt, acnt, K);
+					if(acnt+bcnt<H) ++miss_cnt;
 				}
 				if(miss_cnt>miss_max) {
 					fi1ter[i] = true;
@@ -258,11 +261,20 @@ public abstract class EmissionModel {
 	private void makeEmissionUnits() {
 		// TODO Auto-generated method stub
 		this.emission = new EmissionUnit[M];
-		for(int i=0; i<M; i++) 
-			emission[i] = new EmissionUnit(de.getAllele().get(i),
-					H*2,
-					K,
-					bfrac(i));
+		switch(this.field) {
+		case AD:
+			for(int i=0; i<M; i++) 
+				emission[i] = new EmissionAD(de.getAllele().get(i), bfrac(i));
+
+			break;
+		case GT:
+			for(int i=0; i<M; i++) 
+				emission[i] = new EmissionGT(de.getAllele().get(i), bfrac(i));
+			break;
+		default:
+			throw new RuntimeException("!!!");
+
+		}
 	}
 	
 	private void makePathUnits() {
@@ -328,13 +340,29 @@ public abstract class EmissionModel {
 
 	protected void refresh() {
 		// refresh emission probabilities for obs
-		double[] emissc;
-		for(int i=0; i<M; i++) {
-			emissc = emission[i].emissc;
-			for(int j=0; j<N; j++) {
-				if(fi1ter[j]) continue;
-				obs[j][i].updateEmiss(emissc);
+		switch(this.field) {
+		case AD:
+			double[] emissc1;
+			for(int i=0; i<M; i++) {
+				emissc1 = ((EmissionAD) emission[i]).emissc;
+				for(int j=0; j<N; j++) {
+					if(fi1ter[j]) continue;
+					obs[j][i].updateEmiss(emissc1);
+				}
 			}
+			break;
+		case GT:
+			double[][] emissc2;
+			for(int i=0; i<M; i++) {
+				emissc2 = ((EmissionGT) emission[i]).emissc;
+				for(int j=0; j<N; j++) {
+					if(fi1ter[j]) continue;
+					obs[j][i].updateEmiss(emissc2);
+				}
+			}
+			break;
+		default:
+			throw new RuntimeException("!!!");
 		}
 	}
 	
@@ -373,40 +401,46 @@ public abstract class EmissionModel {
 	}
 	
 	protected class ObUnit {
+		private final int pid;  // pedigree indexer: 0, 1 - two parents; 2 - f1
 		private final int cov;	// depth of coverage
 		private final int aa;	// A-allele depth
 		protected final double[] emiss; // place holder for emission probs
 		protected final double[] logscale;
 		
-		public ObUnit(int cov, int aa, int k) {
+		public ObUnit(int pid, int cov, int aa, int k) {
 			// TODO Auto-generated constructor stub
+			this.pid = pid;
 			this.cov = cov;
 			this.aa = aa;
 			this.emiss = new double[k];
 			this.logscale = new double[3];
 		}
 
-		public double getLogScale(final int i) {
+		public double getLogScale() {
 			// TODO Auto-generated method stub
-			if(i==parents_i[0])
-				return logscale[0];
-			else if(i==parents_i[1])
-				return logscale[1];
-			else
-				return logscale[2];
+			return logscale[pid];
 		}
 
 		public void updateEmiss(double[] emissA) {
-			if(emiss.length!=emissA.length) 
-				throw new RuntimeException("!!!");
 			if(cov==0) {
-				Arrays.fill(emiss, 1.0/emiss.length);
-				return;
+				Arrays.fill(emiss, Math.log(1.0/K));
+			} else {
+				for(int i=0; i<emiss.length; i++)
+					emiss[i] = SaddlePointExpansion.logBinomialProbability(aa, cov, emissA[i]);
 			}
-			for(int i=0; i<emiss.length; i++)
-				emiss[i] = SaddlePointExpansion.logBinomialProbability(aa, cov, emissA[i]);
 			
 			if(!logspace) switchToNormalSpace();
+		}
+		
+		public void updateEmiss(double[][] emissA) {
+			if(cov==0) {
+				Arrays.fill(emiss, 1.0/K);
+			} else {
+				for(int i=0; i<emiss.length; i++)
+					emiss[i] =  emissA[i][aa];
+			}
+			
+			if(logspace) switchToLogSpace();	
 		}
 
 		public void switchNumericSpace() {
@@ -432,8 +466,8 @@ public abstract class EmissionModel {
 
 		private void switchToLogSpace() {
 			// TODO Auto-generated method stub
-			emiss[0] = logscale[0];
-			emiss[1] = logscale[1];
+			emiss[0] = Math.log(emiss[0])+logscale[0];
+			emiss[1] = Math.log(emiss[1])+logscale[1];
 			for(int i=2; i<K; i++) {
 				emiss[i] = Math.log(emiss[i])+logscale[2];
 			}
@@ -527,58 +561,19 @@ public abstract class EmissionModel {
 		}
 	}
 
-	protected class EmissionUnit {
-		protected final String[] allele;
-		protected final double[] emiss;
+	private class EmissionAD extends EmissionUnit {
 		protected final double[] emissc;
-		protected final double bfrac;
-		protected final double[][] count;
 		protected final double[][][] cnts_prior; // priors for counting
 		
-		public EmissionUnit(final String[] allele,
-				int H,
-				int K,
+		public EmissionAD(final String[] allele,
 				final double bfrac) {
-			this.allele = allele;
-			this.emiss = new double[H];
+			super(allele, bfrac);
 			this.emissc = new double[K];
-			this.bfrac = bfrac;
-			this.count = new double[H][allele.length];
-			this.cnts_prior = new double[K][H/2][2];
-			this.prior();
+			this.cnts_prior = new double[K][H][2];
 			this.updatec();
-		}
-
-		protected void prior() {
-			// TODO Auto-generated method stub
-			BetaDistribution beta = new BetaDistribution(Constants.rg, 
-					(1-bfrac)*mu_A_e, bfrac*mu_A_e);
-			for(int i=0; i<emiss.length; i++) {
-				emiss[i] = beta.sample();
-				if(emiss[i]==0) emiss[i] = 0.001;
-				if(emiss[i]==1) emiss[i] = 0.999;
-			}
-		}
-
-		public void addCount(int s, double acnt, double bcnt) {
-			// TODO Auto-generated method stub
-			int[] hs = state.hsc[s];
-			double[][] prior = cnts_prior[s];
-			for(int i=0; i<H; i++) {
-				count[hs[i]][0] += acnt*prior[i][0];
-				count[hs[i]][1] += bcnt*prior[i][1];
-			}
 		}
 		
-		protected void update() {
-			// TODO Auto-generated method stub
-			for(int i=0; i<emiss.length; i++) {
-				emiss[i] = count[i][0]/
-				(count[i][0]+count[i][1]);
-			}
-			this.updatec();
-		}
-
+		@Override
 		protected void updatec() {
 			// TODO Auto-generated method stub
 			int[][] hsc = state.hsc;
@@ -595,16 +590,168 @@ public abstract class EmissionModel {
 			}
 		}
 		
+		@Override
+		public void addCount(int s, int a, int b, double cnt) {
+			// TODO Auto-generated method stub
+			if(a+b==0) return;
+			int[] hs = state.hsc[s];
+			double[][] prior = cnts_prior[s];
+			double acnt = a*cnt, bcnt = b*cnt;
+			for(int i=0; i<H; i++) {
+				count[hs[i]][0] += acnt*prior[i][0];
+				count[hs[i]][1] += bcnt*prior[i][1];
+			}
+		}	
+	}
+	
+	private class EmissionGT extends EmissionUnit {
+		protected final double[][] emissc;
+		protected final double[][][][] cnts_prior; // priors for counting
+		
+		public EmissionGT(final String[] allele,
+				final double bfrac) {
+			super(allele, bfrac);
+			this.emissc = new double[K][H+1];
+			this.cnts_prior = new double[K][H+1][H][2];
+			this.updatec();
+		}
+		
+		@Override
+		protected void updatec() {
+			// TODO Auto-generated method stub
+			int[][] hsc = state.hsc;
+			double[] emissA = new double[H];
+			for(double[][][] a : cnts_prior)
+				for(double[][] b : a) 
+					for(double[] c : b)
+						Arrays.fill(c, 0);
+			for(int i=0; i<emissc.length; i++) {
+				for(int j=0; j<H; j++)
+					emissA[j] = emiss[hsc[i][j]];
+				poissonBinomialProbability(emissA, emissc[i], cnts_prior[i]);
+			}
+		}
+		
+		private void poissonBinomialProbability(double[] emissA, double[] emissc, double[][][] prior) {
+			// TODO Auto-generated method stub
+			for(int i=0; i<=H; i++) {
+				List<List<Integer>> combs = comb_hs.get(i);
+				double pA = 0;
+				double[][] prior_i = prior[i];
+				
+				for(List<Integer> comb : combs) {
+					double p = 1.0;
+					
+					int z = 0;
+					for(int j : comb) {
+						for(int k=z; k<j; k++) p *= 1-emissA[k];
+						p *= emissA[j];
+						z = j+1;
+					}
+					for(int k=z; k<H; k++) p *= 1-emissA[k];
+					
+					z = 0;
+					for(int j : comb) {
+						for(int k=z; k<j; k++) prior_i[k][1] += p;
+						prior_i[j][0] += p;
+						z = j+1;
+					}
+					for(int k=z; k<H; k++) prior_i[k][1] += p;
+					
+					pA += p;
+				}
+				
+				emissc[i] = pA;
+				
+				for(int j=0; j<H; j++) {
+					prior_i[j][0] /= pA;
+					prior_i[j][1] /= pA;
+				}
+			}
+			
+			/***
+			 * an alternative method using a recursive formula
+			 * could be helpful for high ploidy levels
+			double[] scalep = new double[H];
+			for(int i=0; i<H; i++) 
+				scalep[i] = emissA[i]/(1-emissA[i]);
+			double[] T = new double[H+1];
+			for(int i=1; i<=H; i++) 
+				for(int j=0; j<H; j++)
+					T[i] += Math.pow(scalep[j], i);
+			double p = 1.0;
+			for(int i=0; i<H; i++) p *= 1-emissA[i];
+			emiss[0] = p;
+			for(int i=1; i<=H; i++) {
+				p = 0;
+				for(int j=1; j<=i; j++) {
+					p += Math.pow(-1, j-1)*emiss[i-j]*T[j];
+				}
+				emiss[i] = p/i;
+			}
+			***/
+		}
+		
+		@Override
+		public void addCount(int s, int a, int b, double cnt) {
+			// TODO Auto-generated method stub
+			if(a+b==0) return;
+			int[] hs = state.hsc[s];
+			double[][] prior = cnts_prior[s][a];
+			for(int i=0; i<H; i++) {
+				count[hs[i]][0] += cnt*prior[i][0];
+				count[hs[i]][1] += cnt*prior[i][1];
+			}
+		}
+	}
+	
+	private List<List<List<Integer>>> comb_hs;
+
+	protected abstract class EmissionUnit {
+		protected final String[] allele;
+		protected final double[] emiss;
+		protected final double bfrac;
+		protected final double[][] count;
+		
+		public EmissionUnit(final String[] allele,
+				final double bfrac) {
+			this.allele = allele;
+			this.emiss = new double[H*2];
+			this.bfrac = bfrac;
+			this.count = new double[H*2][allele.length];
+			this.prior();
+		}
+
+		protected void prior() {
+			// TODO Auto-generated method stub
+			BetaDistribution beta = new BetaDistribution(Constants.rg, 
+					(1-bfrac)*mu_A_e, bfrac*mu_A_e);
+			for(int i=0; i<emiss.length; i++) {
+				emiss[i] = beta.sample();
+				if(emiss[i]==0) emiss[i] = 0.001;
+				if(emiss[i]==1) emiss[i] = 0.999;
+			}
+		}
+		
+		abstract void addCount(int s, int acnt, int bcnt, double count);
+		
+		protected void update() {
+			// TODO Auto-generated method stub
+			for(int i=0; i<emiss.length; i++) {
+				emiss[i] = count[i][0]/
+				(count[i][0]+count[i][1]);
+			}
+			this.updatec();
+		}
+
+		abstract protected void updatec();
+		
 		protected String[] getAllele() {
 			return this.allele;
 		}
 		
 		protected double[] getEmiss() {
 			return this.emiss;
-		}
-		
-		protected double[] getEmissc() {
-			return this.emissc;
 		}
 		
 		protected double getBfrac() {
@@ -615,7 +762,7 @@ public abstract class EmissionModel {
 			return this.count;
 		}
 		
-		protected void pseudo() {
+		protected void pseudoCount() {
 			for(int i=0; i<count.length; i++) {
 				count[i][0] = (1-bfrac)*mu_A_m;
 				count[i][1] = bfrac*mu_A_m;
