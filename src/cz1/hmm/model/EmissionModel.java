@@ -28,6 +28,7 @@ public abstract class EmissionModel {
 	
 	protected final static double mu_A_e = 10;
 	protected final static double mu_A_m = 0.1;
+	protected final static double mu_A_r = 1e-12;
 	
 	// at least 3 markers or 30% markers to keep a sample
 	// at least 30 f1 progeny to run the program
@@ -130,7 +131,7 @@ public abstract class EmissionModel {
 		System.arraycopy(pos, 0, true_pos, m, pos.length);
 		m += pos.length;
 		for(int i=1; i<de.length; i++) {
-			conjs.add(de[0].modelLength());
+			conjs.add(de[0].modelLength()-1);
 			de[0].addAll(de[i], seperation[i-1]);
 			pos = de[i].getIntegerPosition();
 			Arrays.fill(true_id, m, m+pos.length, de[i].getId());
@@ -764,8 +765,8 @@ public abstract class EmissionModel {
 		
 		protected void pseudoCount() {
 			for(int i=0; i<count.length; i++) {
-				count[i][0] = (1-bfrac)*mu_A_m;
-				count[i][1] = bfrac*mu_A_m;
+				count[i][0] = mu_A_r+emiss[i]*mu_A_m;
+				count[i][1] = mu_A_r+(1-emiss[i])*mu_A_m;
 			}
 		}
 	}

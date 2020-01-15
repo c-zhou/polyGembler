@@ -24,6 +24,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 	
 	protected final static double mu_J_e = 1e5;
 	protected final static double mu_J_m = 0.1;
+	protected final static double mu_J_r = 1e-12;
 	protected final static double con_base_r = 1e-8;
 
 	private static int bwt_iter = 0;
@@ -299,7 +300,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 
 		TransitionUnit t1;
 		t1 = transition[i];
-		t1.pseudo();
+		t1.pseudoCount();
 		for(int j=0;j<N; j++) {
 			if(fi1ter[j]||j==parents_i[0]||j==parents_i[1]) continue;
 			
@@ -850,9 +851,9 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			return jump;
 		}
 		
-		protected void pseudo() {
-			count[0] = (1-pseudo)*mu_J_m;
-			count[1] = pseudo*mu_J_m;
+		protected void pseudoCount() {
+			count[0] = mu_J_r+jump*mu_J_m;
+			count[1] = mu_J_r+(1-jump)*mu_J_m;
 		}
 	}
 	

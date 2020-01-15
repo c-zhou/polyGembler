@@ -89,6 +89,12 @@ public abstract class RFUtils extends Executor {
 				ModelReader modelReader = new ModelReader(file);
 				int[] haps_observed = modelReader.getHapCounts();
 				
+				if(haps_observed.length!=ploidy*2) {
+					// some founder haplotypes are missing
+					modelReader.close();
+					return;
+				}
+				
 				boolean drop = false;				
 				double[] phases = new double[ploidy*2];
 				for(int z=0; z<phases.length; z++) 
@@ -102,6 +108,7 @@ public abstract class RFUtils extends Executor {
 						Utils.paste(haps_observed,",")+"\t"+file);
 
 				if(drop) {
+					// founder haplotypes with big skewness
 					modelReader.close();
 					return;
 				}
