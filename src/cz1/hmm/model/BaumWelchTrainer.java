@@ -302,7 +302,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		t1 = transition[i];
 		t1.pseudoCount();
 		for(int j=0;j<N; j++) {
-			if(fi1ter[j]||j==parents_i[0]||j==parents_i[1]) continue;
+			if(fi1ter[j]) continue;
 			
 			ss = sspace.get(j);
 			fw1 = forward[j];
@@ -619,8 +619,6 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 	protected class StateUnit1 extends StateUnit {
 		private final int confs; // #confs
 		private final int[][] confs_hsc; // confs of compound hidden states
-		
-		private final int[][] confs_tab; // summary of confs
 		private final int[][] confs_cnt; // confs for probability calculation
 		/***
 		 * p is the probability of jumps
@@ -635,7 +633,6 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		public StateUnit1(final int h) {
 			super(h);
 			confs = (h/2+1)*(h/2+2)/2+1;
-			confs_tab = new int[confs][2];
 			confs_hsc = new int[hsc.length][hsc.length];
 			confs_cnt = new int[confs][h+1];
 			
@@ -647,6 +644,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			final int h = hs.length/4;
 			final int k = hsc.length;
 			// make confs look up table
+			int[][] confs_tab = new int[confs][2];
 			final Map<String, Integer> confs_str = new HashMap<>();
 			int c = 0;
 			for(int i=0; i<=h; i++) {
@@ -658,6 +656,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 					confs_tab[c][1] = j;
 				}
 			}
+			
 			// make compound states look up table
 			int comn0, comn1;
 			int[] h0i = new int[h], 
@@ -692,7 +691,13 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 				}
 			}
 			
-			int[] probs;
+			// hidden states for parents 
+			int[] probs = confs_cnt[0];
+			int h2 = h*2;
+			for(int i=0; i<=h2; i++)
+				probs[i] = f(h2, h2, i);
+			
+			// hidden states for f1 progeny
 			int[] comns0, comns1;
 			for(int i=1; i<confs; i++) {
 				comn0 = confs_tab[i][0];
@@ -708,6 +713,8 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		
 		private int f(int n, int a, int b) {
 			// TODO Auto-generated method stub
+			// two sets of /n elements with /a elements in common
+			// calculates #permutation with /b elements matches 
 			// inefficient but straightforward
 			/***
 			 * f(n,a,b) = c(a,b)*f(n-b,a-b,0)
@@ -727,22 +734,23 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			clear(cnts);
 			
 			final int h = hs.length/2;
-			trans[0] = 1.0;
-			cnts[0][0] = 0.0;
-			cnts[0][1] = h;
 			int[] cnt;
 			final double stay = 1-p;
 			final double jump = p/(h-1);
-			for(int i=1; i<confs; i++) {
+			double p1, pA;
+			for(int i=0; i<confs; i++) {
 				cnt = confs_cnt[i];
-				double[] probs = new double[h+1];
-				for(int j=0; j<=h; j++) 
-					probs[j] = cnt[j]*Math.pow(jump, h-j)*Math.pow(stay, j);
-				trans[i] = StatUtils.sum(probs);
+				pA = 0;
 				for(int j=0; j<=h; j++) {
-					cnts[i][0] += (h-j)*probs[j]/trans[i];
-					cnts[i][1] += j*probs[j]/trans[i];
+					p1 = cnt[j]*Math.pow(jump, h-j)*Math.pow(stay, j);
+					cnts[i][0] += (h-j)*p1;
+					cnts[i][1] += j*p1;
+					pA += p1;
 				}
+				
+				trans[i] = pA;
+				cnts[i][0] /= pA;
+				cnts[i][1] /= pA;
 			}
 		}
 		

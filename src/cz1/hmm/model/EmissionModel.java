@@ -182,7 +182,7 @@ public abstract class EmissionModel {
 		Integer[] progeny_s = new Integer[K-2];
 		for(int i=0; i<K-2; i++) progeny_s[i] = i+2;
 		for(int i : progeny_i) sspace.set(i, progeny_s);
-		this.weights = new double[]{1.0, 1.0}; //this.field==Field.GT ? new double[] {Nf1/2.0, 1.0} : new double[]{1.0, 1.0};
+		this.weights = this.field==Field.GT ? new double[] {Nf1/2.0, 1.0} : new double[]{1.0, 1.0};
 		Integer[] hs = new Integer[H];
 		for(int i=0; i<H; i++) hs[i] = i;
 		this.comb_hs = new ArrayList<List<List<Integer>>>();
