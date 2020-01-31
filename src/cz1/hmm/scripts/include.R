@@ -270,7 +270,7 @@ dist_tsp <- function(clus, distanceAll, indexMat, preorder=NULL, nn=1) {
 	}
 	
 	max_d = max(d[is.finite(d)])
-	d = d+max_d+1e-3
+	d = d+max_d+1e-1
 	d[d==-Inf] = 1e-3
 	d[is.na(d)] = 1e-2
     diag(d) = 0
