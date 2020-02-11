@@ -335,6 +335,9 @@ public class Haplotyper extends Executor {
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
+        long currentNanoTime1 = System.nanoTime();
+        Runtime jr = Runtime.getRuntime();
+
 		myLogger.info("Random seed - "+Constants.seed);
 
 		DataEntry[] de = start_pos==null ? DataCollection.readDataEntry(in_zip, scaff, ploidy) :
@@ -384,5 +387,14 @@ public class Haplotyper extends Executor {
 		}
 		
 		model1.write(out_prefix, expr_id, scaff_str);
+		
+        long currentNanoTime2 = System.nanoTime();
+
+        jr.gc();
+        long totalMemory = jr.totalMemory();
+        long freeMemory = jr.freeMemory();
+
+        myLogger.error("Memory Usage: "+(totalMemory-freeMemory)/1024d/1024d+" megabytes.");
+        myLogger.error("Time Usage: "+(currentNanoTime2-currentNanoTime1)/1e9+" seconds.");
 	}
 }
