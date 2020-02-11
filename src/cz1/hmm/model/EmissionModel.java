@@ -28,7 +28,11 @@ public abstract class EmissionModel {
 	
 	protected final static double mu_A_e = 10;
 	protected final static double mu_A_m = 0.1;
-	protected final static double mu_A_r = 1e-12;
+	protected static double mu_A_p = 0; //precision
+	
+	public static void setA(double a) {
+		mu_A_p = a;
+	}
 	
 	// at least 3 markers or 30% markers to keep a sample
 	// at least 30 f1 progeny to run the program
@@ -52,7 +56,6 @@ public abstract class EmissionModel {
 	protected int[] parents_i;
 	protected int[] progeny_i;
 	protected double[] distance;
-	protected double[] weights;
 	
 	protected List<Integer[]> sspace; // state space for each sample
 	
@@ -62,10 +65,12 @@ public abstract class EmissionModel {
 	protected PathUnit[] pas;
 	
 	protected final List<Integer> conjs = new ArrayList<>(); // conjunctive position
+	protected final List<Integer> indvs = new ArrayList<>(); // training set 
 	
 	protected boolean logspace;
 	protected String[] chrs;
 	protected boolean[] chrs_rev;
+	protected boolean train_founder;
 	
 	abstract double loglik();
 	abstract double loglik(int fromMIndex, int toMIndex);
@@ -80,12 +85,14 @@ public abstract class EmissionModel {
 			Field field,
 			int ploidy,
 			String[] parents,
+			boolean train_founder,
 			boolean logspace) {
 		this.field = field;
 		this.de = this.catDE(de, seperation, reverse);
 		this.logspace = logspace;
 		this.H = ploidy;
 		this.parents = parents;
+		this.train_founder = train_founder;
 		this.initialise();
 	}
 	
@@ -94,8 +101,9 @@ public abstract class EmissionModel {
 			boolean[] reverse,
 			Field field,
 			int ploidy,
-			String[] parents) {
-		this(de, seperation, reverse, field, ploidy, parents, true);
+			String[] parents,
+			boolean train_founder) {
+		this(de, seperation, reverse, field, ploidy, parents, train_founder, false);
 	}
 	
 	public EmissionModel() {
@@ -170,6 +178,8 @@ public abstract class EmissionModel {
 			parents_i[i] = pars.get(i);
 		if(pros.isEmpty()) throw new RuntimeException("No progeny sample provided!!!");
 		this.progeny_i = ArrayUtils.toPrimitive(pros.toArray(new Integer[pros.size()]));
+		if(train_founder) this.indvs.addAll(pars);
+		else this.indvs.addAll(pros);
 		this.fi1ter = new boolean[N];
 		double[] position = de.getPosition();
 		this.distance = new double[this.M-1];
@@ -182,7 +192,6 @@ public abstract class EmissionModel {
 		Integer[] progeny_s = new Integer[K-2];
 		for(int i=0; i<K-2; i++) progeny_s[i] = i+2;
 		for(int i : progeny_i) sspace.set(i, progeny_s);
-		this.weights = this.field==Field.GT ? new double[] {Nf1/2.0, 1.0} : new double[]{1.0, 1.0};
 		Integer[] hs = new Integer[H];
 		for(int i=0; i<H; i++) hs[i] = i;
 		this.comb_hs = new ArrayList<List<List<Integer>>>();
@@ -347,7 +356,7 @@ public abstract class EmissionModel {
 			for(int i=0; i<M; i++) {
 				emissc1 = ((EmissionAD) emission[i]).emissc;
 				for(int j=0; j<N; j++) {
-					if(fi1ter[j]) continue;
+					if(fi1ter[j]||!indvs.contains(j)) continue;
 					obs[j][i].updateEmiss(emissc1);
 				}
 			}
@@ -357,7 +366,7 @@ public abstract class EmissionModel {
 			for(int i=0; i<M; i++) {
 				emissc2 = ((EmissionGT) emission[i]).emissc;
 				for(int j=0; j<N; j++) {
-					if(fi1ter[j]) continue;
+					if(fi1ter[j]||!indvs.contains(j)) continue;
 					obs[j][i].updateEmiss(emissc2);
 				}
 			}
@@ -423,6 +432,7 @@ public abstract class EmissionModel {
 		}
 
 		public void updateEmiss(double[] emissA) {
+			Arrays.fill(this.logscale, 0);
 			if(cov==0) {
 				Arrays.fill(emiss, Math.log(1.0/K));
 			} else {
@@ -434,6 +444,7 @@ public abstract class EmissionModel {
 		}
 		
 		public void updateEmiss(double[][] emissA) {
+			Arrays.fill(this.logscale, 0);
 			if(cov==0) {
 				Arrays.fill(emiss, 1.0/K);
 			} else {
@@ -729,8 +740,8 @@ public abstract class EmissionModel {
 					(1-bfrac)*mu_A_e, bfrac*mu_A_e);
 			for(int i=0; i<emiss.length; i++) {
 				emiss[i] = beta.sample();
-				if(emiss[i]==0) emiss[i] = 0.001;
-				if(emiss[i]==1) emiss[i] = 0.999;
+				emiss[i] = Math.max(emiss[i], mu_A_p);
+				emiss[i] = Math.min(emiss[i], 1-mu_A_p);
 			}
 		}
 		
@@ -741,6 +752,8 @@ public abstract class EmissionModel {
 			for(int i=0; i<emiss.length; i++) {
 				emiss[i] = count[i][0]/
 				(count[i][0]+count[i][1]);
+				emiss[i] = Math.max(emiss[i], mu_A_p);
+				emiss[i] = Math.min(emiss[i], 1-mu_A_p);
 			}
 			this.updatec();
 		}
@@ -765,8 +778,8 @@ public abstract class EmissionModel {
 		
 		protected void pseudoCount() {
 			for(int i=0; i<count.length; i++) {
-				count[i][0] = mu_A_r+emiss[i]*mu_A_m;
-				count[i][1] = mu_A_r+(1-emiss[i])*mu_A_m;
+				count[i][0] = (1-bfrac)*mu_A_m;// emiss[i]*mu_A_m; //(1-bfrac)*mu_A_m;
+				count[i][1] =  bfrac*mu_A_m; //(1-emiss[i])*mu_A_m; //bfrac*mu_A_m; 
 			}
 		}
 	}

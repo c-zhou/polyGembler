@@ -21,7 +21,7 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 			int ploidy,
 			String[] parents) {
 		// TODO Auto-generated constructor stub
-		super(de, seperation, reverse, field, ploidy, parents, true);
+		super(de, seperation, reverse, field, ploidy, parents, true, true);
 		this.makeNaiveTrainer();
 	}
 
@@ -118,7 +118,7 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 	public void forward() {
 		// TODO Auto-generated method stub
 		for(int i=0; i<N; i++) {
-			if(fi1ter[i]) continue;
+			if(fi1ter[i]||!indvs.contains(i)) continue;
 			
 			Integer[] ss = sspace.get(i);
 			double pi = Math.log(1.0/ss.length);
@@ -145,7 +145,7 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 	public void backward() {
 		// TODO Auto-generated method stub
 		for(int i=0; i<N; i++) {
-			if(fi1ter[i]) continue;
+			if(fi1ter[i]||!indvs.contains(i)) continue;
 			
 			Integer[] ss = sspace.get(i);
 			double[][] probsMat = backward[i].probsMat;
@@ -175,7 +175,7 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 		// TODO Auto-generated method stub
 		FBUnit fw1, bw1;
 		ObUnit ob1;
-		double count, coeff;
+		double count;
 		Integer[] ss;
 		
 		int acnt, bcnt;
@@ -185,7 +185,7 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 			e1.pseudoCount();
 			
 			for(int j=0;j<N; j++) {
-				if(fi1ter[j]) continue;
+				if(fi1ter[j]||!indvs.contains(j)) continue;
 				
 				ss = sspace.get(j);
 				fw1 = forward[j];
@@ -193,11 +193,9 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 				ob1 = obs[j][i];
 				acnt = ob1.getAa();
 				bcnt = ob1.getCov()-acnt;
-				coeff = weights[j==parents_i[0]||j==parents_i[1]?0:1];
 				
 				for(int a : ss) {
-					count = coeff*
-							Math.exp(fw1.probsMat[i][a]+
+					count = Math.exp(fw1.probsMat[i][a]+
 							bw1.probsMat[i][a]-
 							fw1.probability);
 					e1.addCount(a, acnt, bcnt, count);
@@ -215,8 +213,10 @@ public class ModelTrainer extends EmissionModel implements ForwardBackwardTraine
 			return Double.NEGATIVE_INFINITY;
 		else {
 			double probability = 0;
-			for(int i=0; i<N; i++)
-				probability += weights[i==parents_i[0]||i==parents_i[1]?0:1]*this.forward[i].probability;
+			for(int i=0; i<N; i++) {
+				if(fi1ter[i]||!indvs.contains(i)) continue;
+				probability += this.forward[i].probability;
+			}
 			return probability;
 		}
 	}

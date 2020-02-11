@@ -351,7 +351,7 @@ public class Haplotyper extends Executor {
 			myLogger.info("#iteration "+model.iteration()+": loglik "+ll);
 			if(ll-ll0<-1e-6)
 				throw new RuntimeException("Fatal error, likelihood decreased!");
-			if( ll0!=Double.NEGATIVE_INFINITY && 
+			if( ll==0 || ll0!=Double.NEGATIVE_INFINITY && 
 					Math.abs((ll-ll0)/ll0) < minImprov)
 				break;
 			ll0 = ll;
@@ -361,13 +361,94 @@ public class Haplotyper extends Executor {
 		final BaumWelchTrainer model1 = BaumWelchTrainer.copyOf(model);
 		
 		ll0 = Double.NEGATIVE_INFINITY;
+		
+		double[] ll1 = null;
+		double[] ll2 = null;
+		double[] ll3 = null;
+		double[] ll4 = null;
+		double[] ll5 = null;
+		double[][] e1 = null;
+		double[][] e2 = null;
+		double[][] e3 = null;
+		double[][] e4 = null;
+		double[][] e5 = null;
+		
+		
 		for(int i=0; i<max_iter; i++) {
+			
+			if(model1.iteration()==31) {
+				ll1 = model1.getIndvProbs();
+				e1 = model1.getEmissProbs();
+			}
+			if(model1.iteration()==32) {
+				ll2 = model1.getIndvProbs();
+				e2 = model1.getEmissProbs();
+			}
+			if(model1.iteration()==33) {
+				ll3 = model1.getIndvProbs();
+				e3 = model1.getEmissProbs();
+			}
+			if(model1.iteration()==34) {
+				ll4 = model1.getIndvProbs();
+				e4 = model1.getEmissProbs();
+				
+				//BaumWelchTrainer.setA(0);
+			}
 			model1.train();
+			
+			
+			if(model1.iteration()==35) {
+				ll5 = model1.getIndvProbs();
+				e5 = model1.getEmissProbs();
+				
+				for(int k=0; k<ll1.length; k++)
+					System.out.print(ll1[k]+",");
+				System.out.println();
+				for(int k=0; k<ll2.length; k++)
+					System.out.print(ll2[k]+",");
+				System.out.println();
+				for(int k=0; k<ll3.length; k++)
+					System.out.print(ll3[k]+",");
+				System.out.println();
+				for(int k=0; k<ll4.length; k++)
+					System.out.print(ll4[k]+",");
+				System.out.println();
+				for(int k=0; k<ll5.length; k++)
+					System.out.print(ll5[k]+",");
+				System.out.println();
+				
+				for(int k=0; k<e5.length; k++) {
+					double[] emiss1 = e5[k];
+					double[] emiss2 = e4[k];
+					
+					boolean print = false;
+					for(int w=0; w<emiss1.length; w++) {
+						if(emiss1[w]-emiss2[w]!=0) {
+							print = true;
+							break;
+						}
+					}
+					if(print) {
+						System.out.print(k+":\t\t");
+						for(int w=0; w<emiss1.length; w++)
+							System.out.print(emiss1[w]+",");
+						System.out.print("\t\t");
+						for(int w=0; w<emiss2.length; w++)
+							System.out.print(emiss2[w]+",");
+						System.out.print("\t\t");
+						for(int w=0; w<emiss1.length; w++)
+							System.out.print((emiss1[w]-emiss2[w])+",");
+						System.out.print("\n");
+					}
+				}
+				
+			}
+			
 			ll = model1.loglik();
 			myLogger.info("#iteration "+model1.iteration()+": loglik "+ll);
 			if(ll-ll0<-1e-6)
 				throw new RuntimeException("Fatal error, likelihood decreased!");
-			if( ll0!=Double.NEGATIVE_INFINITY && 
+			if( ll==0 || ll0!=Double.NEGATIVE_INFINITY && 
 					Math.abs((ll-ll0)/ll0) < minImprov)
 				break;
 			ll0 = ll;
