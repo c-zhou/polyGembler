@@ -923,7 +923,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		
 		protected void pseudoCount() {
 			count[0] = (1-base_r)*mu_J_m;  // jump*mu_J_m;
-			count[1] = base_r*mu_J_e*mu_J_m; // (1-jump)*mu_J_m;
+			count[1] = base_r*mu_J_m; // (1-jump)*mu_J_m;
 		}
 	}
 	
