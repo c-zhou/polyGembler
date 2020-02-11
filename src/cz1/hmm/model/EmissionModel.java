@@ -28,7 +28,7 @@ public abstract class EmissionModel {
 	
 	protected final static double mu_A_e = 10;
 	protected final static double mu_A_m = 0.1;
-	protected final static double mu_A_r = 1e-12;
+	protected final static double mu_A_p = 1e-6; //precision
 	
 	// at least 3 markers or 30% markers to keep a sample
 	// at least 30 f1 progeny to run the program
@@ -423,6 +423,7 @@ public abstract class EmissionModel {
 		}
 
 		public void updateEmiss(double[] emissA) {
+			Arrays.fill(this.logscale, 0);
 			if(cov==0) {
 				Arrays.fill(emiss, Math.log(1.0/K));
 			} else {
@@ -434,6 +435,7 @@ public abstract class EmissionModel {
 		}
 		
 		public void updateEmiss(double[][] emissA) {
+			Arrays.fill(this.logscale, 0);
 			if(cov==0) {
 				Arrays.fill(emiss, 1.0/K);
 			} else {
@@ -729,8 +731,8 @@ public abstract class EmissionModel {
 					(1-bfrac)*mu_A_e, bfrac*mu_A_e);
 			for(int i=0; i<emiss.length; i++) {
 				emiss[i] = beta.sample();
-				if(emiss[i]==0) emiss[i] = 0.001;
-				if(emiss[i]==1) emiss[i] = 0.999;
+				emiss[i] = Math.max(emiss[i], mu_A_p);
+				emiss[i] = Math.min(emiss[i], 1-mu_A_p);
 			}
 		}
 		
@@ -741,6 +743,8 @@ public abstract class EmissionModel {
 			for(int i=0; i<emiss.length; i++) {
 				emiss[i] = count[i][0]/
 				(count[i][0]+count[i][1]);
+				emiss[i] = Math.max(emiss[i], mu_A_p);
+				emiss[i] = Math.min(emiss[i], 1-mu_A_p);
 			}
 			this.updatec();
 		}
@@ -765,8 +769,8 @@ public abstract class EmissionModel {
 		
 		protected void pseudoCount() {
 			for(int i=0; i<count.length; i++) {
-				count[i][0] = mu_A_r+emiss[i]*mu_A_m;
-				count[i][1] = mu_A_r+(1-emiss[i])*mu_A_m;
+				count[i][0] = emiss[i]*mu_A_m;
+				count[i][1] = (1-emiss[i])*mu_A_m;
 			}
 		}
 	}

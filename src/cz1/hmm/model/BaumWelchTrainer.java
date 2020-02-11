@@ -24,7 +24,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 	
 	protected final static double mu_J_e = 1e5;
 	protected final static double mu_J_m = 0.1;
-	protected final static double mu_J_r = 1e-12;
+	protected final static double mu_J_p = 1e-8; //precision
 	protected final static double con_base_r = 1e-8;
 
 	private static int bwt_iter = 0;
@@ -788,7 +788,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 	protected class TransitionUnit {
 		private final double[] trans;
 		private final double distance;
-		private final double pseudo;
+		private final double base_r;
 		private double jump;
 		protected final double[] count;
 		private final double[][] cnts_prior; // priors for counting jumps
@@ -797,7 +797,7 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		public TransitionUnit(final double distance,
 				final int K) {
 			this.distance = distance;
-			this.pseudo = Math.exp(-distance*con_base_r);
+			this.base_r = Math.exp(-2*distance*con_base_r);
 			this.jump = prior();
 			this.trans = new double[K];
 			this.count = new double[2];
@@ -821,15 +821,17 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 			double c = count[0]+count[1];
 			if(c==0) jump = 0.5;
 			else jump = count[0]/c;
+			jump = Math.max(jump, mu_J_p);
+			jump = Math.min(jump, 0.5-mu_J_p);
 			this.updatec();
 		}
 		
 		private double prior() {
 			// TODO Auto-generated method stub
 			double p = new BetaDistribution(Constants.rg, 
-					(1-pseudo)*mu_J_e, pseudo*mu_J_e).sample();
-			if(p==0) p = 1e-9;
-			if(p==1) p = 1-1e-9;
+					(1-base_r)*mu_J_e, base_r*mu_J_e).sample()*0.5;
+			p = Math.max(p, mu_J_p);
+			p = Math.min(p, 0.5-mu_J_p);
 			return p;
 		}
 		
@@ -860,8 +862,8 @@ public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTr
 		}
 		
 		protected void pseudoCount() {
-			count[0] = mu_J_r+jump*mu_J_m;
-			count[1] = mu_J_r+(1-jump)*mu_J_m;
+			count[0] = (1-base_r)*mu_J_m;;
+			count[1] = base_r*mu_J_m;;
 		}
 	}
 	

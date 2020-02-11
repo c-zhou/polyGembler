@@ -348,13 +348,11 @@ public class Haplotyper extends Executor {
 		for(int i=0; i<max_iter; i++) {
 			model.train();
 			ll = model.loglik();
-			myLogger.info("#iteration "+model.iteration()+": loglik "+ll);
-			if(ll-ll0<-1e-6)
-				throw new RuntimeException("Fatal error, likelihood decreased!");
-			if( ll0!=Double.NEGATIVE_INFINITY && 
-					Math.abs((ll-ll0)/ll0) < minImprov)
+			if( ll==0 || ll0!=Double.NEGATIVE_INFINITY && 
+					(ll0-ll)/ll0 < minImprov)
 				break;
 			ll0 = ll;
+			myLogger.info("#iteration "+model.iteration()+": loglik "+ll);
 		}
 
 		myLogger.info("=> STAGE II. training emission model with transitions allowed.");
@@ -364,13 +362,11 @@ public class Haplotyper extends Executor {
 		for(int i=0; i<max_iter; i++) {
 			model1.train();
 			ll = model1.loglik();
-			myLogger.info("#iteration "+model1.iteration()+": loglik "+ll);
-			if(ll-ll0<-1e-6)
-				throw new RuntimeException("Fatal error, likelihood decreased!");
-			if( ll0!=Double.NEGATIVE_INFINITY && 
-					Math.abs((ll-ll0)/ll0) < minImprov)
+			if( ll==0 || ll0!=Double.NEGATIVE_INFINITY && 
+					(ll0-ll)/ll0 < minImprov)
 				break;
 			ll0 = ll;
+			myLogger.info("#iteration "+model1.iteration()+": loglik "+ll);
 		}
 		
 		String scaff_str = scaff[0]+
