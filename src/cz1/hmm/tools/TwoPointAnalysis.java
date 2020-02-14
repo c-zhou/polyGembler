@@ -366,7 +366,7 @@ public class TwoPointAnalysis extends RFUtils {
 		private void collectData(FileObject file) {
 			// TODO Auto-generated method stub
 			ModelReader modelReader = new ModelReader(file.file);
-			Map<String, char[][]> haps = modelReader.getHaplotypeByPosition(file.position, ploidy, smooth);
+			Map<String, char[][]> haps = modelReader.getHaplotypeByPositionRange(file.position, ploidy, smooth);
 			modelReader.close();
 			for(String f : parents) if(f!=null) haps.remove(f);
 			if(haps.size()!=nF1) throw new RuntimeException("!!!");
@@ -402,8 +402,7 @@ public class TwoPointAnalysis extends RFUtils {
 	private void collectData() {
 		// TODO Auto-generated method stub
 		this.initial_thread_pool();
-		final String[] scaffs = new String[fileObj.keySet().size()];
-		fileObj.keySet().toArray(scaffs);
+		final String[] scaffs = fileObj.keySet().toArray(new String[fileObj.size()]);
 		dc = new PhasedDataCollection[scaffs.length][best_n];
 		for(int i=0; i<scaffs.length; i++) {
 			List<FileObject> objs = fileObj.get(scaffs[i]);

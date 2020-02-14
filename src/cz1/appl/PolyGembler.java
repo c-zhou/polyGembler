@@ -5,6 +5,7 @@ import org.apache.log4j.Logger;
 import cz1.hmm.tools.AssemblyError;
 import cz1.hmm.tools.DataPreparation;
 import cz1.hmm.tools.Gembler;
+import cz1.hmm.tools.HaplotypeAnalysis;
 import cz1.hmm.tools.Haplotyper;
 import cz1.hmm.tools.MappingAnalysis;
 import cz1.hmm.tools.NNsuperscaffold;
@@ -77,6 +78,11 @@ public class PolyGembler {
         	pseudoM.setParameters(args2);
         	pseudoM.run();
         	break;
+        case "evaluator":
+			HaplotypeAnalysis evaluator = new HaplotypeAnalysis();
+			evaluator.setParameters(args2);
+			evaluator.run();
+			break;
         case "gembler":
 			Gembler gembler = new Gembler();
 			gembler.setParameters(args2);
@@ -101,7 +107,8 @@ public class PolyGembler {
                         + " twopoint            Two-point analysis: estimate pairwise recombination fraction between contigs/scaffolds.\n"
                         + " map                 Construct linkage maps.\n"
 						+ " superscaffold       Construct superscaffold using nearest neighbour joining.\n"
-						+ " chromosomer         Construct pseudo chromosomes. \n"
+						+ " chromosomer         Construct pseudo chromosomes.\n"
+						+ " evaluator           Haplotype phasing accuracy evaluation with konwn haplotypes.\n"
 						+ " gembler             Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.\n\n");
 	}
 }

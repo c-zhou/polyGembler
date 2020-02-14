@@ -422,7 +422,7 @@ public class ModelReader {
 		throw new RuntimeException("!!!");
 	}
 	
-	public Map<String, char[][]> getHaplotypeByPosition(int[] position, int ploidy, int smooth) {
+	public Map<String, char[][]> getHaplotypeByPositionRange(int[] position, int ploidy, int smooth) {
 		// TODO Auto-generated method stub
 		if(position.length!=2) throw new RuntimeException("!!!");
 		int m = Math.abs(position[1]-position[0])+1;
@@ -483,6 +483,7 @@ public class ModelReader {
 	
 	public Map<String, char[][]> getHaplotypeByPositionRange(int[] position, int ploidy) {
 		// TODO Auto-generated method stub
+		if(position.length!=2) throw new RuntimeException("!!!");
 		try {
 			setEntryReader("haplotype");
 			final Map<String, char[][]> haps = new HashMap<>();
@@ -520,4 +521,68 @@ public class ModelReader {
 
 		throw new RuntimeException("!!!");
 	}
+
+	public String[] getSnpIdByPositionRange(int[] position) {
+		// TODO Auto-generated method stub
+		if(position.length!=2) throw new RuntimeException("!!!");
+		try {
+			setEntryReader("snp");
+			final int P = Math.abs(position[0]-position[1])+1;
+			final int skip = Math.min(position[0], position[1])-1;
+			for(int i=0; i<skip; i++) br.readLine();
+			final String[] snpIds = new String[P];
+			for(int i=0; i<P; i++)
+				snpIds[i] = br.readLine().split("\\s+")[4];
+			closeReader();
+			return snpIds;
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		throw new RuntimeException("!!!");
+	}
+
+	public Map<String, int[][]> getGenotypeByPositionRange(int[] position, int ploidy) {
+		// TODO Auto-generated method stub
+		if(position.length!=2) throw new RuntimeException("!!!");
+		try {
+			setEntryReader("genotype");
+			Map<String, int[][]> haps = new HashMap<>();
+			String line = br.readLine();
+			final String[] header = line.split("\\s+");
+			final int P = Math.abs(position[0]-position[1])+1;
+			for(int i=9; i<header.length; i++) 
+				haps.put(header[i], new int[ploidy][P]);
+			final int skip = Math.min(position[0], position[1])-1;
+			for(int i=0; i<skip; i++) br.readLine();
+			final boolean rev = position[0]>position[1];
+			String[] s, s1;
+			int k;
+			int[][] hap;
+			for(int i=0; i<P; i++) {
+				line = br.readLine();
+				s = line.split("\\s+");
+				k = rev ? (P-i-1) : i;
+				for(int j=9; j<s.length; j++) {
+					hap = haps.get(header[j]);
+					s1 = s[j].split("\\|");
+					for(int p=0; p<ploidy; p++)
+						hap[p][k] = s1[p].equals(".")?-1:Integer.parseInt(s1[p]);
+				}
+			}
+			closeReader();
+			for(String sample : haps.keySet())
+				if(haps.get(sample)[0]==null)
+					haps.remove(sample);
+			return haps;
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		throw new RuntimeException("!!!");
+	}
+	
+	
 }
