@@ -3,34 +3,28 @@ package cz1.hmm.data;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.math3.stat.StatUtils;
 
 import cz1.hmm.tools.VCFtools;
-import cz1.util.Algebra;
-import cz1.util.Combination;
-import cz1.util.Constants;
+import cz1.math.Combination;
+import cz1.math.Algebra;
 import cz1.util.Utils;
 
 public class DataCollection {
 
 	public static DataEntry[] readDataEntry(String zipFilePath,
-			String[] contig) {
+			String[] contig, int ploidy) {
 		DataEntry[] de = new DataEntry[contig.length];
 		for(int i=0; i<de.length; i++) {
 			double[] position = readPosition(zipFilePath, contig[i]);
@@ -38,7 +32,7 @@ public class DataCollection {
 			List<List<int[]>> ad = readAlleleDepth(zipFilePath, 
 					contig[i], allele);
 			List<List<double[]>> gl = readGenotypeLikelihood(
-					zipFilePath, contig[i], allele);
+					zipFilePath, contig[i], allele, ploidy);
 			List<List<String[]>> gt = readGenotype(zipFilePath, contig[i],
 					allele);
 			List<String> sample = getSampleList(zipFilePath);
@@ -48,7 +42,7 @@ public class DataCollection {
 	}
 
 	public static DataEntry[] readDataEntry(String zipFilePath,
-			String[] contig, int[] startPos, int[] endPos) {
+			String[] contig, int[] startPos, int[] endPos, int ploidy) {
 		
 		DataEntry[] de = new DataEntry[contig.length];
 		for(int i=0; i<de.length; i++) {
@@ -58,7 +52,7 @@ public class DataCollection {
 			List<List<int[]>> ad = readAlleleDepth(zipFilePath, 
 					contig[i], allele);
 			List<List<double[]>> gl = readGenotypeLikelihood(
-					zipFilePath, contig[i], allele);
+					zipFilePath, contig[i], allele, ploidy);
 			List<List<String[]>> gt = readGenotype(zipFilePath, contig[i],
 					allele);
 			List<String> sample = getSampleList(zipFilePath);
@@ -192,12 +186,12 @@ public class DataCollection {
 		// TODO Auto-generated method stub
 		try {
 			final ZipFile in = new ZipFile(zipFilePath);
-			if(in.getEntry(contigId+Constants.file_sep+"GT")==null) {
+			if(in.getEntry(contigId+"/GT")==null) {
 				in.close();
 				return null;
 			}
 			final InputStream is = in.getInputStream(
-					in.getEntry(contigId+Constants.file_sep+"GT"));
+					in.getEntry(contigId+"/GT"));
 			BufferedReader br = new BufferedReader(new InputStreamReader(is));
 			List<String[]> entry;
 			String[] genotype;
@@ -210,8 +204,8 @@ public class DataCollection {
 				s = line.split("\\s+");
 				entry = new ArrayList<String[]>();
 				for(int i=0; i<s.length; i++) {
-					genotype = new String[Constants._ploidy_H];
 					s2 = s[i].split("/");
+					genotype = new String[s2.length];
 					for(int j=0; j<s2.length; j++) 
 						if(s2[j].equals("."))
 							genotype[j] = ".";
@@ -233,16 +227,16 @@ public class DataCollection {
 	}
 
 	private static List<List<double[]>> readGenotypeLikelihood(
-			String zipFilePath, String contigId, List<String[]> allele) {
+			String zipFilePath, String contigId, List<String[]> allele, int ploidy) {
 		// TODO Auto-generated method stub
 		try {
 			final ZipFile in = new ZipFile(zipFilePath);
-			if(in.getEntry(contigId+Constants.file_sep+"PL")==null) {
+			if(in.getEntry(contigId+"/PL")==null) {
 				in.close();
 				return null;
 			}
 			final InputStream is = in.getInputStream(
-					in.getEntry(contigId+Constants.file_sep+"PL"));
+					in.getEntry(contigId+"/PL"));
 			BufferedReader br = new BufferedReader(new InputStreamReader(is));
 			List<double[]> entry;
 			double[] ll;
@@ -256,16 +250,11 @@ public class DataCollection {
 				entry = new ArrayList<double[]>();
 				for(int i=0; i<s.length; i++) {
 
-					ll = new double[Combination.nmultichoosek(n, 
-							Constants._ploidy_H)];
+					ll = new double[Combination.nmultichoosek(n, ploidy)];
 					boolean miss = true;
 					if(!s[i].equals(".")) {
 						s2 = s[i].split(",");
-						/**
-                        for(int j=0; j<s2.length; j++) 
-                            ll[j] = Math.pow(10,-
-                                    Double.parseDouble(s2[j])/10);
-						 **/
+						
 						for(int j=0; j<s2.length; j++) {
 							ll[j] = Math.pow(10,-
 									Double.parseDouble(s2[j])/10);
@@ -274,16 +263,11 @@ public class DataCollection {
 					}
 
 					if(miss) 
-						Arrays.fill(ll, -1);
+						Arrays.fill(ll, 0);
 					else
 						ll = Algebra.normalize(ll);
 
 					entry.add(ll);
-
-					//int a = Algebra.maxIndex(ll);
-					//Arrays.fill(ll, 0);
-					//ll[a] = 1;
-					//entry.add(ll);
 				}
 				gl.add(entry);
 			}
@@ -303,12 +287,12 @@ public class DataCollection {
 		// TODO Auto-generated method stub
 		try {
 			final ZipFile in = new ZipFile(zipFilePath);
-			if(in.getEntry(contigId+Constants.file_sep+"AD")==null) {
+			if(in.getEntry(contigId+"/AD")==null) {
 				in.close();
 				return null;
 			}
 			final InputStream is = in.getInputStream(
-					in.getEntry(contigId+Constants.file_sep+"AD"));
+					in.getEntry(contigId+"/AD"));
 			BufferedReader br = new BufferedReader(new InputStreamReader(is));
 			List<int[]> entry;
 			int[] depth;
@@ -352,7 +336,7 @@ public class DataCollection {
 		try {
 			final ZipFile in = new ZipFile(zipFilePath);
 			final InputStream is = in.getInputStream(
-					in.getEntry(contigId+Constants.file_sep+"allele"));
+					in.getEntry(contigId+"/allele"));
 			BufferedReader br = new BufferedReader(new InputStreamReader(is));
 			List<String> entry;
 			String line;
@@ -383,10 +367,9 @@ public class DataCollection {
 			final ZipFile in = new ZipFile(zipFilePath);
 
 			System.out.println(zipFilePath);
-			//System.out.println(contigId+Constants.file_sep+"position");
 
 			final InputStream is = in.getInputStream(
-					in.getEntry(contigId+Constants.file_sep+"position"));
+					in.getEntry(contigId+"/position"));
 			BufferedReader br = new BufferedReader(new InputStreamReader(is));
 			List<Double> pos = new ArrayList<Double>();
 			String line;
@@ -404,12 +387,12 @@ public class DataCollection {
 	}
 
 	public static DataEntry[] readDataEntry(String zipFilePath,
-			int[] contigIndex) {
+			int[] contigIndex, int ploidy) {
 		String[] contig = new String[contigIndex.length];
 		for(int i=0; i<contig.length; i++)
 			contig[i] = getContigIDFromIndex(zipFilePath,
 					contigIndex[i]);
-		return readDataEntry(zipFilePath, contig);
+		return readDataEntry(zipFilePath, contig, ploidy);
 	}
 
 	public static String getContigIDFromIndex(String zipFilePath,
@@ -549,9 +532,8 @@ public class DataCollection {
 		return null;
 	}
 
-	public static int[] getParentIndex(String zipFilePath) {
+	public static int[] getParentIndex(String zipFilePath, String[] parents) {
 		List<String> samples = getSampleList(zipFilePath);
-		String[] parents = Constants._founder_haps.split(":");
 		List<Integer> list = new ArrayList<Integer>();
 		for(String parent : parents) list.add(samples.indexOf(parent));
 		return ArrayUtils.toPrimitive(

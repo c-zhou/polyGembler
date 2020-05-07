@@ -1,8 +1,5 @@
 package cz1.simulation.model;
 
-import cz1.gbs.core.Digest;
-import cz1.gbs.core.Enzyme;
-
 import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.List;

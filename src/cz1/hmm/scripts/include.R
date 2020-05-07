@@ -1,340 +1,352 @@
 
 
-.kosambi <- function(r) .25*log((1+2*r)/(1-2*r))
-.haldane <- function(r) -.5*log(1-2*r)
-.haldane_r <- function(d) .5*(1-exp(-2*d))
-.kosambi_r <- function(d) .5*(exp(4*d)-1)/(exp(4*d)+1)
 
-.cm_d <- function(r) {
-    r[r > .5] = .5
-    r[r < -.5] = -.5
-    25*log((1+2*r)/(1-2*r))
+
+.kosambi <- function(r) {
+	r[r<0] = 0
+	r[r>.4999999] = .4999999
+	.25*log((1+2*r)/(1-2*r))
 }
 
-distTSP <- function(all, distanceAll, indexMat) {
-    n = length(all)
-    names = c()
-    for(i in 1:n) names=c(names,c(paste0(all[i],"(+)"),
-                                  paste0(all[i],"(-)")))
-    names = c(names," __DUMMY__")
-    d = matrix(NA, nrow=n*2+1, ncol=n*2+1, dimnames=list(names,names))
-    selfM = matrix(0,nrow=2,ncol=2)
-    selfM[1,2] <- selfM[2,1] <--Inf
+.haldane <- function(r) {
+	r[r<0] = 0
+	r[r>.4999999] = .4999999
+	-.5*log(1-2*r)
+}
+
+.kosambi_r <- function(d) {
+	dm=.kosambi(.4999999)
+	d[d<0] = 0
+	d[d>dm] = dm
+	.5*(exp(4*d)-1)/(exp(4*d)+1)
+}
+
+.haldane_r <- function(d) {
+	dm=.haldane(.4999999)
+	d[d<0] = 0
+	d[d>dm] = dm
+	.5*(1-exp(-2*d))
+}
+
+.cm_d <- function(r, mapfn=c("kosambi","haldane")) {
+	match.arg(mapfn)
+	mapfn = mapfn[1]
+    r[r<0] = 0
+	r[r>.4999999] = .4999999
+	if(mapfn=="haldane") {
+    	return(-50*log(1-2*r))
+    } else {
+    	return(25*log((1+2*r)/(1-2*r)))
+    }
+}
+
+.fit_mds_model <- function(mds_file, ncores=1) {
+
+	ndims = c(2,2,3,3,2,2,3,3,2,2,3,3)
+	weightfns = c("lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2","lod","lod2")
+	mapfns = c("kosambi","kosambi","kosambi","kosambi","haldane","haldane","haldane","haldane","none","none","none","none")
+	nmods = 12
+	
+	cat(paste0("Fitting ", nmods, " MDS models using ", ncores, " cores.\n"))
+	
+	registerDoParallel(ncores) ## register doParallel for child process
+	maps <- foreach(i=1:nmods) %dopar% {
+		ndim = ndims[i]
+		weightfn = weightfns[i]
+		mapfn = mapfns[i]
+		
+		map_i = tryCatch({
+					calc.maps.pc(mds_file, ndim=ndim, weightfn=weightfn, mapfn=mapfn)
+				}, error = function(cond) {
+					NULL
+				})
+		map_i
+	}
+	stopImplicitCluster()
+	
+	map = NULL
+	stress = Inf
+	
+	for(i in 1:nmods) {
+		map_i = maps[[i]]
+		if(is.null(map_i)) next
+		stress_i = map_i$smacofsym$stress
+		
+		if(stress_i<stress) {
+			stress = stress_i
+			map = map_i
+			cat(paste0("  **Model ", i, " stress-1 value: ", stress_i, "\n"))
+		} else {
+			cat(paste0("    Model ", i, " stress-1 value: ", stress_i, "\n"))
+		}
+	}
+	
+	return(map)
+}
+
+preorder_mds <- function(clus, distanceMat, lodMat, fid="", ncores=1) {
+	if(length(clus)==0) return(NULL);
+	
+	wd <- tempdir()
+	dir <- getwd()
+	setwd(wd)
+	on.exit(setwd(dir))
+	
+	temp_file <- basename(tempfile(tmpdir = wd))
+	## using 'fid' to make sure the tmp files are not overwritten 
+	## by each other although highly unlikely
+	tmp_file_mds  <- paste(fid, temp_file, sep = "")
+	
+    dists = distanceMat[clus, clus]
+    lods = lodMat[clus, clus]
+    n = length(clus)
+	
+    sink(tmp_file_mds)
+    cat(n); cat("\n")
     for(i in 1:n) {
+        for(j in 1:n) {
+            if(i>=j) next
+            cat(i); cat("\t")
+            cat(j); cat("\t")
+            cat(dists[i,j]); cat("\t")
+            cat(lods[i,j]); cat("\n")
+        }
+    }
+    sink()
+
+	map = .fit_mds_model(tmp_file_mds, ncores)
+	unlink(tmp_file_mds)
+	
+	if(is.null(map)) return(NULL)
+	
+	return(as.numeric.factor(map$locimap$locus))
+}
+
+dist_mds <- function(clus, mds_file, distanceAll, lodAll, indexMat) {
+    n = length(clus)
+    names = c()
+    for(i in 1:n) names=c(names,c(paste0(clus[i],"(+)"), paste0(clus[i],"(-)")))
+	dists = matrix(NA, nrow=n*2, ncol=n*2, dimnames=list(names,names))
+    lods = matrix(NA, nrow=n*2, ncol=n*2, dimnames=list(names,names))
+	selfR = matrix(0, nrow=2,ncol=2)
+    selfL = matrix(1000000, nrow=2,ncol=2)
+    
+	for(i in 1:n) {
         i1 = (i-1)*2+1
         i2 = i*2
         for(j in 1:n) {
             j1 = (j-1)*2+1
             j2 = j*2
-            if(i==j)
-                d[i1:i2,j1:j2] = selfM
-            else if(i<j) {
-                if(indexMat[all[i],all[j]]==-1) return(NULL);
-                r = distanceAll[indexMat[all[i],all[j]],]
-                d[i1:i2,j1:j2] = matrix(r,ncol=2,byrow=T)
-                d[j1:j2,i1:i2] = matrix(r,ncol=2,byrow=F)
+            if(i==j) {
+                dists[i1:i2,j1:j2] = selfR
+				lods[i1:i2,j1:j2] = selfL
+            } else if(i<j) {
+                k = indexMat[clus[i],clus[j]]
+				if(k==-1) return(NULL);
+                r = distanceAll[k,]
+                dists[i1:i2,j1:j2] = matrix(r,ncol=2,byrow=T)
+                dists[j1:j2,i1:i2] = matrix(r,ncol=2,byrow=F)
+				l = lodAll[k,]
+                lods[i1:i2,j1:j2] = matrix(l,ncol=2,byrow=T)
+                lods[j1:j2,i1:i2] = matrix(l,ncol=2,byrow=F)
             }
         }
     }
-    m = max(d, na.rm=T)
-    d = d+m+1e-6
-    d[d==-Inf] = 1e-12
-    d[is.na(d)] = 1e-6
-    diag(d) = 0
-    list(dMat = d,
-         dMax = m,
-         dSelf = 1e-12,
-         dNa = 1e-6)
-}
-
-ordering <- function(all, distanceAll, indexMat, method="concorde") {
-
-    if(length(all)==0) return(NA);
-    if(length(all)==1) return(
-                              list(order=all,
-                                   oriO=all,
-                                   cost=0,
-                                   error=0));
-
-    d = distTSP(all, distanceAll, indexMat)
-    tour = solve_TSP(TSP(d$dMat), method)
-    o = as.integer(tour)
-    w = which(o==length(o))
-    if(w==1 || w==length(o)) o = o[-w]
-    else o = o[c((w+1):length(o),1:(w-1))]
-    o = colnames(d$dMat)[o]
-    c = tour_length(tour)-d$dMax*(length(all)-1)-d$dSelf*length(all)-d$dNa*2
-    o2 = unique(gsub("\\(\\+\\)|\\(\\-\\)","",o))
-
-    return(list(order = o2,
-                oriO = o,
-                dist = d,
-                cost = c
-                ));
-}
-
-errorCount <- function(oo) {
-    position_ = c()
-    chr_ = c()
-    all_splits_ = strsplit(oo,"_")
-    for(i in 1:length(all_splits_)) {
-        position_ = c(position_,as.numeric(all_splits_[[i]][2]))
-        chr_ = c(chr_,all_splits_[[i]][1])
-    }
-    unique_chr_ = unique(chr_)
-
-    n = length(oo)
-    egN = n*(n-1)/2
-    egn = egN
-    eoN = 0;
-    eon = 0;
-    for(i in 1:length(unique_chr_)) {
-        w = which(chr_==unique_chr_[i])
-        e = .error(order(position_[w]))
-        eoN = eoN+e[[2]]
-        eon = eon+e[[1]]
-        egn = egn-length(w)*(length(w)-1)/2
-    }
-
-    list(egn=egn, egN=egN, eon=eon, eoN=eoN)
-}
-
-.error <- function(oo) {
-    n = length(oo)
-
-    N = n*(n-1)/2
-    e = 0
-    for(i in 1:n)
-        for(j in i:n)
-            if(i!=j && oo[i]>oo[j]) e=e+1
-    if(e>N/2) return(.error(oo[n:1]))
-    list(e, N)
-}
-
-nmi <- function(cA, cB) {
-
-    if(length(cA)!=length(cB)) return(NA)
-
-    a = unique(cA)
-    b = unique(cB)
-
-    I = matrix(nrow=length(a), ncol=length(b))
-    for(i in 1:length(a))
-        for(j in 1:length(b))
-            I[i, j] = length(intersect(
-                                       which(cA==a[i]),
-                                       which(cB==b[j])
-                                       ))
-
-    sA = apply(I,1,sum)
-    sB = apply(I,2,sum)
-
-    N = length(cA)
-
-    iAB = 0
-    for(i in 1:dim(I)[1])
-        for(j in 1:dim(I)[2])
-            if(I[i,j]!=0)
-                iAB = iAB+I[i,j]*log2(I[i,j]*N/sA[i]/sB[j])
-
-    hA = -sum(sA*log2(sA/N))
-    hB = -sum(sB*log2(sB/N))
-
-    2*iAB/(hA+hB)
-}
-
-fm <- function(cA, cB, beta=1) {
-    if(length(cA)!=length(cB)) return(NA)
-
-    a = unique(cA)
-    b = unique(cB)
-
-    rho = 0
-    for(i in 1:length(a)) {
-        wA = which(cA==a[i])
-        for(j in 1:length(b)) {
-            wB = which(cB==b[j])
-            nAB = length(intersect(wA,wB))
-            rho = rho+nAB*(nAB-1)/2
-        }
-    }
-
-    ca = table(cA)
-    nA = sum(ca*(ca-1)/2)
-    cb = table(cB)
-    nB = sum(cb*(cb-1)/2)
-
-    p = rho/nA
-    r = rho/nB
-
-    (1+beta^2)*p*r/(beta^2*p+r)
-}
-
-
-two_point <- function(in_RData, twopoint_file, out_file, fix_rf=NA) {
 	
-	load(in_RData)
-	diag(distanceMat) = Inf
-	twopoint=matrix(as.character(unlist(read.table(twopoint_file))),ncol=2)
-	n1 = dim(twopoint)[1]
-	n2 = dim(twopoint)[2]
-	clus=matrix(NA, nrow=n1, ncol=n2)
-	for(i in 1:n1)
-		for(j in 1:n2)
-			clus[i,j] = which(scaffs==twopoint[i,j])
-	
-	sink(out_file)
-	for(i in 1:dim(clus)[1]) {
-		if(is.na(clus[i,2])) {
-			cat("-c ")
-			cat(scaffs[clus[i,1]])
-			cat("\n")
-			next
-		}
-		sink("/dev/null")
-		o = ordering(clus[i,], distanceAll, indexMat)
-		sink()		
-		oR = as.numeric(o$order); oO = o$oriO
-		cat("-c ")
-		cat(paste(scaffs[oR], collapse=":"))
-		sepe = rep(NA, length(oR)-1)
-		reverse = rep("false", length(oR))
-		
-		for(j in 1:(length(oR)-1)) {
-			c_1 = oO[2*j]
-			c_2 = oO[2*j+1]
-			if(length(grep("(\\+)",c_1))>0) reverse[j]="true"
-			
-			if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-				sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],1]
-			} else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-				sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],2]
-			} else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-				sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],3]
-			} else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-				sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],4]
-			}
-		}
-		
-		if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j+1]="true"
-		if(is.na(fix_rf)) {
-			cat(" -s "); cat(paste(sepe, collapse=":"))
-		} else {
-			cat(" -s "); cat(paste(rep(fix_rf, n2-1), collapse=":"))
-		}
-		cat(" -r "); cat(paste(reverse, collapse=":"))
-		cat("\n")
-	}
-	sink()
-}
-
-nearest_neighbour_joining <- function(in_RData, out_file, nn=1, rf_thresh=.kosambi_r(.5)) {
-	
-    load(in_RData)
-    diag(distanceMat) = Inf
-    clus=matrix(NA, ncol=nn+1, nrow=0)
+	n = n*2
+    sink(mds_file)
+    cat(n); cat("\n")
     for(i in 1:n) {
-        w = sort(distanceMat[i,],index.return=T)
-        x = w$x
-        ix = w$ix
-        ux = unique(x)
-        s = 0
-        ss = list()
-        for(j in ux) {
-            s = s+sum(x==j)
-            ss[[length(ss)+1]] = which(x==j)
-            if(s>=nn) break
+        for(j in 1:n) {
+            if(i>=j) next
+            cat(i); cat("\t")
+            cat(j); cat("\t")
+            cat(dists[i,j]); cat("\t")
+            cat(lods[i,j]); cat("\n")
         }
-                
-        p = i
-        j = 1
-        while(j<length(ss)) {
-            p = c(p, ix[ss[[j]]])
-            j = j+1
-        }
-        lp = length(p)
-        cp = combs(ix[ss[[length(ss)]]],nn+1-lp)
-        n = 0
-        for(j in 1:dim(cp)[1]) {
-            ng=sort(c(p,cp[j,]))
-            if(any(distanceMat[combs(ng,2)]>rf_thresh))
-                next
-            clus=rbind(clus,ng)
-            n = n+1
-        }
-        if(n==0) clus=rbind(clus,c(p,rep(NA,nn)))
-    }
-    clus=unique(clus)
-
-    sink(out_file)
-    for(i in 1:dim(clus)[1]) {
-        if(is.na(clus[i,2])) {
-            cat("-c ")
-            cat(scaffs[clus[i,1]])
-            cat("\n")
-            next
-        }
-        sink("/dev/null")
-        o = ordering(clus[i,], distanceAll, indexMat)
-        sink()		
-        oR = as.numeric(o$order); oO = o$oriO
-        cat("-c ")
-        cat(paste(scaffs[oR], collapse=":"))
-        sepe = rep(NA, length(oR)-1)
-        reverse = rep("false", length(oR))
-
-        for(j in 1:(length(oR)-1)) {
-            c_1 = oO[2*j]
-            c_2 = oO[2*j+1]
-            if(length(grep("(\\+)",c_1))>0) reverse[j]="true"
-            
-            if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],1]
-            } else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],2]
-            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],3]
-            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],4]
-            }
-        }
-
-        if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j+1]="true"
-        cat(" -s "); cat(paste(sepe, collapse=":"))
-        cat(" -r "); cat(paste(reverse, collapse=":"))
-        cat("\n")
     }
     sink()
 }
 
-traverse <- function(adj_matrix) {
-    n = dim(adj_matrix)[1]
-    ## need to be symmetric
-    for(i in 1:(n-1))
-        for(j in (i+1):n)
-            if(adj_matrix[i,j]>0 || adj_matrix[j,i]>0)
-                adj_matrix[i,j]=adj_matrix[j,i]=1
+ordering_mds <- function(clus, distanceAll, lodAll, indexMat, fid="", ncores=1) {
 
-    visited = rep(F, n)
-    clans = rep(NA, n)
-    cn = 0
-    for(i in 1:n) {
-        if(visited[i]) next
-        cn = cn+1
-        clans[i] = cn
-        visited[i] = T
-        w = which(adj_matrix[i,]>0)
-        while(length(w)>0) {
-            w0 = w[1]
-            w=w[-1]
-            if(visited[w0]) next
-            clans[w0] = cn
-            visited[w0] = T
-            w=c(w,which(adj_matrix[w0,]>0))
-        }
+    if(length(clus)==0) return(NULL);
+    if(length(clus)==1) return(list(order=clus,
+                                   oriO=c(paste0(clus,"(+)"), paste0(clus,"(-)")),
+                                   cost=0));
+	wd <- tempdir()
+	dir <- getwd()
+	setwd(wd)
+	on.exit(setwd(dir))
+	
+	temp_file <- basename(tempfile(tmpdir = wd))
+	## using 'fid' to make sure the tmp files are not overwritten 
+	## by each other although highly unlikely
+	tmp_file_mds  <- paste(fid, temp_file, sep = "")
+	
+    dist_mds(clus, tmp_file_mds, distanceAll, lodAll, indexMat)
+	
+	map = .fit_mds_model(tmp_file_mds, ncores)
+	unlink(tmp_file_mds)
+	
+	if(is.null(map)) return(NULL)
+	
+    oR = as.numeric.factor(map$locimap$locus)
+	n = length(oR)
+	trig = rep(T, n/2)
+	
+	c1 = map$length
+	o = rep(NA, n/2)
+	oriO = rep(NA, n)
+	
+	k = 0
+	for(i in 1:n) {
+		a = oR[i]
+		b = ceiling(a/2)
+		if(trig[b]) {
+			k = k+1
+			o[k] = clus[b]
+			if(a%%2==1) {
+				oriO[k*2-1] = paste0(clus[b],"(+)")
+				oriO[k*2]   = paste0(clus[b],"(-)")
+			} else {
+				oriO[k*2-1] = paste0(clus[b],"(-)")
+				oriO[k*2]   = paste0(clus[b],"(+)")
+			}
+		}
+		trig[b] = F
+	}
+
+	 return(list(order = o,
+                oriO = oriO,
+                cost = c1));
+}
+
+INF_CM = .cm_d(0.5)
+
+sum_finite <- function(x) {sum(x[is.finite(x)])}
+
+as.numeric.factor <- function(f) {as.numeric(levels(f))[f]}
+
+dist_tsp <- function(clus, distanceAll, indexMat, preorder=NULL, nn=1) {
+    n = length(clus)
+    names = c()
+    for(i in 1:n) names=c(names,c(paste0(clus[i],"(+)"),
+                                  paste0(clus[i],"(-)")))
+    names = c(names," __DUMMY__")
+    d = matrix(NA, nrow=n*2+1, ncol=n*2+1, dimnames=list(names,names))
+	selfM = matrix(0,nrow=2,ncol=2)
+	selfM[1,2] <- selfM[2,1] <--Inf
+		
+	for(i in 1:n) {
+		i1 = (i-1)*2+1
+		i2 = i*2
+		for(j in 1:n) {
+			j1 = (j-1)*2+1
+			j2 = j*2
+			if(i==j) {
+				d[i1:i2,j1:j2] = selfM
+			} else if(i<j) {
+				if(indexMat[clus[i],clus[j]]==-1) return(NULL);
+				r = distanceAll[indexMat[clus[i],clus[j]],]
+				d[i1:i2,j1:j2] = matrix(r,ncol=2,byrow=T)
+				d[j1:j2,i1:i2] = matrix(r,ncol=2,byrow=F)
+			}
+		}
+	}
+	
+	if(!is.null(preorder)) {
+		for(i in 1:n) {
+			inf = c()
+			if(i-nn>1) inf = c(inf, 1:(i-nn-1))
+			if(i+nn<n) inf = c(inf, (i+nn+1):n)
+			inf = preorder[inf]
+			inf = c(2*(inf-1)+1, 2*inf)
+			k = preorder[i]
+			k = c(2*(k-1)+1, 2*k)
+			d[k, inf] = Inf
+			d[inf, k] = Inf
+		}
+	}
+	
+	max_d = max(d[is.finite(d)])
+	d = d+max_d+1e-1
+	d[d==-Inf] = 1e-3
+	d[is.na(d)] = 1e-2
+    diag(d) = 0
+	
+	if(any(is.infinite(d))) {
+		range_d <- range(d, na.rm = TRUE, finite = TRUE)
+		d[d == Inf] <- range_d[2] + 2* diff(range_d)
+	}
+	
+	max_d <- max(d)
+    if(n < 5){
+      ## <10 cities: concorde can only handle max 2^15
+      prec <- floor(log10(2^15/max_d))
+    }else{
+      ## regular constraint on integer is 2^31 - 1
+      prec <- floor(log10((2^31-1)/max_d/(n*2+1)))
     }
+	
+	list(d=d, p=prec)
+}
 
-    clans
+.find_prog <- function(prog) {
+	if(!is.null(concorde_path()))
+      prog_path <- paste(concorde_path(), .Platform$file.sep, prog, sep ="")
+    else prog_path <- prog
+	prog_path
+}
+
+ordering_tsp <- function(clus, distanceAll, indexMat, method="concorde", preorder=NULL, nn=1, fid="") {
+
+    if(length(clus)==0) return(NULL);
+    if(length(clus)==1) return(list(order=clus,
+                                   oriO=c(paste0(clus,"(+)"), paste0(clus,"(-)")),
+                                   cost=0));
+	wd <- tempdir()
+	dir <- getwd()
+	setwd(wd)
+	on.exit(setwd(dir))
+	
+    dat = dist_tsp(clus, distanceAll, indexMat, preorder, nn)
+	d = dat$d
+	p = dat$p
+
+	#tour = solve_TSP(TSP(d), method, control = list(precision=0))
+	temp_file <- basename(tempfile(tmpdir = wd))
+	## using 'fid' to make sure the tmp files are not overwritten 
+	## by each other although highly unlikely
+	tmp_file_in  <- paste(fid, temp_file, ".dat", sep = "")
+	tmp_file_out <- paste(fid, temp_file, ".sol", sep = "")
+	write_TSPLIB(TSP(d), file = tmp_file_in, precision=p)	
+	system2(.find_prog("concorde"),
+		args =  paste("-x -o", tmp_file_out, tmp_file_in),
+    )
+	if(!file.access(tmp_file_out) == 0)
+		stop("Solving TSP failed.")
+	tour <- scan(tmp_file_out, what = integer(0), quiet = TRUE)
+	tour <- tour[-1] + 1L
+	unlink(c(tmp_file_in, tmp_file_out, "file*", "Ofile*"))
+
+    if(is.null(tour)) return(NULL)
+	
+    o = as.integer(tour)
+    w = which(o==length(o))
+    if(w==1 || w==length(o)) o = o[-w]
+    else o = o[c((w+1):length(o),1:(w-1))]
+    o = colnames(d)[o]
+    c1 = length(tour)
+    o1 = gsub("\\(\\+\\)|\\(\\-\\)","",o)
+    n = length(o)
+    o2 = o1[seq(1,n,2)]
+    if(!all(o2==o1[seq(2,n,2)]))
+        stop("TSP tour not valid.")
+    
+    return(list(order = o2,
+                oriO = o,
+                cost = c1));
 }
 
 .simply_write_files <- function(in_RData, in_map, out_file) {
@@ -374,13 +386,13 @@ traverse <- function(adj_matrix) {
 
 .read_map_file <- function(in_map) {
 	cDx = readLines(in_map)
-	w = grep("\\*",cDx)
-	tC = gsub("\\*","",cDx[w])
+	w = grep("^C",cDx)
+	tC = gsub("^C ","",cDx[w])
 	w = c(w,length(cDx)+1)
 	dC = rep(NA, length(w)-1)
 	for(i in 1:length(dC)) {
-		rf = as.numeric(strsplit(cDx[w[i]+1],",")[[1]])
-		j = w[i]+2
+		rf = as.numeric(strsplit(cDx[w[i]+2],",")[[1]])
+		j = w[i]+3
 		while( j<w[i+1] ) {
 			rf = rbind(rf, as.numeric(strsplit(cDx[j],",")[[1]]))
 			j = j+1
@@ -392,9 +404,87 @@ traverse <- function(adj_matrix) {
 	list(dC=dC, tC=tC)
 }
 
-genetic_linkage_map <- function(in_RData, in_map, out_file, 
-                                rf_thresh=.kosambi_r(.5), 
-								make_group=TRUE, check=FALSE) {
+nn_joining <- function(in_RData, out_file, nn=2, min_lod=3, max_rf=.kosambi_r(.5)) {
+	
+    load(in_RData)
+    diag(distanceMat) = Inf
+	
+	clusts = vector("list", length = n)
+	for(i in 1:n) {
+		r = distanceMat[i,]
+		d = lodMat[i,]
+		r[r>max_rf|d<min_lod] = 0.5
+		
+		ux = sort(unique(r))
+		nb = c()
+        for(x in ux) {
+			if(x>max_rf) break
+			nb = c(nb, which(r==x))
+            if(length(nb)>=nn) break
+        }
+		clusts[[i]] = c(i, nb)
+	}
+	trig = rep(T, n)
+	
+	for(i in 1:(n-1)) {
+		if(!trig[i]) next
+		a = clusts[[i]]
+		for(j in (i+1):n) {
+			if(!trig[j]) next
+			b = clusts[[j]]
+			if(length(a)>length(b)&&all(b%in%a)) {
+				trig[j] = F
+			} else if(all(a%in%b)) {
+				trig[i] = F
+				break
+			}
+		}
+	}
+		
+    sink(out_file)
+    for(i in 1:n) {
+		if(!trig[i]) next
+		if(length(clusts[[i]])==1) {
+			cat("-c ")
+            cat(scaffs[clusts[[i]]])
+            cat("\n")
+            next
+		}
+			
+		sink("/dev/null")
+		o = ordering_tsp(clusts[[i]], distanceAll, indexMat)
+		sink()
+		oR = as.numeric(o$order); oO = o$oriO
+        cat("-c ")
+        cat(paste(scaffs[oR], collapse=":"))
+        sepe = rep(NA, length(oR)-1)
+        reverse = rep("false", length(oR))
+
+        for(j in 1:(length(oR)-1)) {
+            c_1 = oO[2*j]
+            c_2 = oO[2*j+1]
+            if(length(grep("(\\+)",c_1))>0) reverse[j]="true"
+            sepe[j] =
+            if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],1]
+            } else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],2]
+            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],3]
+            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],4]
+            }
+        }
+
+        if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j+1]="true"
+        cat(" -s "); cat(paste(sepe, collapse=":"))
+        cat(" -r "); cat(paste(reverse, collapse=":"))
+        cat("\n")
+    }
+    sink()
+}
+
+linkage_mapping <- function(in_RData, in_map, out_file, min_lod=3, max_rf=.kosambi_r(0.5), make_group=TRUE, check_chimeric=FALSE, ncores=1) {
 
     load(in_RData)
     
@@ -403,138 +493,106 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
 		return()
 	}
 	
-    diag(distanceMat) = Inf
-
+	max_d = .cm_d(max_rf)
+	
 	if(make_group) {
-    	nng=distanceMat
-   		nng[nng>rf_thresh]=1
-    	nng=1-nng
-
-    	g=graph_from_adjacency_matrix(nng,mode = "undirected",
-                                  	weighted=T, diag=F)
+		nng = .cm_d(distanceMat)
+		diag(nng) = INF_CM
+   		nng[nng>max_d|lodMat<min_lod] = INF_CM
+    	nng = INF_CM-nng
+		
+		g=graph_from_adjacency_matrix(nng, mode = "undirected", weighted=T, diag=F)
     	clus=membership(cluster_infomap(g))
+	
+		#### check each cluster to remove chimeric joins
+        #### could be misassembly
+		if(check_chimeric) {
+            maxc = max(clus)
+		    for(u in 1:maxc) {
+			    ci = which(clus==u)
+			    cn = length(ci)
+			    if(cn>2) {
+				    ## make distance matrix
+				    dists = matrix(Inf, nrow=cn*2, ncol=cn*2)
+				    for(i in 1:(cn-1)) {
+					    i1 = (i-1)*2+1
+					    i2 = i*2
+					    for(j in (i+1):cn) {
+						    j1 = (j-1)*2+1
+						    j2 = j*2
+						    k = indexMat[ci[i],ci[j]]
+						    if(k==-1) stop("genetic mapping exit with errors!!!")
+						    r = distanceAll[k,]
+						    dists[i1:i2,j1:j2] = matrix(r,ncol=2,byrow=T)
+						    dists[j1:j2,i1:i2] = matrix(r,ncol=2,byrow=F)
+					    }
+				    }
+				
+			    	min_r = apply(dists,1,min)
+				    chims = which(min_r>max_rf)
+				    if(length(chims)==0) next
+				    chims = unique(floor(chims/2+.5))
+				    for(chim in chims) {
+					    clus[ci[chim]] = max(clus)+1
+				    }
+				    cat(paste0("#chimeric joins in linkage group ",u,": ",length(chims),"\n"))
+			    }
+		    }
+        }
+		rm(nng)
 	} else {
 		clus = rep(1, length(scaffs))
 	}
 	
-    all_clusters_=list()
-    for(i in 1:max(clus)) all_clusters_[[i]] = which(clus==i)
-    sa = matrix(nrow=0, ncol=2)
-
-    for(i in 1:length(all_clusters_)) {
-        all = all_clusters_[[i]]
-        if(length(all)==1) {
-            ass = getSingleAssignment(all, distanceMat)
-            r = ass$rf
-            if(r>rf_thresh) next
-            c = ass$scaffs
-            if(length(unique(clus[c]))==1)
-                sa = rbind(sa,c(all,clus[c[1]]))
-        }
-    }
+    clusts=list()
+    for(i in 1:max(clus)) clusts[[i]] = which(clus==i)
     
-    if(dim(sa)[1]>0) {
-        for(i in 1:dim(sa)[1]) {
-            c = sa[i,1]
-            g = sa[i,2]
-            all_clusters_[[g]] = c(all_clusters_[[g]],c)
-            clus[c] = g
-        }
-    }
-
-    deleted_clusters_ = setdiff(1:length(all_clusters_), unique(clus))
-    if(length(deleted_clusters_) > 0) {
-        all_clusters_ = all_clusters_[-deleted_clusters_]
-        for(i in 1:length(all_clusters_)) clus[all_clusters_[[i]]]=i
-    }
-
-    o = list()
-    nc = rep(NA,length(all_clusters_))
-    for(i in 1:length(nc)) nc[i] = length(all_clusters_[[i]])
-    nco = order(nc,decreasing=T)
-    for(i in 1:length(nco)) {
-        o[[i]] = ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
-    }
+	nc = rep(NA,length(clusts))
+	for(i in 1:length(nc)) nc[i] = length(clusts[[i]])
+	nco = order(nc, decreasing=T)
 	
-	if(check) {
-		print("checking linkage groups...")
-		while(TRUE) {
-			sepeAll = list()
-			
-			br = TRUE
-			for(i in 1:length(o)) {
-				oo = o[[i]]
-				oR = as.numeric(oo$order)
-				oO = o[[i]]$oriO
-				sepe = rep(NA, length(oR)-1)
-				if(length(sepe)==0) {
-					all_clusters_[[length(all_clusters_)+1]] = as.numeric(oo$order)
-					next
-				}
-				for(j in 1:(length(oR)-1)) {
-					c_1 = oO[2*j]
-					c_2 = oO[2*j+1]
-					distance_j =
-							if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-								distanceAll[indexMat[oR[j],oR[j+1]],1]
-							} else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-								distanceAll[indexMat[oR[j],oR[j+1]],2]
-							} else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-								distanceAll[indexMat[oR[j],oR[j+1]],3]
-							} else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-								distanceAll[indexMat[oR[j],oR[j+1]],4]
-							}
-					sepe[j] = distance_j
-				}
-				sepeAll[[length(sepeAll)+1]] = sepe
-				br = br&all(sepe<=rf_thresh)
-			}
-			
-			if(br) break
-			
-			all_clusters_ = list()
-			for(i in 1:length(o)) {
-				oo = o[[i]]
-				oR = as.numeric(oo$order)
-				k = c(1,1)
-				new_clus = list()
-				sepe = sepeAll[[i]]
-				for(j in 1:(length(oR)-1)) {
-					if(sepe[j]>rf_thresh) {
-						a = length(new_clus)+1
-						new_clus[[a]] = rep(NA,2)
-						new_clus[[a]][1] = k[1]
-						new_clus[[a]][2] = k[2]
-						k[1] = j+1
-						k[2] = j+1
-					} else {
-						k[2] = k[2]+1
-					}
-				}
-				if(k[1]<=length(oR)) {
-					a = length(new_clus)+1
-					new_clus[[a]] = rep(NA,2)
-					new_clus[[a]][1] = k[1]
-					new_clus[[a]][2] = k[2]
-				}
-				
-				oR = as.numeric(oo$order)
-				for(j in 1:length(new_clus)) {
-					all_clusters_[[length(all_clusters_)+1]] = 
-							c(oR[new_clus[[j]][1]:new_clus[[j]][2]])
-				}
-			}
-			
-			o = list()
-			nc = rep(NA,length(all_clusters_))
-			for(i in 1:length(nc)) nc[i] = length(all_clusters_[[i]])
-			nco = order(nc,decreasing=T)
-			for(i in 1:length(nco)) {
-				o[[i]] = ordering(all_clusters_[[nco[i]]], distanceAll, indexMat)
-			}
+	mc = length(clusts)
+	nn = sum(table(clus)>30)
+	if(nn==0) nn=1
+	
+	if(ncores<=nn) {
+		nt_p = ncores
+		nt_c = rep(1, mc)
+	} else {
+		nt_p = nn
+		nt = floor(ncores/nn)
+		nt_c = rep(nt, mc)
+		if(ncores>nn*nt) nt_c[1:(ncores-nn*nt)] = nt+1 
+	}
+	
+	if(FALSE) {
+	cat(paste0("####Ordering with MDS using ", ncores, " cores.\n"))
+	registerDoParallel(nt_p) ## register doParallel for parent process
+	o <- foreach(i=1:mc) %dopar% {
+		ordering_mds(clusts[[nco[i]]], distanceAll, lodAll, indexMat, fid=paste0("xxx",i), nt_c[i])
+	}
+	stopImplicitCluster()
+	for(i in 1:mc) {
+		if(is.null(o[[i]])) {
+			cat(paste0("####Linkage group ",i," MDS preordering failed. Ordering with TSP.\n"))
+			o[[i]] = ordering_tsp(clusts[[nco[i]]], distanceAll, indexMat)
 		}
 	}
-   
+	}##END IF FALSE
+	
+	cat(paste0("####Preordering with MDS using ", ncores, " cores.\n"))
+	registerDoParallel(nt_p) ## register doParallel for parent process
+	po <- foreach(i=1:mc) %dopar% {
+		preorder_mds(clusts[[nco[i]]], distanceMat, lodMat, fid=paste0("xxx",i), nt_c[i])
+	}
+	stopImplicitCluster()
+	cat(paste0("####Reordering with TSP using ", ncores, " cores.\n"))
+	registerDoParallel(nt_p) ## register doParallel for parent process
+	o <- foreach(i=1:mc) %dopar% {
+		ordering_tsp(clusts[[nco[i]]], distanceAll, indexMat, preorder=po[[i]], fid=paste0("xxx",i))
+	}
+	stopImplicitCluster()
+	
 	mm = .read_map_file(in_map);
 	dC = mm$dC
 	tC = mm$tC
@@ -543,36 +601,52 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
     sink(paste0(out_file,".mct"))
     for(i in 1:length(o)) {
         cat("group\t"); cat("LG"); cat(i); cat("\n")
-        or = as.numeric(o[[i]]$order)
-
-        if(length(or)<2) {
-            cat(scaffs[or[1]]); cat("\t0\n\n")
+        oR = as.numeric(o[[i]]$order); oO = o[[i]]$oriO
+        if(length(oR)<2) {
+        	cat(scaffs[oR[1]]); cat("(+)\t0");cat("\n")
+        	d = dC[tC==scaffs[oR[1]]]
+			cat(scaffs[oR[1]]); cat("(-)\t");cat(d);cat("\n")
+			cat("\n")
             next
         }
-        
-        oo = o[[i]]$oriO
-        dist = .cm_d(o[[i]]$dist$dMat-o[[i]]$dist$dMax-o[[i]]$dist$dNa)
-        for(c in or) {
-            f=paste0(c,"(+)")
-            r=paste0(c,"(-)")
-            d0=dC[tC==scaffs[c]]
-            dist[f,r]=dist[r,f]=d0#kosambi_r(d0)
+
+        d = 0
+        nh = nchar(oO[1])
+        cat(paste0(scaffs[as.numeric(substr(oO[1],1,nh-3))],substr(oO[1],nh-2,nh)))
+        cat("\t"); cat(d); cat("\n")
+
+        d = dC[tC==scaffs[oR[1]]]
+        nh = nchar(oO[2])
+        cat(paste0(scaffs[as.numeric(substr(oO[2],1,nh-3))],substr(oO[2],nh-2,nh)))
+        cat("\t"); cat(d); cat("\n")
+
+        for(j in 1:(length(oR)-1)) {
+            c_1 = oO[2*j]
+            c_2 = oO[2*j+1]
+            dist_j =
+            if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],1]
+            } else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],2]
+            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],3]
+            } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
+                distanceAll[indexMat[oR[j],oR[j+1]],4]
+            }
+
+            d = d+.cm_d(dist_j)
+            nh = nchar(oO[2*j+1])
+            cat(paste0(scaffs[as.numeric(substr(oO[2*j+1],1,nh-3))],substr(oO[2*j+1],nh-2,nh)))
+            cat("\t"); cat(d); cat("\n")
+
+            d = d+dC[tC==scaffs[oR[j+1]]]
+            nh = nchar(oO[2*j+2])
+            cat(paste0(scaffs[as.numeric(substr(oO[2*j+2],1,nh-3))],substr(oO[2*j+2],nh-2,nh)))
+            cat("\t"); cat(d); cat("\n")
         }
 
-        nh = nchar(oo[1])
-        cat(paste0(scaffs[as.numeric(substr(oo[1],1,nh-3))],substr(oo[1],nh-2,nh)))
-        cat("\t0\n")
-        d = 0
-        for(j in 2:length(oo)) {
-            nh = nchar(oo[j])
-            cat(paste0(scaffs[as.numeric(substr(oo[j],1,nh-3))],substr(oo[j],nh-2,nh)))
-            cat("\t")
-            d = d+dist[oo[j-1], oo[j]]
-            cat(d)
-            cat("\n")
-        }
-    	lgCM[i] = d
         cat("\n")
+        lgCM[i] = d
     }
     sink()
 
@@ -591,21 +665,20 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
             c_1 = oO[2*j]
             c_2 = oO[2*j+1]
             if(length(grep("(\\+)",c_1))>0) reverse[j]="true"
-            distance_j =
+            sepe[j] =
             if(length(grep("(\\+)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],1]
+                distanceAll[indexMat[oR[j],oR[j+1]],1]
             } else if(length(grep("(\\+)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],2]
+                distanceAll[indexMat[oR[j],oR[j+1]],2]
             } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\+)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],3]
+                distanceAll[indexMat[oR[j],oR[j+1]],3]
             } else if(length(grep("(\\-)",c_1))>0&&length(grep("(\\-)",c_2))>0) {
-                sepe[j]=distanceAll[indexMat[oR[j],oR[j+1]],4]
+                distanceAll[indexMat[oR[j],oR[j+1]],4]
             }
         }
-        if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j]="true"
+        if(length(grep("(\\+)",oO[length(oO)]))>0) reverse[j+1]="true"
         cat(" -s "); cat(paste(sepe, collapse=":"))
         cat(" -r "); cat(paste(reverse, collapse=":"))
-        # cat(" ## "); cat(paste(oO, collapse="-"))
         cat("\n")
     }
     sink()
@@ -638,32 +711,20 @@ genetic_linkage_map <- function(in_RData, in_map, out_file,
     cat("\n$orientation\n")
     for(i in 1:length(o)) {
         cat("LG");cat(i);cat("\t\t")
-        oo = o[[i]]$oriO
-        for(j in 1:length(oo)) {
-            if(length(oo)>1) {
-                nh=nchar(oo[j])
-                oo[j]=paste0(scaffs[as.numeric(substr(oo[j],1,nh-3))],substr(oo[j],nh-2,nh))
+        oO = o[[i]]$oriO
+        for(j in 1:length(oO)) {
+            if(length(oO)>1) {
+                nh=nchar(oO[j])
+                oO[j]=paste0(scaffs[as.numeric(substr(oO[j],1,nh-3))],substr(oO[j],nh-2,nh))
             } else {
-                oo[j]=scaffs[as.numeric(oo[j])]
+                oO[j]=scaffs[as.numeric(oO[j])]
             }
         }
-        cat(paste(oo,collapse="-"));
+        cat(paste(oO,collapse="-"));
         cat("\n")
     }
     sink()
-
-    list(group=clus, order=o)
-
-}
-
-getSingleAssignment <- function(id, distance, exclude=c(),include=c()) {
-    a = distance[id,]
-    if(length(include)>0) {
-        idx = c()
-        for(i in include) idx = c(idx, i)
-        a[-idx] = Inf
-    } else if(length(exclude)>0)
-        for(i in exclude) a[i] = Inf
-    list(rf=min(a),scaffs=which(a==min(a)))
+	
+	return(0)
 }
 

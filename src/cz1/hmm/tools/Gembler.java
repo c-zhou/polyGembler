@@ -21,7 +21,7 @@ import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 
 import cz1.hmm.data.DataCollection;
-import cz1.util.Algebra;
+import cz1.math.Algebra;
 import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Executor;
@@ -34,7 +34,7 @@ public class Gembler extends Executor {
 	private String assembly_file = null;
 	private String out_prefix = null;
 	private int max_iter = 100;
-	private Field field = Field.PL;
+	private Field field = Field.AD;
 	
 	private int min_snpc = 5;
 	private int min_depth = 0;
@@ -42,7 +42,8 @@ public class Gembler extends Executor {
 	private int min_qual = 0;
 	private double min_maf = 0.1;
 	private double max_missing = 0.5;
-	private String[] founder_haps;
+	private String[] parents;
+	private int ploidy;
 	
 	private int[] repeat = new int[]{30,30,10};
 	private int refine_round = 10;
@@ -87,12 +88,9 @@ public class Gembler extends Executor {
 						+ "     -x/--max-iter               Maxmium rounds for EM optimization (default 100).\n"
 						+ "     -f/--parent                 Parent samples (separated by a \":\").\n"
 						+ "     -G/--genotype               Use genotypes to infer haplotypes. Mutually exclusive with \n"
-						+ "                                 option -D/--allele-depth and -L/--genetype likelihood.\n"
+						+ "                                 option -D/--allele-depth.\n"
 						+ "     -D/--allele-depth           Use allele depth to infer haplotypes. Mutually exclusive \n"
-						+ "                                 with option -G/--genotype and -L/--genetype likelihood.\n"
-						+ "     -L/--genotype-likelihood    Use genotype likelihoods to infer haplotypes. Mutually \n"
-						+ "                                 exclusive with option -G/--genotype and -L/--allele-depth \n"
-						+ "                                 (default).\n"
+						+ "                                 with option -G/--genotype (default).\n"
 						+ "     -c/--min-snp-count          Minimum number of SNPs on a scaffold to run.\n"
 						+ "     -r/--repeat                 Repeat haplotype inferring for multiple times as EM algorithm \n"
 						+ "                                 could be trapped in local optima. The program takes three values \n"
@@ -136,7 +134,6 @@ public class Gembler extends Executor {
 			myArgsEngine.add("-f", "--parent", true);
 			myArgsEngine.add("-G", "--genotype", false);
 			myArgsEngine.add("-D", "--allele-depth", false);
-			myArgsEngine.add("-L", "--genotype-likelihood", false);
 			myArgsEngine.add("-S", "--random-seed", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-l", "--min-depth", true);
@@ -179,12 +176,11 @@ public class Gembler extends Executor {
 		}
 		
 		if(myArgsEngine.getBoolean("-p")) {
-			Constants.ploidy(Integer.parseInt(myArgsEngine.getString("-p")));
+			this.ploidy = Integer.parseInt(myArgsEngine.getString("-p"));
 		}
 		
 		if(myArgsEngine.getBoolean("-f")) {
-			Constants._founder_haps = myArgsEngine.getString("-f");
-			founder_haps = Constants._founder_haps.split(":");
+			this.parents = myArgsEngine.getString("-f").split(":");
 		} else {
 			printUsage();
 			throw new IllegalArgumentException("Please specify the parent samples (seperated by a \":\").");
@@ -201,13 +197,8 @@ public class Gembler extends Executor {
 			c++;
 		}
 		
-		if(myArgsEngine.getBoolean("-L")) {
-			field = Field.PL;
-			c++;
-		}
 		if(c>1) throw new IllegalArgumentException("Options -G/--genotype, "
-				+ "-D/--allele-depth, and -L/--genotype-likelihood "
-				+ "are exclusive!!!");
+				+ "-D/--allele-depth are exclusive!!!");
 		
 		if(myArgsEngine.getBoolean("-S")) {
 			Constants.seed = Long.parseLong(myArgsEngine.getString("-S"));
@@ -284,15 +275,17 @@ public class Gembler extends Executor {
 	public void run() {
 		// TODO Auto-generated method stub
 	
-		Utils.makeOutputDir(out_prefix);
+		Constants.throwRuntimeException("feature is under development!!!");
+		
+		Utils.makeOutputDir(new File(out_prefix));
 		String prefix_vcf = new File(in_vcf).getName().
 				replaceAll(".vcf.gz$", "").
 				replaceAll(".vcf$", "");
 		
 		//#### STEP 01 filter SNPs and create ZIP file
-		Utils.makeOutputDir(out_prefix+"/data");
+		Utils.makeOutputDir(new File(out_prefix+"/data"));
 		new DataPreparation(in_vcf,
-				Constants._ploidy_H, 
+				ploidy, 
 				min_depth, 
 				max_depth, 
 				min_qual, 
@@ -310,18 +303,16 @@ public class Gembler extends Executor {
 				replaceAll(".zip$", "").
 				replace(".", "").
 				replace("_", "");
-		Utils.makeOutputDir(out);
+		Utils.makeOutputDir(new File(out));
 		this.runHaplotyper(scaffs, expr_id, in_zip, repeat[0], out);
 		
 		//#### STEP 03 assembly errors
 		final String metafile_prefix = out_prefix+"/meta/";
-		Utils.makeOutputDir(metafile_prefix);
+		Utils.makeOutputDir(new File(metafile_prefix));
 		final String ass_err_map = metafile_prefix+prefix_vcf;
 		AssemblyError assemblyError = new AssemblyError(out, 
 				ass_err_map,
 				expr_id, 
-				Constants._ploidy_H,
-				founder_haps,
 				THREADS,
 				phi,
 				drop,
@@ -348,11 +339,16 @@ public class Gembler extends Executor {
 	
 		//#### STEP 04 recombination frequency estimation
 		final String rf_prefix = metafile_prefix+prefix_vcf;
-		new RFEstimator (out, 
+		new SinglePointAnalysis (out, 
 				rf_prefix,
 				expr_id, 
-				Constants._ploidy_H,
-				founder_haps,
+				THREADS,
+				phi,
+				drop,
+				nB).run();
+		new TwoPointAnalysis (out, 
+				rf_prefix,
+				expr_id, 
 				THREADS,
 				phi,
 				drop,
@@ -360,7 +356,7 @@ public class Gembler extends Executor {
 		
 		//#### STEP 05 building superscaffolds (nearest neighbour joining)
 		final String temfile_prefix = metafile_prefix+".tmp/";
-		Utils.makeOutputDir(temfile_prefix);
+		Utils.makeOutputDir(new File(temfile_prefix));
 		final String concorde_path = 
 				RFUtils.makeExecutable("cz1/hmm/executable/concorde", temfile_prefix);
 		final String nnssR_path = 
@@ -378,7 +374,7 @@ public class Gembler extends Executor {
 		
 		//#### STEP 06 multi-point hapotype inferring
 		final String mm_out = out_prefix+"/2nn_hap_infer";
-		Utils.makeOutputDir(mm_out);
+		Utils.makeOutputDir(new File(mm_out));
 		final Set<String> mm_scaffs = new HashSet<String>();
 		final Map<String, String> mm_seperation = new HashMap<String, String>();
 		final Map<String, String> mm_reverse = new HashMap<String, String>();
@@ -388,11 +384,16 @@ public class Gembler extends Executor {
 		
 		//#### STEP 07 recombination frequency estimation
 		final String mm_rf_prefix = metafile_prefix+"2nn_"+prefix_vcf;
-		new RFEstimator (mm_out, 
+		new SinglePointAnalysis (mm_out, 
 				mm_rf_prefix,
 				expr_id, 
-				Constants._ploidy_H,
-				founder_haps,
+				THREADS,
+				phi,
+				drop,
+				nB).run();
+		new TwoPointAnalysis (mm_out, 
+				mm_rf_prefix,
+				expr_id, 
 				THREADS,
 				phi,
 				drop,
@@ -412,18 +413,18 @@ public class Gembler extends Executor {
 		
 		//#### STEP 09 genetic map refinement
 		final String out_refine = out_prefix+"/refine_hap_infer/";
-		Utils.makeOutputDir(out_refine);
+		Utils.makeOutputDir(new File(out_refine));
 		this.readSS(mm_rf_prefix+".par", mm_scaffs, mm_seperation, mm_reverse);
 		
 		final int lgN = mm_scaffs.size();
 		for(int i=0; i<lgN; i++) {
 			final String out_refine_i = out_refine+"lg"+StringUtils.leftPad(""+i, 2, '0')+"/";
-			Utils.makeOutputDir(out_refine_i);
+			Utils.makeOutputDir(new File(out_refine_i));
 			for(int j=0; j<this.refine_round; j++) {
 				final String out_refine_ij = out_refine_i+j+"/";
 				final String out_refine_ij_haps = out_refine_ij+"haplotypes/";
-				Utils.makeOutputDir(out_refine_ij);
-				Utils.makeOutputDir(out_refine_ij_haps);
+				Utils.makeOutputDir(new File(out_refine_ij));
+				Utils.makeOutputDir(new File(out_refine_ij_haps));
 			}
 		}
 		
@@ -465,11 +466,10 @@ public class Gembler extends Executor {
 									scaff_i,
 									mm_seperation.get(scaff_i),
 									mm_reverse.get(scaff_i),
-									Constants._ploidy_H,
+									ploidy,
 									field,
 									expr_id,
-									max_iter,
-									true).run();
+									max_iter).run();
 							synchronized (task_table) {
 								task_table[i][j]--;
 								task_table.notify();
@@ -504,11 +504,16 @@ public class Gembler extends Executor {
 					final String out_refine_ij_haps = out_refine_ij+"haplotypes/";
 					final String mm_rf_prefix_ij = out_refine_ij+"1";
 					
-					new RFEstimator (out_refine_ij_haps, 
+					new SinglePointAnalysis (out_refine_ij_haps, 
 							mm_rf_prefix_ij,
 							expr_id, 
-							Constants._ploidy_H,
-							founder_haps,
+							THREADS,
+							Double.POSITIVE_INFINITY,
+							drop,
+							nB).run();
+					new TwoPointAnalysis (out_refine_ij_haps, 
+							mm_rf_prefix_ij,
+							expr_id, 
 							THREADS,
 							Double.POSITIVE_INFINITY,
 							drop,
@@ -550,11 +555,10 @@ public class Gembler extends Executor {
 												scaff_i,
 												mm_seperation_i.get(scaff_i),
 												mm_reverse_i.get(scaff_i),
-												Constants._ploidy_H,
+												ploidy,
 												field,
 												expr_id,
-												max_iter,
-												true).run();
+												max_iter).run();
 										synchronized (task_table) {
 											task_table[i][j]--;
 											task_table.notify();
@@ -596,17 +600,15 @@ public class Gembler extends Executor {
 		//#### STEP 10 pseudo molecules construction
 		if(assembly_file==null) myLogger.info("No assembly file provided, "
 				+ "pseudomolecule construction module skipped.");
-		new PseudoMoleculeConstructor(
+		new Pseudomolecule(
 				metafile_prefix+"genetic_linkage_map.mct",
 				this.assembly_file,
-				this.genome_size,
-				this.frac_thresh,
 				metafile_prefix+"pseudomolecules.fa",
 				assemblyError.errs()).run();
 		
 		//#### STEP 11 result files
 		final String results_dir = out_prefix+"/results";
-		Utils.makeOutputDir(results_dir);
+		Utils.makeOutputDir(new File(results_dir));
 		try {
 			Files.move(Paths.get(metafile_prefix+"/genetic_linkage_map.mct"), 
 					Paths.get(results_dir+"/genetic_linkage_map.mct"),
@@ -724,7 +726,7 @@ public class Gembler extends Executor {
 			final String expr_id) {
 		// TODO Auto-generated method stub
 		String out_err = out+"/assembly_error";
-		Utils.makeOutputDir(out_err);
+		Utils.makeOutputDir(new File(out_err));
 		for(final String scaff : scaff_breakage) {
 			File[] files = new File(out).listFiles(
 					new FilenameFilter() {
@@ -767,7 +769,7 @@ public class Gembler extends Executor {
 							new Haplotyper(in_zip,
 									out,
 									new String[]{scaff},
-									Constants._ploidy_H,
+									ploidy,
 									field,
 									expr_id,
 									max_iter).run();
@@ -807,11 +809,10 @@ public class Gembler extends Executor {
 									scaff,
 									seperation.get(scaff),
 									reverse.get(scaff),
-									Constants._ploidy_H,
+									ploidy,
 									field,
 									expr_id,
-									max_iter,
-									true).run();
+									max_iter).run();
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();
 							t.getUncaughtExceptionHandler().uncaughtException(t, e);

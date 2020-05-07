@@ -22,6 +22,12 @@ import cz1.util.Utils;
 
 
 public class VCFtools extends Executor {
+	private final static String[] vcf_header = new String[]{"CHROM","POS","ID",
+			"REF","ALT","QUAL","FILTER","INFO","FORMAT"};
+	private final static int[] vcf_header_i = new int[]{0,1,2,3,4,5,6,7,8};
+	private final static String[] vcf_format = new String[] {"GT","AD","DP","GQ","PL"};
+	private final static String vcf_format_str = "GT:AD:DP:GQ:PL";
+	private final static double err = 0.01;
 	
 	private int ploidy = -1;
 	private int min_depth = 0;
@@ -137,7 +143,7 @@ public class VCFtools extends Executor {
 			int dp_i = -1;
 			int nS = -1;
 			int ploidy_obs = -1;
-			final int header_field = Constants._vcf_header.length;
+			final int header_field = vcf_header.length;
 			boolean switchoff = true;
 			final Map<String, Integer> format_set = new HashMap<String, Integer>();
 			String[] format_arr = null;
@@ -155,12 +161,12 @@ public class VCFtools extends Executor {
 				if(snp.startsWith("#")) {
 					s = snp.split("\\s+");
 					for(int i=0; i<header_field; i++) {
-						if(!s[Constants._vcf_header_i[i]].toUpperCase().
-								contains(Constants._vcf_header[i])) {
+						if(!s[vcf_header_i[i]].toUpperCase().
+								contains(vcf_header[i])) {
 							String err_msg = "Corrupted VCF file. The first "
 						+header_field+" columns should be,\n";
 							for(int j=0; j<header_field; j++)
-								err_msg += Constants._vcf_header[j]+"\n";
+								err_msg += vcf_header[j]+"\n";
 							br.close();
 							bw.close();
 							throw new RuntimeException(err_msg);
@@ -175,7 +181,7 @@ public class VCFtools extends Executor {
 				
 				if(switchoff) {
 					switchoff = false;
-					info = s[Constants._vcf_header_i[7]].split(";");
+					info = s[vcf_header_i[7]].split(";");
 					for(int i=0; i<info.length; i++) {
 						if(info[i].startsWith("AF="))
 							af_i = i;
@@ -186,14 +192,14 @@ public class VCFtools extends Executor {
                     		+ "Filtering by SNP allele frequency disabled.");
 					if(dp_i==-1)  myLogger.warn("No AF field in VCF file. "
                     		+ "Filtering by SNP read depth disabled.");
-					info = s[Constants._vcf_header_i[8]].split(":");
+					info = s[vcf_header_i[8]].split(":");
 					
 					for(int i=0; i<info.length; i++) {
 						format_set.put(info[i], i);
 					}
 					if(!format_set.keySet().contains("GT"))
 						throw new RuntimeException("No GT field in VCF file. Progam exit.");
-					info = s[Constants._vcf_header_i[8]+1].split(":");
+					info = s[vcf_header_i[8]+1].split(":");
 					ploidy_obs = info[format_set.get("GT")].split("\\||/").length;
 					
 					if(ploidy<0) ploidy = ploidy_obs;
@@ -206,10 +212,10 @@ public class VCFtools extends Executor {
 							throw new RuntimeException("No AD field in VCF file. AD field "
 									+ "is required to change the ploidy.");
 						}
-						format_str = Constants._vcf_format_str;
-						format_arr = Constants._vcf_format;
+						format_str = vcf_format_str;
+						format_arr = vcf_format;
 					} else {
-						for(String target_str : Constants._vcf_format) {
+						for(String target_str : vcf_format) {
 							switch(target_str) {
 							case "GT":
 								tmp_format.add("GT");
@@ -254,13 +260,13 @@ public class VCFtools extends Executor {
 					}
 				}
 				
-				if(!s[Constants._vcf_header_i[5]].equals(".") &&
-					Double.parseDouble(s[Constants._vcf_header_i[5]])<min_qual) {
+				if(!s[vcf_header_i[5]].equals(".") &&
+					Double.parseDouble(s[vcf_header_i[5]])<min_qual) {
                     continue;
                 }
 				
 				if(af_i>0) {
-					double maf = Double.parseDouble(s[Constants._vcf_header_i[7]].
+					double maf = Double.parseDouble(s[vcf_header_i[7]].
 							split(";")[af_i].
 							replaceAll("^AF=","").split(",")[0]);
 					if(maf<min_maf || maf>1-min_maf)
@@ -268,7 +274,7 @@ public class VCFtools extends Executor {
 				}
 				
 				if(dp_i>0) {
-					double d = Double.parseDouble(s[Constants._vcf_header_i[7]].
+					double d = Double.parseDouble(s[vcf_header_i[7]].
 							split(";")[dp_i].
 							replaceAll("^DP=", ""));
 					if(d>max_depth || d<min_depth)
@@ -276,13 +282,13 @@ public class VCFtools extends Executor {
 				}
 				
 				os.setLength(0);
-				os.append(s[Constants._vcf_header_i[0]].
+				os.append(s[vcf_header_i[0]].
 						replace('|', '_').replace('.', '_'));
 				os.append("\t");
-				os.append(s[Constants._vcf_header_i[1]]);
+				os.append(s[vcf_header_i[1]]);
 				os.append("\t");
-				os.append(s[Constants._vcf_header_i[2]]);
-				info = s[Constants._vcf_header_i[4]].split(",");
+				os.append(s[vcf_header_i[2]]);
+				info = s[vcf_header_i[4]].split(",");
 				if(info.length>2) continue;
 				boolean MNP = info.length>1, MN = false;
 				
@@ -293,14 +299,14 @@ public class VCFtools extends Executor {
 					os.append(info[1]);
 				} else {
 					os.append("\t");
-					os.append(s[Constants._vcf_header_i[3]]);
+					os.append(s[vcf_header_i[3]]);
 					os.append("\t");
-					os.append(s[Constants._vcf_header_i[4]]);
+					os.append(s[vcf_header_i[4]]);
 				}
 				
 				for(int i=5; i<header_field-1; i++) {
 					os.append("\t");
-					os.append(s[Constants._vcf_header_i[i]]);
+					os.append(s[vcf_header_i[i]]);
 				}
 				os.append("\t");
 				os.append(format_str);
@@ -316,10 +322,12 @@ public class VCFtools extends Executor {
                         m += 1.0;
                         continue;
                     }
+                    
                     if(MNP && info[0].indexOf("0")>-1) {
                         MN = true;
                         break;
                     }
+
                     if(format_set.containsKey("RO") &&
                     		format_set.containsKey("AO")) {
                     	if(MNP) {
@@ -333,11 +341,16 @@ public class VCFtools extends Executor {
                     	dp = ad[0]+ad[1];
                     } else if(format_set.containsKey("AD")) {
                     	String[] ad_str = info[format_set.get("AD")].split(",");
-                    	int shift = 0;
+                        int shift = 0;
                     	if(MNP) shift = 1;
-                    	ad[0] = Integer.parseInt(ad_str[0+shift]);
-                		ad[1] = Integer.parseInt(ad_str[1+shift]);
-                    	dp = ad[0]+ad[1];
+                        if(ad_str.length<2) {
+                            ad[0] = 0;
+                            ad[1] = 0;
+                        } else {
+                    	    ad[0] = ad_str[0+shift].equals(".")?0:Integer.parseInt(ad_str[0+shift]);
+                		    ad[1] = ad_str[1+shift].equals(".")?0:Integer.parseInt(ad_str[1+shift]);
+                        }
+                        dp = ad[0]+ad[1];
                     } else if(format_set.containsKey("DP")) {
                     	dp = Integer.parseInt(info[format_set.get("DP")]);
                     }
@@ -480,8 +493,6 @@ public class VCFtools extends Executor {
 		}
 		return os.toString();
 	}
-    
-	private final static double err = Constants.seq_err;
 	
     public static double fit(double[] ll, int[] depth, int ploidy) {
     	int d = depth[0]+depth[1];

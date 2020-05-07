@@ -85,9 +85,9 @@ public class ZipDataCollection extends Executor {
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		String zipFilePath = out_file+Constants.file_sep+id+".zip";
+		String zipFilePath = out_file+"/"+id+".zip";
 		List<String> info = Arrays.asList(Constants.
-				_vcf_format_str.split(":"));
+				vcf_format_str.split(":"));
 		int _idx_gt = info.indexOf("GT"),
 				_idx_pl = info.indexOf("PL"),
 				_idx_ad = info.indexOf("AD");
@@ -107,8 +107,15 @@ public class ZipDataCollection extends Executor {
 					_idx_alt = sList.indexOf("ALT"),
 					_idx_format = sList.indexOf("FORMAT");
 			out.putNextEntry(new ZipEntry("samples"));
-			for(int i=_idx_start; i<s.length; i++) out.write((s[i]+
-					Constants.line_sep).getBytes());
+			String sample;
+			for(int i=_idx_start; i<s.length; i++) {
+				sample = s[i];
+				if(sample.contains(":")) {
+					sample = sample.replaceAll(":", "_");
+					myLogger.info("WARNING - sample renamed: "+s[i]+" -> "+sample);
+				}
+				out.write((sample+"\n").getBytes());
+			}
 			List<Contig> contigs = new ArrayList<Contig>();
 			line = br.readLine();
 			s = line.split("\\s+");
@@ -127,26 +134,22 @@ public class ZipDataCollection extends Executor {
 				}
 				contigs.add(new Contig(contig,i));
 				
-				out.putNextEntry(new ZipEntry(contig+
-						Constants.file_sep));
+				out.putNextEntry(new ZipEntry(contig+"/"));
 				
-				out.putNextEntry(new ZipEntry(contig+
-						Constants.file_sep+"position"));
+				out.putNextEntry(new ZipEntry(contig+"/position"));
 				for(int j=0; j<snps.size(); j++)
-					out.write((snps.get(j)[_idx_pos]+Constants.line_sep).
+					out.write((snps.get(j)[_idx_pos]+"\n").
 							getBytes());
 				
-				out.putNextEntry(new ZipEntry(contig+
-						Constants.file_sep+"allele"));
+				out.putNextEntry(new ZipEntry(contig+"/allele"));
 				for(int j=0; j<snps.size(); j++)
 					out.write((snps.get(j)[_idx_ref]+
 							"\t"+snps.get(j)[_idx_alt]+
-							Constants.line_sep).
+							"\n").
 							getBytes());
 				
 				if(fields.contains("GT")) {
-					out.putNextEntry(new ZipEntry(contig+
-							Constants.file_sep+"GT"));
+					out.putNextEntry(new ZipEntry(contig+"/GT"));
 					for(int j=0; j<snps.size(); j++) {
 						for(int k=_idx_start; k<snps.get(j).length; k++)
 							out.write((snps.get(j)[k].split(":")[_idx_gt]+"\t")
@@ -155,8 +158,7 @@ public class ZipDataCollection extends Executor {
 					}
 				}
 				if(fields.contains("AD")) {
-					out.putNextEntry(new ZipEntry(contig+
-							Constants.file_sep+"AD"));
+					out.putNextEntry(new ZipEntry(contig+"/AD"));
 					for(int j=0; j<snps.size(); j++) {
 						for(int k=_idx_start; k<snps.get(j).length; k++)
 							try {
@@ -169,8 +171,7 @@ public class ZipDataCollection extends Executor {
 					}
 				}
 				if(fields.contains("PL")) {
-					out.putNextEntry(new ZipEntry(contig+
-							Constants.file_sep+"PL"));
+					out.putNextEntry(new ZipEntry(contig+"/PL"));
 					for(int j=0; j<snps.size(); j++) {
 						for(int k=_idx_start; k<snps.get(j).length; k++)
 							try {
@@ -190,8 +191,7 @@ public class ZipDataCollection extends Executor {
 			
 			out.putNextEntry(new ZipEntry("contig"));
 			for(Contig contig : contigs)
-				out.write((contig.id+"\t"+contig.markers+
-						Constants.line_sep).getBytes());
+				out.write((contig.id+"\t"+contig.markers+"\n").getBytes());
 			out.close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
