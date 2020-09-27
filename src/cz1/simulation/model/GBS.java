@@ -25,13 +25,12 @@ import java.text.SimpleDateFormat;
 import java.util.Collections;
 
 import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.log4j.BasicConfigurator;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class GBS {
 
-	private final static Logger myLogger = 
-			Logger.getLogger(GBS.class);
+	private final static Logger myLogger = LogManager.getLogger();
 	public final static String NLS = System.getProperty("line.separator");
 	public final static String SEP = System.getProperty("file.separator");
 	private final int readLength = 101;

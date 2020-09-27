@@ -22,8 +22,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-import org.apache.log4j.BasicConfigurator;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import cz1.util.ArgsEngine;
 
@@ -32,8 +32,7 @@ public abstract class Executor {
 	protected final static int mb = 1024*1024;
 	protected final static Runtime instance = Runtime.getRuntime();
 	
-	protected final static Logger myLogger = 
-			Logger.getLogger(Executor.class);
+	protected final static Logger myLogger = LogManager.getLogger();
 	
 	protected ArgsEngine myArgsEngine = null;
 

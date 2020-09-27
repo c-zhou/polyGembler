@@ -15,7 +15,8 @@ import java.util.TreeMap;
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 import org.apache.commons.math3.stat.StatUtils;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
@@ -23,7 +24,7 @@ import cz1.util.Utils;
 
 public class NNsuperscaffold extends Executor {
 
-	private final static Logger myLogger = Logger.getLogger(NNsuperscaffold.class);
+	private final static Logger myLogger = LogManager.getLogger();
 	
 	private String rf_file = null;
 	private double rf_thres = RFUtils.inverseGeneticDistance(0.3, "kosambi");

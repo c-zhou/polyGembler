@@ -7,7 +7,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import cz1.hmm.model.ModelReader;
 import cz1.math.JohnsonTrotter;
@@ -16,7 +17,7 @@ import cz1.util.ArgsEngine;
 import cz1.util.Utils;
 
 public class HaplotypeAnalysis extends RFUtils {
-	private final static Logger myLogger = Logger.getLogger(HaplotypeAnalysis.class);
+	private final static Logger myLogger = LogManager.getLogger();
 	
 	private String phase_file;
 	private final Map<String, Map<String, int[][]>> phased_haps = new HashMap<>();

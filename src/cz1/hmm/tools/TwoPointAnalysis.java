@@ -16,10 +16,11 @@ import cz1.util.Constants;
 import cz1.util.Utils;
 
 import org.apache.commons.math.stat.StatUtils;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 public class TwoPointAnalysis extends RFUtils {
-	private final static Logger myLogger = Logger.getLogger(TwoPointAnalysis.class);
+	private final static Logger myLogger = LogManager.getLogger();
 	
 	protected String out_prefix;
 	

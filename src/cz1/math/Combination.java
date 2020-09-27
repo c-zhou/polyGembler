@@ -4,14 +4,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.paukov.combinatorics.Factory;
 import org.paukov.combinatorics.Generator;
 import org.paukov.combinatorics.ICombinatoricsVector;
 
 public class Combination {
 
-	private final static Logger myLogger = Logger.getLogger(Combination.class);
+	private final static Logger myLogger = LogManager.getLogger();
 	
 	public static <T> List<List<T>> combination(T[] elements, int K){
 		if(K > elements.length){

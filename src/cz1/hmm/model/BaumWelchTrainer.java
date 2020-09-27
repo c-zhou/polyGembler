@@ -11,7 +11,8 @@ import java.util.zip.ZipEntry;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.distribution.BetaDistribution;
 import org.apache.commons.math3.stat.StatUtils;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import cz1.hmm.data.DataEntry;
 import cz1.math.Combination;
@@ -20,7 +21,7 @@ import cz1.util.Constants;
 import cz1.util.Constants.Field;
 
 public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTrainer {
-	private final static Logger myLogger = Logger.getLogger(BaumWelchTrainer.class);
+	private final static Logger myLogger = LogManager.getLogger();
 	
 	protected final static double mu_J_e = 1e5;
 	protected final static double mu_J_m = 0.1;

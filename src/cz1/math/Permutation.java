@@ -4,13 +4,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.paukov.combinatorics.Factory;
 import org.paukov.combinatorics.Generator;
 import org.paukov.combinatorics.ICombinatoricsVector;
 
 public class Permutation {
-	private final static Logger myLogger = Logger.getLogger(Permutation.class);
+	private final static Logger myLogger = LogManager.getLogger();
 	
 	public static <T> List<List<T>> permutation(T[] elements){
 		// Create the initial vector

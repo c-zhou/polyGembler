@@ -10,7 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import cz1.hmm.model.ModelReader;
 import cz1.util.ArgsEngine;
@@ -18,7 +19,7 @@ import cz1.util.Utils;
 
 public class AssemblyError extends RFUtils {
 
-	private final static Logger myLogger = Logger.getLogger(AssemblyError.class);
+	private final static Logger myLogger = LogManager.getLogger();
 	
 	private String out_prefix;
 	private double rf_thresh = 0.1;
