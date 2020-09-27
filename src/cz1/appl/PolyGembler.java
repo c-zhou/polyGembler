@@ -1,6 +1,7 @@
 package cz1.appl;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import cz1.hmm.tools.AssemblyError;
 import cz1.hmm.tools.DataPreparation;
@@ -17,8 +18,8 @@ import cz1.simulation.tools.PopulationSimulator;
 
 public class PolyGembler {
 	
-	protected final static Logger myLogger = Logger.getLogger(PolyGembler.class);
-	
+	protected final static Logger myLogger = LogManager.getLogger();
+		
 	public static void main(String[] args) {
 	
 		if(args.length<1) {

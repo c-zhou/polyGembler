@@ -9,6 +9,10 @@ import java.io.InputStream;
 import java.util.zip.GZIPInputStream;
 import java.io.OutputStreamWriter;
 import java.util.zip.GZIPOutputStream;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.FileInputStream;
@@ -19,11 +23,9 @@ import java.util.Calendar;
 import java.util.UUID;
 import java.text.SimpleDateFormat;
 
-import org.apache.log4j.Logger;
-
 public class Utils {
 	
-	private static final Logger myLogger = Logger.getLogger(Utils.class);
+	private static final Logger myLogger = LogManager.getLogger();
 
 	public static BufferedWriter getGZIPBufferedWriter(String path) throws IOException {
 		return new BufferedWriter(new OutputStreamWriter(new

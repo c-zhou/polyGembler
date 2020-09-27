@@ -7,7 +7,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleDirectedWeightedGraph;
 
@@ -17,7 +18,7 @@ import cz1.util.Utils;
 
 public class SinglePointAnalysis extends RFUtils {
 
-	private final static Logger myLogger = Logger.getLogger(SinglePointAnalysis.class);
+	private final static Logger myLogger = LogManager.getLogger();
 	
 	private String out_prefix;
 	private int wbp = 30000;

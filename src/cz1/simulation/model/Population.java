@@ -14,6 +14,10 @@ import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 import java.io.OutputStreamWriter;
 import java.util.zip.GZIPOutputStream;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.FileInputStream;
@@ -31,14 +35,11 @@ import PedigreeSim.Chromosome;
 import PedigreeSim.Locus;
 import PedigreeSim.Individual;
 
-import org.apache.log4j.Logger;
-
 //TODO
 // multi-threading has not been tested yet
 
 public class Population {
-	private final static Logger myLogger = 
-			Logger.getLogger(Population.class);
+	private final static Logger myLogger = LogManager.getLogger();
 	
 	public final static String NLS = System.getProperty("line.separator");
 	public final static String SEP = System.getProperty("file.separator");

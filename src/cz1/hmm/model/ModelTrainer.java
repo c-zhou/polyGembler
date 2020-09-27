@@ -2,7 +2,9 @@ package cz1.hmm.model;
 
 import java.util.Arrays;
 
-import org.apache.log4j.Logger;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import cz1.hmm.data.DataEntry;
 import cz1.math.Algebra;
@@ -10,7 +12,7 @@ import cz1.util.Constants.Field;
 
 public class ModelTrainer extends EmissionModel implements ForwardBackwardTrainer {
 	
-	private final static Logger myLogger = Logger.getLogger(ModelTrainer.class);
+	private final static Logger myLogger = LogManager.getLogger();
 	
 	private FBUnit[] forward, backward;
 	

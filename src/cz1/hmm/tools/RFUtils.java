@@ -26,7 +26,8 @@ import javax.script.ScriptEngineManager;
 import org.apache.commons.collections4.BidiMap;
 import org.apache.commons.collections4.bidimap.TreeBidiMap;
 import org.apache.commons.math3.stat.StatUtils;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.renjin.eval.Context;
 import org.renjin.primitives.io.serialization.RDataWriter;
 import org.renjin.primitives.matrix.DoubleMatrixBuilder;
@@ -40,7 +41,7 @@ import cz1.util.Executor;
 import cz1.util.Utils;
 
 public abstract class RFUtils extends Executor {
-	private final static Logger myLogger = Logger.getLogger(RFUtils.class);
+	private final static Logger myLogger = LogManager.getLogger();
 	
 	protected final static double RF_MAX = 0.4999999;
 	protected final static double RF_MIN = 0.0000001;

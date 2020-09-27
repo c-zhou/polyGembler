@@ -14,7 +14,8 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.distribution.BetaDistribution;
 import org.apache.commons.math3.stat.StatUtils;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import cz1.hmm.data.DataEntry;
 import cz1.math.Combination;
@@ -24,7 +25,7 @@ import cz1.util.Constants.Field;
 import cz1.util.Utils;
 
 public abstract class EmissionModel {
-	private final static Logger myLogger = Logger.getLogger(EmissionModel.class);
+	private final static Logger myLogger = LogManager.getLogger();
 	
 	protected final static double mu_A_e = 10;
 	protected final static double mu_A_m = 0.1;

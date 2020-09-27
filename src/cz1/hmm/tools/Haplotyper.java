@@ -3,6 +3,9 @@ package cz1.hmm.tools;
 import java.io.File;
 import java.util.Arrays;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import cz1.hmm.data.DataCollection;
 import cz1.hmm.data.DataEntry;
 import cz1.hmm.model.BaumWelchTrainer;
@@ -13,6 +16,8 @@ import cz1.util.Constants.Field;
 import cz1.util.Executor;
 
 public class Haplotyper extends Executor {
+	
+	private final static Logger myLogger = LogManager.getLogger();
 	
 	private final static double minImprov = 1e-4;
 	private final static double max_init_seperation = 1e7; 
@@ -351,8 +356,7 @@ public class Haplotyper extends Executor {
 		for(int i=0; i<max_iter; i++) {
 			model.train();
 			ll = model.loglik();
-			if( ll==0 || ll0!=Double.NEGATIVE_INFINITY && 
-					(ll0-ll)/ll0 < minImprov)
+			if( ll==0 || ll0!=Double.NEGATIVE_INFINITY && (ll0-ll)/ll0 < minImprov)
 				break;
 			ll0 = ll;
 			myLogger.info("#iteration "+model.iteration()+": loglik "+ll);
@@ -365,8 +369,7 @@ public class Haplotyper extends Executor {
 		for(int i=0; i<max_iter; i++) {
 			model1.train();
 			ll = model1.loglik();
-			if( ll==0 || ll0!=Double.NEGATIVE_INFINITY && 
-					(ll0-ll)/ll0 < minImprov)
+			if( ll==0 || ll0!=Double.NEGATIVE_INFINITY && (ll0-ll)/ll0 < minImprov)
 				break;
 			ll0 = ll;
 			myLogger.info("#iteration "+model1.iteration()+": loglik "+ll);
