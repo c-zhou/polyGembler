@@ -143,6 +143,12 @@
     	<artifactId>renjin-script-engine</artifactId>
     	<version>0.8.2330</version>
   	</dependency>
+  	<!-- https://mvnrepository.com/artifact/net.sf.jsci/jsci -->
+	<dependency>
+    	<groupId>net.sf.jsci</groupId>
+    	<artifactId>jsci</artifactId>
+    	<version>1.2</version>
+	</dependency>
   	<dependency>
     	<groupId>wur.nl</groupId>
     	<artifactId>PedigreeSim</artifactId>
