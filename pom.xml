@@ -145,10 +145,10 @@
   	</dependency>
   	<dependency>
     	<groupId>wur.nl</groupId>
-    	<artifactId>pedigreeSim</artifactId>
+    	<artifactId>PedigreeSim</artifactId>
     	<scope>system</scope>
     	<version>v2.0</version>
-    	<systemPath>${basedir}\lib\pedigreeSim.jar</systemPath>
+    	<systemPath>${basedir}/lib/PedigreeSim.jar</systemPath>
     </dependency>
   </dependencies>
 </project>
