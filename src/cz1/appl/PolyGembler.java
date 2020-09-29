@@ -18,7 +18,7 @@ import cz1.simulation.tools.PopulationSimulator;
 
 public class PolyGembler {
 	
-	protected final static Logger myLogger = LogManager.getLogger();
+	protected final static Logger myLogger = LogManager.getLogger(PolyGembler.class);
 		
 	public static void main(String[] args) {
 	

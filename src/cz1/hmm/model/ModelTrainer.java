@@ -12,7 +12,7 @@ import cz1.util.Constants.Field;
 
 public class ModelTrainer extends EmissionModel implements ForwardBackwardTrainer {
 	
-	private final static Logger myLogger = LogManager.getLogger();
+	private final static Logger myLogger = LogManager.getLogger(ModelTrainer.class);
 	
 	private FBUnit[] forward, backward;
 	

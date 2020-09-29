@@ -32,7 +32,7 @@ public abstract class Executor {
 	protected final static int mb = 1024*1024;
 	protected final static Runtime instance = Runtime.getRuntime();
 	
-	protected final static Logger myLogger = LogManager.getLogger();
+	protected final static Logger myLogger = LogManager.getLogger(Executor.class);
 	
 	protected ArgsEngine myArgsEngine = null;
 

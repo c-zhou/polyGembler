@@ -25,7 +25,7 @@ import cz1.util.Constants.Field;
 import cz1.util.Utils;
 
 public abstract class EmissionModel {
-	private final static Logger myLogger = LogManager.getLogger();
+	private final static Logger myLogger = LogManager.getLogger(EmissionModel.class);
 	
 	protected final static double mu_A_e = 10;
 	protected final static double mu_A_m = 0.1;

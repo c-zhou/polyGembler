@@ -19,7 +19,7 @@ import cz1.util.Utils;
 
 public class AssemblyError extends RFUtils {
 
-	private final static Logger myLogger = LogManager.getLogger();
+	private final static Logger myLogger = LogManager.getLogger(AssemblyError.class);
 	
 	private String out_prefix;
 	private double rf_thresh = 0.1;

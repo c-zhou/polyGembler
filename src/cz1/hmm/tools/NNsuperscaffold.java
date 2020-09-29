@@ -24,7 +24,7 @@ import cz1.util.Utils;
 
 public class NNsuperscaffold extends Executor {
 
-	private final static Logger myLogger = LogManager.getLogger();
+	private final static Logger myLogger = LogManager.getLogger(NNsuperscaffold.class);
 	
 	private String rf_file = null;
 	private double rf_thres = RFUtils.inverseGeneticDistance(0.3, "kosambi");

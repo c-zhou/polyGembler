@@ -30,7 +30,7 @@ import org.apache.logging.log4j.Logger;
 
 public class GBS {
 
-	private final static Logger myLogger = LogManager.getLogger();
+	private final static Logger myLogger = LogManager.getLogger(GBS.class);
 	public final static String NLS = System.getProperty("line.separator");
 	public final static String SEP = System.getProperty("file.separator");
 	private final int readLength = 101;

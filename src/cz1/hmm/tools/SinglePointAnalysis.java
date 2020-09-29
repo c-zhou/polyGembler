@@ -18,7 +18,7 @@ import cz1.util.Utils;
 
 public class SinglePointAnalysis extends RFUtils {
 
-	private final static Logger myLogger = LogManager.getLogger();
+	private final static Logger myLogger = LogManager.getLogger(SinglePointAnalysis.class);
 	
 	private String out_prefix;
 	private int wbp = 30000;
