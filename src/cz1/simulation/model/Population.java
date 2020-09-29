@@ -39,7 +39,7 @@ import PedigreeSim.Individual;
 // multi-threading has not been tested yet
 
 public class Population {
-	private final static Logger myLogger = LogManager.getLogger();
+	private final static Logger myLogger = LogManager.getLogger(Population.class);
 	
 	public final static String NLS = System.getProperty("line.separator");
 	public final static String SEP = System.getProperty("file.separator");

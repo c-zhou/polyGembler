@@ -15,7 +15,6 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import cz1.util.ArgsEngine;
-import cz1.util.Constants;
 import cz1.util.Executor;
 import cz1.util.Utils;
 
@@ -86,11 +85,6 @@ public class ZipDataCollection extends Executor {
 	public void run() {
 		// TODO Auto-generated method stub
 		String zipFilePath = out_file+"/"+id+".zip";
-		List<String> info = Arrays.asList(Constants.
-				vcf_format_str.split(":"));
-		int _idx_gt = info.indexOf("GT"),
-				_idx_pl = info.indexOf("PL"),
-				_idx_ad = info.indexOf("AD");
 		try {
 			
 			ZipOutputStream out = new ZipOutputStream(new BufferedOutputStream(new 
@@ -105,23 +99,48 @@ public class ZipDataCollection extends Executor {
 					_idx_pos = sList.indexOf("POS"),
 					_idx_ref = sList.indexOf("REF"),
 					_idx_alt = sList.indexOf("ALT"),
-					_idx_format = sList.indexOf("FORMAT");
+					_idx_format = sList.indexOf("FORMAT"),
+					_idx_gt = -1,
+					_idx_ad = -1,
+					_idx_pl = -1;
+					
 			out.putNextEntry(new ZipEntry("samples"));
+			Set<String> allSamples = new HashSet<>();
 			String sample;
 			for(int i=_idx_start; i<s.length; i++) {
 				sample = s[i];
 				if(sample.contains(":")) {
-					sample = sample.replaceAll(":", "_");
+					sample = sample.split(":")[0];
 					myLogger.info("WARNING - sample renamed: "+s[i]+" -> "+sample);
 				}
+				if(allSamples.contains(sample)) {
+					br.close();
+					out.close();
+					throw new RuntimeException("Duplicate samples "+sample+"!!!");
+				}
+				allSamples.add(sample);
 				out.write((sample+"\n").getBytes());
 			}
 			List<Contig> contigs = new ArrayList<Contig>();
 			line = br.readLine();
+			if(line == null) {
+				br.close();
+				out.close();
+				throw new RuntimeException("Empty VCF file!!!");
+			}
 			s = line.split("\\s+");
 			final Set<String> fields = new HashSet<String>();
 			String[] fs = s[_idx_format].split(":");
-			for(String f : fs) fields.add(f);
+			for(int i=0; i<fs.length; i++) {
+				fields.add(fs[i]);
+				if(fs[i].equals("GT")) {
+					_idx_gt = i;
+				} else if(fs[i].equals("AD")) {
+					_idx_ad = i;
+				} else if(fs[i].equals("PL")) {
+					_idx_pl = i;
+				}
+			}
 			while(line != null) {
 				int i=1;
 				String contig = line.split("\\s+")[0];

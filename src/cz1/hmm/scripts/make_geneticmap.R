@@ -58,8 +58,8 @@ if(!is.null(tmpdir)) {
     	set.tempdir(tmpdir)
     	cat(paste0("Setting TMPDIR ", tmpdir, "\n"))
     } else {
-        warning(paste0("Package ",package," is not available. Using system default TMPDIR."))
-	}
+        warning(paste0("Package \"unixtools\" is not available. Using system default TMPDIR."))
+    }
 }
 
 concorde_path(concorde_path)

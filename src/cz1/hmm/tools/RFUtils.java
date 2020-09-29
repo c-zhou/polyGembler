@@ -41,7 +41,7 @@ import cz1.util.Executor;
 import cz1.util.Utils;
 
 public abstract class RFUtils extends Executor {
-	private final static Logger myLogger = LogManager.getLogger();
+	private final static Logger myLogger = LogManager.getLogger(RFUtils.class);
 	
 	protected final static double RF_MAX = 0.4999999;
 	protected final static double RF_MIN = 0.0000001;

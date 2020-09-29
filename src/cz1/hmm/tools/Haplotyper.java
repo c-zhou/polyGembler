@@ -17,7 +17,7 @@ import cz1.util.Executor;
 
 public class Haplotyper extends Executor {
 	
-	private final static Logger myLogger = LogManager.getLogger();
+	private final static Logger myLogger = LogManager.getLogger(Haplotyper.class);
 	
 	private final static double minImprov = 1e-4;
 	private final static double max_init_seperation = 1e7; 

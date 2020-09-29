@@ -25,7 +25,7 @@ import java.text.SimpleDateFormat;
 
 public class Utils {
 	
-	private static final Logger myLogger = LogManager.getLogger();
+	private static final Logger myLogger = LogManager.getLogger(Utils.class);
 
 	public static BufferedWriter getGZIPBufferedWriter(String path) throws IOException {
 		return new BufferedWriter(new OutputStreamWriter(new

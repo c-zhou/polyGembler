@@ -12,7 +12,7 @@ import org.paukov.combinatorics.ICombinatoricsVector;
 
 public class Combination {
 
-	private final static Logger myLogger = LogManager.getLogger();
+	private final static Logger myLogger = LogManager.getLogger(Combination.class);
 	
 	public static <T> List<List<T>> combination(T[] elements, int K){
 		if(K > elements.length){

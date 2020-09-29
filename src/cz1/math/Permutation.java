@@ -11,7 +11,7 @@ import org.paukov.combinatorics.Generator;
 import org.paukov.combinatorics.ICombinatoricsVector;
 
 public class Permutation {
-	private final static Logger myLogger = LogManager.getLogger();
+	private final static Logger myLogger = LogManager.getLogger(Permutation.class);
 	
 	public static <T> List<List<T>> permutation(T[] elements){
 		// Create the initial vector

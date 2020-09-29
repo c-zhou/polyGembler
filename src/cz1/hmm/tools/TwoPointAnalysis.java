@@ -20,7 +20,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public class TwoPointAnalysis extends RFUtils {
-	private final static Logger myLogger = LogManager.getLogger();
+	private final static Logger myLogger = LogManager.getLogger(TwoPointAnalysis.class);
 	
 	protected String out_prefix;
 	

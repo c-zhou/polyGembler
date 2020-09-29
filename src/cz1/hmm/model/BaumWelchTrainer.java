@@ -21,7 +21,7 @@ import cz1.util.Constants;
 import cz1.util.Constants.Field;
 
 public class BaumWelchTrainer extends EmissionModel implements ForwardBackwardTrainer {
-	private final static Logger myLogger = LogManager.getLogger();
+	private final static Logger myLogger = LogManager.getLogger(BaumWelchTrainer.class);
 	
 	protected final static double mu_J_e = 1e5;
 	protected final static double mu_J_m = 0.1;

@@ -17,7 +17,7 @@ import cz1.util.ArgsEngine;
 import cz1.util.Utils;
 
 public class HaplotypeAnalysis extends RFUtils {
-	private final static Logger myLogger = LogManager.getLogger();
+	private final static Logger myLogger = LogManager.getLogger(HaplotypeAnalysis.class);
 	
 	private String phase_file;
 	private final Map<String, Map<String, int[][]>> phased_haps = new HashMap<>();
