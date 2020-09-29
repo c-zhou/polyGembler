@@ -111,7 +111,7 @@ public class ZipDataCollection extends Executor {
 				sample = s[i];
 				if(sample.contains(":")) {
 					sample = sample.split(":")[0];
-					myLogger.info("WARNING - sample renamed: "+s[i]+" -> "+sample);
+					myLogger.warn("sample renamed: "+s[i]+" -> "+sample);
 				}
 				if(allSamples.contains(sample)) {
 					br.close();

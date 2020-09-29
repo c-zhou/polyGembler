@@ -6,8 +6,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import cz1.util.ArgsEngine;
 import cz1.util.Executor;
@@ -142,8 +144,10 @@ public class VCFtools extends Executor {
 					bw.write(snp+"\n");
 					continue;
 				}
+				
 				if(snp.startsWith("#")) {
 					s = snp.split("\\s+");
+					String[] out_str = new String[s.length];
 					for(int i=0; i<header_field; i++) {
 						if(!s[i].toUpperCase().
 								contains(vcf_header[i])) {
@@ -155,9 +159,30 @@ public class VCFtools extends Executor {
 							bw.close();
 							throw new RuntimeException(err_msg);
 						}
+						out_str[i] = s[i];
 					}
+					
 					nS = s.length-header_field;
-					bw.write(snp+"\n");
+					
+					Set<String> allSamples = new HashSet<>();
+					String sample;
+					for(int i=header_field; i<s.length; i++) {
+						sample = s[i];
+						if(sample.contains(":")) {
+							sample = sample.split(":")[0];
+							myLogger.warn("sample renamed: "+s[i]+" -> "+sample);
+						}
+						if(allSamples.contains(sample)) {
+							br.close();
+							bw.close();
+							throw new RuntimeException("Duplicate samples "+sample+"!!!");
+						}
+						allSamples.add(sample);
+						out_str[i] = sample;
+					}
+					
+					bw.write(cat(out_str, "\t"));
+					bw.write("\n");
 					continue;
 				}
 
