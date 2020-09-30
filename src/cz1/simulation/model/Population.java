@@ -7,8 +7,6 @@ import java.io.FileWriter;
 import java.io.BufferedReader;
 import java.lang.StringBuilder;
 import java.util.Random;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
@@ -35,9 +33,6 @@ import PedigreeSim.Chromosome;
 import PedigreeSim.Locus;
 import PedigreeSim.Individual;
 
-//TODO
-// multi-threading has not been tested yet
-
 public class Population {
 	private final static Logger myLogger = LogManager.getLogger(Population.class);
 	
@@ -60,13 +55,7 @@ public class Population {
 			p += k;
 		}
 	}
-	private final static double PERCENT_SNPS_TO_ALL = 0.1;
 	private int PLOIDY = 2;
-	private int MAX_ALLELES = 2;
-	private int CHROM_NUMBER = 1;
-	private int PROGENY_NUMBER = 94;
-	private String REFERENCE = null;
-	private int THREADS = 1;
 	private final int CHUNK_SIZE = 100; //when writing fasta file
 	private final long RANDOM_SEED = System.nanoTime(); //112019890314L;
 	private final Random random= new Random(RANDOM_SEED);
@@ -76,14 +65,6 @@ public class Population {
 	private double GENETIC_LENGTH = -1.0;
 	private double CENTROMERE_POS = 0.4;
 	
-	private final double[][] SNP_TRANS_MAT = new double[][]{
-			/***To*/ /******      A      C       G       T   */
-			/***From*/     /***A*/ { 0.0000, 1862.0, 6117.0, 1363.0 },
-			/***C*/ { 1919.0, 0.0000, 2423.0, 5623.0 },
-			/***G*/ { 6726.0, 2985.0, 0.0000, 2030.0 },
-			/***T*/ { 1938.0, 7090.0, 7112.0, 0.0000 }
-	};
-	//private Genome genome;
 	private Pedigree pedigree;
 	private Chromosome0[] chromosome;
 	private ArrayList<SNP> parentSNPs;
@@ -91,11 +72,7 @@ public class Population {
 	private String filePath = ".";
 	private PopulationData popData;
 	private HashMap<String, Integer> SNPs2PosMap;
-	private HashMap<String, String[]> Chromsome2SNPsMap;
-	private static ExecutorService executor;
-	private BlockingQueue<Runnable> tasks = null;
-
-
+	
 	public Population(String fastaFilePath, int offspring, 
 			int ploidy, double cM, String scenario, String filePath) {
 		this.scenario = scenario;
@@ -106,7 +83,6 @@ public class Population {
 		this.chromosome = generateChromosome(fastaFilePath);
 		this.parentSNPs = generateParentSNPs();
 		this.SNPs2PosMap = buildSNPs2PosMap();
-		this.Chromsome2SNPsMap = buildChromsome2SNPsMap();
 		createFiles();
 		writeFiles();
 		try {
@@ -145,26 +121,6 @@ public class Population {
 			map.put(snp.getName(),snp.getPosBasePairs());
 			//debug
 			//println(">>>"+snp.getName()+"..."+snp.getPosBasePairs()+"..."+map.get(snp.getName()));
-		}
-		return map;
-	}
-
-	private HashMap<String, String[]> buildChromsome2SNPsMap() {
-		HashMap<String, String[]> map = new HashMap<String, String[]>();
-		SNP snp;
-		ArrayList<String> snpslist;
-		String[] snps;
-		for(int i=0; i<chromosome.length; i++) {
-			String name = chromosome[i].getName();
-			snpslist = new ArrayList<String>();
-			for(int j=0; j<parentSNPs.size(); j++) {
-				snp = parentSNPs.get(j);
-				if(snp.getChromosome().equals(name))
-					snpslist.add(snp.getName());
-			}
-			snps = new String[snpslist.size()];
-			snpslist.toArray(snps);
-			map.put(name, snps);
 		}
 		return map;
 	}
@@ -223,7 +179,7 @@ public class Population {
 					for(int l=0; l<loci.size(); l++) {
 						pos = SNPs2PosMap.get(loci.get(l).getLocusName());
 						str2write = indall[h][l];
-						oos.append( chr.getDnaSEQ().substring(j0, pos-str2write.length()+1) );
+						oos.append(chr.getDnaSEQ().substring(j0, pos-str2write.length()+1));
 						oos.append(str2write);
 						j0 = pos+str2write.length();
 					}
@@ -340,7 +296,7 @@ public class Population {
 			String name = chromosome[i].getName();
 			while(t<lb) {
 				
-				char[] alleles = getRandomAlleles();
+				char[] alleles = getRandomAlleles(chromosome[i].getDnaSEQ().charAt(t));
 				char[][] phase = getRandomPhase(alleles); //for 2 parents
 				
 				snps.add(new SNP(name+"."+t, name, alleles, phase[0], t, t*base));
@@ -354,6 +310,15 @@ public class Population {
 			}
 		}
 		return snps;
+	}
+
+	private char[] getRandomAlleles(char ref) {
+		// TODO Auto-generated method stub
+		char alt = ref;
+		while(alt==ref) {
+			alt = BASE[random.nextInt(BASE_NUM)];
+		}
+		return new char[]{ref, alt};
 	}
 
 	public int poisson(double lambda) {
@@ -406,38 +371,6 @@ public class Population {
 			phase[1][i] = phaseMerge[i+PLOIDY];
 		}
 		return phase;
-	}
-
-	public char[] getRandomAlleles() {
-		double sum = 0;
-		double[] cusumfrom = new double[BASE_NUM],
-				from = new double[BASE_NUM];
-		double[][] cusumto = new double[BASE_NUM][BASE_NUM];
-		for(int i=0; i<BASE_NUM; i++){
-			for(int j=0; j<BASE_NUM; j++) from[i]+=SNP_TRANS_MAT[i][j];
-			sum += from[i];
-		}
-		cusumfrom[0] = from[0]/sum;
-		for(int i=1; i<BASE_NUM; i++){
-			cusumfrom[i] = cusumfrom[i-1]+from[i]/sum;
-		}
-		for(int i=0; i<BASE_NUM; i++){
-			cusumto[i][0] = SNP_TRANS_MAT[i][0]/from[i];
-			for(int j=1; j<BASE_NUM; j++){
-				cusumto[i][j] = SNP_TRANS_MAT[i][j]/from[i]+cusumto[i][j-1];
-			}
-		}
-
-		int ref = getBaseFromCusumProbs(cusumfrom,random.nextDouble()),
-				alt = getBaseFromCusumProbs(cusumto[ref],random.nextDouble());
-		return new char[] {BASE[ref],BASE[alt]};
-	}
-
-	public int getBaseFromCusumProbs(double[] cusum, double r) {
-		int base;
-		for(base=0; base<BASE_NUM; base++)
-			if(cusum[base]>=r) break;
-		return base;
 	}
 
 	public Chromosome0[] generateChromosome(String fastaFilePath) {
