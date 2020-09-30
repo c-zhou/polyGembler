@@ -84,11 +84,14 @@ public class PolyGembler {
 			evaluator.setParameters(args2);
 			evaluator.run();
 			break;
+		/*** only works for small datasets
+		 * suppress it for now
         case "gembler":
 			Gembler gembler = new Gembler();
 			gembler.setParameters(args2);
 			gembler.run();
 			break;
+		**/
 		default:
 			printUsage();
 			throw new RuntimeException("Undefined tool!!!");
@@ -110,6 +113,7 @@ public class PolyGembler {
 						+ " superscaffold       Construct superscaffold using nearest neighbour joining.\n"
 						+ " chromosomer         Construct pseudo chromosomes.\n"
 						+ " evaluator           Haplotype phasing accuracy evaluation with konwn haplotypes.\n"
-						+ " gembler             Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.\n\n");
+						//+ " gembler             Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.\n"
+		);
 	}
 }
