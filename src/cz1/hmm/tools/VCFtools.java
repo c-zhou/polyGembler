@@ -246,12 +246,6 @@ public class VCFtools extends Executor {
 					format_str = cat(format_arr, ":");
 				}
 
-				// no MNP
-				if(s[4].contains(",")) {
-					filteredByMNP++;
-					continue;
-				}
-
 				// filtered by QUAL
 				if(!s[5].equals(".") && Double.parseDouble(s[5])<min_qual) {
 					filteredByQual++;
@@ -281,15 +275,42 @@ public class VCFtools extends Executor {
 				}
 
 				os.setLength(0);
-				for(int i=0; i<header_field-1; i++) {
-					os.append(s[i]);
-					os.append("\t");
+				os.append(s[0].replace('|', '_').replace('.', '_'));
+				os.append("\t");
+				os.append(s[1]);
+				os.append("\t");
+				os.append(s[2]);
+				info = s[4].split(",");
+				// filtered by MNP
+				if(info.length>2) {
+					filteredByMNP++;
+					continue;
 				}
+				boolean isPotentialMNP = info.length>1;
+				
+				if(isPotentialMNP) {
+					os.append("\t");
+					os.append(info[0]);
+					os.append("\t");
+					os.append(info[1]);
+				} else {
+					os.append("\t");
+					os.append(s[3]);
+					os.append("\t");
+					os.append(s[4]);
+				}
+				
+				for(int i=5; i<header_field-1; i++) {
+					os.append("\t");
+					os.append(s[i]);
+				}
+				os.append("\t");
 				os.append(format_str);
 
 				int[] ad = new int[2];
 				//int dp = -1;
 				int m = 0;
+				boolean isMNP = false;
 				for(int i=header_field; i<s.length; i++) {
 					os.append("\t");
 					info = s[i].split(":");
@@ -298,23 +319,50 @@ public class VCFtools extends Executor {
 						m++;
 						continue;
 					}
-
-					if(format_set.containsKey("RO") &&
-							format_set.containsKey("AO")) {
-						ad[0] = Integer.parseInt(info[format_set.get("RO")]);
-						ad[1] = Integer.parseInt(info[format_set.get("AO")]);
-						//dp = ad[0]+ad[1];
-					} else if(format_set.containsKey("AD")) {
+					
+					if(isPotentialMNP && 
+							format_set.containsKey("GT") && 
+							info[format_set.get("GT")].contains("0")) {
+						isMNP = true;
+                        break;
+                    }
+					
+					if(format_set.containsKey("AD")) {
 						String[] ad_str = info[format_set.get("AD")].split(",");
-						if(ad_str.length<2) {
-							ad[0] = 0;
-							ad[1] = 0;
-						} else {
-							ad[0] = ad_str[0].equals(".")?0:Integer.parseInt(ad_str[0]);
-							ad[1] = ad_str[1].equals(".")?0:Integer.parseInt(ad_str[1]);
+						if(isPotentialMNP && 
+								!ad_str[0].equals(".") &&
+								Integer.parseInt(ad_str[0])>0) {
+							isMNP = true;
+	                        break;
 						}
+						int shift = isPotentialMNP ? 1 : 0;
+						if(ad_str.length<2) {
+                            ad[0] = 0;
+                            ad[1] = 0;
+                        } else {
+                    	    ad[0] = ad_str[0+shift].equals(".")?0:Integer.parseInt(ad_str[0+shift]);
+                		    ad[1] = ad_str[1+shift].equals(".")?0:Integer.parseInt(ad_str[1+shift]);
+                        }
 						//dp = ad[0]+ad[1];
-					} 
+					} else if(format_set.containsKey("RO") &&
+							format_set.containsKey("AO")) {
+						String ro_str = info[format_set.get("RO")];
+						String ao_str = info[format_set.get("AO")];
+						
+						if(isPotentialMNP) {
+							if(!ro_str.equals(".") && Integer.parseInt(ro_str)>0) {
+								isMNP = true;
+		                        break;
+							}
+                    		String[] ad_str = ao_str.split(",");
+                    		ad[0] = ad_str[0].equals(".")?0:Integer.parseInt(ad_str[0]);
+                    		ad[1] = ad_str[1].equals(".")?0:Integer.parseInt(ad_str[1]);
+                    	} else {
+                    		ad[0] = ro_str.equals(".")?0:Integer.parseInt(ro_str);
+                    		ad[1] = ao_str.equals(".")?0:Integer.parseInt(ao_str);
+                    	}
+						//dp = ad[0]+ad[1];
+					}
 					//else if(format_set.containsKey("DP")) {
 					//	dp = Integer.parseInt(info[format_set.get("DP")]);
 					//}
@@ -325,6 +373,9 @@ public class VCFtools extends Executor {
 						switch(target_str) {
 						case "GT":
 							out_arr[j] = info[format_set.get("GT")];
+							if(isPotentialMNP) {
+								out_arr[j] = out_arr[j].replace('1', '0').replace('2', '1');
+							}
 							break;
 						case "AD":
 							out_arr[j] = cat(ad,",");
@@ -337,6 +388,11 @@ public class VCFtools extends Executor {
 							out_arr[j] = info[format_set.get("GQ")];
 							break;
 						case "PL":
+						    if(isPotentialMNP) {
+						    	br.close();
+								bw.close();
+								throw new RuntimeException("Cannot rescue MNP with PL/GL field!!!");
+						    }
 							if(format_set.containsKey("PL")) {
 								out_arr[j] = info[format_set.get("PL")];
 							} else {
@@ -359,10 +415,18 @@ public class VCFtools extends Executor {
 				}
 				os.append("\n");
 				
+				// filtered by MNP
+				if(isMNP) {
+					filteredByMNP++;
+					continue;
+				}
+				
+				// filtered by missing data
 				if((double)m/nS>max_missing) {
 					filteredByMIS++;
 					continue;
 				}
+				
 				bw.write(os.toString());
 			}
 			bw.close();
