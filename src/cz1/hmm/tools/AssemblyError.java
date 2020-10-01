@@ -75,8 +75,8 @@ public class AssemblyError extends RFUtils {
 			myArgsEngine.add( "-phi", "--skew-phi", true);
 			myArgsEngine.add( "-nd", "--drop", true);
 			myArgsEngine.add( "-t", "--threads", true);
-			myArgsEngine.parse(args);
 		}
+		myArgsEngine.parse(args);
 		
 		if(myArgsEngine.getBoolean("-i")) {
 			in_haps = myArgsEngine.getString("-i");

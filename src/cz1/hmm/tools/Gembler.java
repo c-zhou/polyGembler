@@ -25,7 +25,6 @@ import org.apache.commons.lang3.StringUtils;
 
 import cz1.hmm.data.DataCollection;
 import cz1.util.ArgsEngine;
-import cz1.util.Constants;
 import cz1.util.Executor;
 import cz1.util.Utils;
 
@@ -90,7 +89,6 @@ public class Gembler extends Executor {
 						+ "                                 This could be useful if you are not root users and install R \n"
 						+ "                                 packages in directories other than default. \n"
 						+ "                                 Multiple paths separated by ':' could be provided.\n"
-						+ "     -seed/--random-seed         Random seed for this run.\n"
 						+ "\n"
 						+ " Data preparation:\n"
 						+ "     -l/--min-depth              Minimum depth to keep a SNP (0).\n"
@@ -161,7 +159,6 @@ public class Gembler extends Executor {
 			myArgsEngine.add("-p", "--ploidy", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
-			myArgsEngine.add("-seed", "--random-seed", true);
 			
 			myArgsEngine.add("-l", "--min-depth", true);
 			myArgsEngine.add("-u", "--max-depth", true);
@@ -192,9 +189,8 @@ public class Gembler extends Executor {
 			
 			myArgsEngine.add("-a", "--contig-file", true);
 			myArgsEngine.add("-g", "--gap", true);
-			
-			myArgsEngine.parse(args);
 		}
+		myArgsEngine.parse(args);
 		
 		if(myArgsEngine.getBoolean("-i")) {
 			in_vcf = myArgsEngine.getString("-i");
@@ -225,11 +221,6 @@ public class Gembler extends Executor {
 		
 		if (myArgsEngine.getBoolean("-rlib")) {
 			RLibPath = myArgsEngine.getString("-rlib");
-		}
-		
-		if(myArgsEngine.getBoolean("-seed")) {
-			Constants.seed = Long.parseLong(myArgsEngine.getString("-seed"));
-			Constants.setRandomGenerator();
 		}
 		
 		if (myArgsEngine.getBoolean("-l")) {
@@ -404,7 +395,7 @@ public class Gembler extends Executor {
 		if(!oldScaffs.isEmpty()) {
 			String outs_err = out_prefix+"/herr";
 			Utils.makeOutputDir(new File(outs_err));
-			move(oldScaffs, outs_err, expr_id);
+			move(oldScaffs, outs, outs_err, expr_id);
 		}
 		
 		// run haplotyper for new scaffs
@@ -795,8 +786,8 @@ public class Gembler extends Executor {
 			
 			// calculate recombination frequencies for the last refinement round
 			sp.setParameters(new String[] {
-					"-i", lgOutDir+"/round_"+(refine_round+1),
-					"-o", out_prefix+"/out"+(5+refine_round),
+					"-i", lgOutDir+"/round_"+refine_round,
+					"-o", out_prefix+"/out"+(4+refine_round),
 					"-wbp", String.valueOf(wbp),
 					"-wnm", String.valueOf(wnm),
 					"-ex", expr_id,
@@ -808,8 +799,8 @@ public class Gembler extends Executor {
 			sp.run();
 			
 			tp.setParameters(new String[] {
-					"-i", lgOutDir+"/round_"+(refine_round+1),
-					"-o", out_prefix+"/out"+(5+refine_round),
+					"-i", lgOutDir+"/round_"+refine_round,
+					"-o", out_prefix+"/out"+(4+refine_round),
 					"-ex", expr_id,
 					"-nb", String.valueOf(nb),
 					"-phi", String.valueOf(phi),
@@ -972,11 +963,12 @@ public class Gembler extends Executor {
 	}
 
 	private void move(final Set<String> scaffs, 
-			final String out,
+			final String sourceDir,
+			final String targetDir,
 			final String expr_id) {
 		// TODO Auto-generated method stub
 		for(final String scaff : scaffs) {
-			File[] files = new File(out).listFiles(
+			File[] files = new File(sourceDir).listFiles(
 					new FilenameFilter() {
 						@Override
 						public boolean accept(File dir, String name) {
@@ -985,8 +977,8 @@ public class Gembler extends Executor {
 					});
 			for(File f : files)
 				try {
-					Files.move(f.toPath(),
-							Paths.get(out),
+					Files.move(Paths.get(sourceDir, f.getName()),
+							Paths.get(targetDir, f.getName()),
 							StandardCopyOption.REPLACE_EXISTING,
 							StandardCopyOption.ATOMIC_MOVE);
 				} catch (IOException e) {

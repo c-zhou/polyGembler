@@ -59,8 +59,8 @@ public class TwoPointAnalysis extends RFUtils {
 			myArgsEngine.add( "-t", "--threads", true);
 			myArgsEngine.add( "-phi", "--skew-phi", true);
 			myArgsEngine.add( "-nd", "--drop", true);
-			myArgsEngine.parse(args);
 		}
+		myArgsEngine.parse(args);
 		
 		if(myArgsEngine.getBoolean("-i")) {
 			in_haps = myArgsEngine.getString("-i");

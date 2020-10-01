@@ -51,8 +51,8 @@ public class DataPreparation extends Executor {
 			myArgsEngine.add("-f", "--min-maf", true);
 			myArgsEngine.add("-m", "--max-missing", true);
 			myArgsEngine.add("-o", "--prefix", true);
-			myArgsEngine.parse(args);
 		}
+		myArgsEngine.parse(args);
 		
 		if (myArgsEngine.getBoolean("-i")) {
 			vcf_in = myArgsEngine.getString("-i");

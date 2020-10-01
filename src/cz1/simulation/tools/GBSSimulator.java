@@ -47,8 +47,8 @@ public class GBSSimulator extends Executor {
 			myArgsEngine.add("-S", "--random-seed", true);
 			myArgsEngine.add("-q", "--quality-file", true);
 			myArgsEngine.add("-o", "--output-file", true);
-			myArgsEngine.parse(args);
 		}
+		myArgsEngine.parse(args);
 
 		String fastaFileDir, 
 			enzymeName = "PstI", 

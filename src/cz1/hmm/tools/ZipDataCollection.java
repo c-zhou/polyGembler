@@ -55,8 +55,8 @@ public class ZipDataCollection extends Executor {
 			myArgsEngine.add("-i", "--vcf", true);
 			myArgsEngine.add("-s", "--id", true);
 			myArgsEngine.add("-o", "--prefix", true);
-			myArgsEngine.parse(args);
 		}
+		myArgsEngine.parse(args);
 
 		if (myArgsEngine.getBoolean("-i")) {
 			vcf_in = myArgsEngine.getString("-i");

@@ -43,8 +43,8 @@ public class PopulationSimulator extends Executor {
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-s", "--run-id", true);
 			myArgsEngine.add("-o", "--prefix", true);
-			myArgsEngine.parse(args);
 		}
+		myArgsEngine.parse(args);
 
 		String reference, id="Sc1", output="./";
 		int f1=94, ploidy=2;

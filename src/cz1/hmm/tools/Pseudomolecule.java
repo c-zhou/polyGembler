@@ -51,8 +51,8 @@ public class Pseudomolecule extends Executor {
 			myArgsEngine.add("-e", "--error", true);
 			myArgsEngine.add("-n", "--gap", true);
 			myArgsEngine.add("-o", "--prefix", true);
-			myArgsEngine.parse(args);
 		}
+		myArgsEngine.parse(args);
 		
 		if(myArgsEngine.getBoolean("-a")) {
 			this.sequences = Sequence.parseFastaFileAsMap(myArgsEngine.getString("-a"));

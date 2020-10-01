@@ -92,8 +92,8 @@ public class Haplotyper extends Executor {
 			myArgsEngine.add("-G", "--genotype", false);
 			myArgsEngine.add("-D", "--allele-depth", false);
 			myArgsEngine.add("-S", "--random-seed", true);
-			myArgsEngine.parse(args);
 		}
+		myArgsEngine.parse(args);
 		
 		if(myArgsEngine.getBoolean("-i")) {
 			in_zip = myArgsEngine.getString("-i");

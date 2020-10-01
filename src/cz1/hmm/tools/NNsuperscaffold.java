@@ -54,8 +54,8 @@ public class NNsuperscaffold extends Executor {
 			myArgsEngine.add("-i", "--input", true);
 			myArgsEngine.add("-r", "--rf", true);
 			myArgsEngine.add("-o", "--prefix", true);
-			myArgsEngine.parse(args);
 		}
+		myArgsEngine.parse(args);
 		
 		if(myArgsEngine.getBoolean("-i")) {
 			rf_file = myArgsEngine.getString("-i");

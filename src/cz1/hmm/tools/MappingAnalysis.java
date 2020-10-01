@@ -53,8 +53,8 @@ public class MappingAnalysis extends Executor {
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
 			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-o", "--prefix", true);
-			myArgsEngine.parse(args);
 		}
+		myArgsEngine.parse(args);
 
 		if(myArgsEngine.getBoolean("-i")) {
 			rf_file = myArgsEngine.getString("-i");
