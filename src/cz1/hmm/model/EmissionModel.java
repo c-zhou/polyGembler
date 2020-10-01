@@ -68,6 +68,8 @@ public abstract class EmissionModel {
 	protected String[] chrs;
 	protected boolean[] chrs_rev;
 	
+	protected boolean runnable = true;
+	
 	abstract double loglik();
 	abstract double loglik(int fromMIndex, int toMIndex);
 	abstract double findPath();
@@ -252,12 +254,17 @@ public abstract class EmissionModel {
 		
 		int f1 = Nf1-miss_f1;
 		if(f1<min_f1) {
+			runnable = false;
 			myLogger.info("f1 individuals left: "+f1+" (<"+min_f1+")");
 			myLogger.info("program exit with status 0.");
-			System.exit(0);
 		} else {
 			myLogger.info("f1 individuals left: "+f1);
 		}
+	}
+	
+	public boolean runnable() {
+		// TODO Auto-generated method stub
+		return this.runnable;
 	}
 
 	private void makeEmissionUnits() {

@@ -247,6 +247,9 @@ public class Haplotyper extends Executor {
 		
 		myLogger.info("=> STAGE I. training emission model with no transitions allowed.");
 		final ModelTrainer model = new ModelTrainer(de, seperation, reverse, field, ploidy, parents);
+		
+		if(!model.runnable()) return;
+		
 		ll0 = Double.NEGATIVE_INFINITY;
 		for(int i=0; i<max_iter; i++) {
 			model.train();
@@ -259,6 +262,8 @@ public class Haplotyper extends Executor {
 
 		myLogger.info("=> STAGE II. training emission model with transitions allowed.");
 		final BaumWelchTrainer model1 = BaumWelchTrainer.copyOf(model);
+		
+		if(!model1.runnable()) return;
 		
 		ll0 = Double.NEGATIVE_INFINITY;
 		for(int i=0; i<max_iter; i++) {
