@@ -52,12 +52,8 @@ public class NNsuperscaffold extends Executor {
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-i", "--input", true);
-			myArgsEngine.add("-h", "--hap-size", true);
-			myArgsEngine.add("-l", "--lod", true);
 			myArgsEngine.add("-r", "--rf", true);
-			myArgsEngine.add("-n", "--neighbour", true);
 			myArgsEngine.add("-o", "--prefix", true);
-			myArgsEngine.add("-rlib", "--R-external-libs", true);
 			myArgsEngine.parse(args);
 		}
 		

@@ -34,111 +34,6 @@ public class Haplotyper extends Executor {
 	private int[] end_pos = null;
 	private int ploidy = 2;
 	private String[] parents;
-	
-	public Haplotyper() {}
-	
-	public Haplotyper(String in_zip,
-			String out_prefix,
-			String[] scaff,
-			double[] seperation,
-			boolean[] reverse,
-			int max_iter,
-			int ploidy,
-			Field field) {
-		this.in_zip = in_zip;
-		this.out_prefix = out_prefix;
-		this.scaff = scaff;
-		this.seperation = seperation;
-		this.reverse = reverse;
-		this.max_iter = max_iter;
-		this.ploidy = ploidy;
-		this.field = field;
-		this.expr_id = new File(in_zip).getName().
-				replaceAll(".zip$", "").
-				replace(".", "").
-				replace("_", "");
-	}
-	
-	public Haplotyper(String in_zip,
-			String out_prefix,
-			String[] scaff,
-			double[] seperation,
-			boolean[] reverse,
-			int max_iter,
-			int ploidy,
-			Field field,
-			String expr_id) {
-		this.in_zip = in_zip;
-		this.out_prefix = out_prefix;
-		this.scaff = scaff;
-		this.seperation = seperation;
-		this.reverse = reverse;
-		this.max_iter = max_iter;
-		this.ploidy = ploidy;
-		this.field = field;
-		this.expr_id = expr_id;
-	}
-	
-	public Haplotyper(String in_zip,
-			String out_prefix, 
-			String[] scaff,
-			int ploidy, 
-			Field field) {
-		// TODO Auto-generated constructor stub
-		this.in_zip = in_zip;
-		this.out_prefix = out_prefix;
-		this.scaff = scaff;
-		this.ploidy = ploidy;
-		this.field = field;
-		this.expr_id = new File(in_zip).getName().
-				replaceAll(".zip$", "").
-				replace(".", "").
-				replace("_", "");
-	}
-	
-	public Haplotyper(String in_zip,
-			String out_prefix, 
-			String[] scaff,
-			int ploidy, 
-			Field field,
-			String expr_id,
-			int max_iter) {
-		// TODO Auto-generated constructor stub
-		this.in_zip = in_zip;
-		this.out_prefix = out_prefix;
-		this.scaff = scaff;
-		this.ploidy = ploidy;
-		this.field = field;
-		this.expr_id = expr_id;
-		this.max_iter = max_iter;
-	}
-	
-	public Haplotyper(String in_zip,
-			String out_prefix, 
-			String scaff,
-			String seperation,
-			String reverse,
-			int ploidy, 
-			Field field,
-			String expr_id,
-			int max_iter) {
-		// TODO Auto-generated constructor stub
-		this.in_zip = in_zip;
-		this.out_prefix = out_prefix;
-		this.scaff = scaff.split(":");
-		String[] s = seperation.split(":");
-		this.seperation = new double[s.length];
-		for(int i=0; i<s.length; i++) 
-			this.seperation[i] = Double.parseDouble(s[i]);
-		s = reverse.split(":");
-		this.reverse = new boolean[s.length];
-		for(int i=0; i<s.length; i++) 
-			this.reverse[i] = Boolean.parseBoolean(s[i]);
-		this.ploidy = ploidy;
-		this.field = field;
-		this.expr_id = expr_id;
-		this.max_iter = max_iter;
-	}
 
 	@Override
 	public void printUsage() {
@@ -168,7 +63,7 @@ public class Haplotyper extends Executor {
 							+" -D/--allele-depth            Use allele depth to infer haplotypes. Mutually exclusive \n"
 							+"                              with option -G/--genotype.(default)\n"
 							+" -S/--random-seed             Random seed for this run.\n"
-							);
+				);
 	}
 
 	@Override

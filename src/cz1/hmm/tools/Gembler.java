@@ -6,10 +6,13 @@ import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -21,44 +24,56 @@ import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 
 import cz1.hmm.data.DataCollection;
-import cz1.math.Algebra;
 import cz1.util.ArgsEngine;
 import cz1.util.Constants;
 import cz1.util.Executor;
 import cz1.util.Utils;
-import cz1.util.Constants.Field;
 
 public class Gembler extends Executor {
-
+	// universal
 	private String in_vcf = null;
-	private String assembly_file = null;
 	private String out_prefix = null;
-	private int max_iter = 100;
-	private Field field = Field.AD;
+	private int ploidy = 2;
+	private String RLibPath = null;
 	
-	private int min_snpc = 5;
+	// data preparation
 	private int min_depth = 0;
 	private int max_depth = Integer.MAX_VALUE;
 	private int min_qual = 0;
-	private double min_maf = 0.1;
-	private double max_missing = 0.5;
-	private String[] parents;
-	private int ploidy;
+	private double min_maf = 0;
+	private double max_missing = 1.0;
 	
-	private int[] repeat = new int[]{30,30,10};
-	private int refine_round = 10;
+	// haplotype inferring and pseudomolecule refinement
+	private String parents = null;
+	private int max_iter = 1000;
+	private String field = "-D";
+	private int min_snpc = 5;
+	private int[] nr = new int[]{30,30,10};
+	private int refine_round = 3;
 	
+	// recombination frequency estimation and assembly error detection
+	private double err_rf = 0.1;
+	private int wbp = 30000;
+	private int wnm = 30;
+	private int nb = 30;	
 	private int drop = 1;
 	private double phi = 2;
-	private int nB = 10;
+
+	// genetic linkage map construction
+	private double lod_thresh = 3.0;
+	private double lg_rf = RFUtils.inverseGeneticDistance(0.5, "kosambi");
+	private boolean check_chimeric = false;
 	
-	private double genome_size = -1;
-	private double frac_thresh = .8;
+	// uperscaffold construction by nearest neighbor joining
+	private boolean ss = true;
+	private double ss_rf = RFUtils.inverseGeneticDistance(0.3, "kosambi");
 	
-	private String RLibPath = null;
+	// pseudomolecule construction
+	private String contig_file = null;
+	private int n_gap = 1000;
 	
 	public Gembler() {
-		this.require("Rscript");
+		//this.require("Rscript");
 	}
 	
 	@Override
@@ -70,47 +85,62 @@ public class Gembler extends Executor {
 						+ "     -i/--input-vcf              Input VCF file.\n"
 						+ "     -o/--prefix                 Output file location, create the directory if not exist.\n"
 						+ "     -p/--ploidy                 Ploidy of genome (default 2).\n"
-						+ "     -S/--random-seed            Random seed for this run.\n"
 						+ "     -t/--threads                Threads (default 1).\n"
 						+ "     -rlib/--R-external-libs     External library paths that you want R to search for packages.\n"
 						+ "                                 This could be useful if you are not root users and install R \n"
 						+ "                                 packages in directories other than default. \n"
 						+ "                                 Multiple paths separated by ':' could be provided.\n"
+						+ "     -seed/--random-seed         Random seed for this run.\n"
 						+ "\n"
 						+ " Data preparation:\n"
-						+ "     -l/--min-depth              Minimum depth to keep a SNP (DP).\n"
-						+ "     -u/--max-depth              Maximum depth to keep a SNP (DP).\n"
-						+ "     -q/--min-qual               Minimum quality to keep a SNP (QUAL).\n"
-						+ "     -mf/--min-maf               Minimum minor allele frequency to keep a SNP (default 0.1).\n"
-						+ "     -mm/--max-missing           Maximum proportion of missing data to keep a SNP (default 0.5).\n"
+						+ "     -l/--min-depth              Minimum depth to keep a SNP (0).\n"
+						+ "     -u/--max-depth              Maximum depth to keep a SNP ("+Integer.MAX_VALUE+").\n"
+						+ "     -q/--min-qual               Minimum quality to keep a SNP (0).\n"
+						+ "     -f/--min-maf                Minimum minor allele frequency to keep a SNP (default 0).\n"
+						+ "     -m/--max-missing            Maximum proportion of missing data to keep a SNP (default 1.0).\n"
 						+ "\n"
-						+ " Haplotype inferring:\n"
-						+ "     -x/--max-iter               Maxmium rounds for EM optimization (default 100).\n"
-						+ "     -f/--parent                 Parent samples (separated by a \":\").\n"
+						+ " Haplotype inferring and pseudomolecule refinement:\n"
+						+ "     -x/--max-iter               Maxmium rounds for EM optimization (default 1000).\n"
+						+ "     -parent/--parent            Parent samples (separated by a \":\").\n"
 						+ "     -G/--genotype               Use genotypes to infer haplotypes. Mutually exclusive with \n"
 						+ "                                 option -D/--allele-depth.\n"
 						+ "     -D/--allele-depth           Use allele depth to infer haplotypes. Mutually exclusive \n"
 						+ "                                 with option -G/--genotype (default).\n"
-						+ "     -c/--min-snp-count          Minimum number of SNPs on a scaffold to run.\n"
+						+ "     -c/--min-snp-count          Minimum number of SNPs on a scaffold to run (default 5).\n"
 						+ "     -r/--repeat                 Repeat haplotype inferring for multiple times as EM algorithm \n"
 						+ "                                 could be trapped in local optima. The program takes three values \n"
 						+ "                                 from here, i.e., for scaffold, for superscaffold and for genetic \n"
 						+ "                                 linkage map refinement. Three values should be separated by ',' \n"
 						+ "                                 (default 30,30,10).\n"
-						+ "     -rr/--refinement-round      Number of rounds to refine pseudomelecules (default 10.)\n"
+						+ "     -rr/--refinement-round      Number of rounds to refine pseudomelecules (default 3).\n"
 						+ "\n"
-						+ " Recombination frequency estimation:\n"
-						+ "     -nb/--best                  The most likely nb haplotypes will be used (default 10).\n"
+						+ " Recombination frequency estimation and assembly error detection:\n"
+						+ "     -asmr/--asmr-thresh         Recombination frequency threshold for assembly error detection (default 0.1).\n"
+						+ "     -wbp/--windows-bp           Window size (#basepairs) for RF estimation for marker pairs on \n"
+						+ "                                 same scaffold (default 30000).\n"
+						+ "     -wnm/--windows-nm           Window size (#markers) for RF estimation for marker pairs on \n" 
+						+ "                                 same scaffold (default 30).\n"
+						+ "     -nb/--best                  The most likely nb haplotypes will be used (default 30). \n"
 						+ "     -phi/--skew-phi             For a haplotype inference, the frequencies of parental \n"
 						+ "                                 haplotypes need to be in the interval [1/phi, phi], \n"
-						+ "                                 otherwise will be discarded (default 2).\n"
-						+ "     -nd/--drop                  At least nd haplotype inferences are required for calculation.\n"
+						+ "                                 otherwise will be discared (default 2).\n"
+						+ "     -nd/--drop                  At least nd haplotype inferences are required for \n"
+						+ "                                 a contig/scaffold to be analysed (default 1).\n"
+						+ "\n"
+						+ " Genetic linkage map construction:\n"
+						+ "     -l/--lod                    LOD score threshold (default: 3).\n"
+						+ "     -lr/--lr-thresh             Recombination frequency threshold for linkage mapping (default: 0.38).\n"
+						+ "     -c/--check-chimeric         Check chimeric joins during grouping (default: false). \n"
+						+ "\n"
+						+ " Superscaffold construction by nearest neighbor joining:\n"
+						+ "     -ns/--no-superscaffold      Do NOT construct superscaffold for RF refinement."
+                        + "     -sr/--sr-thresh             Recombination frequency threshold for superscaffold (default: 0.27).\n"
+                        + "\n"
 						+ " Pseudomolecule construction:\n"
-						+ "     -a/--input-assembly         Input assembly fasta file.\n"
-						+ "     -frac/--frac-thresold       Lower threshold the genetic linkage map covers to construct \n"
-						+ "                                 pseudomolecules (default 0.8).\n"
-						+ "     -gz/--genome-size           The estimated genome size (default size of the reference assembly). \n"
-						+"\n"
+						+ "     -a/--contig-file            Input assembly FASTA file.\n"
+						+ "     -g/--gap                    Gap size between sequences (default 1000). \n"
+						+ "                                 The gaps will be filled with character 'n'.\n"
+						+ "\n"
 				);
 	}
 
@@ -127,29 +157,42 @@ public class Gembler extends Executor {
 		if (myArgsEngine == null) {
 			myArgsEngine = new ArgsEngine();
 			myArgsEngine.add("-i", "--input-vcf", true);
-			myArgsEngine.add("-a", "--input-assembly", true);
 			myArgsEngine.add("-o", "--prefix", true);
-			myArgsEngine.add("-x", "--max-iter", true);
 			myArgsEngine.add("-p", "--ploidy", true);
-			myArgsEngine.add("-f", "--parent", true);
-			myArgsEngine.add("-G", "--genotype", false);
-			myArgsEngine.add("-D", "--allele-depth", false);
-			myArgsEngine.add("-S", "--random-seed", true);
 			myArgsEngine.add("-t", "--threads", true);
+			myArgsEngine.add("-rlib", "--R-external-libs", true);
+			myArgsEngine.add("-seed", "--random-seed", true);
+			
 			myArgsEngine.add("-l", "--min-depth", true);
 			myArgsEngine.add("-u", "--max-depth", true);
 			myArgsEngine.add("-q", "--min-qual", true);
-			myArgsEngine.add("-mf", "--min-maf", true);
-			myArgsEngine.add("-mm", "--max-missing", true);
+			myArgsEngine.add("-f", "--min-maf", true);
+			myArgsEngine.add("-m", "--max-missing", true);
+			
+			myArgsEngine.add("-x", "--max-iter", true);
+			myArgsEngine.add("-parent", "--parent", true);
+			myArgsEngine.add("-G", "--genotype", false);
+			myArgsEngine.add("-D", "--allele-depth", false);
 			myArgsEngine.add("-c", "--min-snp-count", true);
 			myArgsEngine.add("-r", "--repeat", true);
 			myArgsEngine.add("-rr", "--refinement-round", true);
+			
+			myArgsEngine.add("-asmr", "--asmr-thresh", true);
+			myArgsEngine.add("-wbp", "--windows-bp", true);
+			myArgsEngine.add("-wnm", "--windows-nm", true);
 			myArgsEngine.add("-nb", "--best", true);
 			myArgsEngine.add("-phi", "--skew-phi", true);
 			myArgsEngine.add("-nd", "--drop", true);
-			myArgsEngine.add("-rlib", "--R-external-libs", true);
-			myArgsEngine.add("-frac", "--frac-thresold", true);
-			myArgsEngine.add("-gz", "--genome-size", true);
+			
+			myArgsEngine.add("-l", "--lod", true);
+			myArgsEngine.add("-lr", "--lr-thresh", true);
+			myArgsEngine.add("-c", "--check-chimeric", true);
+			
+			myArgsEngine.add("-sr", "--sr-thresh", true);
+			
+			myArgsEngine.add("-a", "--contig-file", true);
+			myArgsEngine.add("-g", "--gap", true);
+			
 			myArgsEngine.parse(args);
 		}
 		
@@ -160,53 +203,33 @@ public class Gembler extends Executor {
 			throw new IllegalArgumentException("Please specify your input VCF file.");
 		}
 		
-		if(myArgsEngine.getBoolean("-a")) {
-			assembly_file = myArgsEngine.getString("-a");
-		}
-
 		if(myArgsEngine.getBoolean("-o")) {
 			out_prefix = myArgsEngine.getString("-o");
+			if(new File(out_prefix).exists()) {
+				throw new RuntimeException("Output dir "+out_prefix+" existed.");
+			}
 		}  else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify your output file prefix.");
-		}
-		
-		if(myArgsEngine.getBoolean("-x")) {
-			max_iter = Integer.parseInt(myArgsEngine.getString("-x"));
+			String timeStamp = new SimpleDateFormat("yyyy-MM-dd-HH:mm:ss").
+					format(Calendar.getInstance().getTime());
+			out_prefix = "results_"+timeStamp;
+			myLogger.info("Using output dir: "+out_prefix);
 		}
 		
 		if(myArgsEngine.getBoolean("-p")) {
 			this.ploidy = Integer.parseInt(myArgsEngine.getString("-p"));
 		}
 		
-		if(myArgsEngine.getBoolean("-f")) {
-			this.parents = myArgsEngine.getString("-f").split(":");
-		} else {
-			printUsage();
-			throw new IllegalArgumentException("Please specify the parent samples (seperated by a \":\").");
-		}
-		
-		int c = 0;
-		if(myArgsEngine.getBoolean("-G")) {
-			field = Field.GT;
-			c++;
-		}
-		
-		if(myArgsEngine.getBoolean("-D")) {
-			field = Field.AD;
-			c++;
-		}
-		
-		if(c>1) throw new IllegalArgumentException("Options -G/--genotype, "
-				+ "-D/--allele-depth are exclusive!!!");
-		
-		if(myArgsEngine.getBoolean("-S")) {
-			Constants.seed = Long.parseLong(myArgsEngine.getString("-S"));
-			Constants.setRandomGenerator();
-		}
-		
 		if(myArgsEngine.getBoolean("-t")) {
 			THREADS = Integer.parseInt(myArgsEngine.getString("-t"));
+		}
+		
+		if (myArgsEngine.getBoolean("-rlib")) {
+			RLibPath = myArgsEngine.getString("-rlib");
+		}
+		
+		if(myArgsEngine.getBoolean("-seed")) {
+			Constants.seed = Long.parseLong(myArgsEngine.getString("-seed"));
+			Constants.setRandomGenerator();
 		}
 		
 		if (myArgsEngine.getBoolean("-l")) {
@@ -221,13 +244,35 @@ public class Gembler extends Executor {
 			min_qual = Integer.parseInt(myArgsEngine.getString("-q"));
 		}
 		
-		if (myArgsEngine.getBoolean("-mf")) {
-			min_maf = Double.parseDouble(myArgsEngine.getString("-mf"));
+		if (myArgsEngine.getBoolean("-f")) {
+			min_maf = Double.parseDouble(myArgsEngine.getString("-f"));
 		}
 		
-		if (myArgsEngine.getBoolean("-mm")) {
-			max_missing = Double.parseDouble(myArgsEngine.getString("-mm"));
+		if (myArgsEngine.getBoolean("-m")) {
+			max_missing = Double.parseDouble(myArgsEngine.getString("-m"));
 		}
+		
+		if(myArgsEngine.getBoolean("-x")) {
+			max_iter = Integer.parseInt(myArgsEngine.getString("-x"));
+		}
+		
+		if(myArgsEngine.getBoolean("-parent")) {
+			parents = myArgsEngine.getString("-parent");
+		}
+		
+		int c = 0;
+		if(myArgsEngine.getBoolean("-G")) {
+			field = "-G";
+			c++;
+		}
+		
+		if(myArgsEngine.getBoolean("-D")) {
+			field = "-D";
+			c++;
+		}
+		
+		if(c>1) throw new IllegalArgumentException("Options -G/--genotype and "
+				+ "-D/--allele-depth are mutually exclusive.");
 		
 		if (myArgsEngine.getBoolean("-c")) {
 			min_snpc = Integer.parseInt(myArgsEngine.getString("-c"));
@@ -237,17 +282,29 @@ public class Gembler extends Executor {
 			String[] rs = myArgsEngine.getString("-r").split(",");
 			if(rs.length!=3) 
 				throw new IllegalArgumentException("Option -r/--repeat should "
-						+ "be 3 integers seperated by \",\".");
+						+ "be three integers seperated by \",\".");
 			for(int i=0; i<3; i++)
-				repeat[i] = Integer.parseInt(rs[i]);
+				nr[i] = Integer.parseInt(rs[i]);
 		}
 		
 		if (myArgsEngine.getBoolean("-rr")) {
 			refine_round = Integer.parseInt(myArgsEngine.getString("-rr"));
 		}
 		
+		if (myArgsEngine.getBoolean("-asmr")) {
+			err_rf = Double.parseDouble(myArgsEngine.getString("-asmr"));
+		}
+		
+		if (myArgsEngine.getBoolean("-wbp")) {
+			wbp = Integer.parseInt(myArgsEngine.getString("-wbp"));
+		}
+		
+		if (myArgsEngine.getBoolean("-wnm")) {
+			wnm = Integer.parseInt(myArgsEngine.getString("-wnm"));
+		}
+		
 		if (myArgsEngine.getBoolean("-nb")) {
-			nB = Integer.parseInt(myArgsEngine.getString("-nb"));
+			nb = Integer.parseInt(myArgsEngine.getString("-nb"));
 		}
 		
 		if (myArgsEngine.getBoolean("-phi")) {
@@ -258,370 +315,563 @@ public class Gembler extends Executor {
 			drop = Integer.parseInt(myArgsEngine.getString("-nd"));
 		}
 		
-		if (myArgsEngine.getBoolean("-rlib")) {
-			RLibPath = myArgsEngine.getString("-rlib");
+		if (myArgsEngine.getBoolean("-l")) {
+			lod_thresh = Double.parseDouble(myArgsEngine.getString("-l"));
 		}
 		
-		if(myArgsEngine.getBoolean("-frac")) {
-			frac_thresh = Double.parseDouble(myArgsEngine.getString("-frac"));
+		if (myArgsEngine.getBoolean("-lr")) {
+			lg_rf = Double.parseDouble(myArgsEngine.getString("-lr"));
 		}
 		
-		if(myArgsEngine.getBoolean("-gz")) {
-			genome_size = Double.parseDouble(myArgsEngine.getString("-gz"));
+		if (myArgsEngine.getBoolean("-c")) {
+			check_chimeric = true;
 		}
+		
+		if (myArgsEngine.getBoolean("-ns")) {
+			ss = false;
+		}
+		
+		if (myArgsEngine.getBoolean("-sr")) {
+			ss_rf = Double.parseDouble(myArgsEngine.getString("-sr"));
+		}
+		
+		if (myArgsEngine.getBoolean("-a")) {
+			contig_file = myArgsEngine.getString("-a");
+		}
+		
+		if (myArgsEngine.getBoolean("-g")) {
+			n_gap = Integer.parseInt(myArgsEngine.getString("-g"));
+		}
+		
 	}
 
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-	
-		Constants.throwRuntimeException("feature is under development!!!");
 		
 		Utils.makeOutputDir(new File(out_prefix));
-		String prefix_vcf = new File(in_vcf).getName().
-				replaceAll(".vcf.gz$", "").
-				replaceAll(".vcf$", "");
-		
-		//#### STEP 01 filter SNPs and create ZIP file
-		Utils.makeOutputDir(new File(out_prefix+"/data"));
-		new DataPreparation(in_vcf,
-				ploidy, 
-				min_depth, 
-				max_depth, 
-				min_qual, 
-				min_maf, 
-				max_missing, 
-				prefix_vcf+".recode",
-				out_prefix+"/data/")
-		.run();
-		
-		//#### STEP 02 single-point haplotype inferring
-		final String out = out_prefix+"/single_hap_infer";
-		String in_zip = out_prefix+"/data/"+prefix_vcf+".recode.zip";
-		final Map<String, Integer> scaffs = DataCollection.readScaff(in_zip);
-		final String expr_id = new File(in_zip).getName().
-				replaceAll(".zip$", "").
-				replace(".", "").
-				replace("_", "");
-		Utils.makeOutputDir(new File(out));
-		this.runHaplotyper(scaffs, expr_id, in_zip, repeat[0], out);
-		
-		//#### STEP 03 assembly errors
-		final String metafile_prefix = out_prefix+"/meta/";
-		Utils.makeOutputDir(new File(metafile_prefix));
-		final String ass_err_map = metafile_prefix+prefix_vcf;
-		AssemblyError assemblyError = new AssemblyError(out, 
-				ass_err_map,
-				expr_id, 
-				THREADS,
-				phi,
-				drop,
-				nB);
-		
-		assemblyError.run();
-		final String prefix_vcf_assError = prefix_vcf+".recode.assError";
-		Set<String> scaff_breakage = 
-				assemblyError.split(out_prefix+"/data/"+prefix_vcf+".recode.vcf",
-						metafile_prefix+prefix_vcf_assError+".vcf");
-		if(!scaff_breakage.isEmpty()) {
-			this.move(assemblyError.errs().keySet(), out, expr_id);
+		String datPref = "out1";
 
-			new ZipDataCollection(
-					metafile_prefix+prefix_vcf_assError+".vcf",
-					prefix_vcf_assError,
-					metafile_prefix)
-			.run();
-			in_zip = metafile_prefix+prefix_vcf_assError+".zip";
-			final Map<String, Integer> scaffs_assError = DataCollection.readScaff(
-					in_zip, scaff_breakage);
-			this.runHaplotyper(scaffs_assError, expr_id, in_zip, repeat[0], out);
-		}
-	
-		//#### STEP 04 recombination frequency estimation
-		final String rf_prefix = metafile_prefix+prefix_vcf;
-		new SinglePointAnalysis (out, 
-				rf_prefix,
-				expr_id, 
-				THREADS,
-				phi,
-				drop,
-				nB).run();
-		new TwoPointAnalysis (out, 
-				rf_prefix,
-				expr_id, 
-				THREADS,
-				phi,
-				drop,
-				nB).run();
+		//#### STEP 01 prepare data
+		myLogger.info("STEP 01 prepare data");
 		
-		//#### STEP 05 building superscaffolds (nearest neighbour joining)
-		final String temfile_prefix = metafile_prefix+".tmp/";
-		Utils.makeOutputDir(new File(temfile_prefix));
-		final String concorde_path = 
-				RFUtils.makeExecutable("cz1/hmm/executable/concorde", temfile_prefix);
-		final String nnssR_path = 
-				RFUtils.makeExecutable("cz1/hmm/scripts/make_nnsuperscaffold.R", temfile_prefix);
-		RFUtils.makeExecutable("cz1/hmm/scripts/include.R", temfile_prefix);
-		new File(concorde_path).setExecutable(true, true);
-		RFUtils.makeRMatrix(rf_prefix+".txt", rf_prefix+".RData");
-		String command = "Rscript "+nnssR_path+" "
-				+ "-i "+rf_prefix+".RData "
-				+ "-n 2 "
-				+ "-o "+rf_prefix+".nnss "
-				+ "--concorde "+new File(concorde_path).getParent()
-				+ (RLibPath==null ? "" : " --include "+RLibPath);
-		this.consume(this.bash(command));
-		
-		//#### STEP 06 multi-point hapotype inferring
-		final String mm_out = out_prefix+"/2nn_hap_infer";
-		Utils.makeOutputDir(new File(mm_out));
-		final Set<String> mm_scaffs = new HashSet<String>();
-		final Map<String, String> mm_seperation = new HashMap<String, String>();
-		final Map<String, String> mm_reverse = new HashMap<String, String>();
-		this.readSS(rf_prefix+".nnss", mm_scaffs, mm_seperation, mm_reverse);
-		this.runHaplotyper(mm_scaffs, mm_seperation, mm_reverse,
-				expr_id, in_zip, repeat[1], mm_out);
-		
-		//#### STEP 07 recombination frequency estimation
-		final String mm_rf_prefix = metafile_prefix+"2nn_"+prefix_vcf;
-		new SinglePointAnalysis (mm_out, 
-				mm_rf_prefix,
-				expr_id, 
-				THREADS,
-				phi,
-				drop,
-				nB).run();
-		new TwoPointAnalysis (mm_out, 
-				mm_rf_prefix,
-				expr_id, 
-				THREADS,
-				phi,
-				drop,
-				nB).run();
-		
-		//#### STEP 08 genetic mapping
-		final String mklgR_path = 
-				RFUtils.makeExecutable("cz1/hmm/scripts/make_geneticmap.R", temfile_prefix);
-		RFUtils.makeRMatrix(mm_rf_prefix+".txt", mm_rf_prefix+".RData");
-		command = "Rscript "+mklgR_path+" "
-				+ "-i "+mm_rf_prefix+".RData "
-				+ "-m "+mm_rf_prefix+".map "
-				+ "-o "+mm_rf_prefix+" "
-				+ "--concorde "+new File(concorde_path).getParent()
-				+ (RLibPath==null ? "" : " --include "+RLibPath);
-		this.consume(this.bash(command));
-		
-		//#### STEP 09 genetic map refinement
-		final String out_refine = out_prefix+"/refine_hap_infer/";
-		Utils.makeOutputDir(new File(out_refine));
-		this.readSS(mm_rf_prefix+".par", mm_scaffs, mm_seperation, mm_reverse);
-		
-		final int lgN = mm_scaffs.size();
-		for(int i=0; i<lgN; i++) {
-			final String out_refine_i = out_refine+"lg"+StringUtils.leftPad(""+i, 2, '0')+"/";
-			Utils.makeOutputDir(new File(out_refine_i));
-			for(int j=0; j<this.refine_round; j++) {
-				final String out_refine_ij = out_refine_i+j+"/";
-				final String out_refine_ij_haps = out_refine_ij+"haplotypes/";
-				Utils.makeOutputDir(new File(out_refine_ij));
-				Utils.makeOutputDir(new File(out_refine_ij_haps));
-			}
-		}
-		
-		final List<String> scaff_list = new ArrayList<String>(mm_scaffs);
-		Collections.sort(scaff_list, new Comparator<String>() {
-			@Override
-			public int compare(String scaff0, String scaff1) {
-				// TODO Auto-generated method stub
-				return StringUtils.countMatches(scaff1, ":")-
-						StringUtils.countMatches(scaff0, ":");
-			}
+		DataPreparation dp = new DataPreparation();
+		dp.setParameters(new String[] {
+				"-i", in_vcf,
+				"-s", datPref,
+				"-l", String.valueOf(min_depth),
+				"-u", String.valueOf(max_depth),
+				"-q", String.valueOf(min_qual),
+				"-f", String.valueOf(min_maf),
+				"-m", String.valueOf(max_missing),
+				"-o", out_prefix 
 		});
+		dp.run();
 		
-		final int[][] task_table = new int[refine_round][lgN];
-		final int[] task_progress = new int[lgN];
-		final double[][] lgCM = new double[lgN][refine_round];
+		//#### STEP 02 infer single-point haplotypes
+		myLogger.info("STEP 02 infer single-point haplotypes");
 		
-		for (int[] i : task_table)
-		    Arrays.fill(i, repeat[2]);
-		final String final_zip = in_zip;
+		final String expr_id = "zzz";
+		String in_zip = out_prefix+"/"+datPref+".zip";
+		Map<String, Integer> scaffStats = DataCollection.readScaff(in_zip);
+		String outs = out_prefix+"/h1";
+		Utils.makeOutputDir(new File(outs));
+		this.runHaplotyper(scaffStats, expr_id, in_zip, nr[0], outs);
 		
-		this.initial_thread_pool();
+		//#### STEP 03 detect assembly errors
+		myLogger.info("STEP 03 detect assembly errors");
 		
-		for(int i=0; i<lgN; i++) { 
-			final String scaff_i = scaff_list.get(i);
-			final String out_refine_i = out_refine+"lg"+StringUtils.leftPad(""+i, 2, '0')+"/";
-			final String out_refine_ij = out_refine_i+0+"/";
-			final String out_refine_ij_haps = out_refine_ij+"haplotypes/";
-			for(int j=0; j<repeat[2]; j++) {
-				executor.submit(new Runnable(){
-					private int i;
-					private int j;
-					@Override
-					public void run() {
-						// TODO Auto-generated method stub
-						try {
-							new Haplotyper(final_zip,
-									out_refine_ij_haps,
-									scaff_i,
-									mm_seperation.get(scaff_i),
-									mm_reverse.get(scaff_i),
-									ploidy,
-									field,
-									expr_id,
-									max_iter).run();
-							synchronized (task_table) {
-								task_table[i][j]--;
-								task_table.notify();
-							}
-						} catch (Exception e) {
-							Thread t = Thread.currentThread();
-							t.getUncaughtExceptionHandler().uncaughtException(t, e);
-							e.printStackTrace();
-							executor.shutdown();
-							System.exit(1);
-						}
-					}
-
-					public Runnable init(final int i, final int j) {
-						// TODO Auto-generated method stub
-						this.i = i;
-						this.j = j;
-						return (this);
-					}
-				}.init(0, i));
-			}
+		datPref = "out2";
+		String outPref = out_prefix+"/"+datPref;
+		AssemblyError asmerr = new AssemblyError();
+		asmerr.setParameters(new String[] {
+				"-i", outs,
+				"-o", outPref,
+				"-vi", in_vcf,
+				"-r", String.valueOf(err_rf),
+				"-wbp", String.valueOf(wbp),
+				"-wnm", String.valueOf(wnm),
+				"-ex", expr_id,
+				"-nb", String.valueOf(nb),
+				"-phi", String.valueOf(phi),
+				"-nd", String.valueOf(drop),
+				"-t", String.valueOf(THREADS)
+		});
+		asmerr.run();
+		
+		// move haplotype phasing results for old scaffs if misassembled
+		Set<String> oldScaffs = asmerr.errs.keySet();
+		if(!oldScaffs.isEmpty()) {
+			String outs_err = out_prefix+"/herr";
+			Utils.makeOutputDir(new File(outs_err));
+			move(oldScaffs, outs_err, expr_id);
 		}
 		
-		while(true) {
+		// run haplotyper for new scaffs
+		Set<String> newScaffs = asmerr.newScaffs;
+		if(!newScaffs.isEmpty()) {
+			// create a new zip file to include new scaffs
+			// first add contents of the old VCF to new VCF
+			String tmp_vcf = outPref+"_tmp.vcf";
+			Utils.renameFile(outPref+".vcf", tmp_vcf);
+			pendVCFContent(in_vcf, tmp_vcf);
+			dp.setParameters(new String[] {
+					"-i", tmp_vcf,
+					"-s", datPref,
+					"-l", String.valueOf(min_depth),
+					"-u", String.valueOf(max_depth),
+					"-q", String.valueOf(min_qual),
+					"-f", String.valueOf(min_maf),
+					"-m", String.valueOf(max_missing),
+					"-o", out_prefix 
+			});
+			dp.run();
+			Utils.deleteFile(tmp_vcf);
+			
+			// now run haplotyper for new scaffs
+			in_zip = outPref+".zip";
+			Map<String, Integer> newScaffStats = DataCollection.readScaff(
+					in_zip, newScaffs);
+			this.runHaplotyper(newScaffStats, expr_id, in_zip, nr[0], outs);
+		}
+
+		//#### STEP 04 build superscaffolds using nearest neighbor joining
+		if(ss) {
+			myLogger.info("STEP 04 build superscaffolds using nearest neighbor joining");
+			
+			// recombination frequency estimation
+			outPref = out_prefix+"/out3";
+			TwoPointAnalysis tp = new TwoPointAnalysis();
+			tp.setParameters(new String[] {
+					"-i", outs,
+					"-o", outPref,
+					"-ex", expr_id,
+					"-nb", String.valueOf(nb),
+					"-phi", String.valueOf(phi),
+					"-nd", String.valueOf(drop),
+					"-t", String.valueOf(THREADS)
+			});
+			tp.run();
+			
+			// build superscaffolds
+			NNsuperscaffold nns = new NNsuperscaffold();
+			nns.setParameters(new String[] {
+					"-i", outPref+".txt",
+					"-r", String.valueOf(ss_rf),
+					"-o", outPref
+			});
+			nns.run();
+			
+			// multi-point hapotype inferring
+			outs = out_prefix+"/h2";
+			Utils.makeOutputDir(new File(outs));
+			Set<String> nn_scaffs = new HashSet<String>();
+			Map<String, String> nn_separation = new HashMap<String, String>();
+			Map<String, String> nn_reverse = new HashMap<String, String>();
+			this.readSS(outPref+".nns", nn_scaffs, nn_separation, nn_reverse);
+			this.runHaplotyper(nn_scaffs, nn_separation, nn_reverse,
+					expr_id, in_zip, nr[1], outs);
+		}
+		
+		//#### STEP 05 estimate recombination frequencies
+		myLogger.info("STEP 05 estimate recombination frequencies");
+		
+		outPref = out_prefix+"/out4";
+		SinglePointAnalysis sp = new SinglePointAnalysis();
+		sp.setParameters(new String[] {
+				"-i", outs,
+				"-o", outPref,
+				"-wbp", String.valueOf(wbp),
+				"-wnm", String.valueOf(wnm),
+				"-ex", expr_id,
+				"-nb", String.valueOf(nb),
+				"-phi", String.valueOf(phi),
+				"-nd", String.valueOf(drop),
+				"-t", String.valueOf(THREADS)
+		});
+		sp.run();
+		
+		TwoPointAnalysis tp = new TwoPointAnalysis();
+		tp.setParameters(new String[] {
+				"-i", outs,
+				"-o", outPref,
+				"-ex", expr_id,
+				"-nb", String.valueOf(nb),
+				"-phi", String.valueOf(phi),
+				"-nd", String.valueOf(drop),
+				"-t", String.valueOf(THREADS)
+		});
+		tp.run();
+		
+		//#### STEP 06 genetic mapping
+		myLogger.info("STEP 06 genetic mapping");
+		
+		MappingAnalysis ma = new MappingAnalysis();
+		String[] args1 = new String[] {
+				"-i", outPref+".txt",
+				"-m", outPref+".map",
+				"-l", String.valueOf(lod_thresh),
+				"-r", String.valueOf(lg_rf),
+				"-rlib", RLibPath, 
+				"-t", String.valueOf(THREADS),
+				"-o", outPref
+		};
+		if(check_chimeric) {
+			String[] args2 = args1;
+			args1 = new String[args2.length+1];
+			System.arraycopy(args2, 0, args1, 0, args2.length);
+			args1[args1.length-1] = "-c";
+		}
+		ma.setParameters(args1);
+		ma.run();
+		
+		//#### STEP 07 refine genetic maps
+		if(refine_round>0) {
+			myLogger.info("STEP 07 refine genetic maps");
+			
+			String lgOutDir = out_prefix+"/hlg";
+			Utils.makeOutputDir(new File(lgOutDir));
+			
+			Set<String> nn_scaffs = new HashSet<String>();
+			Map<String, String> nn_separation = new HashMap<String, String>();
+			Map<String, String> nn_reverse = new HashMap<String, String>();
+			this.readSS(outPref+".par", nn_scaffs, nn_separation, nn_reverse);
+
+			final int lgN = nn_scaffs.size();
 			for(int i=0; i<lgN; i++) {
-				
-				if(task_progress[i]<refine_round &&
-						task_table[task_progress[i]][i]==0) {
-					
-					final String out_refine_i = out_refine+"lg"+StringUtils.leftPad(""+i, 2, '0')+"/";
-					final String out_refine_ij = out_refine_i+task_progress[i]+"/";
-					final String out_refine_ij_haps = out_refine_ij+"haplotypes/";
-					final String mm_rf_prefix_ij = out_refine_ij+"1";
-					
-					new SinglePointAnalysis (out_refine_ij_haps, 
-							mm_rf_prefix_ij,
-							expr_id, 
-							THREADS,
-							Double.POSITIVE_INFINITY,
-							drop,
-							nB).run();
-					new TwoPointAnalysis (out_refine_ij_haps, 
-							mm_rf_prefix_ij,
-							expr_id, 
-							THREADS,
-							Double.POSITIVE_INFINITY,
-							drop,
-							nB).run();
-					RFUtils.makeRMatrix(mm_rf_prefix_ij+".txt", mm_rf_prefix_ij+".RData");
-					command = "Rscript "+mklgR_path+" "
-							+ "-i "+mm_rf_prefix_ij+".RData "
-							+ "-m "+mm_rf_prefix_ij+".map "
-							+ "-o "+mm_rf_prefix_ij+" "
-							+ "-1 "
-							+ "--concorde "+new File(concorde_path).getParent()
-							+ (RLibPath==null ? "" : " --include "+RLibPath);
-					this.consume(this.bash(command));
-					lgCM[i][task_progress[i]] = this.lgCM(mm_rf_prefix_ij+".log");
-					
-					task_progress[i]++;
-					
-					if(task_progress[i]<refine_round) {
-						
-						final String out_refine_ijx_haps = out_refine_i+task_progress[i]+"/"+"haplotypes/";
-						
-						final Set<String> mm_scaffs_i = new HashSet<String>();
-						final Map<String, String> mm_seperation_i = new HashMap<String, String>();
-						final Map<String, String> mm_reverse_i = new HashMap<String, String>();
-						this.readSS(mm_rf_prefix_ij+".par", 
-								mm_scaffs_i, mm_seperation_i, mm_reverse_i);
-						final String scaff_i = mm_scaffs_i.iterator().next();
+				String lgOutDir_i = lgOutDir+"/"+i;
+				Utils.makeOutputDir(new File(lgOutDir_i));
+				for(int j=0; j<this.refine_round; j++) {
+					String lgOutDir_ij = lgOutDir_i+"/"+j;
+					String lgOutDir_ijh = lgOutDir_i+"/"+j+"/h";
+					Utils.makeOutputDir(new File(lgOutDir_ij));
+					Utils.makeOutputDir(new File(lgOutDir_ijh));
+				}
+			}
 
-						for(int j=0; j<repeat[2]; j++) {
-							executor.submit(new Runnable(){
-								private int i;
-								private int j;
-								@Override
-								public void run() {
-									// TODO Auto-generated method stub
-									try {
-										new Haplotyper(final_zip,
-												out_refine_ijx_haps,
-												scaff_i,
-												mm_seperation_i.get(scaff_i),
-												mm_reverse_i.get(scaff_i),
-												ploidy,
-												field,
-												expr_id,
-												max_iter).run();
-										synchronized (task_table) {
-											task_table[i][j]--;
-											task_table.notify();
+			final List<String> scaff_list = new ArrayList<String>(nn_scaffs);
+			Collections.sort(scaff_list, new Comparator<String>() {
+				@Override
+				public int compare(String scaff0, String scaff1) {
+					// TODO Auto-generated method stub
+					return StringUtils.countMatches(scaff1, ":")-
+							StringUtils.countMatches(scaff0, ":");
+				}
+			});
+
+			final String final_zip = in_zip;
+			final int[][] task_table = new int[refine_round][lgN];
+			final int[] task_progress = new int[lgN];
+
+			for (int[] i : task_table)
+				Arrays.fill(i, nr[2]);
+
+			this.initial_thread_pool();
+
+			for(int i=0; i<lgN; i++) { 
+				String scaff_i = scaff_list.get(i);
+				String lgOutDir_i = lgOutDir+"/"+i;
+				String lgOutDir_ij = lgOutDir_i+"/0";
+				String lgOutDir_ijh = lgOutDir_ij+"/h";
+				for(int j=0; j<nr[2]; j++) {
+					executor.submit(new Runnable(){
+						private int i;
+						private int j;
+						@Override
+						public void run() {
+							// TODO Auto-generated method stub
+							try {
+								Haplotyper haplo = new Haplotyper();
+								haplo.setParameters(new String[] {
+										"-i", final_zip,
+										"-o", lgOutDir_ijh,
+										"-ex", expr_id,
+										"-c", scaff_i,
+										"-x", String.valueOf(max_iter),
+										"-p", String.valueOf(ploidy),
+										"-f", parents,
+										"-s", nn_separation.get(scaff_i),
+										"-r", nn_reverse.get(scaff_i),
+										field
+								});
+								haplo.run();
+								
+								synchronized (task_table) {
+									task_table[i][j]--;
+									task_table.notify();
+								}
+							} catch (Exception e) {
+								Thread t = Thread.currentThread();
+								t.getUncaughtExceptionHandler().uncaughtException(t, e);
+								e.printStackTrace();
+								executor.shutdown();
+								System.exit(1);
+							}
+						}
+
+						public Runnable init(final int i, final int j) {
+							// TODO Auto-generated method stub
+							this.i = i;
+							this.j = j;
+							return (this);
+						}
+					}.init(0, i));
+				}
+			}
+
+			while(true) {
+				for(int i=0; i<lgN; i++) {
+
+					if(task_progress[i]<refine_round &&
+							task_table[task_progress[i]][i]==0) {
+
+						String lgOutDir_i = lgOutDir+"/"+i;
+						String lgOutDir_ij = lgOutDir_i+"/"+task_progress[i];
+						String lgOutDir_ijh = lgOutDir_i+"/"+task_progress[i]+"/h";
+						String lgOutPrex = lgOutDir_ij+"/out";
+
+						
+						SinglePointAnalysis sp1 = new SinglePointAnalysis();
+						sp1.setParameters(new String[] {
+								"-i", lgOutDir_ijh,
+								"-o", lgOutPrex,
+								"-wbp", String.valueOf(wbp),
+								"-wnm", String.valueOf(wnm),
+								"-ex", expr_id,
+								"-nb", String.valueOf(nb),
+								"-phi", String.valueOf(phi),
+								"-nd", String.valueOf(drop),
+								"-t", String.valueOf(THREADS)
+						});
+						sp1.run();
+						
+						TwoPointAnalysis tp1 = new TwoPointAnalysis();
+						tp1.setParameters(new String[] {
+								"-i", lgOutDir_ijh,
+								"-o", lgOutPrex,
+								"-ex", expr_id,
+								"-nb", String.valueOf(nb),
+								"-phi", String.valueOf(phi),
+								"-nd", String.valueOf(drop),
+								"-t", String.valueOf(THREADS)
+						});
+						tp1.run();
+						
+						//#### STEP 06 genetic mapping
+						MappingAnalysis ma1 = new MappingAnalysis();
+						ma1.setParameters(new String[] {
+								"-i", lgOutPrex+".txt",
+								"-m", lgOutPrex+".map",
+								"-l", String.valueOf(lod_thresh),
+								"-r", String.valueOf(lg_rf),
+								"-1",
+								"-rlib", RLibPath, 
+								"-t", String.valueOf(THREADS),
+								"-o", lgOutPrex
+						});
+						ma1.run();
+						
+						task_progress[i]++;
+
+						if(task_progress[i]<refine_round) {
+
+							final String lgOutDir_ijh1 = lgOutDir_i+"/"+task_progress[i]+"/h";
+
+							Set<String> nn_scaffs_i = new HashSet<String>();
+							Map<String, String> nn_separation_i = new HashMap<String, String>();
+							Map<String, String> nn_reverse_i = new HashMap<String, String>();
+							this.readSS(lgOutPrex+".par", nn_scaffs_i, nn_separation_i, nn_reverse_i);
+							String scaff_i = nn_scaffs_i.iterator().next();
+
+							for(int j=0; j<nr[2]; j++) {
+								executor.submit(new Runnable(){
+									private int i;
+									private int j;
+									@Override
+									public void run() {
+										// TODO Auto-generated method stub
+										try {
+											Haplotyper haplo = new Haplotyper();
+											haplo.setParameters(new String[] {
+													"-i", final_zip,
+													"-o", lgOutDir_ijh1,
+													"-ex", expr_id,
+													"-c", scaff_i,
+													"-x", String.valueOf(max_iter),
+													"-p", String.valueOf(ploidy),
+													"-f", parents,
+													"-s", nn_separation_i.get(scaff_i),
+													"-r", nn_reverse_i.get(scaff_i),
+													field
+											});
+											haplo.run();
+											
+											synchronized (task_table) {
+												task_table[i][j]--;
+												task_table.notify();
+											}
+										} catch (Exception e) {
+											Thread t = Thread.currentThread();
+											t.getUncaughtExceptionHandler().uncaughtException(t, e);
+											e.printStackTrace();
+											executor.shutdown();
+											System.exit(1);
 										}
-									} catch (Exception e) {
-										Thread t = Thread.currentThread();
-										t.getUncaughtExceptionHandler().uncaughtException(t, e);
-										e.printStackTrace();
-										executor.shutdown();
-										System.exit(1);
 									}
-								}
 
-								public Runnable init(final int i, final int j) {
-									// TODO Auto-generated method stub
-									this.i = i;
-									this.j = j;
-									return (this);
-								}
-							}.init(task_progress[i], i));
+									public Runnable init(final int i, final int j) {
+										// TODO Auto-generated method stub
+										this.i = i;
+										this.j = j;
+										return (this);
+									}
+								}.init(task_progress[i], i));
+							}
 						}
 					}
 				}
+				boolean done = true;
+				for(int i=0; i<lgN; i++)
+					if(task_progress[i]<refine_round)
+						done = false;
+				if(done) break;
 			}
-			boolean done = true;
-			for(int i=0; i<lgN; i++)
-				if(task_progress[i]<refine_round)
-					done = false;
-			if(done) break;
+			this.waitFor();
+			
+			// merge and clean file
+			try {
+				for(int j=0; j<refine_round; j++) {
+					String outDir = lgOutDir+"/round_"+(j+1);
+					Utils.makeOutputDir(new File(outDir));
+					outPref = out_prefix+"/out"+(5+j);
+					BufferedWriter bw_par = Utils.getBufferedWriter(outPref+".par");
+					BufferedWriter bw_mct = Utils.getBufferedWriter(outPref+".mct");
+					String line;
+					for(int i=0; i<lgN; i++) {
+						String lgOutDir_i = lgOutDir+"/"+i;
+						String lgOutDir_ij = lgOutDir_i+"/"+j;
+						String lgOutDir_ijh = lgOutDir_i+"/"+j+"/h";
+						String lgOutPrex = lgOutDir_ij+"/out";
+
+						BufferedReader br_par = Utils.getBufferedReader(lgOutPrex+".par");
+						while((line=br_par.readLine())!=null) {
+							bw_par.write(line);
+							bw_par.write("\n");
+						}
+						br_par.close();
+
+						bw_mct.write("group\tLG"+StringUtils.leftPad(""+(i+1), 2, '0')+"\n");
+						BufferedReader br_mct = Utils.getBufferedReader(lgOutPrex+".mct");
+						br_mct.readLine();
+						while((line=br_mct.readLine())!=null) {
+							bw_mct.write(line);
+							bw_mct.write("\n");
+						}
+						br_mct.close();
+
+						File[] fs = new File(lgOutDir_ijh).listFiles((File f) 
+								-> f.getName().endsWith(".zip"));
+						for(File f : fs) {
+							Files.move(Paths.get(lgOutDir_ijh+"/"+f.getName()), 
+									Paths.get(outDir+"/"+f.getName()),
+									StandardCopyOption.REPLACE_EXISTING,
+									StandardCopyOption.ATOMIC_MOVE);
+						}
+					}
+					bw_par.close();
+					bw_mct.close();
+				}
+
+				for(int i=0; i<lgN; i++) {
+					Files.walk(Paths.get(lgOutDir+"/"+i))
+					.map(Path::toFile)
+					.sorted((o1, o2) -> -o1.compareTo(o2))
+					.forEach(File::delete);
+				}
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+			// calculate recombination frequencies for the last refinement round
+			sp.setParameters(new String[] {
+					"-i", lgOutDir+"/round_"+(refine_round+1),
+					"-o", out_prefix+"/out"+(5+refine_round),
+					"-wbp", String.valueOf(wbp),
+					"-wnm", String.valueOf(wnm),
+					"-ex", expr_id,
+					"-nb", String.valueOf(nb),
+					"-phi", String.valueOf(phi),
+					"-nd", String.valueOf(drop),
+					"-t", String.valueOf(THREADS)
+			});
+			sp.run();
+			
+			tp.setParameters(new String[] {
+					"-i", lgOutDir+"/round_"+(refine_round+1),
+					"-o", out_prefix+"/out"+(5+refine_round),
+					"-ex", expr_id,
+					"-nb", String.valueOf(nb),
+					"-phi", String.valueOf(phi),
+					"-nd", String.valueOf(drop),
+					"-t", String.valueOf(THREADS)
+			});
+			tp.run();
 		}
-		this.waitFor();
 		
-		final String[] selected = new String[lgN];
-		for(int i=0; i<lgN; i++)
-			selected[i] = out_refine+"lg"+StringUtils.leftPad(""+i, 2, '0')+
-				"/"+Algebra.minIndex(lgCM[i])+"/";
-		this.makeSelectedLG(selected, metafile_prefix);
+		//#### STEP 8 prepare results
+		myLogger.info("STEP 8 prepare results");
 		
-		//#### STEP 10 pseudo molecules construction
-		if(assembly_file==null) myLogger.info("No assembly file provided, "
-				+ "pseudomolecule construction module skipped.");
-		new Pseudomolecule(
-				metafile_prefix+"genetic_linkage_map.mct",
-				this.assembly_file,
-				metafile_prefix+"pseudomolecules.fa",
-				assemblyError.errs()).run();
-		
-		//#### STEP 11 result files
-		final String results_dir = out_prefix+"/results";
-		Utils.makeOutputDir(new File(results_dir));
 		try {
-			Files.move(Paths.get(metafile_prefix+"/genetic_linkage_map.mct"), 
-					Paths.get(results_dir+"/genetic_linkage_map.mct"),
-					StandardCopyOption.REPLACE_EXISTING,
-					StandardCopyOption.ATOMIC_MOVE);
-			Files.move(Paths.get(metafile_prefix+"/genetic_linkage_map.log"), 
-					Paths.get(results_dir+"/genetic_linkage_map.log"),
-					StandardCopyOption.REPLACE_EXISTING,
-					StandardCopyOption.ATOMIC_MOVE);
-			Files.move(Paths.get(metafile_prefix+"/pseudomolecules.fa"), 
-					Paths.get(results_dir+"/pseudomolecules.fa"),
-					StandardCopyOption.REPLACE_EXISTING,
-					StandardCopyOption.ATOMIC_MOVE);
+			int h = 0;
+			File[] fs = new File(out_prefix).listFiles((File f) 
+					-> f.getName().endsWith(".mct"));
+			for(File f : fs) {
+				int h1 = Integer.parseInt(f.getName().
+						replaceAll("^out", "").replaceAll(".mct$", ""));
+				if(h1>h) h = h1;
+			}
+			Files.createSymbolicLink(Paths.get(out_prefix, "final.err"), Paths.get("out2.err"));
+			Files.createSymbolicLink(Paths.get(out_prefix, "final.txt"), Paths.get("out"+h+".txt"));
+			Files.createSymbolicLink(Paths.get(out_prefix, "final.map"), Paths.get("out"+h+".map"));
+			Files.createSymbolicLink(Paths.get(out_prefix, "final.par"), Paths.get("out"+h+".par"));
+			Files.createSymbolicLink(Paths.get(out_prefix, "final.mct"), Paths.get("out"+h+".mct"));
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		//#### STEP 9 construct pseudomolecules
+		myLogger.info("STEP 9 construct pseudomolecules");
+		
+		if(contig_file==null) myLogger.info("No assembly file provided, "
+				+ "pseudomolecule construction module skipped.");
+		
+		Pseudomolecule pseudom = new Pseudomolecule();
+		pseudom.setParameters(new String[] {
+				"-i", out_prefix+"/final.mct",
+				"-a", contig_file,
+				"-e", out_prefix+"/final.err",
+				"-n", String.valueOf(n_gap),
+				"-o", out_prefix+"/final"
+		});
+		pseudom.run();
+	}
+
+	private void pendVCFContent(String sourceVcf, String targetVcf) {
+		// TODO Auto-generated method stub
+		try {
+			BufferedWriter bw = Utils.getBufferedWriter(targetVcf, true);
+			BufferedReader br = Utils.getBufferedReader(sourceVcf);
+			String line;
+			while((line=br.readLine())!=null) {
+				if(!line.startsWith("#")) {
+					bw.write(line);
+					bw.write("\n");
+				}
+			}			
+			br.close();
+			bw.close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -691,43 +941,41 @@ public class Gembler extends Executor {
 	}
 
 	private void readSS(String ss_in, 
-			Set<String> mm_scaffs,
-			Map<String, String> mm_seperation,
-			Map<String, String> mm_reverse) {
+			Set<String> nn_scaffs,
+			Map<String, String> nn_separation,
+			Map<String, String> nn_reverse) {
 		// TODO Auto-generated method stub
-		mm_scaffs.clear();
-		mm_seperation.clear();
-		mm_reverse.clear();
+		nn_scaffs.clear();
+		nn_separation.clear();
+		nn_reverse.clear();
 		try {
-			BufferedReader mm_br = Utils.getBufferedReader(ss_in);
+			BufferedReader nn_br = Utils.getBufferedReader(ss_in);
 			String line;
 			String[] s;
-			while( (line=mm_br.readLine())!=null ) {
+			while( (line=nn_br.readLine())!=null ) {
 				if(!line.startsWith("-c")) continue;
 				s = line.split("\\s+");
-				mm_scaffs.add(s[1]);
+				nn_scaffs.add(s[1]);
 				if(s.length>2) {
-					mm_seperation.put(s[1], s[3]);
-					mm_reverse.put(s[1], s[5]);
+					nn_separation.put(s[1], s[3]);
+					nn_reverse.put(s[1], s[5]);
 				} else {
-					mm_seperation.put(s[1], "0");
-					mm_reverse.put(s[1], "false");
+					nn_separation.put(s[1], "0");
+					nn_reverse.put(s[1], "false");
 				}
 			}
-			mm_br.close();
+			nn_br.close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
 
-	private void move(final Set<String> scaff_breakage, 
-			final String out, 
+	private void move(final Set<String> scaffs, 
+			final String out,
 			final String expr_id) {
 		// TODO Auto-generated method stub
-		String out_err = out+"/assembly_error";
-		Utils.makeOutputDir(new File(out_err));
-		for(final String scaff : scaff_breakage) {
+		for(final String scaff : scaffs) {
 			File[] files = new File(out).listFiles(
 					new FilenameFilter() {
 						@Override
@@ -737,8 +985,8 @@ public class Gembler extends Executor {
 					});
 			for(File f : files)
 				try {
-					Files.move(f.toPath(), 
-							Paths.get(out_err+"/"+f.getName()),
+					Files.move(f.toPath(),
+							Paths.get(out),
 							StandardCopyOption.REPLACE_EXISTING,
 							StandardCopyOption.ATOMIC_MOVE);
 				} catch (IOException e) {
@@ -761,18 +1009,22 @@ public class Gembler extends Executor {
 			
 			for(int i=0; i<repeat; i++) {
 				executor.submit(new Runnable(){
-
 					@Override
 					public void run() {
 						// TODO Auto-generated method stub
 						try {
-							new Haplotyper(in_zip,
-									out,
-									new String[]{scaff},
-									ploidy,
-									field,
-									expr_id,
-									max_iter).run();
+							Haplotyper haplo = new Haplotyper();
+							haplo.setParameters(new String[] {
+									"-i", in_zip,
+									"-o", out,
+									"-ex", expr_id,
+									"-c", scaff,
+									"-x", String.valueOf(max_iter),
+									"-p", String.valueOf(ploidy),
+									"-f", parents,
+									field
+							});
+							haplo.run();
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();
 							t.getUncaughtExceptionHandler().uncaughtException(t, e);
@@ -788,7 +1040,7 @@ public class Gembler extends Executor {
 	}
 	
 	private void runHaplotyper(final Set<String> scaffs,
-			final Map<String, String> seperation,
+			final Map<String, String> separation,
 			final Map<String, String> reverse,
 			final String expr_id,
 			final String in_zip,
@@ -804,15 +1056,20 @@ public class Gembler extends Executor {
 					public void run() {
 						// TODO Auto-generated method stub
 						try {
-							new Haplotyper(in_zip,
-									out,
-									scaff,
-									seperation.get(scaff),
-									reverse.get(scaff),
-									ploidy,
-									field,
-									expr_id,
-									max_iter).run();
+							Haplotyper haplo = new Haplotyper();
+							haplo.setParameters(new String[] {
+									"-i", in_zip,
+									"-o", out,
+									"-ex", expr_id,
+									"-c", scaff,
+									"-x", String.valueOf(max_iter),
+									"-p", String.valueOf(ploidy),
+									"-f", parents,
+									"-s", separation.get(scaff),
+									"-r", reverse.get(scaff),
+									field
+							});
+							haplo.run();
 						} catch (Exception e) {
 							Thread t = Thread.currentThread();
 							t.getUncaughtExceptionHandler().uncaughtException(t, e);

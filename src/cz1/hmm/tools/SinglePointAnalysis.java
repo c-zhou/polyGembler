@@ -32,8 +32,10 @@ public class SinglePointAnalysis extends RFUtils {
 				"\n\nUsage is as follows:\n"
 						+ " -i/--hap-file               Directory with input haplotype files.\n"
 						+ " -o/--prefix                 Output file prefix.\n"
-						+ " -wbp/-windows-bp            Window size (#basepairs) (default 30000).\n"
-						+ " -wnm/-windows-nm            Window size (#markers) (default 30).\n"
+						+ " -wbp/-windows-bp            Window size (#basepairs) for RF estimation for marker pairs on \n"
+						+ "                             same scaffold (default 30000).\n"
+						+ " -wnm/-windows-nm            Window size (#markers) for RF estimation for marker pairs on \n" 
+						+ "                             same scaffold (default 30).\n"
 						+ " -ex/--experiment-id         Common prefix of haplotype files for this experiment.\n"
 						+ " -nb/--best                  The most likely nb haplotypes will be used (default 10).\n"
 						+ " -phi/--skew-phi             For a haplotype inference, the frequencies of parental \n"
@@ -113,27 +115,6 @@ public class SinglePointAnalysis extends RFUtils {
 		if(myArgsEngine.getBoolean("-nd")) {
 			drop_thres = Integer.parseInt(myArgsEngine.getString("-nd"));
 		}
-	}
-	
-	public SinglePointAnalysis (String in_haps, 
-			String out_prefix,
-			String expr_id, 
-			int threads,
-			double skew_phi,
-			int drop_thres,
-			int best_n) { 
-		this.in_haps = in_haps;
-		this.out_prefix = out_prefix;
-		this.expr_id = expr_id;
-		THREADS = threads;
-		this.skew_phi = skew_phi;
-		this.drop_thres = drop_thres;
-		this.best_n = best_n;
-	}
-	
-	public SinglePointAnalysis() {
-		// TODO Auto-generated constructor stub
-		super();
 	}
 
 	BufferedWriter rfWriter;

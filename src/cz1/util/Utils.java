@@ -245,4 +245,16 @@ public class Utils {
 			uuid = UUID.randomUUID().toString();
 		return uuid;
 	}
+
+	public static void renameFile(String file1, String file2) {
+		// TODO Auto-generated method stub
+		new File(file1).renameTo(new File(file2));
+	}
+
+	public static void deleteFile(String file) {
+		// TODO Auto-generated method stub
+		new File(file).delete();
+	}
+	
+	
 }

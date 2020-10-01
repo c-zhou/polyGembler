@@ -38,8 +38,10 @@ public class AssemblyError extends RFUtils {
 						+ " -vi/--vcf-in                Input VCF file. If provided, will generate a VCF file contains variants from split scaffolds.\n"
 						+ " -vo/--vcf-out               Output VCF file. If not provided, will use output file prefix (-o) option. \n"
 						+ " -r/--rf-thresh              Recombination frequency threshold for assembly error detection (default 0.1).\n"
-						+ " -wbp/-windows-bp            Window size (#basepairs) for assembly error dectection (default 30000).\n"
-						+ " -wnm/-windows-nm            Window size (#markers) for assembly error dectection (default 30).\n"
+						+ " -wbp/-windows-bp            Window size (#basepairs) for RF estimation for marker pairs on \n"
+						+ "                             same scaffold (default 30000).\n"
+						+ " -wnm/-windows-nm            Window size (#markers) for RF estimation for marker pairs on \n"
+						+ "                             same scaffold (default 30).\n"
 						+ " -ex/--experiment-id         Common prefix of haplotype files for this experiment.\n"
 						+ " -nb/--best                  The most likely nb haplotypes will be used (default 30).\n"
 						+ " -phi/--skew-phi             For a haplotype inference, the frequencies of parental \n"
@@ -137,29 +139,9 @@ public class AssemblyError extends RFUtils {
 		}
 	}
 	
-	public AssemblyError (String in_haps, 
-			String out_prefix,
-			String expr_id, 
-			int threads,
-			double skew_phi,
-			int drop_thres,
-			int best_n) { 
-		this.in_haps = in_haps;
-		this.out_prefix = out_prefix;
-		this.expr_id = expr_id;
-		THREADS = threads;
-		this.skew_phi = skew_phi;
-		this.drop_thres = drop_thres;
-		this.best_n = best_n;
-	}
-	
-	public AssemblyError() {
-		// TODO Auto-generated constructor stub
-		super();
-	}
-
 	BufferedWriter rfWriter;
 	Map<String, int[][]> errs = new HashMap<>();
+	Set<String> newScaffs = new HashSet<>();
 	
 	@Override
 	public void run() {
@@ -304,7 +286,9 @@ public class AssemblyError extends RFUtils {
 					int[][] arr = new int[err.size()][];
 					for(int i=0; i<arr.length; i++)
 						arr[i] = err.get(i);
-					errs.put(scaff, arr);
+					synchronized(lock) {
+						errs.put(scaff, arr);
+					}
 				}
 			} catch (Exception e) {
 				Thread t = Thread.currentThread();
@@ -321,9 +305,8 @@ public class AssemblyError extends RFUtils {
 		return errs;
 	}
 	
-	public Set<String> split(String in_vcf, String out_vcf) {
+	public void split(String in_vcf, String out_vcf) {
 		// TODO Auto-generated method stub
-		Set<String> scaffs = new HashSet<>();
 		try {
 			BufferedReader br = Utils.getBufferedReader(in_vcf);
 			BufferedWriter bw = Utils.getBufferedWriter(out_vcf);
@@ -344,7 +327,7 @@ public class AssemblyError extends RFUtils {
 					int[][] err = this.errs.get(scaff);
 					int ec = err.length;
 					int sub = 1;
-					scaffs.add(scaff+"_"+sub);
+					newScaffs.add(scaff+"_"+sub);
 					while( line!=null ) {
 						s = line.split("\\s+");
 						if( !scaff.equals(s[0]) ) break;
@@ -362,7 +345,5 @@ public class AssemblyError extends RFUtils {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
-		return scaffs;
 	}
 }

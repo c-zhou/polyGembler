@@ -16,27 +16,6 @@ public class DataPreparation extends Executor {
 	String id = null;
 	String out_file = null;
 	
-	public DataPreparation() {}
-	
-	public DataPreparation(String vcf_in,
-			int ploidy, 
-			int min_depth, 
-			int max_depth, 
-			int min_qual, 
-			double min_maf, 
-			double max_missing,
-			String id,
-			String out_file) {
-		this.vcf_in = vcf_in;
-		this.min_depth = min_depth;
-		this.max_depth = max_depth;
-		this.min_qual = min_qual;
-		this.min_maf = min_maf;
-		this.max_missing = max_missing;
-		this.id = id;
-		this.out_file = out_file;
-	}
-	
 	@Override
 	public void printUsage() {
 		// TODO Auto-generated method stub
@@ -49,7 +28,8 @@ public class DataPreparation extends Executor {
 						+ " -q/--min-qual       Minimum quality to keep a SNP (0).\n"
 						+ " -f/--min-maf        Minimum minor allele frequency to keep a SNP (default 0).\n"
 						+ " -m/--max-missing    Maximum proportion of missing data to keep a SNP (default 1.0).\n"
-						+ " -o/--prefix         Prefix for output files (default: input VCF file folder).\n\n");
+						+ " -o/--prefix         Prefix for output files (default: input VCF file folder).\n\n"
+				);
 	}
 
 	@Override

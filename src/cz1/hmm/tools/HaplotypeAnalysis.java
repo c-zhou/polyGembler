@@ -88,23 +88,6 @@ public class HaplotypeAnalysis extends RFUtils {
 			THREADS = Integer.parseInt(myArgsEngine.getString("-t"));
 		}
 	}
-	
-	public HaplotypeAnalysis (String in_haps, 
-			String phase_file,
-			String expr_id, 
-			int threads,
-			double skew_phi) { 
-		this.in_haps = in_haps;
-		this.phase_file = phase_file;
-		this.expr_id = expr_id;
-		THREADS = threads;
-		this.skew_phi = skew_phi;
-	}
-	
-	public HaplotypeAnalysis() {
-		// TODO Auto-generated constructor stub
-		super();
-	}
 
 	private int factorial_ploidy;
 	private int[][] jt_permutation;

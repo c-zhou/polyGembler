@@ -138,24 +138,6 @@ public class TwoPointAnalysis extends RFUtils {
 		myLogger.info("["+Utils.getSystemTime()+"] DONE.");
 	}
 
-	public TwoPointAnalysis() {}
-			
-	public TwoPointAnalysis (String in_haps, 
-				String out_prefix,
-				String expr_id, 
-				int threads,
-				double skew_phi,
-				int drop_thres,
-				int best_n) { 
-		this.in_haps = in_haps;
-		this.out_prefix = out_prefix;
-		this.expr_id = expr_id;
-		THREADS = threads;
-		this.skew_phi = skew_phi;
-		this.drop_thres = drop_thres;
-		this.best_n = best_n;
-	}
-	
 	private class RfCalculator implements Runnable {
 		private PhasedDataCollection[] data_i, data_j;
 		private String scaf_i, scaf_j;

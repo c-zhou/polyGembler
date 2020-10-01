@@ -21,39 +21,6 @@ public class Pseudomolecule extends Executor {
 	private int gap_size = 1000;
 	private Map<String, Sequence> sequences;
 	private Map<String, List<Sequence>> molecules;
-	
-	public Pseudomolecule(String map_file,
-			String seq_file, 
-			String out_file) {
-		this.sequences = Sequence.parseFastaFileAsMap(seq_file);
-		this.out_file = out_file;
-		this.molecules = this.readGeneticMap(map_file);
-	}
-	
-	public Pseudomolecule(String map_file,
-			String seq_file, 
-			String out_file,
-			Map<String, int[][]> errs) {
-		this.sequences = Sequence.parseFastaFileAsMap(seq_file);
-		this.parseAssemblyErrors(errs);
-		this.molecules = this.readGeneticMap(map_file);
-		this.out_file = out_file;
-	}
-	
-	public Pseudomolecule(String map_file,
-			String seq_file,
-			String err_file,
-			String out_file) {
-		this.sequences = Sequence.parseFastaFileAsMap(seq_file);
-		this.parseAssemblyErrors(err_file);
-		this.readGeneticMap(map_file);
-		this.out_file = out_file;
-	}
-
-	public Pseudomolecule() {
-		// TODO Auto-generated constructor stub
-		super();
-	}
 
 	@Override
 	public void printUsage() {

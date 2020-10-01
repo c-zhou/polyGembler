@@ -51,7 +51,7 @@ public class MappingAnalysis extends Executor {
 			myArgsEngine.add("-1", "--one-group", false);
 			myArgsEngine.add("-c", "--check-chimeric", false);
 			myArgsEngine.add("-rlib", "--R-external-libs", true);
-			myArgsEngine.add( "-t", "--threads", true);
+			myArgsEngine.add("-t", "--threads", true);
 			myArgsEngine.add("-o", "--prefix", true);
 			myArgsEngine.parse(args);
 		}

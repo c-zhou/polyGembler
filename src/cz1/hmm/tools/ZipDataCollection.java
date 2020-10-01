@@ -23,9 +23,7 @@ public class ZipDataCollection extends Executor {
 	String vcf_in = null;
 	String id = null;
 	String out_file = null;
-	
-	public ZipDataCollection() {}
-	
+		
 	public ZipDataCollection(String vcf_in, 
 			String id, 
 			String out_file) {
