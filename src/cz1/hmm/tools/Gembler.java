@@ -133,7 +133,7 @@ public class Gembler extends Executor {
 						+ "     -c/--check-chimeric         Check chimeric joins during grouping (default: false). \n"
 						+ "\n"
 						+ " Superscaffold construction by nearest neighbor joining:\n"
-						+ "     -ns/--no-superscaffold      Do NOT construct superscaffold for RF refinement."
+						+ "     -ns/--no-superscaffold      Do NOT construct superscaffold for RF refinement.\n"
                         + "     -sr/--sr-thresh             Recombination frequency threshold for superscaffold (default: 0.27).\n"
                         + "\n"
 						+ " Pseudomolecule construction:\n"

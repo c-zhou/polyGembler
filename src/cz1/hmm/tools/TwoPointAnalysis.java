@@ -93,7 +93,7 @@ public class TwoPointAnalysis extends RFUtils {
 		}
 		
 		if(myArgsEngine.getBoolean("-phi")) {
-			skew_phi = Integer.parseInt(myArgsEngine.getString("-phi"));
+			skew_phi = Double.parseDouble(myArgsEngine.getString("-phi"));
 		}
 		
 		if(myArgsEngine.getBoolean("-nd")) {
