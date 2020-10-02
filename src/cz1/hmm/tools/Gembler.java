@@ -185,6 +185,7 @@ public class Gembler extends Executor {
 			myArgsEngine.add("-lr", "--lr-thresh", true);
 			myArgsEngine.add("-c", "--check-chimeric", true);
 			
+			myArgsEngine.add("-ns", "--no-superscaffold", true);
 			myArgsEngine.add("-sr", "--sr-thresh", true);
 			
 			myArgsEngine.add("-a", "--contig-file", true);
@@ -212,7 +213,7 @@ public class Gembler extends Executor {
 		}
 		
 		if(myArgsEngine.getBoolean("-p")) {
-			this.ploidy = Integer.parseInt(myArgsEngine.getString("-p"));
+			ploidy = Integer.parseInt(myArgsEngine.getString("-p"));
 		}
 		
 		if(myArgsEngine.getBoolean("-t")) {
