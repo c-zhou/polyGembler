@@ -183,9 +183,9 @@ public class Gembler extends Executor {
 			
 			myArgsEngine.add("-l", "--lod", true);
 			myArgsEngine.add("-lr", "--lr-thresh", true);
-			myArgsEngine.add("-c", "--check-chimeric", true);
+			myArgsEngine.add("-c", "--check-chimeric", false);
 			
-			myArgsEngine.add("-ns", "--no-superscaffold", true);
+			myArgsEngine.add("-ns", "--no-superscaffold", false);
 			myArgsEngine.add("-sr", "--sr-thresh", true);
 			
 			myArgsEngine.add("-a", "--contig-file", true);
