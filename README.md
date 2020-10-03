@@ -5,6 +5,8 @@
 ## Overview
 *polyGembler* is program that constructs genetic linakge maps or chromosomal-scale pseudomolecules combining *de novo* genome assembly and genetic mapping. The method assumes availability of genome-wide genotyping data such as [GBS](https://en.wikipedia.org/wiki/Genotyping_by_sequencing), [RAD-seq](https://en.wikipedia.org/wiki/Restriction_site_associated_DNA_markers) and [SNP array](https://en.wikipedia.org/wiki/SNP_array) data, collected on a F1 outbred mapping population, as well as high coverage (i.e. greater than 30X) whole genome sequence data on a reference sample, or alternatively the availability of a set of reference contigs or scaffolds. By mapping marker set to contigs *polyGembler* infers contig haplotypes for each sample. Contig haplotypes are then used to infer linkage groups corresponding to chromosomes as well as the optimal ordering of contigs within these chromosomes.
 
+*polyGembler* provides a standalone haplotype phasing tool for outbred mapping populations (`haplotyper`, see XXX). It accepts either genotype data or allele depth data and support polyploids. It is very robust to the presence of substantial amounts of missing genotype data and genotyping errors.
+
 *polyGembler* also provides a tool for simulating outcrossed F1 mapping population GBS data. It uses the software [PedigreeSim V2.0](https://www.wur.nl/en/show/Software-PedigreeSim.htm) to simulate the full-sib family genomes and imitates the [GBS protocol](http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0019379) to generate GBS reads.
 
 *polyGembler* is written in Java. It has a user friendly design. All the tasks could be done with an one-liner command require no further manual intervention. It has been multithreaded where possible.
@@ -31,11 +33,43 @@ Both of them will generate an executable jar file *polyGembler-${version}-jar-wi
 
 The code has been tested with Java 7 and 8. The default version is Java 8. The [Apache Maven](https://maven.apache.org/) will fail if the system default Java version is not 8. This could be solved by either changing the system Java version or modifying the *pom.xml* file at line 22-23.
 
+## Prerequisites for running polyGembler
+
+*polyGembler* is a java program. You need [JRE](https://www.oracle.com/java/technologies/javase-downloads.html) installed in your system to run polyGembler. The code has been tested with Java 7 and 8. It should to safe to run the program with Java 7 or a newer version.
+
+For genetic linkage map construction (*polyGembler* program `map`), `R` need to be available in your system as well. `R` packages `argparse`, `TSP`, `MDSMap`, `igraph`, `doParallel`, and `foreach` need to be installed. 
+
 ## A pipeline for whole-chromosome pseudomolecule construction
 
+<img src="https://github.com/c-zhou/polyGembler/raw/master/pipeline_flowchart.png" width=600/>
 
+A one-liner command can be used to run *polyGembler* for construction of whole-chromosome pseudomolecules.
 
-## A quick start for running polyGembler programs
+*Input*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;a VCF file, a FASTA file of contigs/scaffolds
+
+*Output*&nbsp;&nbsp;&nbsp;several files related to the pseudomolecule construction
+
+*Command*
+
+    $ java -jar polyGembler-${version}-jar-with-dependencies.jar gembler -i ${in_vcf_file} -a ${seq_fasta_file} -p ${ploidy} -parent ${parent_samples} -t 32
+    
+The program takes input a VCF file and a FASTA file containing contig/scaffold sequences and outputs several files related to the pseudomolecule construction (see XXX). Some important parameters include the ploidy (-p option) and the parent samples (-parent option) and see XXX for other options. This pipeline could be time-consuming, so it is important run it with as many threads as possible (-t option).
+
+The pipeline comprise more than ten steps calling different *polyGembler* subprograms (see XXX). Figure XXX depicts the flowchart of the pipeline. *polyGembler* first converts the input VCF file to a zip file (`datapreparation`) that can be read by *polyGembler* programs. It then runs haplotype phasing for each contig/scaffold (`haplotyper`) and detect assembly errors (`asmerr`). The misaseembled contigs/scaffolds are split to generate new contigs/scaffolds which subject to another round of haplotype phasing (`haplotyper`). With the haplotype phasing results, *polyGembler* calculates recombination frequencies (RFs) for each pair of contigs/scaffolds (`twopoint`) which are used to build super scaffolds (`superscaffold`). *polyGembler* performs one more round of haplotype phasing with super scaffolds to improve the accuracy of haplotypes for contigs/scaffolds. The pairwise RFs between contigs/scaffolds are refined with the haplotypes of superscaffolds (`twopoint`). The RFs for SNP pairs within each contig/scaffold are also calculated to estimate the genetic length of the contig/scaffold (`singlepoint`). Next, with the RFs estimations, *polyGembler* constructs genetic linkage maps for contigs/scaffolds (`map`). The genetic linkage maps are then subject to several rounds of polishing before finalisation. Precisely, for each linkage map, *polyGembler* run haplotype phasing for it on the whole-linkage-map scale followed by RFs estimations and reordering of contigs/scaffolds. This process repeats for several rounds. Finally, pseudomolecules are constructed based on the polished genetic linkage maps (`chromosomer`). The superscaffold and polishing steps are optional for refinement and can be turned off by specific parameter settings (see XXX).
+
+The pseudomolecule construction pipeline can be time-consuming and resource-intensive, which is impractical to run `gembler` for extremely large datasets. It is possible, however, to run the pipeline step by step with a high performance computing (HPC) system. In the [example](example/README) folder, we provide a script to run the pipeline using a HPC with [Slurm Workload Manager](https://slurm.schedmd.com/documentation.html). It does NOT support other workload managers such as [PBS](https://en.wikipedia.org/wiki/Portable_Batch_System) and [LSF](https://en.wikipedia.org/wiki/Platform_LSF) yet.
+
+## A quick start for running *polyGembler* programs
+
+*polyGembler* consists of twelve programs. To get a full list of these programs, run 
+
+	$ java -jar polyGembler-${version}-jar-with-dependencies.jar
+
+The basic command to invoke a *polyGembler* progam is,
+
+	$ java -jar polyGembler-${version}-jar-with-dependencies.jar ${program_name}
+	
+Here we give some examples for a quick start for running *polyGembler* programs.
 
 #### 1. Simulate GBS data for an outcrossed F1 mapping population (popsimulation & gbssimulation)
 *Input*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;a reference FASTA file with all chromosomes
@@ -53,11 +87,11 @@ The first step simulates a tetraploid (-p option) F1 mapping population with 192
     
 The GBS data could be used for variant calling with [TASSEL-GBS](https://bitbucket.org/tasseladmin/tassel-5-source/wiki/Tassel5GBSv2Pipeline) pipeline or [Stacks](https://catchenlab.life.illinois.edu/stacks/manual/). 
 
-#### 2. Prepare data for running polyGembler from VCF file (datapreparation)
+#### 2. Prepare data for running *polyGembler* from VCF file (datapreparation)
 
 *Input*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;a VCF file
 
-*Output*&nbsp;&nbsp;&nbsp;a zip file accept by polyGembler programs
+*Output*&nbsp;&nbsp;&nbsp;a zip file accept by *polyGembler* programs
 
 *Command*
 
@@ -83,9 +117,9 @@ You can run multiple contigs/scaffolds simultaneously.
 
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar haplotyper -i ${in_zip_file} -ex ${expriment_id} -c ${contig_str_id}:${contig_str_id2}:${contig_str_id3} -r true:false:false -s 0.05:0.1 -p 2 -f ${parent_sample_1}:${parent_sample_2} -D -o ${haps_out_dir}
 
-This is very similar to run with the single contig/scaffold. Multiple contigs/scaffolds are provided with string ids separated by ":". As there could be different concatenation directions, -r option specifies if each contig/scaffold is in reverse direction or not. The default is not. The distances between the adjacent contigs/scaffolds are initialised with -s option, otherwise the program will generate them randomly. The distances could either be recombination frequencies (RFs) or physical distances in base pair. The program will check these numbers. If all of them are smaller than 0.5, then they will be taken as RFs, otherwise physical distances.
+This is very similar to run with the single contig/scaffold. Multiple contigs/scaffolds are provided with string ids separated by ":". As there could be different concatenation directions, -r option specifies if each contig/scaffold is in reverse direction or not. The default is not. The distances between the adjacent contigs/scaffolds are initialised with -s option, otherwise the program will generate them randomly. The distances could either be RFs or physical distances in base pair. The program will check these numbers. If all of them are smaller than 0.5, then they will be taken as RFs, otherwise physical distances.
 
-Expectation-maximisation (EM) algorithm is use for optimisation in construction of haplotypes, which could be trapped in local optima. Therefore, multiple independent runs should be performed to improve the accuracy. 
+Expectation-maximisation (EM) algorithm is used for optimisation in construction of haplotypes, which could be trapped in local optima. Therefore, multiple independent runs should be performed to improve the accuracy. 
 
 #### 4. Detect assembly errors (asmerr)
 
@@ -171,7 +205,7 @@ The program takes input the genetic linkage map file generated by program `map` 
 
 This is an auxiliary program independent from pseudomolecule construction. It is provided in order to evaluate the phasing accuracy of program `haplotyper`. It calculates the correct phasing rate which is defined as the proportion of the correctly phased loci with respect to the true haplotypes. The true haplotypes are provided with a VCF file (-p) containing phased genotypes.
 
-## More parameter options for polyGembler programs
+## More parameter options for *polyGembler* programs
 #### Twelve programs included in polyGembler
 <pre>
  popsimulation                   Simulate a full-sib mapping population.
@@ -215,7 +249,7 @@ This is an auxiliary program independent from pseudomolecule construction. It is
  -o/--output-prefix              Output directory (default current directory).
 </pre>
 
-#### 3. Prepare data for running polyGembler from VCF file (datapreparation)
+#### 3. Prepare data for running *polyGembler* from VCF file (datapreparation)
 <pre>
  -i/--vcf                        Input VCF file.
  -s/--id                         Unique id of this run (default: input VCF file name prefix).
@@ -425,7 +459,7 @@ This is an auxiliary program independent from pseudomolecule construction. It is
  b. ${out_dir}/*_key.txt         The key file for the GBS.
 </pre>
 
-#### 3. Prepare data for running polyGembler from VCF file (datapreparation)
+#### 3. Prepare data for running *polyGembler* from VCF file (datapreparation)
 <pre>
  a. ${out_dir}/*.${run_id}.vcf   A preprocessed VCF files. Variants are filtered.
  b. ${out_dir}/*.${run_id}.zip   A zip file can be read by polyGembler programs.
