@@ -3,11 +3,11 @@
 --------------------
 
 ## Overview
-*polyGembler* is program that constructs genetic linakge maps or chromosomal-scale pseudomolecules combining *de novo* genome assembly and genetic mapping. The method assumes availability of genome-wide genotyping data such as [GBS](https://en.wikipedia.org/wiki/Genotyping_by_sequencing), [RAD-seq](https://en.wikipedia.org/wiki/Restriction_site_associated_DNA_markers) and [SNP array](https://en.wikipedia.org/wiki/SNP_array) data, collected on a F1 outbred mapping population, as well as high coverage (i.e. greater than 30X) whole genome sequence data on a reference sample, or alternatively the availability of a set of reference contigs or scaffolds. By mapping marker set to contigs *polyGembler* infers contig haplotypes for each sample. Contig haplotypes are then used to infer linkage groups corresponding to chromosomes as well as the optimal ordering of contigs within these chromosomes.
+*polyGembler* is for construction of genetic linakge maps or chromosomal-scale pseudomolecules combining *de novo* genome assembly and genetic mapping. The method assumes availability of genome-wide genotyping data such as [GBS](https://en.wikipedia.org/wiki/Genotyping_by_sequencing), [RAD-seq](https://en.wikipedia.org/wiki/Restriction_site_associated_DNA_markers) and [SNP array](https://en.wikipedia.org/wiki/SNP_array) data, collected on a F1 outbred mapping population, as well as high coverage (i.e. greater than 30X) whole genome sequence data on a reference sample, or alternatively the availability of a set of reference contigs or scaffolds. By mapping marker set to contigs, *polyGembler* infers contig haplotypes for each sample. Contig haplotypes are then used to infer linkage groups corresponding to chromosomes as well as the optimal ordering of contigs within these chromosomes.
 
-*polyGembler* provides a standalone haplotype phasing tool for outbred mapping populations (`haplotyper`, see XXX). It accepts either genotype data or allele depth data and support polyploids. It is very robust to the presence of substantial amounts of missing genotype data and genotyping errors.
+*polyGembler* provides a standalone haplotype phasing tool for outbred mapping populations (*haplotyper*, see XXX). It accepts either genotype data or allele depth data and support polyploids. It is very robust to the presence of substantial amounts of missing genotype data and genotyping errors and therefore can handle low-coverage, error-prone genotyping data generated with the NGS-based high-throughput genetic marker discovery methods such as [GBS](https://en.wikipedia.org/wiki/Genotyping_by_sequencing), [RAD-seq](https://en.wikipedia.org/wiki/Restriction_site_associated_DNA_markers) and [RRL](https://en.wikipedia.org/wiki/Reduced_representation_bisulfite_sequencing).
 
-*polyGembler* also provides a tool for simulating outcrossed F1 mapping population GBS data. It uses the software [PedigreeSim V2.0](https://www.wur.nl/en/show/Software-PedigreeSim.htm) to simulate the full-sib family genomes and imitates the [GBS protocol](http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0019379) to generate GBS reads.
+*polyGembler* also provides a tool for simulating outbred F1 mapping population GBS data. It uses the software [PedigreeSim V2.0](https://www.wur.nl/en/show/Software-PedigreeSim.htm) to simulate the full-sib family genomes and imitates the [GBS protocol](http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0019379) to generate GBS reads.
 
 *polyGembler* is written in Java. It has a user friendly design. All the tasks could be done with an one-liner command require no further manual intervention. It has been multithreaded where possible.
 
@@ -15,7 +15,7 @@
 ## Installation
 
 #### Download from the releases
-The releases are executable jar files with all dependencies, which could be run directly.
+The release includes an executable jar file with all dependencies, which could be run directly.
 
 #### Compile from source code
 Java build tool either [Apache Ant](http://ant.apache.org/) or [Apache Maven](https://maven.apache.org/) is required.
@@ -31,13 +31,13 @@ Quick installation guide:
 
 Both of them will generate an executable jar file *polyGembler-${version}-jar-with-dependencies.jar*. For [Apache Ant](http://ant.apache.org/), the jar file is under *polyGembler/dist* directory. For [Apache Maven](https://maven.apache.org/), the jar file is under *polyGembler/target* directory.
 
-The code has been tested with Java 7 and 8. The default version is Java 8. The [Apache Maven](https://maven.apache.org/) will fail if the system default Java version is not 8. This could be solved by either changing the system Java version or modifying the *pom.xml* file at line 22-23.
+The code has been tested with Java 7 and 8. The default version is Java 8. The [Apache Maven](https://maven.apache.org/) will fail if the system default Java version is not 8. This could be solved by either changing the system Java version or modifying the *pom.xml* file at line 22-23. You can change the Java version for [Apache Ant](http://ant.apache.org/) by modifying the *build.xml* file at line 10-11.
 
 ## Prerequisites for running polyGembler
 
-*polyGembler* is a java program. You need [JRE](https://www.oracle.com/java/technologies/javase-downloads.html) installed in your system to run polyGembler. The code has been tested with Java 7 and 8. It should to safe to run the program with Java 7 or a newer version.
+*polyGembler* is a java program. You need [JRE](https://www.oracle.com/java/technologies/javase-downloads.html) installed in your system to run *polyGembler*. The code has been tested with Java 7 and 8. It should to safe to run the program with Java 7 or a newer version.
 
-For genetic linkage map construction (*polyGembler* program `map`), `R` need to be available in your system as well. `R` packages `argparse`, `TSP`, `MDSMap`, `igraph`, `doParallel`, and `foreach` need to be installed. 
+For genetic linkage map construction (*polyGembler* program *map*), *R* need to be available in your system as well. *R* packages *argparse*, *TSP*, *MDSMap*, *igraph*, *doParallel*, and *foreach* need to be installed. 
 
 ## A pipeline for whole-chromosome pseudomolecule construction
 
@@ -55,9 +55,9 @@ A one-liner command can be used to run *polyGembler* for construction of whole-c
     
 The program takes input a VCF file and a FASTA file containing contig/scaffold sequences and outputs several files related to the pseudomolecule construction (see XXX). Some important parameters include the ploidy (-p option) and the parent samples (-parent option) and see XXX for other options. This pipeline could be time-consuming, so it is important run it with as many threads as possible (-t option).
 
-The pipeline comprise more than ten steps calling different *polyGembler* subprograms (see XXX). Figure XXX depicts the flowchart of the pipeline. *polyGembler* first converts the input VCF file to a zip file (`datapreparation`) that can be read by *polyGembler* programs. It then runs haplotype phasing for each contig/scaffold (`haplotyper`) and detect assembly errors (`asmerr`). The misaseembled contigs/scaffolds are split to generate new contigs/scaffolds which subject to another round of haplotype phasing (`haplotyper`). With the haplotype phasing results, *polyGembler* calculates recombination frequencies (RFs) for each pair of contigs/scaffolds (`twopoint`) which are used to build super scaffolds (`superscaffold`). *polyGembler* performs one more round of haplotype phasing with super scaffolds to improve the accuracy of haplotypes for contigs/scaffolds. The pairwise RFs between contigs/scaffolds are refined with the haplotypes of superscaffolds (`twopoint`). The RFs for SNP pairs within each contig/scaffold are also calculated to estimate the genetic length of the contig/scaffold (`singlepoint`). Next, with the RFs estimations, *polyGembler* constructs genetic linkage maps for contigs/scaffolds (`map`). The genetic linkage maps are then subject to several rounds of polishing before finalisation. Precisely, for each linkage map, *polyGembler* run haplotype phasing for it on the whole-linkage-map scale followed by RFs estimations and reordering of contigs/scaffolds. This process repeats for several rounds. Finally, pseudomolecules are constructed based on the polished genetic linkage maps (`chromosomer`). The superscaffold and polishing steps are optional for refinement and can be turned off by specific parameter settings (see XXX).
+The pipeline comprises more than ten steps calling different *polyGembler* subprograms (see XXX). Figure XXX depicts the flowchart of the pipeline. *polyGembler* first converts the input VCF file to a zip file (*datapreparation*) that can be read by *polyGembler* programs. It then runs haplotype phasing for each contig/scaffold (*haplotyper*) and detects assembly errors (*asmerr*). The misaseembled contigs/scaffolds are split to generate new contigs/scaffolds which subject to another round of haplotype phasing (*haplotyper*). With the haplotype phasing results, *polyGembler* calculates recombination frequencies (RFs) for each pair of contigs/scaffolds (*twopoint*) which are used to build super scaffolds (*superscaffold*). *polyGembler* performs one more round of haplotype phasing with super scaffolds to improve the accuracy of haplotypes for contigs/scaffolds. The pairwise RFs between contigs/scaffolds are refined with the haplotypes of superscaffolds (*twopoint*). The RFs for SNP pairs within each contig/scaffold are also calculated to estimate the genetic length of the contig/scaffold (*singlepoint*). Next, with the RF estimations, *polyGembler* constructs genetic linkage maps for contigs/scaffolds (*map*). The genetic linkage maps are then subject to several rounds of polishing before finalisation. Precisely, for each linkage map, *polyGembler* run haplotype phasing for it on the whole-linkage-map scale followed by RF estimations and reordering of contigs/scaffolds. This process repeats for several rounds. Finally, pseudomolecules are constructed based on the polished genetic linkage maps (*chromosomer*). The superscaffold and polishing steps are optional for refinement and can be turned off by specific parameter settings (see XXX).
 
-The pseudomolecule construction pipeline can be time-consuming and resource-intensive, which is impractical to run `gembler` for extremely large datasets. It is possible, however, to run the pipeline step by step with a high performance computing (HPC) system. In the [example](example/) folder, we provide a script to run the pipeline using a HPC with [Slurm Workload Manager](https://slurm.schedmd.com/documentation.html). It does NOT support other workload managers such as [PBS](https://en.wikipedia.org/wiki/Portable_Batch_System) and [LSF](https://en.wikipedia.org/wiki/Platform_LSF) yet.
+The pseudomolecule construction pipeline can be time-consuming and resource-intensive, which is impractical to run *gembler* for extremely large datasets. It is possible, however, to run the pipeline step by step with a high performance computing (HPC) system. In the [example](example/) folder, we provide a script ([gembler_daemon.sh](example/gembler_daemon.sh)) to run the pipeline with HPC using [Slurm Workload Manager](https://slurm.schedmd.com/documentation.html). The scripts support other workload managers such as [PBS](https://en.wikipedia.org/wiki/Portable_Batch_System) and [LSF](https://en.wikipedia.org/wiki/Platform_LSF) are yet to come.
 
 ## A quick start for running *polyGembler* programs
 
@@ -71,21 +71,21 @@ The basic command to invoke a *polyGembler* progam is,
 	
 Here we give some examples for a quick start for running *polyGembler* programs.
 
-#### 1. Simulate GBS data for an outcrossed F1 mapping population (popsimulation & gbssimulation)
+#### 1. Simulate GBS data for an outbred F1 mapping population (popsimulation & gbssimulation)
 *Input*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;a reference FASTA file with all chromosomes
 
-*Output*&nbsp;&nbsp;&nbsp;gzipped FASTQ files contains GBS reads for per each sample
+*Output*&nbsp;&nbsp;&nbsp;gzipped FASTQ files containing GBS reads for per each sample
 
 *Command*
 
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar popsimulation -r ${ref_fasta_file} -n 192 -p 4 -c 200 -t 32 -o ${pop_out_dir}
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar gbssimulation -f ${pop_out_dir}/Sc1 -m 10 -s 5 -t 32 -o ${gbs_out_dir}
 
-The first step simulates a tetraploid (-p option) F1 mapping population with 192 samples (-n option) from the reference genome ${ref\_fasta\_file} (-r option). The total genetic length of the chromosomes is 200cm (-c option). It uses 32 CPUs (-t option). The output sample genomes (FASTA files) will be in ${pop\_out\_dir}/Sc1 (-o option). The second step takes the simulated mapping population genomes in the first step as input (-f option). The average sequencing depth of coverage for each copy of the chromosome is 10 (-m option) and the standard deviation is 5 (-s option). It uses 32 CPUs (-t option). The output GBS data (FASTQ file) will be in ${gbs\_out\_dir} (-o option). The program write GBS reads for each sample separately as a [gzipped](https://en.wikipedia.org/wiki/Gzip) file. If you need to put all GBS reads together, simply use the [cat](https://en.wikipedia.org/wiki/Cat_(Unix)) command.
+The first step simulates a tetraploid (-p option) F1 mapping population with 192 samples (-n option) from the reference genome ${ref\_fasta\_file} (-r option). The total genetic length of the chromosomes is 200cm (-c option). It uses 32 CPUs (-t option). The output sample genomes (FASTA files) will be in ${pop\_out\_dir}/Sc1 (-o option). The second step takes the simulated mapping population genomes in the first step as input (-f option). The average sequencing depth of coverage for each copy of the chromosome around the restriction enzyme is 10 (-m option) and the standard deviation is 5 (-s option). It uses 32 CPUs (-t option). The output GBS data (FASTQ file) will be in ${gbs\_out\_dir} (-o option). The program write GBS reads for each sample separately as a [gzipped](https://en.wikipedia.org/wiki/Gzip) file. If you need to put all GBS reads together, simply use the [cat](https://en.wikipedia.org/wiki/Cat_(Unix)) command.
 
     $ cat ${gbs_out_dir}/*.gz > ${merged_gbs_file}.gz
     
-The GBS data could be used for variant calling with [TASSEL-GBS](https://bitbucket.org/tasseladmin/tassel-5-source/wiki/Tassel5GBSv2Pipeline) pipeline or [Stacks](https://catchenlab.life.illinois.edu/stacks/manual/). 
+The GBS data could be used for variant calling with [TASSEL-GBS](https://bitbucket.org/tasseladmin/tassel-5-source/wiki/Tassel5GBSv2Pipeline) pipeline or [Stacks](https://catchenlab.life.illinois.edu/stacks/manual/). A example script to run [TASSEL-GBS](https://bitbucket.org/tasseladmin/tassel-5-source/wiki/Tassel5GBSv2Pipeline) is provided in [example](example/) ([runGBSv2.sh][example/runGBSv2.sh]).
 
 #### 2. Prepare data for running *polyGembler* from VCF file (datapreparation)
 
@@ -97,7 +97,7 @@ The GBS data could be used for variant calling with [TASSEL-GBS](https://bitbuck
 
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar datapreparation -i ${in_vcf_file} -s ${run_id} -u 3000 -q 30 -f 0.05 -m 0.5 -o ${out_dir}
     
-The VCF file is provided with -i option. The program will filter the variants according to the parameters specified by user. Here the upper bound of total allele depth (DP field in VCF files) for a position is set to 3000 (-u option). If the DP field exceeds 3000, the variant will be filtered out. This is used to remove ambiguous variants caused by copy number variation. The minimum quality score of a SNP is set 30 (-q option). SNPs with quality score lower than 30 will be discarded. The lower bound of minor allele frequency is set to 0.05. The rare variants called from a F1 full-sib family is very likely caused by sequencing errors. The maximum missing data rate across a locus is set to 0.5. Loci with more than 50% missing genotypes will be filtered out. It should be noted here that the program only deals with biallelic SNPs currently. The output is a zip file named ${run\_id}.zip located in directory ${out\_dir}.
+The VCF file is provided with -i option. The program will filter the variants according to the parameters specified by user. Here the upper bound of total allele depth (DP field in the VCF file) for a position is set to 3000 (-u option). If the DP field exceeds 3000, the variant will be filtered out. This is used to remove ambiguous variants caused by copy number variation. The minimum quality score of a SNP is set 30 (-q option). SNPs with quality score lower than 30 will be discarded. The lower bound of minor allele frequency is set to 0.05. The rare variants called from a F1 full-sib family is very likely caused by sequencing errors. The maximum missing data rate across a locus is set to 0.5. Loci with more than 50% missing genotypes will be filtered out. It should be noted here that the program only deals with biallelic SNPs currently. The output is a zip file named ${run\_id}.zip located in directory ${out\_dir}.
 
 #### 3. Run haplotype phasing algorithm (haplotyper)
 
@@ -106,18 +106,16 @@ The VCF file is provided with -i option. The program will filter the variants ac
 *Output*&nbsp;&nbsp;&nbsp;inferred haplotypes for a contig or scaffold
 
 *Command*
-    
-Run the haplotype phasing algorithm.
 
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar haplotyper -i ${in_zip_file} -ex ${expriment_id} -c ${contig_str_id} -p 2 -f ${parent_sample_1}:${parent_sample_2} -D -o ${haps_out_dir}
     
-The program takes the zip file generated in the data preparation step and a contig/scaffold string id as input. User need to specify the ploidy and optionally the ids of parental samples if available. -D option tells the program to use the allele depth information, which is default. Otherwise user could run with -G option which utilises genotype information. The output file directory is specified with -o option and the output is a zip file starts with ${expriment\_id}.
+The program takes the zip file generated in the data preparation step and a contig/scaffold string id as input. User need to specify the ploidy and optionally the ids of parental samples if available. -D option tells the program to use the allele depth information, which is default. Otherwise user could run it with -G option which utilises genotype information. The output file directory is specified with -o option and the output is a zip file starts with ${expriment\_id}. See XXX for the details about the output file.
 
 You can run multiple contigs/scaffolds simultaneously. 
 
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar haplotyper -i ${in_zip_file} -ex ${expriment_id} -c ${contig_str_id}:${contig_str_id2}:${contig_str_id3} -r true:false:false -s 0.05:0.1 -p 2 -f ${parent_sample_1}:${parent_sample_2} -D -o ${haps_out_dir}
 
-This is very similar to run with the single contig/scaffold. Multiple contigs/scaffolds are provided with string ids separated by ":". As there could be different concatenation directions, -r option specifies if each contig/scaffold is in reverse direction or not. The default is not. The distances between the adjacent contigs/scaffolds are initialised with -s option, otherwise the program will generate them randomly. The distances could either be RFs or physical distances in base pair. The program will check these numbers. If all of them are smaller than 0.5, then they will be taken as RFs, otherwise physical distances.
+This is very similar to run it with the single contig/scaffold. Multiple contigs/scaffolds are provided with string ids separated by colons. As there could be different concatenation directions, -r option specifies if each contig/scaffold is in reverse direction or not. The default is not. The distances between the adjacent contigs/scaffolds are initialised with -s option, otherwise the program will generate them randomly. The distances could either be RFs or physical distances in base pair. The program will check these numbers. If all of them are smaller than 0.5, then they will be taken as RFs, otherwise physical distances.
 
 Expectation-maximisation (EM) algorithm is used for optimisation in construction of haplotypes, which could be trapped in local optima. Therefore, multiple independent runs should be performed to improve the accuracy. 
 
@@ -149,7 +147,7 @@ The program takes input the phased haplotypes (-i option) and outputs the recomb
 
 *Input*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;output files for haplotype phasing
 
-*Output*&nbsp;&nbsp;&nbsp;a file contains the RFs between each pair of contig/scaffold
+*Output*&nbsp;&nbsp;&nbsp;a file containing the RFs between each pair of contigs/scaffolds
 
 *Command*
 
@@ -167,7 +165,7 @@ The program takes input the phased haplotypes (-i option) and outputs pairwise R
 
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar map -i ${twopoint_rf}.txt -m ${singlepoint_rf}.map -rlib ${rlib_external_dir} -t 8 -o ${out_prefix}
 
-The program consists of two steps: grouping and ordering. To run this program, `Rscript` need to be in the environment. The `R` packages `argparse`, `TSP`, `MDSMap`, `igraph`, `doParallel`, and `foreach` should be installed. If the `R` packages are installed in non-default library paths, the option -rlib could be used to provide the installation path to the program. The output file ${out\_prefix}.mct contains the genetic map information. This program is multithreaded (-t option).
+The program consists of two steps: grouping and ordering. To run this program, *Rscript* need to be in the environment. The *R* packages *argparse*, *TSP*, *MDSMap*, *igraph*, *doParallel*, and *foreach* should be installed. If the *R* packages are installed in non-default library paths, the option -rlib could be used to provide the installation path to the program. The output file ${out\_prefix}.mct contains the genetic map information. This program is multithreaded (-t option).
 
 #### 8. Construct super scaffolds (superscaffold)
 
@@ -183,7 +181,7 @@ The program constructs super scaffolds with the pairwise RF estimations using a 
 
 #### 9. Construct pseudomolecules (chromosomer)
 
-*Input*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;genetic linkage map file (generated by program `map`), contig/scaffold sequences in FASTA format, assembly error file (optional, generated by program `asmerr`)
+*Input*&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;genetic linkage map file (generated by program *map*), contig/scaffold sequences in FASTA format, assembly error file (optional, generated by program *asmerr*)
 
 *Output*&nbsp;&nbsp;&nbsp;one AGP and two FASTA files describe the pseudomolecules
 
@@ -191,7 +189,7 @@ The program constructs super scaffolds with the pairwise RF estimations using a 
 
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar chromosomer -i ${map_mct_file} -a ${seq_fasta_file} -e ${asm_err_file} -n 1000 -o ${out_prefix}
 
-The program takes input the genetic linkage map file generated by program `map` (-i option), the FASTA file contains contig/scaffolds sequences (-a option) and optionally, the file contains assembly errors generated by program `asmerr` (-e option), and outputs several files to describe the pseudomolecules including two FASTA files containing sequences for raw contigs/scaffolds (after splitting for misassembly) and pseudomolecules, respectively, and an AGP file describing the architecture of pseudomolecules. To construct pseudomolecules, neighbouring raw contigs/scaffolds are joined with a poly 'n' of size defined by -n option. 
+The program takes input the genetic linkage map file generated by program *map* (-i option), the FASTA file contains contig/scaffolds sequences (-a option) and optionally, the file contains assembly errors generated by program *asmerr* (-e option), and outputs several files to describe the pseudomolecules including two FASTA files containing sequences for raw contigs/scaffolds (after splitting for misassembly) and pseudomolecules, respectively, and an AGP file describing the architecture of pseudomolecules. To construct pseudomolecules, neighbouring raw contigs/scaffolds are joined with a poly 'n' of size defined by -n option. 
 
 #### 10. Evaluate phasing accuracy (evaluator)
 
@@ -203,7 +201,7 @@ The program takes input the genetic linkage map file generated by program `map` 
 
     $ java -jar polyGembler-${version}-jar-with-dependencies.jar evaluator -i ${haps_out_dir} -p ${true_phased_genotype_file} -ex ${experiment_id}
 
-This is an auxiliary program independent from pseudomolecule construction. It is provided in order to evaluate the phasing accuracy of program `haplotyper`. It calculates the correct phasing rate which is defined as the proportion of the correctly phased loci with respect to the true haplotypes. The true haplotypes are provided with a VCF file (-p) containing phased genotypes.
+This is an auxiliary program independent from pseudomolecule construction. It is provided in order to evaluate the phasing accuracy of program *haplotyper*. It calculates the correct phasing rate which is defined as the proportion of the correctly phased loci with respect to the true haplotypes. The true haplotypes are provided with a VCF file (-p option) containing phased genotypes.
 
 ## More parameter options for *polyGembler* programs
 #### Twelve programs included in polyGembler
@@ -222,7 +220,7 @@ This is an auxiliary program independent from pseudomolecule construction. It is
  gembler                         Run PolyGembler pipeline to construct genetic linkage maps/pseudomolecules.
 </pre>
 
-#### 1. Simulate an outcrossed F1 mapping population (popsimulation)
+#### 1. Simulate an outbred F1 mapping population (popsimulation)
 <pre>
  -r/--reference                  Reference (fasta file format).
  -n/--pop-size                   Population size including parents (default 96).
@@ -447,7 +445,7 @@ This is an auxiliary program independent from pseudomolecule construction. It is
 ## Details about the output files
 
 
-#### 1. Simulate an outcrossed F1 mapping population (popsimulation)
+#### 1. Simulate an outbred F1 mapping population (popsimulation)
 <pre>
  a. ${out_dir}/Sc1/*.fasta.gz    Gzipped files with genome sequences. One for each sample.
  b. ${out_dir}/*.*               Meta files used and generated by PedigreeSim V2.0.
