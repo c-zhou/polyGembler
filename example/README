@@ -6,8 +6,8 @@ it as needed before running it.
 
 A list of files in this folder:
 
-gembler_daemon.sh              # a daemon script to run the whole polyGembler pipeline
-gembler_wrapper.sh             # a wrapper script to run polyGembler sub-commands
+gembler_daemon.sh              # a daemon script to run the whole polyGembler pipeline with Slurm
+gembler_wrapper.sh             # a wrapper script to run polyGembler subprograms
 runGBSv2.sh                    # an example script to run the Tassel 5 GBS pipeline
 simulateF1GBS.sh               # an example script to run polyGembler for F1 GBS data simulation
 SNPfiltering.sh                # an example script to call SNPfiltering.R

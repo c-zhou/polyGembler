@@ -41,7 +41,7 @@ For genetic linkage map construction (*polyGembler* program `map`), `R` need to 
 
 ## A pipeline for whole-chromosome pseudomolecule construction
 
-<img src="https://github.com/c-zhou/polyGembler/raw/master/pipeline_flowchart.png" width=600/>
+<img src="pipeline_flowchart.png" width=600/>
 
 A one-liner command can be used to run *polyGembler* for construction of whole-chromosome pseudomolecules.
 
