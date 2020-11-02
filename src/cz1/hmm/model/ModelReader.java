@@ -14,22 +14,34 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import cz1.util.Utils;
 
 public class ModelReader { 
+	private final static Logger myLogger = LogManager.getLogger(ModelReader.class);
+	
 	private final ZipFile in;
 	private InputStream is;
 	private BufferedReader br;
 
 	public ModelReader(String in) {
 		// TODO Auto-generated method stub
+		ZipFile zipFile = null;
 		try {
-			this.in = new ZipFile(in);
+			zipFile = new ZipFile(in);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
-			throw new RuntimeException(e.getMessage());
+			// throw new RuntimeException(e.getMessage());
+			myLogger.info("zip file "+in+" is empty. Skipped.");
 		}
+		this.in = zipFile;
+	}
+	
+	public boolean isNull() {
+		// TODO Auto-generated method stub
+		return this.in == null;
 	}
 
 	private void setEntryReader(String target) {

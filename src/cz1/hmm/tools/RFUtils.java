@@ -88,6 +88,8 @@ public abstract class RFUtils extends Executor {
 			// TODO Auto-generated method stub
 			try {
 				ModelReader modelReader = new ModelReader(file);
+				if(modelReader.isNull()) return;
+				
 				int[] haps_observed = modelReader.getHapCounts();
 				
 				if(haps_observed.length!=ploidy*2) {
@@ -246,7 +248,13 @@ public abstract class RFUtils extends Executor {
 				return name.startsWith(expr_id);
 			}
 		});
-		ModelReader modelReader = new ModelReader(listFiles[0].getAbsolutePath());
+		
+		int i = 0;
+		ModelReader modelReader = new ModelReader(listFiles[i].getAbsolutePath());
+		while(modelReader.isNull()&&i<listFiles.length) {
+			++i;
+			modelReader = new ModelReader(listFiles[i].getAbsolutePath());
+		}
 		ploidy = modelReader.getPloidy();
 		parents = modelReader.getParents();
 		progeny = modelReader.getProgeny();
