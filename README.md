@@ -548,3 +548,6 @@ This is an auxiliary program independent from pseudomolecule construction. It is
 
 <h2 id="cite">Citing polyGembler</h2>
 
+The method is described in:
+
+Zhou, C., Olukolu, B., Gemenet, D.C. et al. Assembly of whole-chromosome pseudomolecules for polyploid plant genomes using outbred mapping populations. *Nat Genet* 52, 1256–1264 (2020). https://doi.org/10.1038/s41588-020-00717-7
