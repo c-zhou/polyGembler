@@ -1,4 +1,4 @@
-# *polyGembler*: pseudomolecule construction combining *de novo* assembly and genetic mapping
+# *polyGembler*: pseudomolecule construction combining *de novo* assembly and genetic mapping [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4308253.svg)](https://doi.org/10.5281/zenodo.4308253)
 
 --------------------
 
