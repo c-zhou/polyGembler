@@ -234,10 +234,12 @@ public abstract class EmissionModel {
 					g = gt.get(j).get(i);
 					acnt = 0;
 					bcnt = 0;
-					for(int k=0; k<H; k++) {
-						acnt += (g[k].equals(a[0]) ? 1 : 0);
-						bcnt += (g[k].equals(a[1]) ? 1 : 0);
-					}
+                    if (g.length==H) {
+					    for(int k=0; k<H; k++) {
+						    acnt += (g[k].equals(a[0]) ? 1 : 0);
+						    bcnt += (g[k].equals(a[1]) ? 1 : 0);
+					    }
+                    }
 					obs[i][j] = new ObUnit(pid, acnt+bcnt, acnt, K);
 					if(acnt+bcnt<H) ++miss_cnt;
 				}
@@ -334,11 +336,13 @@ public abstract class EmissionModel {
 			for(int j=0; j<N; j++) {
 				if(fi1ter[j]) continue;
 				String[] g = gt.get(j);
-				for(int k=0; k<H; k++) {
-					acnt += (g[k].equals(allele[0]) ? 1 : 0);
-					bcnt += (g[k].equals(allele[1]) ? 1 : 0);
-				}
-			}
+                if (g.length==H) {
+				    for(int k=0; k<H; k++) {
+					    acnt += (g[k].equals(allele[0]) ? 1 : 0);
+					    bcnt += (g[k].equals(allele[1]) ? 1 : 0);
+				    }
+			    }
+            }
 			break;
 		default:
 			throw new RuntimeException("!!!");

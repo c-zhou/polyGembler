@@ -836,19 +836,21 @@ public class Gembler extends Executor {
 		//#### STEP 9 construct pseudomolecules
 		myLogger.info("STEP 9 construct pseudomolecules");
 		
-		if(contig_file==null) myLogger.info("No assembly file provided, "
+		if(contig_file==null) {
+            myLogger.info("No assembly file provided, "
 				+ "pseudomolecule construction module skipped.");
-		
-		Pseudomolecule pseudom = new Pseudomolecule();
-		pseudom.setParameters(new String[] {
-				"-i", out_prefix+"/final.mct",
-				"-a", contig_file,
-				"-e", out_prefix+"/final.err",
-				"-n", String.valueOf(n_gap),
-				"-o", out_prefix+"/final"
-		});
-		pseudom.run();
-	}
+        } else {
+		    Pseudomolecule pseudom = new Pseudomolecule();
+		    pseudom.setParameters(new String[] {
+                    "-i", out_prefix+"/final.mct",
+				    "-a", contig_file,
+				    "-e", out_prefix+"/final.err",
+				    "-n", String.valueOf(n_gap),
+				    "-o", out_prefix+"/final"
+		    });
+		    pseudom.run();
+	    }
+    }
 
 	private void pendVCFContent(String sourceVcf, String targetVcf) {
 		// TODO Auto-generated method stub

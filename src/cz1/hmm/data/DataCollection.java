@@ -208,7 +208,7 @@ public class DataCollection {
 					genotype = new String[s2.length];
 					for(int j=0; j<s2.length; j++) 
 						if(s2[j].equals("."))
-							genotype[j] = ".";
+							genotype[j] = "!";
 						else
 							genotype[j] = allele_l[Integer.parseInt(s2[j])];
 					entry.add(genotype);
